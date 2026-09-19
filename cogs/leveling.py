@@ -296,17 +296,19 @@ class LevelingCog(commands.Cog):
     )
     @app_commands.describe(
         wins="Your total win count",
-        screenshot="Screenshot proof of your wins",
+        in_game_level="Your current in-game level",
+        screenshot="Screenshot proof of your wins and level",
     )
     async def submit_wins(
         self,
         interaction: discord.Interaction,
         wins: int,
+        in_game_level: int,
         screenshot: discord.Attachment,
     ):
-        if wins < 0:
+        if wins < 0 or in_game_level < 0:
             return await interaction.response.send_message(
-                "❌ Wins can't be negative!", ephemeral=True)
+                "❌ Wins and Level can't be negative!", ephemeral=True)
 
         # Validate it's an image
         if not screenshot.content_type or not screenshot.content_type.startswith("image"):
@@ -335,10 +337,11 @@ class LevelingCog(commands.Cog):
             inline=True,
         )
         embed.add_field(name="🏆 Claimed Wins", value=str(wins), inline=True)
+        embed.add_field(name="🎮 Claimed Level", value=str(in_game_level), inline=True)
 
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
-        embed.add_field(name="📊 Current Recorded", value=str(data["wins"]), inline=True)
-        embed.add_field(name="📈 Level", value=str(data["level"]), inline=True)
+        embed.add_field(name="📊 Current Recorded Wins", value=str(data["wins"]), inline=False)
+        embed.add_field(name="📈 Chat XP Level", value=str(data["level"]), inline=True)
         embed.set_image(url=screenshot.url)
         embed.set_footer(text=f"User ID: {interaction.user.id}")
 
