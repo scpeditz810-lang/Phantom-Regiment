@@ -268,9 +268,9 @@ class LevelingCog(commands.Cog):
     @app_commands.describe(member="The member", wins="Their verified total wins", in_game_level="Their verified in-game level", message="Optional message to send to the user via DM")
     async def set_stats(self, interaction: discord.Interaction,
                         member: discord.Member, wins: int, in_game_level: int, message: str | None = None):
-        if not ({r.name for r in interaction.user.roles} & _STAFF_NAMES):
+        if not ({r.name for r in interaction.user.roles} & _STAFF_NAMES) and not any(r.id == 1550978510229733396 for r in interaction.user.roles):
             return await interaction.response.send_message(
-                "❌ Staff or Commander only.", ephemeral=True)
+                "❌ Staff, Commander, or Branch Commander only.", ephemeral=True)
         if wins < 0 or in_game_level < 0:
             return await interaction.response.send_message(
                 "❌ Stats can't be negative.", ephemeral=True)

@@ -48,7 +48,7 @@ _ANSWER_LABELS = [
 # ════════════════════════════════════════════════════════════════════════════════
 
 def _is_reviewer(member: discord.Member) -> bool:
-    return bool({r.name for r in member.roles} & _REVIEWERS)
+    return bool({r.name for r in member.roles} & _REVIEWERS) or any(r.id == 1550978510229733396 for r in member.roles)
 
 
 class _AcceptBtn(
