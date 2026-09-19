@@ -5,7 +5,7 @@ Flow
 ────
 1. Member joins → gets Unverified role (can only see #welcome, #rules, #announcements).
 2. Bot posts "A DM from our bot will be sent to you!" in #welcome.
-3. Bot DMs the member 7 questions one-by-one (5 min timeout each).
+3. Bot DMs the member 9 questions one-by-one (5 min timeout each).
 4. All answers compiled → embed posted to #app-review with Yes / No.
 5. Yes  → remove Unverified, add Rookie + Member roles, DM welcome.
 6. No   → DM with "Appeal Again" button (5-hour cooldown).
@@ -32,11 +32,14 @@ _QUESTIONS = [
     ("5️⃣", "How much **playtime** do you have in the game?"),
     ("6️⃣", "Will you agree to respect and follow the instructions of your **seniors** (Commanders, Admins, etc.)?"),
     ("7️⃣", "What type of **tactics and units** do you prefer to use?"),
+    ("8️⃣", "What is your **Roblox username**?"),
+    ("9️⃣", "What is your current **in-game level**?"),
 ]
 
 _ANSWER_LABELS = [
     "🎂 Age", "🏆 Wins", "⚔️ Kills", "🌍 Timezone",
     "⏱️ Playtime", "🤝 Agree to Seniors?", "🎯 Tactics & Units",
+    "🎮 Roblox Username", "📊 In-Game Level",
 ]
 
 
@@ -230,7 +233,7 @@ class ApplicationCog(commands.Cog):
             intro = discord.Embed(
                 title=f"📝 Application — {guild.name}",
                 description=(
-                    "I'll ask you **7 questions** one at a time.\n"
+                    "I'll ask you **9 questions** one at a time.\n"
                     "Just type your answer after each question.\n"
                     "You have **5 minutes** per question — take your time!"
                 ),
