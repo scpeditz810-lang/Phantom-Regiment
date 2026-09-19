@@ -76,6 +76,30 @@ class _AcceptBtn(
         if not member:
             return await interaction.response.send_message("❌ User not found in server.", ephemeral=True)
 
+        # Show modal for optional additional message
+        modal = _AcceptMessageModal(member, guild, interaction.message)
+        await interaction.response.send_modal(modal)
+
+
+class _AcceptMessageModal(discord.ui.Modal, title="Accept Application"):
+    extra_message = discord.ui.TextInput(
+        label="Additional message to send via DM (optional)",
+        placeholder="e.g. We have sent you an invite, please accept it!",
+        required=False,
+        style=discord.TextStyle.paragraph,
+        max_length=500,
+    )
+
+    def __init__(self, member: discord.Member, guild: discord.Guild, orig_message: discord.Message):
+        super().__init__()
+        self.member = member
+        self.guild = guild
+        self.orig_message = orig_message
+
+    async def on_submit(self, interaction: discord.Interaction):
+        member = self.member
+        guild = self.guild
+
         # Remove Unverified, add Rookie + Member
         unverified = discord.utils.get(guild.roles, name="Unverified")
         rookie     = discord.utils.get(guild.roles, name=ACCEPTED_ROLE)
@@ -89,19 +113,22 @@ class _AcceptBtn(
         if roles_rm:
             await member.remove_roles(*roles_rm, reason="Application accepted")
 
-        await interaction.client.db.clear_app_cooldown(self.uid)
+        await interaction.client.db.clear_app_cooldown(member.id)
 
         # Update embed
-        embed = interaction.message.embeds[0].copy()
+        embed = self.orig_message.embeds[0].copy()
         embed.colour = discord.Colour.green()
         embed.add_field(name="✅ Result", value=f"Accepted by {interaction.user.mention}", inline=False)
-        await interaction.message.edit(embed=embed, view=None)
+        await self.orig_message.edit(embed=embed, view=None)
 
         try:
-            await member.send(
+            dm_msg = (
                 f"🎉 **Welcome to {guild.name}!** Your application has been **accepted**!\n"
                 f"You've been given the **{ACCEPTED_ROLE}** role. See you on the battlefield! ⚔️"
             )
+            if self.extra_message.value.strip():
+                dm_msg += f"\n\n📩 **Message from staff:** {self.extra_message.value.strip()}"
+            await member.send(dm_msg)
         except discord.Forbidden:
             pass
 

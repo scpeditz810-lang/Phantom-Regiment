@@ -265,9 +265,9 @@ class LevelingCog(commands.Cog):
         name="set-stats",
         description="Directly set a member's win count and in-game level (Staff / Commander)",
     )
-    @app_commands.describe(member="The member", wins="Their verified total wins", in_game_level="Their verified in-game level")
+    @app_commands.describe(member="The member", wins="Their verified total wins", in_game_level="Their verified in-game level", message="Optional message to send to the user via DM")
     async def set_stats(self, interaction: discord.Interaction,
-                        member: discord.Member, wins: int, in_game_level: int):
+                        member: discord.Member, wins: int, in_game_level: int, message: str | None = None):
         if not ({r.name for r in interaction.user.roles} & _STAFF_NAMES):
             return await interaction.response.send_message(
                 "❌ Staff or Commander only.", ephemeral=True)
@@ -295,7 +295,10 @@ class LevelingCog(commands.Cog):
             msg += f"\nThey now qualify for **{qualified['name']}** role!"
             
         try:
-            await member.send(f"✅ Your stats have been verified and updated by {interaction.user.mention}! You now have **{wins} Wins** and are **Level {in_game_level}**.")
+            dm_msg = f"✅ Your stats have been verified and updated by {interaction.user.mention}! You now have **{wins} Wins** and are **Level {in_game_level}**."
+            if message and message.strip():
+                dm_msg += f"\n\n📩 **Message from staff:** {message.strip()}"
+            await member.send(dm_msg)
         except discord.Forbidden:
             msg += "\n⚠️ Could not DM the user (their DMs are closed)."
             
