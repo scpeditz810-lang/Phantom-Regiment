@@ -128,13 +128,21 @@ class InfoDropdown(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         if self.values[0] == "Server Information":
+            rules_ch = discord.utils.get(interaction.guild.channels, name="📜│rules")
+            faq_ch = discord.utils.get(interaction.guild.channels, name="❓│faq")
+            ann_ch = discord.utils.get(interaction.guild.channels, name="📢│announcements")
+            
+            rules_str = rules_ch.mention if rules_ch else "#📜│rules"
+            faq_str = faq_ch.mention if faq_ch else "#❓│faq"
+            ann_str = ann_ch.mention if ann_ch else "#📢│announcements"
+            
             embed = discord.Embed(
                 title="📖 Server Information",
                 description=(
                     "Welcome to the clan! Our server is designed to reward activity and participation.\n\n"
-                    "• Please read the <#📜│rules> carefully to avoid moderation actions.\n"
-                    "• Check <#❓│faq> if you have any immediate questions.\n"
-                    "• Keep an eye on <#📢│announcements> for major clan updates."
+                    f"• Please read the {rules_str} carefully to avoid moderation actions.\n"
+                    f"• Check {faq_str} if you have any immediate questions.\n"
+                    f"• Keep an eye on {ann_str} for major clan updates."
                 ),
                 color=0x3498DB
             )
