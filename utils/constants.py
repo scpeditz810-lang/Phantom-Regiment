@@ -11,7 +11,7 @@ XP_COOLDOWN = 60           # Seconds between XP gains
 
 def xp_for_level(level: int) -> int:
     """XP required to advance FROM the given level to the next."""
-    return 5 * level ** 2 + 50 * level + 100
+    return 300 * (level + 1)
 
 
 # ─── Level Roles (auto-assigned purely by XP level) ────────────────────────────
