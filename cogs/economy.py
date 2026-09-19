@@ -20,6 +20,10 @@ SHOP_ITEMS = {
     # Utility
     "heal_potion": {"name": "🧪 Heal Potion", "price": 500, "type": "utility", "desc": "Consumable: Heals 30 HP during combat."},
     "lancers_horse": {"name": "🐎 Lancer's Horse", "price": 3000, "type": "utility", "desc": "Passive: +15 Speed, +10% Dodge, +10% Accuracy"},
+    "berserker_axe": {"name": "🪓 Berserker's Axe", "price": 1800, "type": "weapon", "min_dmg": 20, "max_dmg": 35, "dodge": 0, "acc": 0, "speed": 0, "desc": "20-35 DMG"},
+    "spartans_shield": {"name": "🛡️ Spartan's Shield", "price": 2200, "type": "utility", "desc": "Passive: +30% Dodge (Block Chance)"},
+    "immortals_mask": {"name": "🎭 Immortal's Mask", "price": 2800, "type": "utility", "desc": "Passive: +35% Accuracy"},
+
 }
 
 class BannerSelect(discord.ui.Select):
@@ -146,6 +150,10 @@ class Fighter:
                 self.speed += 15
                 self.dodge += 10
                 self.accuracy += 10
+            elif item_id == "spartans_shield":
+                self.dodge += 30
+            elif item_id == "immortals_mask":
+                self.accuracy += 35
 
 class BattleView(discord.ui.View):
     def __init__(self, p1: Fighter, p2: Fighter, bot: commands.Bot, message: discord.Message):
