@@ -124,7 +124,8 @@ class InfoDropdown(discord.ui.Select):
             discord.SelectOption(label="Role Information", description="How roles work", emoji="📰"),
             discord.SelectOption(label="Level System", description="How the XP/Level system works in detail", emoji="⭐"),
             discord.SelectOption(label="Medal Economy", description="How to earn and spend Medals", emoji="🏅"),
-            discord.SelectOption(label="Bot Commands", description="A detailed list of all bot commands", emoji="🤖")
+            discord.SelectOption(label="Bot Commands", description="A detailed list of all bot commands", emoji="🤖"),
+            discord.SelectOption(label="Arena Combat", description="How the Pokétwo style /fight system works!", emoji="⚔️")
         ]
         super().__init__(placeholder="Make a selection", options=options, custom_id="persistent_info_dropdown_v2")
 
@@ -210,7 +211,12 @@ class InfoDropdown(discord.ui.Select):
             )
             embed.add_field(
                 name="🏅 Economy & Shop",
-                value="`/daily` - Claim 100 free Medals every 24h.\n`/balance` - Check your wallet.\n`/shop` - View purchasable custom banners.\n`/buy` - Buy an item from the shop.\n`/changebanner` - Equip a purchased banner to your rank card.",
+                value="`/daily` - Claim 100 free Medals every 24h.\n`/balance` - Check your wallet.\n`/shop` - View purchasable banners and weapons.\n`/buy <item_id>` - Buy an item.\n`/changebanner` - Equip a purchased banner to your rank card.",
+                inline=False
+            )
+            embed.add_field(
+                name="⚔️ Combat",
+                value="`/fight <@user>` - Challenge a user to a turn-based Arena battle! Winners steal Medals from the loser.",
                 inline=False
             )
             embed.add_field(
@@ -218,6 +224,17 @@ class InfoDropdown(discord.ui.Select):
                 value="`/coinflip <bet>` - 50/50 chance to double your bet against the bot.\n`/rps <player> <bet>` - Challenge another player to Rock Paper Scissors for a winner-takes-all pot!",
                 inline=False
             )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        elif self.values[0] == "Arena Combat":
+            embed = discord.Embed(
+                title="⚔️ Arena Combat System",
+                description="Challenge other members to a deathmatch in the Arena! We use a highly detailed, turn-based combat system similar to Pokétwo.",
+                color=0xE74C3C
+            )
+            embed.add_field(name="1. The Loadout", value="Use `/shop` to browse Weapons and Utility items. You can equip 1 Weapon and up to 2 Utilities before a fight begins!", inline=False)
+            embed.add_field(name="2. Base Stats", value="Every fighter starts with **100 HP**, **10 Speed**, and **70% Base Accuracy**.", inline=False)
+            embed.add_field(name="3. Stat Modifiers", value="• **Weapons** alter your attack damage. (e.g., Swords grant +40% Dodge, Bows grant +30% Accuracy).\n• **Lancer's Horse** grants +15 Speed (making you strike first!) +10% Dodge, and +10% Accuracy.\n• **Heal Potion** gives you an extra button during the fight to heal 30 HP!", inline=False)
+            embed.add_field(name="4. Turn Resolution", value="During the fight, both players secretly click `[⚔️ Attack]` or `[🧪 Heal]`. Once both choose, the player with the highest Speed executes their move first! If your Accuracy rolls higher than their Dodge, you deal damage!", inline=False)
             await interaction.response.send_message(embed=embed, ephemeral=True)
             
         elif self.values[0] == "Role Information":
