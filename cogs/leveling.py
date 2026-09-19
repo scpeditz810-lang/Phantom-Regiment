@@ -275,9 +275,14 @@ class LevelingCog(commands.Cog):
             return await interaction.response.send_message(
                 "❌ Stats can't be negative.", ephemeral=True)
 
-        await self.bot.db.set_stats(member.id, interaction.guild_id, wins, in_game_level)
-        data = await self.bot.db.get_user(member.id, interaction.guild_id)
-        await self._sync_roles(member, data["level"], wins)
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            await self.bot.db.set_stats(member.id, interaction.guild_id, wins, in_game_level)
+            data = await self.bot.db.get_user(member.id, interaction.guild_id)
+            await self._sync_roles(member, data["level"], wins)
+        except Exception as e:
+            return await interaction.followup.send(f"❌ Error updating stats: {e}")
 
         qualified = None
         for r in reversed(IN_GAME_ROLES):
@@ -294,7 +299,7 @@ class LevelingCog(commands.Cog):
         except discord.Forbidden:
             msg += "\n⚠️ Could not DM the user (their DMs are closed)."
             
-        await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.followup.send(msg)
 
     # ── /wins  (public lookup) ──────────────────────────────────────────────
 
