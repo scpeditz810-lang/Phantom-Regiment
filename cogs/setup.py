@@ -122,7 +122,9 @@ class InfoDropdown(discord.ui.Select):
             discord.SelectOption(label="Server Information", description="Information regarding the server", emoji="📖"),
             discord.SelectOption(label="Game Information", description="Information regarding the game", emoji="ℹ️"),
             discord.SelectOption(label="Role Information", description="How roles work", emoji="📰"),
-            discord.SelectOption(label="Level System", description="How the XP/Level system works in detail", emoji="⭐")
+            discord.SelectOption(label="Level System", description="How the XP/Level system works in detail", emoji="⭐"),
+            discord.SelectOption(label="Medal Economy", description="How to earn and spend Medals", emoji="🏅"),
+            discord.SelectOption(label="Bot Commands", description="A detailed list of all bot commands", emoji="🤖")
         ]
         super().__init__(placeholder="Make a selection", options=options, custom_id="persistent_info_dropdown_v2")
 
@@ -175,6 +177,46 @@ class InfoDropdown(discord.ui.Select):
                     "Use the CAA channels to find a team or discuss strategy!"
                 ),
                 color=0x3498DB
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        elif self.values[0] == "Medal Economy":
+            embed = discord.Embed(
+                title="🏅 Medal Economy",
+                description=(
+                    "Medals are the official currency of the Phantom Regiment. You can earn them, gamble them, and spend them in the shop!\n\n"
+                    "**How to earn Medals:**\n"
+                    "• **Daily Claim**: Use the `/daily` command to instantly claim 100 Medals every 24 hours.\n"
+                    "• **Leveling Up**: You get 50 Medals every time you level up by chatting!\n"
+                    "• **Gambling**: Challenge the bot with `/coinflip` or fight other players in Rock Paper Scissors with `/rps`!\n\n"
+                    "**The Shop:**\n"
+                    "Use `/shop` to browse the Armory. Currently, you can spend Medals to buy **Custom Rank Banners**. "
+                    "Once purchased, use `/changebanner` to permanently equip it to your `/rank` card!"
+                ),
+                color=0xE67E22
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        elif self.values[0] == "Bot Commands":
+            embed = discord.Embed(
+                title="🤖 Bot Commands Guide",
+                description="Here is a detailed list of all essential commands you can use in the server:",
+                color=0x2ECC71
+            )
+            embed.add_field(
+                name="📈 Progression",
+                value="`/rank` - View your beautiful rank card, Level, XP, and Wins.\n`/leaderboard` - View the top 10 most active chatters.\n`/submit-wins` - Submit an in-game screenshot to get verified for Game Roles.",
+                inline=False
+            )
+            embed.add_field(
+                name="🏅 Economy & Shop",
+                value="`/daily` - Claim 100 free Medals every 24h.\n`/balance` - Check your wallet.\n`/shop` - View purchasable custom banners.\n`/buy` - Buy an item from the shop.\n`/changebanner` - Equip a purchased banner to your rank card.",
+                inline=False
+            )
+            embed.add_field(
+                name="🎲 Gambling",
+                value="`/coinflip <bet>` - 50/50 chance to double your bet against the bot.\n`/rps <player> <bet>` - Challenge another player to Rock Paper Scissors for a winner-takes-all pot!",
+                inline=False
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
             
@@ -281,8 +323,13 @@ class SetupCog(commands.Cog):
                 inline=False
             )
             faq_embed.add_field(
-                name="Where can I see a full list of roles?",
-                value=f"Visit the <#{info_ch.id if info_ch else '0'}> channel and use the dropdown menu!",
+                name="What are Medals and how do I use them?",
+                value=f"Medals are the official server currency! You can get them by using `/daily`, leveling up, or gambling with `/coinflip` and `/rps`. You can spend them in the `/shop`. Check the **Medal Economy** section in the <#{info_ch.id if info_ch else '0'}> channel for full details!",
+                inline=False
+            )
+            faq_embed.add_field(
+                name="Where can I see a full list of roles and commands?",
+                value=f"Visit the <#{info_ch.id if info_ch else '0'}> channel and use the dropdown menu! It has everything you need to know.",
                 inline=False
             )
             
