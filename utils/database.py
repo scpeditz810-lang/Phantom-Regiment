@@ -28,7 +28,17 @@ class Database:
                 wins      INTEGER DEFAULT 0,
                 messages  INTEGER DEFAULT 0,
                 last_xp   REAL    DEFAULT 0,
+                medals    INTEGER DEFAULT 0,
+                last_daily REAL   DEFAULT 0,
+                active_banner TEXT DEFAULT NULL,
                 PRIMARY KEY (user_id, guild_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS inventory (
+                user_id   INTEGER,
+                guild_id  INTEGER,
+                item_id   TEXT,
+                PRIMARY KEY (user_id, guild_id, item_id)
             );
 
             CREATE TABLE IF NOT EXISTS warnings (
@@ -45,6 +55,15 @@ class Database:
                 denied_at REAL
             );
         """)
+
+        # Safely migrate existing databases by adding new columns if they don't exist
+        try:
+            await self._db.execute("ALTER TABLE users ADD COLUMN medals INTEGER DEFAULT 0")
+            await self._db.execute("ALTER TABLE users ADD COLUMN last_daily REAL DEFAULT 0")
+            await self._db.execute("ALTER TABLE users ADD COLUMN active_banner TEXT DEFAULT NULL")
+        except aiosqlite.OperationalError:
+            pass  # Columns already exist
+
         await self._db.commit()
 
     async def close(self):
@@ -100,6 +119,54 @@ class Database:
         await self._db.execute(
             "UPDATE users SET wins = ? WHERE user_id = ? AND guild_id = ?",
             (wins, user_id, guild_id),
+        )
+        await self._db.commit()
+
+    # ── economy helpers ─────────────────────────────────────────────────────
+
+    async def add_medals(self, user_id: int, guild_id: int, amount: int):
+        await self.ensure_user(user_id, guild_id)
+        await self._db.execute(
+            "UPDATE users SET medals = medals + ? WHERE user_id = ? AND guild_id = ?",
+            (amount, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def set_last_daily(self, user_id: int, guild_id: int, timestamp: float):
+        await self.ensure_user(user_id, guild_id)
+        await self._db.execute(
+            "UPDATE users SET last_daily = ? WHERE user_id = ? AND guild_id = ?",
+            (timestamp, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def add_inventory(self, user_id: int, guild_id: int, item_id: str):
+        await self._db.execute(
+            "INSERT OR IGNORE INTO inventory (user_id, guild_id, item_id) VALUES (?, ?, ?)",
+            (user_id, guild_id, item_id)
+        )
+        await self._db.commit()
+
+    async def has_item(self, user_id: int, guild_id: int, item_id: str) -> bool:
+        async with self._db.execute(
+            "SELECT 1 FROM inventory WHERE user_id = ? AND guild_id = ? AND item_id = ?",
+            (user_id, guild_id, item_id)
+        ) as cur:
+            return await cur.fetchone() is not None
+
+    async def get_inventory(self, user_id: int, guild_id: int) -> list[str]:
+        async with self._db.execute(
+            "SELECT item_id FROM inventory WHERE user_id = ? AND guild_id = ?",
+            (user_id, guild_id)
+        ) as cur:
+            rows = await cur.fetchall()
+            return [row["item_id"] for row in rows]
+
+    async def set_active_banner(self, user_id: int, guild_id: int, banner: str | None):
+        await self.ensure_user(user_id, guild_id)
+        await self._db.execute(
+            "UPDATE users SET active_banner = ? WHERE user_id = ? AND guild_id = ?",
+            (banner, user_id, guild_id)
         )
         await self._db.commit()
 

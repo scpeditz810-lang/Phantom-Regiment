@@ -53,9 +53,17 @@ def _gradient(top: tuple[int, ...], bot: tuple[int, ...]) -> Image.Image:
     return img
 
 
-def _get_banner(global_rank: int) -> Image.Image:
+def _get_banner(global_rank: int, active_banner: str | None = None) -> Image.Image:
     """Return a custom file banner if present, otherwise a generated gradient."""
     banner_dir = os.path.join(os.path.dirname(__file__), "..", "assets", "banners")
+    
+    # Priority 1: User's custom purchased banner
+    if active_banner:
+        path = os.path.join(banner_dir, f"{active_banner}.png")
+        if os.path.exists(path):
+            return Image.open(path).resize((CARD_WIDTH, CARD_HEIGHT))
+            
+    # Priority 2: Top 3 Leaderboard specific banners
     lookup = {
         1: ("banner_top1.png", (50, 42, 10), (15, 12, 5)),    # gold
         2: ("banner_top2.png", (42, 42, 50), (14, 14, 20)),   # silver
@@ -68,6 +76,7 @@ def _get_banner(global_rank: int) -> Image.Image:
             return Image.open(path).resize((CARD_WIDTH, CARD_HEIGHT))
         return _gradient(top, bot)
 
+    # Priority 3: Default banner
     path = os.path.join(banner_dir, "banner_default.png")
     if os.path.exists(path):
         return Image.open(path).resize((CARD_WIDTH, CARD_HEIGHT))
@@ -100,10 +109,11 @@ async def generate_rank_card(
     global_rank: int,
     rank_name: str,
     rank_color: tuple[int, int, int] = ACCENT_GOLD,
+    active_banner: str | None = None,
 ) -> io.BytesIO:
     """Generate a rank card PNG and return it as a BytesIO buffer."""
 
-    card = _get_banner(global_rank).convert("RGBA")
+    card = _get_banner(global_rank, active_banner).convert("RGBA")
     draw = ImageDraw.Draw(card)
 
     font_xl   = _load_font(36, bold=True)

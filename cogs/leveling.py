@@ -209,12 +209,13 @@ class LevelingCog(commands.Cog):
             new_lvl = lvl + 1
             await self.bot.db.set_level(uid, message.guild.id, new_lvl)
             await self.bot.db.set_xp(uid, message.guild.id, xp - req)
+            await self.bot.db.add_medals(uid, message.guild.id, 50)
             await self._sync_roles(message.author, new_lvl, data["wins"])
 
             rank_name, _ = self.rank_info(new_lvl)
             embed = discord.Embed(
                 title="🎉  Level Up!",
-                description=f"{message.author.mention} advanced to **Level {new_lvl}**!",
+                description=f"{message.author.mention} advanced to **Level {new_lvl}**!\nYou earned 🏅 **50 Medals**!",
                 colour=discord.Colour.gold(),
             )
             embed.add_field(name="Rank", value=rank_name, inline=True)
@@ -252,6 +253,7 @@ class LevelingCog(commands.Cog):
             avatar_url=member.display_avatar.url,
             level=lvl, xp=xp, required_xp=req,
             global_rank=grank, rank_name=rname, rank_color=rcol,
+            active_banner=data.get("active_banner")
         )
         await interaction.followup.send(file=discord.File(buf, "rank_card.png"))
 

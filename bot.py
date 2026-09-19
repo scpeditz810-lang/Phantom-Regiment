@@ -68,6 +68,8 @@ COGS = [
     "cogs.leveling",
     "cogs.moderation",
     "cogs.setup",
+    "cogs.economy",
+    "cogs.gamenight",
 ]
 
 
