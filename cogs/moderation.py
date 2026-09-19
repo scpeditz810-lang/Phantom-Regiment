@@ -20,6 +20,8 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+import re
+
 from utils.constants import STAFF_ROLES
 
 _HIERARCHY = [r["name"] for r in STAFF_ROLES]   # low → high
@@ -33,10 +35,95 @@ _ESCALATION = {
     5: ("🔨 Auto-permanent ban",                       "ban"),
 }
 
+# ── Profanity Filter Config ───────────────────────────────────────────────
+BAD_WORDS = {
+    "fuck", "fuk", "shit", "bitch", "cunt", "whore", "slut", "faggot", "fagot",
+    "nigger", "niger", "nigga", "niga", "retard", "kys", "dick", "cock", "pussy",
+    "asshole", "twat", "wanker", "prick", "fag", "dyke", "chink", "spic", "gook",
+    "beaner", "coon", "motherfucker", "muthafucka", "cum", "jizz", "semen", 
+    "dildo", "vibrator", "buttplug", "masturbate", "blowjob", "handjob", 
+    "tit", "tits", "boob", "boobs", "titties", "vagina", "penis", "testicle", 
+    "scrotum", "clit", "clitoris", "incest", "pedophile", "pedo", "rape", 
+    "rapist", "nazi", "hitler", "dumbass", "jackass", "dipshit", "bullshit", 
+    "horseshit", "apeshit", "bastard", "thot", "skank", "bimbo", "hooker", 
+    "stripper", "fudgepacker", "queer", "tranny", "shemale", "stfu", "gtfo",
+    "dickhead", "dumbfuck", "fuckhead", "shithead",
+}
+
+LEET_MAP = {
+    '@': 'a', '4': 'a', '8': 'b', '3': 'e', '1': 'i', '!': 'i',
+    '0': 'o', '5': 's', '$': 's', '7': 't', '+': 't'
+}
+
+def contains_bad_word(text: str) -> bool:
+    t = text.lower()
+    # Remove spaces/invisible separators if they are used to space out a single word (e.g. n i g g a)
+    # Wait, stripping all spaces causes false positives. Instead, we remove symbols.
+    t = re.sub(r'[\.\-\_\*\,\/\\\|\#\&\(\)\[\]\{\}]', '', t)
+    
+    for word in t.split():
+        # apply leetspeak
+        for k, v in LEET_MAP.items():
+            word = word.replace(k, v)
+        # strip remaining non-alphabetic chars (e.g. numbers)
+        word = re.sub(r'[^a-z]', '', word)
+        # collapse consecutive duplicate characters (e.g. shhiitt -> shit)
+        word = re.sub(r'(.)\1+', r'\1', word)
+        
+        if word in BAD_WORDS:
+            return True
+            
+        # Check substring for extreme slurs ONLY to avoid false positives 
+        # (e.g. 'nigeria' is fine, but if someone types 'fucking' it becomes 'fuking' which isn't in BAD_WORDS)
+        # We handle 'fucking' by adding common variations or just checking substrings for root words.
+        for slur in ["fuk", "shit", "bitch", "niga", "niger", "fagot", "cunt", "whore"]:
+            if slur in word:
+                # Prevent obvious false positives (e.g. 'classhit' -> 'shit')
+                if slur == "shit" and "glass" in word or "class" in word:
+                    continue
+                if slur == "cunt" and "scunthorpe" in word:
+                    continue
+                if slur == "niger" and "nigeria" in word:
+                    continue
+                return True
+                
+    return False
 
 class ModerationCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or not message.guild:
+            return
+            
+        # Check for bad words
+        if contains_bad_word(message.content):
+            # Try to delete the message
+            try:
+                await message.delete()
+            except discord.NotFound:
+                pass
+            except discord.Forbidden:
+                return # Can't delete, so can't moderate properly
+                
+            # Log the deletion
+            await self._log(
+                message.guild,
+                action="Profanity Deleted",
+                mod=self.bot.user,
+                target=message.author,
+                reason=f"Message contained profanity: ||{message.content}||",
+                colour=discord.Colour.orange()
+            )
+            
+            # Send a warning message in the channel
+            try:
+                msg = await message.channel.send(f"⚠️ {message.author.mention}, please watch your language!")
+                await msg.delete(delay=5)
+            except discord.Forbidden:
+                pass
 
     # ── permission helpers ──────────────────────────────────────────────────
 
