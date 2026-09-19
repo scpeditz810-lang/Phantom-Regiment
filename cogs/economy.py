@@ -269,7 +269,7 @@ class LoadoutModal(discord.ui.Modal, title="Equip Your Loadout"):
         self.member = member
         self.callback_fn = callback_fn
         
-async def on_submit(self, interaction: discord.Interaction):
+    async def on_submit(self, interaction: discord.Interaction):
         owned = await self.bot.db.get_inventory(interaction.user.id, interaction.guild_id)
         loadout = []
         

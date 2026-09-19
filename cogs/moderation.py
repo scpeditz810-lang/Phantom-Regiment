@@ -76,14 +76,18 @@ def contains_bad_word(text: str) -> bool:
         # Check substring for extreme slurs ONLY to avoid false positives 
         # (e.g. 'nigeria' is fine, but if someone types 'fucking' it becomes 'fuking' which isn't in BAD_WORDS)
         # We handle 'fucking' by adding common variations or just checking substrings for root words.
-        for slur in ["fuk", "shit", "bitch", "niga", "niger", "fagot", "cunt", "whore"]:
+        for slur in ["fuck", "fuk", "fuc", "shit", "bitch", "niga", "niger", "nigga", "fagot", "fag", "cunt", "whore", "dick", "cock", "puss", "slut", "rape"]:
             if slur in word:
-                # Prevent obvious false positives (e.g. 'classhit' -> 'shit')
-                if slur == "shit" and "glass" in word or "class" in word:
+                # Prevent obvious false positives
+                if slur == "shit" and ("glass" in word or "class" in word):
                     continue
                 if slur == "cunt" and "scunthorpe" in word:
                     continue
                 if slur == "niger" and "nigeria" in word:
+                    continue
+                if slur == "cock" and ("peacock" in word or "hancock" in word):
+                    continue
+                if slur == "dick" and "dickens" in word:
                     continue
                 return True
                 
