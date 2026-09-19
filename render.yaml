@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: command-army-bot
+    runtime: docker
+    plan: free
+    healthCheckPath: /ping
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_REPO
+        sync: false
+      - key: PORT
+        value: "10000"

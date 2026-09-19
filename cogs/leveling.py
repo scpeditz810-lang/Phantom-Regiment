@@ -1,0 +1,424 @@
+"""
+Leveling cog — XP tracking, level-ups, rank cards, leaderboard, wins management.
+
+Wins verification:
+  • /submit-wins <count> <screenshot>  — player submits proof → #win-verification
+  • Staff / Commander clicks Approve → wins recorded, roles synced
+  • /set-wins @user <count>            — direct staff override (no screenshot needed)
+  • /wins @user                        — public stat lookup
+"""
+
+from __future__ import annotations
+
+import random
+import time
+
+import discord
+from discord.ext import commands
+from discord import app_commands
+
+from utils.constants import (
+    XP_PER_MESSAGE, XP_COOLDOWN, xp_for_level,
+    LEVEL_ROLES, IN_GAME_ROLES, STAFF_ROLES,
+)
+from utils.rank_card import generate_rank_card
+
+_STAFF_NAMES = {r["name"] for r in STAFF_ROLES} | {"Commander"}
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Persistent buttons for win verification
+# ════════════════════════════════════════════════════════════════════════════════
+
+class _WinApproveBtn(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"wins:approve:(?P<uid>\d+):(?P<gid>\d+):(?P<wins>\d+)",
+):
+    def __init__(self, uid: int, gid: int, wins: int):
+        super().__init__(discord.ui.Button(
+            label="✅ Approve Wins",
+            style=discord.ButtonStyle.green,
+            custom_id=f"wins:approve:{uid}:{gid}:{wins}",
+        ))
+        self.uid, self.gid, self.wins = uid, gid, wins
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(int(match["uid"]), int(match["gid"]), int(match["wins"]))
+
+    async def callback(self, interaction: discord.Interaction):
+        if not ({r.name for r in interaction.user.roles} & _STAFF_NAMES):
+            return await interaction.response.send_message(
+                "❌ Staff / Commander only.", ephemeral=True)
+
+        guild = interaction.client.get_guild(self.gid)
+        member = guild.get_member(self.uid) if guild else None
+        if not member:
+            return await interaction.response.send_message(
+                "❌ User not found in server.", ephemeral=True)
+
+        # Record wins
+        await interaction.client.db.set_wins(self.uid, self.gid, self.wins)
+        data = await interaction.client.db.get_user(self.uid, self.gid)
+
+        # Sync roles
+        cog: LevelingCog | None = interaction.client.get_cog("LevelingCog")
+        if cog:
+            await cog._sync_roles(member, data["level"], self.wins)
+
+        # Update embed
+        embed = interaction.message.embeds[0].copy()
+        embed.colour = discord.Colour.green()
+        embed.add_field(
+            name="✅ Approved",
+            value=f"By {interaction.user.mention} — **{self.wins}** wins recorded.",
+            inline=False,
+        )
+        await interaction.message.edit(embed=embed, view=None)
+
+        try:
+            await member.send(
+                f"✅ Your win count of **{self.wins}** has been verified and recorded!")
+        except discord.Forbidden:
+            pass
+        await interaction.response.send_message(
+            f"✅ Wins approved for {member.mention}.", ephemeral=True)
+
+
+class _WinDenyBtn(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"wins:deny:(?P<uid>\d+):(?P<gid>\d+)",
+):
+    def __init__(self, uid: int, gid: int):
+        super().__init__(discord.ui.Button(
+            label="❌ Deny",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"wins:deny:{uid}:{gid}",
+        ))
+        self.uid, self.gid = uid, gid
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(int(match["uid"]), int(match["gid"]))
+
+    async def callback(self, interaction: discord.Interaction):
+        if not ({r.name for r in interaction.user.roles} & _STAFF_NAMES):
+            return await interaction.response.send_message(
+                "❌ Staff / Commander only.", ephemeral=True)
+
+        embed = interaction.message.embeds[0].copy()
+        embed.colour = discord.Colour.red()
+        embed.add_field(
+            name="❌ Denied",
+            value=f"By {interaction.user.mention}",
+            inline=False,
+        )
+        await interaction.message.edit(embed=embed, view=None)
+
+        user = interaction.client.get_user(self.uid)
+        if user:
+            try:
+                await user.send(
+                    "❌ Your win verification was **denied**. "
+                    "Please submit a clearer screenshot with `/submit-wins`.")
+            except discord.Forbidden:
+                pass
+        await interaction.response.send_message("❌ Denied.", ephemeral=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Cog
+# ════════════════════════════════════════════════════════════════════════════════
+
+class LevelingCog(commands.Cog):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        self._cooldowns: dict[int, float] = {}
+
+    async def cog_load(self):
+        self.bot.add_dynamic_items(_WinApproveBtn, _WinDenyBtn)
+
+    # ── helpers ─────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def rank_info(level: int) -> tuple[str, tuple[int, int, int]]:
+        """Return (rank_name, (r, g, b)) for the highest level role."""
+        name, colour = "Recruit", (149, 165, 166)
+        for r in LEVEL_ROLES:
+            if level >= r["level"]:
+                name = r["name"]
+                c = r["color"]
+                colour = ((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
+        return name, colour
+
+    async def _sync_roles(self, member: discord.Member, level: int, wins: int):
+        """Add the correct level role and (if qualified) in-game role; remove old ones."""
+        guild = member.guild
+
+        # ── level roles ─────────────────────────────────────────────────
+        earned = None
+        for r in reversed(LEVEL_ROLES):
+            if level >= r["level"]:
+                earned = r["name"]
+                break
+        for r in LEVEL_ROLES:
+            role = discord.utils.get(guild.roles, name=r["name"])
+            if not role:
+                continue
+            if r["name"] == earned and role not in member.roles:
+                await member.add_roles(role)
+            elif r["name"] != earned and role in member.roles:
+                await member.remove_roles(role)
+
+        # ── in-game roles (PURELY WINS) ─────────────────────────────────
+        earned_ig = None
+        for r in reversed(IN_GAME_ROLES):
+            if wins >= r["wins"]:
+                earned_ig = r["name"]
+                break
+        for r in IN_GAME_ROLES:
+            role = discord.utils.get(guild.roles, name=r["name"])
+            if not role:
+                continue
+            if r["name"] == earned_ig and role not in member.roles:
+                await member.add_roles(role)
+            elif r["name"] != earned_ig and role in member.roles:
+                await member.remove_roles(role)
+
+    # ── XP on message ───────────────────────────────────────────────────────
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or not message.guild:
+            return
+
+        uid = message.author.id
+        now = time.time()
+        if uid in self._cooldowns and now - self._cooldowns[uid] < XP_COOLDOWN:
+            return
+        self._cooldowns[uid] = now
+
+        xp_gain = random.randint(*XP_PER_MESSAGE)
+        await self.bot.db.add_xp(uid, message.guild.id, xp_gain)
+
+        data = await self.bot.db.get_user(uid, message.guild.id)
+        lvl, xp = data["level"], data["xp"]
+        req = xp_for_level(lvl + 1)
+
+        if xp >= req:
+            new_lvl = lvl + 1
+            await self.bot.db.set_level(uid, message.guild.id, new_lvl)
+            await self.bot.db.set_xp(uid, message.guild.id, xp - req)
+            await self._sync_roles(message.author, new_lvl, data["wins"])
+
+            rank_name, _ = self.rank_info(new_lvl)
+            embed = discord.Embed(
+                title="🎉  Level Up!",
+                description=f"{message.author.mention} advanced to **Level {new_lvl}**!",
+                colour=discord.Colour.gold(),
+            )
+            embed.add_field(name="Rank", value=rank_name, inline=True)
+            embed.set_thumbnail(url=message.author.display_avatar.url)
+
+            ch = discord.utils.get(message.guild.text_channels, name="🎉│level-up")
+            await (ch or message.channel).send(embed=embed)
+
+    # ── /rank ───────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="rank", description="Show your (or someone's) rank card")
+    @app_commands.describe(member="Leave blank for yourself")
+    async def rank(self, interaction: discord.Interaction, member: discord.Member | None = None):
+        member = member or interaction.user
+        await interaction.response.defer()
+
+        data  = await self.bot.db.ensure_user(member.id, interaction.guild_id)
+        grank = await self.bot.db.get_rank(member.id, interaction.guild_id)
+        lvl, xp = data["level"], data["xp"]
+        req = xp_for_level(lvl + 1)
+        rname, rcol = self.rank_info(lvl)
+        
+        # Override rank display with the highest Discord role the user actually has
+        from utils.constants import ROLE_HIERARCHY
+        member_role_names = {r.name for r in member.roles}
+        for rh in reversed(ROLE_HIERARCHY):
+            if rh["name"] in member_role_names:
+                rname = rh["name"]
+                c = rh["color"]
+                rcol = ((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
+                break
+
+        buf = await generate_rank_card(
+            username=member.display_name,
+            avatar_url=member.display_avatar.url,
+            level=lvl, xp=xp, required_xp=req,
+            global_rank=grank, rank_name=rname, rank_color=rcol,
+        )
+        await interaction.followup.send(file=discord.File(buf, "rank_card.png"))
+
+    @app_commands.command(name="level", description="View your (or another user's) current level and XP")
+    async def level_cmd(self, interaction: discord.Interaction, member: discord.Member = None):
+        # Alias for /rank
+        await self.rank(interaction, member)
+
+    # ── /leaderboard ────────────────────────────────────────────────────────
+
+    @app_commands.command(name="leaderboard", description="Top 10 server leaderboard")
+    async def leaderboard(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        lb = await self.bot.db.get_leaderboard(interaction.guild_id, 10)
+
+        if not lb:
+            return await interaction.followup.send("📊 No one has earned XP yet!")
+
+        medals = ["🥇", "🥈", "🥉"]
+        lines = []
+        for i, e in enumerate(lb):
+            u = interaction.guild.get_member(e["user_id"])
+            name = u.display_name if u else f"Unknown ({e['user_id']})"
+            m = medals[i] if i < 3 else f"`#{i+1}`"
+            rn, _ = self.rank_info(e["level"])
+            lines.append(f"{m} **{name}** — Lvl {e['level']} • {e['xp']} XP • {rn}")
+
+        embed = discord.Embed(
+            title="🏆  Server Leaderboard",
+            description="\n".join(lines),
+            colour=discord.Colour.gold(),
+        )
+        await interaction.followup.send(embed=embed)
+
+    # ── /submit-wins  (player submits screenshot for verification) ──────────
+
+    @app_commands.command(
+        name="submit-wins",
+        description="Submit a screenshot of your wins for staff verification",
+    )
+    @app_commands.describe(
+        wins="Your total win count",
+        screenshot="Screenshot proof of your wins",
+    )
+    async def submit_wins(
+        self,
+        interaction: discord.Interaction,
+        wins: int,
+        screenshot: discord.Attachment,
+    ):
+        if wins < 0:
+            return await interaction.response.send_message(
+                "❌ Wins can't be negative!", ephemeral=True)
+
+        # Validate it's an image
+        if not screenshot.content_type or not screenshot.content_type.startswith("image"):
+            return await interaction.response.send_message(
+                "❌ Please attach an **image** screenshot.", ephemeral=True)
+
+        await interaction.response.defer(ephemeral=True)
+
+        # Post to #win-verification
+        ch = discord.utils.get(interaction.guild.text_channels, name="🏆│win-verification")
+        if not ch:
+            return await interaction.followup.send(
+                "⚠️ `#win-verification` channel not found. Ask an admin to run `!setup`.",
+                ephemeral=True,
+            )
+
+        embed = discord.Embed(
+            title="🏆  Win Verification Request",
+            colour=discord.Colour.gold(),
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.add_field(
+            name="👤 Player",
+            value=f"{interaction.user.mention} (`{interaction.user}`)",
+            inline=True,
+        )
+        embed.add_field(name="🏆 Claimed Wins", value=str(wins), inline=True)
+
+        data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+        embed.add_field(name="📊 Current Recorded", value=str(data["wins"]), inline=True)
+        embed.add_field(name="📈 Level", value=str(data["level"]), inline=True)
+        embed.set_image(url=screenshot.url)
+        embed.set_footer(text=f"User ID: {interaction.user.id}")
+
+        view = discord.ui.View(timeout=None)
+        view.add_item(_WinApproveBtn(interaction.user.id, interaction.guild_id, wins))
+        view.add_item(_WinDenyBtn(interaction.user.id, interaction.guild_id))
+        await ch.send(embed=embed, view=view)
+
+        await interaction.followup.send(
+            "✅ Your win screenshot has been submitted for verification! "
+            "You'll be notified when staff reviews it.",
+            ephemeral=True,
+        )
+
+    # ── /set-wins  (staff / commander direct override) ──────────────────────
+
+    @app_commands.command(
+        name="set-wins",
+        description="Directly set a member's win count (Staff / Commander)",
+    )
+    @app_commands.describe(member="The member", wins="Their verified total wins")
+    async def set_wins(self, interaction: discord.Interaction,
+                       member: discord.Member, wins: int):
+        if not ({r.name for r in interaction.user.roles} & _STAFF_NAMES):
+            return await interaction.response.send_message(
+                "❌ Staff or Commander only.", ephemeral=True)
+        if wins < 0:
+            return await interaction.response.send_message(
+                "❌ Wins can't be negative.", ephemeral=True)
+
+        await self.bot.db.set_wins(member.id, interaction.guild_id, wins)
+        data = await self.bot.db.get_user(member.id, interaction.guild_id)
+        await self._sync_roles(member, data["level"], wins)
+
+        qualified = None
+        for r in reversed(IN_GAME_ROLES):
+            if data["level"] >= r["level"] and wins >= r["wins"]:
+                qualified = r
+                break
+
+        msg = f"✅ **{member.display_name}**'s wins set to **{wins}**."
+        if qualified:
+            msg += f"\nThey now qualify for **{qualified['name']}** role!"
+        await interaction.response.send_message(msg, ephemeral=True)
+
+    # ── /wins  (public lookup) ──────────────────────────────────────────────
+
+    @app_commands.command(name="wins", description="Check a member's recorded wins")
+    @app_commands.describe(member="The member to check")
+    async def wins(self, interaction: discord.Interaction,
+                   member: discord.Member | None = None):
+        member = member or interaction.user
+        data = await self.bot.db.ensure_user(member.id, interaction.guild_id)
+
+        qualified = None
+        for r in reversed(IN_GAME_ROLES):
+            if data["level"] >= r["level"] and data["wins"] >= r["wins"]:
+                qualified = r
+                break
+        nxt = None
+        for r in IN_GAME_ROLES:
+            if data["level"] < r["level"] or data["wins"] < r["wins"]:
+                nxt = r
+                break
+
+        embed = discord.Embed(
+            title=f"🏆  {member.display_name}'s Stats",
+            colour=discord.Colour.gold(),
+        )
+        embed.add_field(name="Wins",  value=str(data["wins"]),  inline=True)
+        embed.add_field(name="Level", value=str(data["level"]), inline=True)
+        if qualified:
+            embed.add_field(name="In-Game Rank", value=qualified["name"], inline=True)
+        if nxt:
+            embed.add_field(
+                name="Next Rank",
+                value=f"**{nxt['name']}** — Lvl {nxt['level']}, {nxt['wins']} Wins",
+                inline=False,
+            )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        await interaction.response.send_message(embed=embed)
+
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(LevelingCog(bot))
