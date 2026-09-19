@@ -269,15 +269,33 @@ class LoadoutModal(discord.ui.Modal, title="Equip Your Loadout"):
         self.member = member
         self.callback_fn = callback_fn
         
-    async def on_submit(self, interaction: discord.Interaction):
+async def on_submit(self, interaction: discord.Interaction):
         owned = await self.bot.db.get_inventory(interaction.user.id, interaction.guild_id)
         loadout = []
-        for val in (self.weapon.value, self.util1.value, self.util2.value):
+        
+        # Helper to validate and add
+        def check_and_add(val, slot_type):
             val = val.strip().lower()
-            if not val: continue
+            if not val: return None
             if val not in owned:
-                return await interaction.response.send_message(f"❌ You do not own `{val}`! Buy it in the `/shop`.", ephemeral=True)
+                return f"❌ You do not own `{val}`! Buy it in the `/shop`."
+            if val not in SHOP_ITEMS:
+                return f"❌ `{val}` is not a valid item."
+            if SHOP_ITEMS[val]["type"] != slot_type:
+                return f"❌ `{val}` is not a {slot_type}!"
+            if val in loadout:
+                return f"❌ You cannot equip `{val}` twice!"
             loadout.append(val)
+            return None
+            
+        err = check_and_add(self.weapon.value, "weapon")
+        if err: return await interaction.response.send_message(err, ephemeral=True)
+        
+        err = check_and_add(self.util1.value, "utility")
+        if err: return await interaction.response.send_message(err, ephemeral=True)
+        
+        err = check_and_add(self.util2.value, "utility")
+        if err: return await interaction.response.send_message(err, ephemeral=True)
             
         await interaction.response.send_message("✅ Loadout locked in!", ephemeral=True)
         await self.callback_fn(self.member, loadout)
