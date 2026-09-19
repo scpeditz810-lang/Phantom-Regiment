@@ -30,101 +30,6 @@ _STAFF_NAMES = {r["name"] for r in STAFF_ROLES} | {"Commander"}
 # Persistent buttons for win verification
 # ════════════════════════════════════════════════════════════════════════════════
 
-class _WinApproveBtn(
-    discord.ui.DynamicItem[discord.ui.Button],
-    template=r"wins:approve:(?P<uid>\d+):(?P<gid>\d+):(?P<wins>\d+)",
-):
-    def __init__(self, uid: int, gid: int, wins: int):
-        super().__init__(discord.ui.Button(
-            label="✅ Approve Wins",
-            style=discord.ButtonStyle.green,
-            custom_id=f"wins:approve:{uid}:{gid}:{wins}",
-        ))
-        self.uid, self.gid, self.wins = uid, gid, wins
-
-    @classmethod
-    async def from_custom_id(cls, interaction, item, match):
-        return cls(int(match["uid"]), int(match["gid"]), int(match["wins"]))
-
-    async def callback(self, interaction: discord.Interaction):
-        if not ({r.name for r in interaction.user.roles} & _STAFF_NAMES):
-            return await interaction.response.send_message(
-                "❌ Staff / Commander only.", ephemeral=True)
-
-        guild = interaction.client.get_guild(self.gid)
-        member = guild.get_member(self.uid) if guild else None
-        if not member:
-            return await interaction.response.send_message(
-                "❌ User not found in server.", ephemeral=True)
-
-        # Record wins
-        await interaction.client.db.set_wins(self.uid, self.gid, self.wins)
-        data = await interaction.client.db.get_user(self.uid, self.gid)
-
-        # Sync roles
-        cog: LevelingCog | None = interaction.client.get_cog("LevelingCog")
-        if cog:
-            await cog._sync_roles(member, data["level"], self.wins)
-
-        # Update embed
-        embed = interaction.message.embeds[0].copy()
-        embed.colour = discord.Colour.green()
-        embed.add_field(
-            name="✅ Approved",
-            value=f"By {interaction.user.mention} — **{self.wins}** wins recorded.",
-            inline=False,
-        )
-        await interaction.message.edit(embed=embed, view=None)
-
-        try:
-            await member.send(
-                f"✅ Your win count of **{self.wins}** has been verified and recorded!")
-        except discord.Forbidden:
-            pass
-        await interaction.response.send_message(
-            f"✅ Wins approved for {member.mention}.", ephemeral=True)
-
-
-class _WinDenyBtn(
-    discord.ui.DynamicItem[discord.ui.Button],
-    template=r"wins:deny:(?P<uid>\d+):(?P<gid>\d+)",
-):
-    def __init__(self, uid: int, gid: int):
-        super().__init__(discord.ui.Button(
-            label="❌ Deny",
-            style=discord.ButtonStyle.danger,
-            custom_id=f"wins:deny:{uid}:{gid}",
-        ))
-        self.uid, self.gid = uid, gid
-
-    @classmethod
-    async def from_custom_id(cls, interaction, item, match):
-        return cls(int(match["uid"]), int(match["gid"]))
-
-    async def callback(self, interaction: discord.Interaction):
-        if not ({r.name for r in interaction.user.roles} & _STAFF_NAMES):
-            return await interaction.response.send_message(
-                "❌ Staff / Commander only.", ephemeral=True)
-
-        embed = interaction.message.embeds[0].copy()
-        embed.colour = discord.Colour.red()
-        embed.add_field(
-            name="❌ Denied",
-            value=f"By {interaction.user.mention}",
-            inline=False,
-        )
-        await interaction.message.edit(embed=embed, view=None)
-
-        user = interaction.client.get_user(self.uid)
-        if user:
-            try:
-                await user.send(
-                    "❌ Your win verification was **denied**. "
-                    "Please submit a clearer screenshot with `/submit-wins`.")
-            except discord.Forbidden:
-                pass
-        await interaction.response.send_message("❌ Denied.", ephemeral=True)
-
 
 # ════════════════════════════════════════════════════════════════════════════════
 # Cog
@@ -136,7 +41,7 @@ class LevelingCog(commands.Cog):
         self._cooldowns: dict[int, float] = {}
 
     async def cog_load(self):
-        self.bot.add_dynamic_items(_WinApproveBtn, _WinDenyBtn)
+        pass
 
     # ── helpers ─────────────────────────────────────────────────────────────
 
@@ -345,34 +250,32 @@ class LevelingCog(commands.Cog):
         embed.set_image(url=screenshot.url)
         embed.set_footer(text=f"User ID: {interaction.user.id}")
 
-        view = discord.ui.View(timeout=None)
-        view.add_item(_WinApproveBtn(interaction.user.id, interaction.guild_id, wins))
-        view.add_item(_WinDenyBtn(interaction.user.id, interaction.guild_id))
-        await ch.send(embed=embed, view=view)
+        embed.add_field(name="🛠️ Verification", value="Commanders: Use `/set-stats` to verify and update this user's stats!", inline=False)
+        await ch.send(embed=embed)
 
         await interaction.followup.send(
-            "✅ Your win screenshot has been submitted for verification! "
+            "✅ Your screenshot has been submitted for verification! "
             "You'll be notified when staff reviews it.",
             ephemeral=True,
         )
 
-    # ── /set-wins  (staff / commander direct override) ──────────────────────
+    # ── /set-stats  (staff / commander direct override) ──────────────────────
 
     @app_commands.command(
-        name="set-wins",
-        description="Directly set a member's win count (Staff / Commander)",
+        name="set-stats",
+        description="Directly set a member's win count and in-game level (Staff / Commander)",
     )
-    @app_commands.describe(member="The member", wins="Their verified total wins")
-    async def set_wins(self, interaction: discord.Interaction,
-                       member: discord.Member, wins: int):
+    @app_commands.describe(member="The member", wins="Their verified total wins", in_game_level="Their verified in-game level")
+    async def set_stats(self, interaction: discord.Interaction,
+                        member: discord.Member, wins: int, in_game_level: int):
         if not ({r.name for r in interaction.user.roles} & _STAFF_NAMES):
             return await interaction.response.send_message(
                 "❌ Staff or Commander only.", ephemeral=True)
-        if wins < 0:
+        if wins < 0 or in_game_level < 0:
             return await interaction.response.send_message(
-                "❌ Wins can't be negative.", ephemeral=True)
+                "❌ Stats can't be negative.", ephemeral=True)
 
-        await self.bot.db.set_wins(member.id, interaction.guild_id, wins)
+        await self.bot.db.set_stats(member.id, interaction.guild_id, wins, in_game_level)
         data = await self.bot.db.get_user(member.id, interaction.guild_id)
         await self._sync_roles(member, data["level"], wins)
 
@@ -382,9 +285,15 @@ class LevelingCog(commands.Cog):
                 qualified = r
                 break
 
-        msg = f"✅ **{member.display_name}**'s wins set to **{wins}**."
+        msg = f"✅ **{member.display_name}**'s stats set to **{wins} Wins** and **Level {in_game_level}**."
         if qualified:
             msg += f"\nThey now qualify for **{qualified['name']}** role!"
+            
+        try:
+            await member.send(f"✅ Your stats have been verified and updated by {interaction.user.mention}! You now have **{wins} Wins** and are **Level {in_game_level}**.")
+        except discord.Forbidden:
+            msg += "\n⚠️ Could not DM the user (their DMs are closed)."
+            
         await interaction.response.send_message(msg, ephemeral=True)
 
     # ── /wins  (public lookup) ──────────────────────────────────────────────

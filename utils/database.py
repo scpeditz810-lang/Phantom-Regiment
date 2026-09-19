@@ -31,6 +31,7 @@ class Database:
                 medals    INTEGER DEFAULT 0,
                 last_daily REAL   DEFAULT 0,
                 active_banner TEXT DEFAULT NULL,
+                in_game_level INTEGER DEFAULT 0,
                 PRIMARY KEY (user_id, guild_id)
             );
 
@@ -114,11 +115,11 @@ class Database:
         )
         await self._db.commit()
 
-    async def set_wins(self, user_id: int, guild_id: int, wins: int):
+    async def set_stats(self, user_id: int, guild_id: int, wins: int, in_game_level: int):
         await self.ensure_user(user_id, guild_id)
         await self._db.execute(
-            "UPDATE users SET wins = ? WHERE user_id = ? AND guild_id = ?",
-            (wins, user_id, guild_id),
+            "UPDATE users SET wins = ?, in_game_level = ? WHERE user_id = ? AND guild_id = ?",
+            (wins, in_game_level, user_id, guild_id),
         )
         await self._db.commit()
 
