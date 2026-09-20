@@ -19,6 +19,7 @@ import time
 
 import discord
 from discord.ext import commands
+from discord import app_commands
 
 from utils.constants import APPEAL_COOLDOWN_SECONDS, ACCEPTED_ROLE, STAFF_ROLES
 
