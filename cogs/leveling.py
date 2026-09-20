@@ -281,28 +281,28 @@ class LevelingCog(commands.Cog):
             await self.bot.db.set_stats(member.id, interaction.guild_id, wins, in_game_level)
             data = await self.bot.db.get_user(member.id, interaction.guild_id)
             await self._sync_roles(member, data["level"], wins)
+
+            qualified = None
+            for r in reversed(IN_GAME_ROLES):
+                if wins >= r["wins"]:
+                    qualified = r
+                    break
+
+            msg = f"✅ **{member.display_name}**'s stats set to **{wins} Wins** and **Level {in_game_level}**."
+            if qualified:
+                msg += f"\nThey now qualify for **{qualified['name']}** role!"
+                
+            try:
+                dm_msg = f"✅ Your stats have been verified and updated by {interaction.user.mention}! You now have **{wins} Wins** and are **Level {in_game_level}**."
+                if message and message.strip():
+                    dm_msg += f"\n\n📩 **Message from staff:** {message.strip()}"
+                await member.send(dm_msg)
+            except discord.Forbidden:
+                msg += "\n⚠️ Could not DM the user (their DMs are closed)."
+                
+            await interaction.followup.send(msg)
         except Exception as e:
-            return await interaction.followup.send(f"❌ Error updating stats: {e}")
-
-        qualified = None
-        for r in reversed(IN_GAME_ROLES):
-            if data["level"] >= r["level"] and wins >= r["wins"]:
-                qualified = r
-                break
-
-        msg = f"✅ **{member.display_name}**'s stats set to **{wins} Wins** and **Level {in_game_level}**."
-        if qualified:
-            msg += f"\nThey now qualify for **{qualified['name']}** role!"
-            
-        try:
-            dm_msg = f"✅ Your stats have been verified and updated by {interaction.user.mention}! You now have **{wins} Wins** and are **Level {in_game_level}**."
-            if message and message.strip():
-                dm_msg += f"\n\n📩 **Message from staff:** {message.strip()}"
-            await member.send(dm_msg)
-        except discord.Forbidden:
-            msg += "\n⚠️ Could not DM the user (their DMs are closed)."
-            
-        await interaction.followup.send(msg)
+            await interaction.followup.send(f"❌ Error updating stats: {e}")
 
     # ── /wins  (public lookup) ──────────────────────────────────────────────
 
