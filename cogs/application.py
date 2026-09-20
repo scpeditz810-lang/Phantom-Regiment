@@ -363,6 +363,13 @@ class ApplicationCog(commands.Cog):
     
     @app_commands.command(name="apply", description="Manually start or restart your regiment application")
     async def apply_cmd(self, interaction: discord.Interaction):
+        await self._handle_apply(interaction)
+
+    @app_commands.command(name="restart-app", description="Force start your regiment application (use if /apply fails)")
+    async def restart_app_cmd(self, interaction: discord.Interaction):
+        await self._handle_apply(interaction)
+
+    async def _handle_apply(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
         denied_at = await self.bot.db.get_app_cooldown(interaction.user.id)
