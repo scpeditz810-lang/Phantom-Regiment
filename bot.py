@@ -65,6 +65,17 @@ async def on_ready():
     except Exception as e:
         print(f"❌  Sync failed: {e}")
 
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+    print(f"❌ Slash command error in {interaction.command.name if interaction.command else 'Unknown'}: {error}")
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.send_message(f"❌ Internal error: {error}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ Internal error: {error}", ephemeral=True)
+    except:
+        pass
+
 @bot.command()
 @commands.is_owner()
 async def clearsync(ctx: commands.Context):
