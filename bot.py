@@ -65,6 +65,14 @@ async def on_ready():
     except Exception as e:
         print(f"❌  Sync failed: {e}")
 
+@bot.command()
+@commands.is_owner()
+async def sync(ctx: commands.Context):
+    """Instantly sync slash commands to the current server (bypasses 1-hour global cache)."""
+    bot.tree.copy_global_to(guild=ctx.guild)
+    synced = await bot.tree.sync(guild=ctx.guild)
+    await ctx.send(f"✅ Instantly synced {len(synced)} commands to this server!")
+
 
 COGS = [
     "cogs.application",
