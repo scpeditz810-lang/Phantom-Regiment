@@ -70,6 +70,7 @@ COGS = [
     "cogs.setup",
     "cogs.economy",
     "cogs.gamenight",
+    "cogs.strategy",
 ]
 
 
