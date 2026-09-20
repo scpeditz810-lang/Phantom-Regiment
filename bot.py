@@ -67,6 +67,14 @@ async def on_ready():
 
 @bot.command()
 @commands.is_owner()
+async def clearsync(ctx: commands.Context):
+    """Remove duplicate guild-specific slash commands."""
+    bot.tree.clear_commands(guild=ctx.guild)
+    await bot.tree.sync(guild=ctx.guild)
+    await ctx.send("🧹 Cleared duplicate server-specific commands! You may need to restart Discord (`Ctrl+R`) to see the changes.")
+
+@bot.command()
+@commands.is_owner()
 async def sync(ctx: commands.Context):
     """Instantly sync slash commands to the current server (bypasses 1-hour global cache)."""
     bot.tree.copy_global_to(guild=ctx.guild)
