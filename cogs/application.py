@@ -247,12 +247,9 @@ class ApplicationCog(commands.Cog):
 
     async def _run_application(self, user: discord.User, guild: discord.Guild):
         """Ask 7 questions one-by-one in DMs, then post to #app-review."""
+        # If they force-restart, just remove them from active and start fresh
         if user.id in self._active:
-            try:
-                await user.send("⚠️ You already have an application in progress!")
-            except discord.Forbidden:
-                pass
-            return
+            self._active.remove(user.id)
 
         self._active.add(user.id)
         try:
@@ -289,7 +286,10 @@ class ApplicationCog(commands.Cog):
                 try:
                     msg = await self.bot.wait_for("message", check=check, timeout=300)
                     answers.append(msg.content)
-                    await msg.add_reaction("✅")
+                    try:
+                        await msg.add_reaction("✅")
+                    except Exception:
+                        pass
                 except asyncio.TimeoutError:
                     await user.send(
                         "⏰ **Application timed out** (5 min per question).\n"
@@ -338,7 +338,28 @@ class ApplicationCog(commands.Cog):
         finally:
             self._active.discard(user.id)
 
-    # ── On member join ──────────────────────────────────────────────────────
+    # ── Manual Apply Command ────────────────────────────────────────────────
+    
+    @app_commands.command(name="apply", description="Manually start or restart your regiment application")
+    async def apply_cmd(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        denied_at = await self.bot.db.get_app_cooldown(interaction.user.id)
+        if denied_at:
+            elapsed = time.time() - denied_at
+            if elapsed < APPEAL_COOLDOWN_SECONDS:
+                remaining = APPEAL_COOLDOWN_SECONDS - elapsed
+                hrs = int(remaining // 3600)
+                mins = int((remaining % 3600) // 60)
+                return await interaction.followup.send(
+                    f"⏳ Your previous application was denied. You must wait **{hrs}h {mins}m** before appealing."
+                )
+
+        await interaction.followup.send("📝 Starting your application! Please check your DMs.")
+        asyncio.create_task(self._run_application(interaction.user, interaction.guild))
+
+
+    # ── Application Flow (DMs) ──────────────────────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
