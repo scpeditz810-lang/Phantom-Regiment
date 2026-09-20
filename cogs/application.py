@@ -307,8 +307,16 @@ class ApplicationCog(commands.Cog):
                 await user.send(embed=q_embed)
 
                 try:
-                    msg = await self.bot.wait_for("message", check=check, timeout=300)
-                    
+                    try:
+                        msg = await self.bot.wait_for("message", check=check, timeout=300)
+                    except asyncio.TimeoutError:
+                        await user.send(
+                            "⏰ **Application timed out** (5 min per question).\n"
+                            "Click the button below when you're ready to try again.",
+                            view=_AppealView(self.bot)
+                        )
+                        return
+
                     content = msg.content
                     if not content and msg.attachments:
                         content = msg.attachments[0].url
@@ -320,13 +328,12 @@ class ApplicationCog(commands.Cog):
                         await msg.add_reaction("✅")
                     except Exception:
                         pass
-                except asyncio.TimeoutError:
-                    await user.send(
-                        "⏰ **Application timed out** (5 min per question).\n"
-                        "Click the button below when you're ready to try again.",
-                        view=_AppealView(self.bot)
-                    )
-                    return
+                except Exception as e:
+                    # Log hidden errors to staff channel
+                    staff_channel = guild.get_channel(1551255144233173084)
+                    if staff_channel:
+                        await staff_channel.send(f"❌ Uncaught error during application loop for {user.mention}: {e}")
+                    raise e
 
             # ── Build and post the application ──────────────────────────
             ch = discord.utils.get(guild.text_channels, name="📋│app-review")
