@@ -396,23 +396,29 @@ class ApplicationCog(commands.Cog):
         if member.bot:
             return
 
-        guild = member.guild
+        # Debug log for staff channel
+        staff_channel = guild.get_channel(1551255144233173084)
+        if staff_channel:
+            await staff_channel.send(f"🔍 DEBUG: `on_member_join` fired for {member.mention}. pending={member.pending}")
 
         # Give Unverified role
         unverified = discord.utils.get(guild.roles, name="Unverified")
         if unverified:
             try:
                 await member.add_roles(unverified, reason="New member — pending application")
-            except discord.Forbidden:
-                print(f"⚠️ Could not add Unverified role to {member}. Check role hierarchy!")
+                if staff_channel: await staff_channel.send("✅ Added Unverified role.")
+            except discord.Forbidden as e:
+                if staff_channel: await staff_channel.send(f"❌ Failed to add Unverified role (Forbidden): {e}")
 
         # Start DM application
         try:
+            if staff_channel: await staff_channel.send("⏳ Attempting to DM application...")
             await self._run_application(member, guild)
-        except discord.Forbidden:
-            # DMs disabled - we can't notify them since they are unverified
-            # They will have to wait for an appeal button or manual intervention
-            pass
+            if staff_channel: await staff_channel.send("✅ DM application sent successfully!")
+        except discord.Forbidden as e:
+            if staff_channel: await staff_channel.send(f"❌ Failed to send DM application (Forbidden, DMs likely closed): {e}")
+        except Exception as e:
+            if staff_channel: await staff_channel.send(f"❌ Exception in _run_application: {e}")
 
 
 async def setup(bot: commands.Bot):
