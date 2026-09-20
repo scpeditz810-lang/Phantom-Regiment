@@ -7,6 +7,10 @@ restores DB from GitHub backup, and runs the 10-second auto-backup loop.
 import os
 import asyncio
 import threading
+import logging
+
+# Enable discord.py debug logging
+logging.basicConfig(level=logging.INFO)
 
 import discord
 from discord.ext import commands, tasks
@@ -53,7 +57,7 @@ async def backup_loop():
 @bot.event
 async def on_ready():
     await bot.db.setup()
-    print(f"✅  {bot.user} is online!  (ID {bot.user.id})")
+    print(f"✅  {bot.user} is online!  (ID {bot.user.id})", flush=True)
 
     # Start the backup loop
     if not backup_loop.is_running():
@@ -61,9 +65,9 @@ async def on_ready():
 
     try:
         synced = await bot.tree.sync()
-        print(f"✅  Synced {len(synced)} slash commands.")
+        print(f"✅  Synced {len(synced)} slash commands.", flush=True)
     except Exception as e:
-        print(f"❌  Sync failed: {e}")
+        print(f"❌  Sync failed: {e}", flush=True)
 
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
@@ -115,13 +119,13 @@ async def main():
         for cog in COGS:
             try:
                 await bot.load_extension(cog)
-                print(f"✅  Loaded {cog}")
+                print(f"✅  Loaded {cog}", flush=True)
             except Exception as e:
-                print(f"❌  Failed to load {cog}: {e}")
+                print(f"❌  Failed to load {cog}: {e}", flush=True)
 
         token = os.environ.get("DISCORD_TOKEN")
         if not token:
-            print("❌  DISCORD_TOKEN not set!  Create a .env file (see .env.example).")
+            print("❌  DISCORD_TOKEN not set!  Create a .env file (see .env.example).", flush=True)
             return
         await bot.start(token)
 
