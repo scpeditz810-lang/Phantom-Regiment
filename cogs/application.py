@@ -246,22 +246,6 @@ class ApplicationCog(commands.Cog):
         self.bot = bot
         self._active: set[int] = set()
 
-    @app_commands.command(name="debug-roles", description="Check why roles aren't being given")
-    async def debug_roles(self, interaction: discord.Interaction):
-        guild = interaction.guild
-        unverified = discord.utils.get(guild.roles, name="Unverified")
-        rookie = discord.utils.get(guild.roles, name="Rookie")
-        
-        msg = "**Role Debugger:**\n"
-        msg += f"1. Bot has 'Manage Roles' permission? **{guild.me.guild_permissions.manage_roles}**\n"
-        msg += f"2. 'Unverified' role exists? **{'Yes' if unverified else 'No (Role deleted or renamed)'}**\n"
-        msg += f"3. 'Rookie' role exists? **{'Yes' if rookie else 'No (Role deleted or renamed)'}**\n"
-        
-        if unverified:
-            msg += f"4. Bot can manage 'Unverified'? **{guild.me.top_role > unverified}**\n"
-            
-        await interaction.response.send_message(msg, ephemeral=True)
-
     async def cog_load(self):
         self.bot.add_dynamic_items(_AcceptBtn, _DenyBtn, _AppealBtn)
         self.bot.add_view(_AppealView(self.bot))
@@ -408,35 +392,25 @@ class ApplicationCog(commands.Cog):
             # We will process them in on_member_update when they accept.
             return
 
-        # Debug log for staff channel
         guild = member.guild
-        staff_channel = guild.get_channel(1551255144233173084)
-        if staff_channel:
-            await staff_channel.send(f"🔍 DEBUG: `on_member_join` fired for {member.mention}. pending={member.pending}")
 
         # Give Unverified role
         unverified = discord.utils.get(guild.roles, name="Unverified")
         if unverified:
             try:
                 await member.add_roles(unverified, reason="New member — pending application")
-                if staff_channel: await staff_channel.send("✅ Added Unverified role.")
-            except discord.Forbidden as e:
-                if staff_channel: await staff_channel.send(f"❌ Failed to add Unverified role (Forbidden): {e}")
+            except discord.Forbidden:
+                pass
 
         # Start DM application
         try:
-            if staff_channel: await staff_channel.send("⏳ Attempting to DM application...")
             await self._run_application(member, guild)
-            if staff_channel: await staff_channel.send("✅ DM application sent successfully!")
-        except discord.Forbidden as e:
-            if staff_channel: await staff_channel.send(f"❌ Failed to send DM application (Forbidden, DMs likely closed): {e}")
-        except Exception as e:
-            if staff_channel: await staff_channel.send(f"❌ Exception in _run_application: {e}")
+        except discord.Forbidden:
+            pass
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
         # When a user agrees to the server rules (Membership Screening), they go from pending=True to pending=False
-        # Discord blocks bots from giving roles to pending members, so we MUST do it here instead of on_member_join!
         if before.pending and not after.pending:
             guild = after.guild
             
