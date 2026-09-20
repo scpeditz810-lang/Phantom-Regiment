@@ -14,6 +14,7 @@ with an equal or higher staff rank, or the server owner.
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 
 import discord
@@ -395,6 +396,7 @@ class ModerationCog(commands.Cog):
         option3="Third option (optional)",
         option4="Fourth option (optional)",
         channel="The channel to post the poll in",
+        duration="How long the poll lasts in hours (max 168 = 1 week)",
     )
     async def poll(
         self,
@@ -403,6 +405,7 @@ class ModerationCog(commands.Cog):
         option1: str,
         option2: str,
         channel: discord.TextChannel,
+        duration: int,
         option3: str | None = None,
         option4: str | None = None,
     ):
@@ -416,6 +419,11 @@ class ModerationCog(commands.Cog):
                 "❌ Only Commanders and Staff can create polls.", ephemeral=True
             )
 
+        if duration < 1 or duration > 168:
+            return await interaction.response.send_message(
+                "❌ Duration must be between **1** and **168** hours (1 week max).", ephemeral=True
+            )
+
         emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"]
         options = [option1, option2]
         if option3:
@@ -423,9 +431,12 @@ class ModerationCog(commands.Cog):
         if option4:
             options.append(option4)
 
+        ends_at = int((discord.utils.utcnow() + datetime.timedelta(hours=duration)).timestamp())
+
         description = ""
         for i, opt in enumerate(options):
             description += f"{emojis[i]}  **{opt}**\n\n"
+        description += f"⏰ **Ends:** <t:{ends_at}:R>"
 
         embed = discord.Embed(
             title=f"📊  {title}",
@@ -440,8 +451,56 @@ class ModerationCog(commands.Cog):
             await msg.add_reaction(emojis[i])
 
         await interaction.response.send_message(
-            f"✅ Poll posted in {channel.mention}!", ephemeral=True
+            f"✅ Poll posted in {channel.mention}! It will end <t:{ends_at}:R>.", ephemeral=True
         )
+
+        # Schedule the poll to close after the duration
+        asyncio.create_task(self._close_poll(msg, channel.id, title, options, emojis, duration))
+
+    async def _close_poll(self, msg: discord.Message, channel_id: int, title: str, options: list[str], emojis: list[str], duration: int):
+        """Wait for the duration, then close the poll and show results."""
+        await asyncio.sleep(duration * 3600)
+
+        try:
+            ch = self.bot.get_channel(channel_id)
+            if not ch:
+                return
+            msg = await ch.fetch_message(msg.id)
+        except (discord.NotFound, discord.HTTPException):
+            return
+
+        # Count votes (subtract 1 for the bot's own reaction)
+        results = []
+        for i, opt in enumerate(options):
+            reaction = discord.utils.get(msg.reactions, emoji=emojis[i])
+            count = (reaction.count - 1) if reaction else 0
+            results.append((opt, count))
+
+        total = sum(r[1] for r in results)
+        winner = max(results, key=lambda x: x[1])
+
+        description = ""
+        for opt, count in results:
+            pct = int((count / total * 100)) if total > 0 else 0
+            bar = "█" * (pct // 5) + "░" * (20 - pct // 5)
+            marker = " 👑" if count == winner[1] and count > 0 else ""
+            description += f"**{opt}**{marker}\n{bar}  **{count}** votes ({pct}%)\n\n"
+
+        if total == 0:
+            description += "😔 *No votes were cast.*"
+
+        embed = discord.Embed(
+            title=f"📊  {title}  — RESULTS",
+            description=description,
+            color=0x2ECC71 if total > 0 else 0x95A5A6,
+            timestamp=discord.utils.utcnow(),
+        )
+        if total > 0:
+            embed.add_field(name="🏆 Winner", value=f"**{winner[0]}** with **{winner[1]}** votes!", inline=False)
+        embed.set_footer(text=f"Total votes: {total}  •  Poll closed")
+
+        await msg.edit(embed=embed)
+        await msg.clear_reactions()
 
 
 async def setup(bot: commands.Bot):
