@@ -272,7 +272,7 @@ class ApplicationCog(commands.Cog):
             def check(m: discord.Message) -> bool:
                 return (
                     m.author.id == user.id
-                    and isinstance(m.channel, discord.DMChannel)
+                    and m.guild is None
                 )
 
             for i, (emoji, question) in enumerate(_QUESTIONS, 1):
