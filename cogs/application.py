@@ -285,7 +285,14 @@ class ApplicationCog(commands.Cog):
 
                 try:
                     msg = await self.bot.wait_for("message", check=check, timeout=300)
-                    answers.append(msg.content)
+                    
+                    content = msg.content
+                    if not content and msg.attachments:
+                        content = msg.attachments[0].url
+                    elif not content:
+                        content = "*(No text provided)*"
+                        
+                    answers.append(content)
                     try:
                         await msg.add_reaction("✅")
                     except Exception:
