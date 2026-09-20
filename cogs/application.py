@@ -243,7 +243,23 @@ class _AppealView(discord.ui.View):
 class ApplicationCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self._active: set[int] = set()   # users currently filling application
+        self._active: set[int] = set()
+
+    @app_commands.command(name="debug-roles", description="Check why roles aren't being given")
+    async def debug_roles(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        unverified = discord.utils.get(guild.roles, name="Unverified")
+        rookie = discord.utils.get(guild.roles, name="Rookie")
+        
+        msg = "**Role Debugger:**\n"
+        msg += f"1. Bot has 'Manage Roles' permission? **{guild.me.guild_permissions.manage_roles}**\n"
+        msg += f"2. 'Unverified' role exists? **{'Yes' if unverified else 'No (Role deleted or renamed)'}**\n"
+        msg += f"3. 'Rookie' role exists? **{'Yes' if rookie else 'No (Role deleted or renamed)'}**\n"
+        
+        if unverified:
+            msg += f"4. Bot can manage 'Unverified'? **{guild.me.top_role > unverified}**\n"
+            
+        await interaction.response.send_message(msg, ephemeral=True)
 
     async def cog_load(self):
         self.bot.add_dynamic_items(_AcceptBtn, _DenyBtn, _AppealBtn)
