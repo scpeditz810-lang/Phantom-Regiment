@@ -385,6 +385,64 @@ class ModerationCog(commands.Cog):
         await interaction.response.send_message(
             f"✅ All warnings cleared for {member.mention}.", ephemeral=True)
 
+    # ── /poll ────────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="poll", description="Create a poll with up to 4 options (Commander / Staff only)")
+    @app_commands.describe(
+        title="The poll question or title",
+        option1="First option",
+        option2="Second option",
+        option3="Third option (optional)",
+        option4="Fourth option (optional)",
+        channel="The channel to post the poll in",
+    )
+    async def poll(
+        self,
+        interaction: discord.Interaction,
+        title: str,
+        option1: str,
+        option2: str,
+        channel: discord.TextChannel,
+        option3: str | None = None,
+        option4: str | None = None,
+    ):
+        # Permission check — Commander, Staff, or Branch Commander role
+        allowed = {r["name"] for r in STAFF_ROLES} | {"Commander"}
+        user_roles = {r.name for r in interaction.user.roles}
+        has_special = any(r.id == 1550978510229733396 for r in interaction.user.roles)
+
+        if not (user_roles & allowed) and not has_special:
+            return await interaction.response.send_message(
+                "❌ Only Commanders and Staff can create polls.", ephemeral=True
+            )
+
+        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"]
+        options = [option1, option2]
+        if option3:
+            options.append(option3)
+        if option4:
+            options.append(option4)
+
+        description = ""
+        for i, opt in enumerate(options):
+            description += f"{emojis[i]}  **{opt}**\n\n"
+
+        embed = discord.Embed(
+            title=f"📊  {title}",
+            description=description,
+            color=0x5865F2,
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.set_footer(text=f"Poll by {interaction.user.display_name}  •  React to vote!", icon_url=interaction.user.display_avatar.url)
+
+        msg = await channel.send(embed=embed)
+        for i in range(len(options)):
+            await msg.add_reaction(emojis[i])
+
+        await interaction.response.send_message(
+            f"✅ Poll posted in {channel.mention}!", ephemeral=True
+        )
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ModerationCog(bot))
