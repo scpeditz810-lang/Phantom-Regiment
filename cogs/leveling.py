@@ -315,12 +315,12 @@ class LevelingCog(commands.Cog):
 
         qualified = None
         for r in reversed(IN_GAME_ROLES):
-            if data["level"] >= r["level"] and data["wins"] >= r["wins"]:
+            if data["wins"] >= r["wins"]:
                 qualified = r
                 break
         nxt = None
         for r in IN_GAME_ROLES:
-            if data["level"] < r["level"] or data["wins"] < r["wins"]:
+            if data["wins"] < r["wins"]:
                 nxt = r
                 break
 
@@ -329,13 +329,13 @@ class LevelingCog(commands.Cog):
             colour=discord.Colour.gold(),
         )
         embed.add_field(name="Wins",  value=str(data["wins"]),  inline=True)
-        embed.add_field(name="Level", value=str(data["level"]), inline=True)
+        embed.add_field(name="Level", value=str(data.get("in_game_level", 0)), inline=True)
         if qualified:
             embed.add_field(name="In-Game Rank", value=qualified["name"], inline=True)
         if nxt:
             embed.add_field(
                 name="Next Rank",
-                value=f"**{nxt['name']}** — Lvl {nxt['level']}, {nxt['wins']} Wins",
+                value=f"**{nxt['name']}** — {nxt['wins']} Wins needed",
                 inline=False,
             )
         embed.set_thumbnail(url=member.display_avatar.url)
