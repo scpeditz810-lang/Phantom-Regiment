@@ -123,13 +123,21 @@ class GitBackup:
             return True
         except subprocess.CalledProcessError as exc:
             print(f"⚠️  Git backup push failed: {exc}")
-            # Try to create main branch if it doesn't exist
+            # The remote probably contains new code (e.g. pushed by developer)
+            # Try to pull --rebase and push again
             try:
-                self._run(["git", "branch", "-M", "main"], cwd=self.repo_dir)
+                self._run(["git", "pull", "--rebase", "origin", "main"], cwd=self.repo_dir)
                 self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
+                print("✅  Successfully rebased and pushed backup!")
                 return True
             except subprocess.CalledProcessError:
-                return False
+                # If it still fails, try initializing branch as a last resort
+                try:
+                    self._run(["git", "branch", "-M", "main"], cwd=self.repo_dir)
+                    self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
+                    return True
+                except subprocess.CalledProcessError:
+                    return False
 
     # ── internals ───────────────────────────────────────────────────────────
 
