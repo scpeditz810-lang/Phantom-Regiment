@@ -44,7 +44,10 @@ bot.db = Database("data/bot.db")
 @tasks.loop(seconds=10)
 async def backup_loop():
     """Push DB to GitHub every 10 seconds if it changed."""
-    await asyncio.to_thread(backup.push_if_changed)
+    try:
+        await asyncio.to_thread(backup.push_if_changed)
+    except Exception as e:
+        print(f"⚠️ Backup loop encountered an error: {e}")
 
 
 @bot.event

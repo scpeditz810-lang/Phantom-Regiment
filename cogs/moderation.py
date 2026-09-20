@@ -256,7 +256,11 @@ class ModerationCog(commands.Cog):
         if err := self._outranks(interaction.user, member):
             return await interaction.response.send_message(err, ephemeral=True)
 
-        await member.timeout(datetime.timedelta(minutes=duration), reason=reason)
+        try:
+            await member.timeout(datetime.timedelta(minutes=duration), reason=reason)
+        except discord.Forbidden:
+            return await interaction.response.send_message("❌ Cannot timeout: missing permissions or role hierarchy.", ephemeral=True)
+            
         await self._log(interaction.guild, action="Timeout", mod=interaction.user,
                         target=member, reason=f"{reason} ({duration}min)",
                         colour=discord.Colour.orange())
@@ -278,7 +282,12 @@ class ModerationCog(commands.Cog):
             await member.send(f"👢 Kicked from **{interaction.guild.name}** — {reason}")
         except discord.Forbidden:
             pass
-        await member.kick(reason=reason)
+            
+        try:
+            await member.kick(reason=reason)
+        except discord.Forbidden:
+            return await interaction.response.send_message("❌ Cannot kick: missing permissions or role hierarchy.", ephemeral=True)
+            
         await self._log(interaction.guild, action="Kick", mod=interaction.user,
                         target=member, reason=reason, colour=discord.Colour.orange())
         await interaction.response.send_message(
@@ -299,7 +308,11 @@ class ModerationCog(commands.Cog):
             await member.send(f"🔨 Banned from **{interaction.guild.name}** — {reason}")
         except discord.Forbidden:
             pass
-        await member.ban(reason=reason, delete_message_days=0)
+            
+        try:
+            await member.ban(reason=reason, delete_message_days=0)
+        except discord.Forbidden:
+            return await interaction.response.send_message("❌ Cannot ban: missing permissions or role hierarchy.", ephemeral=True)
         await self._log(interaction.guild, action="Ban", mod=interaction.user,
                         target=member, reason=reason, colour=discord.Colour.red())
         await interaction.response.send_message(

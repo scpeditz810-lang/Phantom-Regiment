@@ -70,10 +70,13 @@ class LevelingCog(commands.Cog):
             role = discord.utils.get(guild.roles, name=r["name"])
             if not role:
                 continue
-            if r["name"] == earned and role not in member.roles:
-                await member.add_roles(role)
-            elif r["name"] != earned and role in member.roles:
-                await member.remove_roles(role)
+            try:
+                if r["name"] == earned and role not in member.roles:
+                    await member.add_roles(role)
+                elif r["name"] != earned and role in member.roles:
+                    await member.remove_roles(role)
+            except discord.Forbidden:
+                pass
 
         # ── in-game roles (PURELY WINS) ─────────────────────────────────
         earned_ig = None
@@ -85,10 +88,13 @@ class LevelingCog(commands.Cog):
             role = discord.utils.get(guild.roles, name=r["name"])
             if not role:
                 continue
-            if r["name"] == earned_ig and role not in member.roles:
-                await member.add_roles(role)
-            elif r["name"] != earned_ig and role in member.roles:
-                await member.remove_roles(role)
+            try:
+                if r["name"] == earned_ig and role not in member.roles:
+                    await member.add_roles(role)
+                elif r["name"] != earned_ig and role in member.roles:
+                    await member.remove_roles(role)
+            except discord.Forbidden:
+                pass
 
     # ── XP on message ───────────────────────────────────────────────────────
 
