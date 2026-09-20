@@ -396,7 +396,13 @@ class ApplicationCog(commands.Cog):
         if member.bot:
             return
 
+        if member.pending:
+            # They haven't accepted server rules yet. 
+            # We will process them in on_member_update when they accept.
+            return
+
         # Debug log for staff channel
+        guild = member.guild
         staff_channel = guild.get_channel(1551255144233173084)
         if staff_channel:
             await staff_channel.send(f"🔍 DEBUG: `on_member_join` fired for {member.mention}. pending={member.pending}")
@@ -419,6 +425,27 @@ class ApplicationCog(commands.Cog):
             if staff_channel: await staff_channel.send(f"❌ Failed to send DM application (Forbidden, DMs likely closed): {e}")
         except Exception as e:
             if staff_channel: await staff_channel.send(f"❌ Exception in _run_application: {e}")
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        # When a user agrees to the server rules (Membership Screening), they go from pending=True to pending=False
+        # Discord blocks bots from giving roles to pending members, so we MUST do it here instead of on_member_join!
+        if before.pending and not after.pending:
+            guild = after.guild
+            
+            # Give Unverified role
+            unverified = discord.utils.get(guild.roles, name="Unverified")
+            if unverified:
+                try:
+                    await after.add_roles(unverified, reason="Passed membership screening — pending application")
+                except discord.Forbidden:
+                    pass
+
+            # Start DM application
+            try:
+                await self._run_application(after, guild)
+            except discord.Forbidden:
+                pass
 
 
 async def setup(bot: commands.Bot):
