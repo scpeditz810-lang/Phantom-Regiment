@@ -293,7 +293,8 @@ class ApplicationCog(commands.Cog):
                 except asyncio.TimeoutError:
                     await user.send(
                         "⏰ **Application timed out** (5 min per question).\n"
-                        "Rejoin the server or wait for an Appeal button to try again."
+                        "Click the button below when you're ready to try again.",
+                        view=_AppealView(self.bot)
                     )
                     return
 
