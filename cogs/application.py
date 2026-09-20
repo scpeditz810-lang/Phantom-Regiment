@@ -108,10 +108,16 @@ class _AcceptMessageModal(discord.ui.Modal, title="Accept Application"):
         roles_add = [r for r in (rookie, member_r) if r]
         roles_rm  = [r for r in (unverified,) if r and r in member.roles]
 
-        if roles_add:
-            await member.add_roles(*roles_add, reason="Application accepted")
-        if roles_rm:
-            await member.remove_roles(*roles_rm, reason="Application accepted")
+        try:
+            if roles_add:
+                await member.add_roles(*roles_add, reason="Application accepted")
+            if roles_rm:
+                await member.remove_roles(*roles_rm, reason="Application accepted")
+        except discord.Forbidden:
+            return await interaction.response.send_message(
+                "❌ **Error:** The bot is unable to give roles! Please go to **Server Settings > Roles** and make sure the `Phantom Regiment` bot role is **HIGHER** than the Rookie/Member/Unverified roles.", 
+                ephemeral=True
+            )
 
         await interaction.client.db.clear_app_cooldown(member.id)
 
@@ -378,7 +384,10 @@ class ApplicationCog(commands.Cog):
         # Give Unverified role
         unverified = discord.utils.get(guild.roles, name="Unverified")
         if unverified:
-            await member.add_roles(unverified, reason="New member — pending application")
+            try:
+                await member.add_roles(unverified, reason="New member — pending application")
+            except discord.Forbidden:
+                print(f"⚠️ Could not add Unverified role to {member}. Check role hierarchy!")
 
         # Start DM application
         try:
