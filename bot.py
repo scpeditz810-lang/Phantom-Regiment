@@ -105,6 +105,9 @@ COGS = [
     "cogs.economy",
     "cogs.gamenight",
     "cogs.strategy",
+    "cogs.invites",
+    "cogs.giveaway",
+    "cogs.roblox",
 ]
 
 

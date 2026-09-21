@@ -33,14 +33,14 @@ _QUESTIONS = [
     ("5️⃣", "How much **playtime** do you have in the game?"),
     ("6️⃣", "Will you agree to respect and follow the instructions of your **seniors** (Commanders, Admins, etc.)?"),
     ("7️⃣", "What type of **tactics and units** do you prefer to use?"),
-    ("8️⃣", "What is your **Roblox username**?"),
+    ("8️⃣", "What is your **Roblox display name and username**?\n*(Format: `Display(@username)` — e.g. `CoolGuy(@xXCoolGuyXx)`)*"),
     ("9️⃣", "What is your current **in-game level**?"),
 ]
 
 _ANSWER_LABELS = [
     "🎂 Age", "🏆 Wins", "⚔️ Kills", "🌍 Timezone",
     "⏱️ Playtime", "🤝 Agree to Seniors?", "🎯 Tactics & Units",
-    "🎮 Roblox Username", "📊 In-Game Level",
+    "🎮 Roblox Name", "📊 In-Game Level",
 ]
 
 
@@ -121,6 +121,53 @@ class _AcceptMessageModal(discord.ui.Modal, title="Accept Application"):
             )
 
         await interaction.client.db.clear_app_cooldown(member.id)
+
+        # ── Auto-set Roblox nickname from answer #8 ──────────────────────
+        try:
+            roblox_field = None
+            for field in self.orig_message.embeds[0].fields:
+                if "Roblox" in field.name:
+                    roblox_field = field.value
+                    break
+
+            if roblox_field:
+                import re, aiohttp
+                # Try to parse Display(@username) format
+                match = re.match(r"(.+?)\s*\(@?(\w+)\)", roblox_field.strip())
+                if match:
+                    display_name = match.group(1).strip()
+                    username = match.group(2).strip()
+                else:
+                    # Fallback: treat the whole answer as a username
+                    username = roblox_field.strip().lstrip("@")
+                    display_name = None
+
+                # Fetch from Roblox API to verify & get real display name
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        "https://users.roblox.com/v1/usernames/users",
+                        json={"usernames": [username], "excludeBannedUsers": True},
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            if data.get("data"):
+                                rblx = data["data"][0]
+                                real_display = rblx.get("displayName", display_name or username)
+                                real_username = rblx.get("name", username)
+                                roblox_id = rblx.get("id", 0)
+
+                                # Save to database
+                                await interaction.client.db.link_roblox(
+                                    member.id, real_username, roblox_id, real_display
+                                )
+
+                                # Set nickname
+                                try:
+                                    await member.edit(nick=f"{real_display} (@{real_username})")
+                                except discord.Forbidden:
+                                    pass  # Can't change owner's nick or hierarchy issue
+        except Exception:
+            pass  # Don't block acceptance if Roblox lookup fails
 
         # Update embed
         embed = self.orig_message.embeds[0].copy()

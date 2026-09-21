@@ -55,6 +55,37 @@ class Database:
                 user_id   INTEGER PRIMARY KEY,
                 denied_at REAL
             );
+
+            CREATE TABLE IF NOT EXISTS invites (
+                user_id   INTEGER,
+                guild_id  INTEGER,
+                invite_count INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, guild_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS giveaways (
+                message_id  INTEGER PRIMARY KEY,
+                channel_id  INTEGER,
+                guild_id    INTEGER,
+                prize       TEXT,
+                winners     INTEGER DEFAULT 1,
+                end_time    REAL,
+                ended       INTEGER DEFAULT 0,
+                host_id     INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS giveaway_entries (
+                message_id  INTEGER,
+                user_id     INTEGER,
+                PRIMARY KEY (message_id, user_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS roblox_links (
+                user_id           INTEGER PRIMARY KEY,
+                roblox_username   TEXT,
+                roblox_id         INTEGER,
+                roblox_display    TEXT
+            );
         """)
 
         # Safely migrate existing databases by adding new columns if they don't exist
@@ -238,3 +269,113 @@ class Database:
             "DELETE FROM app_cooldowns WHERE user_id = ?", (user_id,)
         )
         await self._db.commit()
+
+    # ── giveaway helpers ────────────────────────────────────────────────────
+    async def create_giveaway(
+        self, message_id: int, channel_id: int, guild_id: int,
+        prize: str, winners: int, end_time: float, host_id: int = 0,
+    ):
+        await self._db.execute(
+            """INSERT INTO giveaways
+               (message_id, channel_id, guild_id, prize, winners, end_time, host_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (message_id, channel_id, guild_id, prize, winners, end_time, host_id),
+        )
+        await self._db.commit()
+
+    async def get_giveaway(self, message_id: int) -> dict | None:
+        async with self._db.execute(
+            "SELECT * FROM giveaways WHERE message_id = ?", (message_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def get_active_giveaways(self) -> list[dict]:
+        """Return giveaways that have not ended and whose end_time has passed."""
+        async with self._db.execute(
+            "SELECT * FROM giveaways WHERE ended = 0 AND end_time <= ?",
+            (time.time(),),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def end_giveaway(self, message_id: int):
+        await self._db.execute(
+            "UPDATE giveaways SET ended = 1 WHERE message_id = ?",
+            (message_id,),
+        )
+        await self._db.commit()
+
+    async def add_giveaway_entry(self, message_id: int, user_id: int):
+        await self._db.execute(
+            "INSERT OR IGNORE INTO giveaway_entries (message_id, user_id) VALUES (?, ?)",
+            (message_id, user_id),
+        )
+        await self._db.commit()
+
+    async def has_giveaway_entry(self, message_id: int, user_id: int) -> bool:
+        async with self._db.execute(
+            "SELECT 1 FROM giveaway_entries WHERE message_id = ? AND user_id = ?",
+            (message_id, user_id),
+        ) as cur:
+            return await cur.fetchone() is not None
+
+    async def count_giveaway_entries(self, message_id: int) -> int:
+        async with self._db.execute(
+            "SELECT COUNT(*) FROM giveaway_entries WHERE message_id = ?",
+            (message_id,),
+        ) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else 0
+
+    async def get_giveaway_entries(self, message_id: int) -> list[int]:
+        """Return a list of user IDs that entered the giveaway."""
+        async with self._db.execute(
+            "SELECT user_id FROM giveaway_entries WHERE message_id = ?",
+            (message_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+            return [row[0] for row in rows]
+
+    # ── invite tracking ──────────────────────────────────────────────────────
+
+    async def add_invite(self, user_id: int, guild_id: int):
+        """Increment invite count for a user by 1."""
+        await self._db.execute(
+            "INSERT INTO invites (user_id, guild_id, invite_count) VALUES (?, ?, 1) "
+            "ON CONFLICT(user_id, guild_id) DO UPDATE SET invite_count = invite_count + 1",
+            (user_id, guild_id),
+        )
+        await self._db.commit()
+
+    async def get_invites(self, user_id: int, guild_id: int) -> int:
+        async with self._db.execute(
+            "SELECT invite_count FROM invites WHERE user_id = ? AND guild_id = ?",
+            (user_id, guild_id),
+        ) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else 0
+
+    async def get_invite_leaderboard(self, guild_id: int, limit: int = 10) -> list[dict]:
+        async with self._db.execute(
+            "SELECT user_id, invite_count FROM invites WHERE guild_id = ? "
+            "ORDER BY invite_count DESC LIMIT ?",
+            (guild_id, limit),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    # ── roblox links ─────────────────────────────────────────────────────────
+
+    async def link_roblox(self, user_id: int, username: str, roblox_id: int, display_name: str):
+        await self._db.execute(
+            "INSERT OR REPLACE INTO roblox_links (user_id, roblox_username, roblox_id, roblox_display) "
+            "VALUES (?, ?, ?, ?)",
+            (user_id, username, roblox_id, display_name),
+        )
+        await self._db.commit()
+
+    async def get_roblox_link(self, user_id: int) -> dict | None:
+        async with self._db.execute(
+            "SELECT * FROM roblox_links WHERE user_id = ?", (user_id,),
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
