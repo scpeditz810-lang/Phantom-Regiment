@@ -139,12 +139,30 @@ class SuggestionsCog(commands.Cog):
                 # Message was deleted from starboard, post a new one
                 new_msg = await starboard_channel.send(content=content_str, embed=embed)
                 await self.bot.db.link_starboard_msg(message.id, new_msg.id)
+                
+                # Give the role
+                member = thread.guild.get_member(message.author.id)
+                role = thread.guild.get_role(1551265887934218311)
+                if member and role:
+                    try:
+                        await member.add_roles(role, reason="Suggestion reached top suggestions")
+                    except discord.Forbidden:
+                        pass
             except discord.HTTPException:
                 pass
         else:
             # Post new
             new_msg = await starboard_channel.send(content=content_str, embed=embed)
             await self.bot.db.link_starboard_msg(message.id, new_msg.id)
+            
+            # Give the role
+            member = thread.guild.get_member(message.author.id)
+            role = thread.guild.get_role(1551265887934218311)
+            if member and role:
+                try:
+                    await member.add_roles(role, reason="Suggestion reached top suggestions")
+                except discord.Forbidden:
+                    pass
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(SuggestionsCog(bot))

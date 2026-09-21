@@ -88,6 +88,17 @@ class _StrategyApproveBtn(
             except discord.Forbidden:
                 pass
 
+        # Give the strategy role
+        if interaction.guild:
+            member = interaction.guild.get_member(self.uid)
+            if member:
+                role = interaction.guild.get_role(1551265887934218311)
+                if role:
+                    try:
+                        await member.add_roles(role, reason="Strategy approved")
+                    except discord.Forbidden:
+                        pass
+
         await interaction.response.send_message("✅ Strategy approved and posted!", ephemeral=True)
 
 
