@@ -15,8 +15,19 @@ class Database:
 
     # ── lifecycle ───────────────────────────────────────────────────────────
     async def setup(self):
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self._db = await aiosqlite.connect(self.db_path)
+        dir_path = os.path.dirname(self.db_path)
+        os.makedirs(dir_path, exist_ok=True)
+        
+        # Force full write permissions on Render's file system
+        try:
+            import stat
+            os.chmod(dir_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            if os.path.exists(self.db_path):
+                os.chmod(self.db_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+        except Exception as e:
+            print(f"⚠️ Could not change DB permissions: {e}", flush=True)
+
+        self._db = await aiosqlite.connect(self.db_path, timeout=20.0)
         self._db.row_factory = aiosqlite.Row
 
         await self._db.executescript("""
