@@ -97,6 +97,11 @@ class Database:
                 roblox_id         INTEGER,
                 roblox_display    TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS starboard (
+                original_msg_id   INTEGER PRIMARY KEY,
+                starboard_msg_id  INTEGER
+            );
         """)
 
         # Safely migrate existing databases by adding new columns if they don't exist
@@ -390,3 +395,20 @@ class Database:
         ) as cur:
             row = await cur.fetchone()
             return dict(row) if row else None
+
+    # ── starboard ────────────────────────────────────────────────────────────
+
+    async def get_starboard_msg(self, original_msg_id: int) -> int | None:
+        async with self._db.execute(
+            "SELECT starboard_msg_id FROM starboard WHERE original_msg_id = ?",
+            (original_msg_id,),
+        ) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else None
+
+    async def link_starboard_msg(self, original_msg_id: int, starboard_msg_id: int):
+        await self._db.execute(
+            "INSERT OR REPLACE INTO starboard (original_msg_id, starboard_msg_id) VALUES (?, ?)",
+            (original_msg_id, starboard_msg_id),
+        )
+        await self._db.commit()

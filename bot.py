@@ -108,6 +108,7 @@ COGS = [
     "cogs.invites",
     "cogs.giveaway",
     "cogs.roblox",
+    "cogs.suggestions",
 ]
 
 
