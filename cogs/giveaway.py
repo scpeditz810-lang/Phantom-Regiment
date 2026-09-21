@@ -111,7 +111,11 @@ class GiveawayCog(commands.Cog):
 
     @giveaway_checker.before_loop
     async def before_giveaway_checker(self):
+        import asyncio
         await self.bot.wait_until_ready()
+        # Wait until the database connection is fully established
+        while not getattr(self.bot, "db", None) or self.bot.db._db is None:
+            await asyncio.sleep(1)
 
     # ── Winner picking & ending ────────────────────────────────────────────
     async def _end_giveaway(self, giveaway: dict):
