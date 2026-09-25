@@ -82,9 +82,17 @@ class InviteCog(commands.Cog):
 
         if inviter is not None:
             try:
-                await self.bot.db.add_invite(inviter.id, guild.id)
+                await self.bot.db.add_invite(inviter.id, member.id, guild.id)
             except Exception:
                 pass
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member) -> None:
+        """Deduct invite count and remove history if an invited user leaves."""
+        try:
+            await self.bot.db.remove_invite(member.id, member.guild.id)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Slash commands
@@ -112,6 +120,34 @@ class InviteCog(commands.Cog):
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.set_footer(text=f"Requested by {interaction.user}", icon_url=interaction.user.display_avatar.url)
 
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="checkinvite", description="See a list of people a member has invited")
+    @app_commands.describe(member="The member to check")
+    async def check_invite(self, interaction: discord.Interaction, member: discord.Member) -> None:
+        """Display a list of members that this person invited."""
+        try:
+            invited_ids = await self.bot.db.get_invited_users(member.id, interaction.guild_id)
+        except Exception:
+            return await interaction.response.send_message("⚠️ Failed to fetch data.", ephemeral=True)
+
+        if not invited_ids:
+            return await interaction.response.send_message(f"{member.mention} has not invited anyone yet.", ephemeral=True)
+
+        # Build list of mentions
+        mentions = [f"<@{uid}>" for uid in invited_ids]
+        
+        # Discord embeds max description length is 4096. 
+        description = "\n".join(mentions)
+        if len(description) > 4000:
+            description = description[:4000] + "\n...and more!"
+
+        embed = discord.Embed(
+            title=f"People invited by {member.display_name}",
+            description=description,
+            color=discord.Color.blurple(),
+        )
+        embed.set_footer(text=f"Total: {len(invited_ids)} invites")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="inviteleaderboard", description="Show the top 10 inviters in this server")

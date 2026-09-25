@@ -74,6 +74,12 @@ class Database:
                 PRIMARY KEY (user_id, guild_id)
             );
 
+            CREATE TABLE IF NOT EXISTS invite_history (
+                joined_user_id INTEGER PRIMARY KEY,
+                inviter_user_id INTEGER,
+                guild_id INTEGER
+            );
+
             CREATE TABLE IF NOT EXISTS giveaways (
                 message_id  INTEGER PRIMARY KEY,
                 channel_id  INTEGER,
@@ -354,14 +360,50 @@ class Database:
 
     # ── invite tracking ──────────────────────────────────────────────────────
 
-    async def add_invite(self, user_id: int, guild_id: int):
-        """Increment invite count for a user by 1."""
+    async def add_invite(self, inviter_id: int, joined_id: int, guild_id: int):
+        """Record who invited whom and increment count."""
+        # Record history
+        await self._db.execute(
+            "INSERT OR REPLACE INTO invite_history (joined_user_id, inviter_user_id, guild_id) VALUES (?, ?, ?)",
+            (joined_id, inviter_id, guild_id)
+        )
+        # Increment count
         await self._db.execute(
             "INSERT INTO invites (user_id, guild_id, invite_count) VALUES (?, ?, 1) "
             "ON CONFLICT(user_id, guild_id) DO UPDATE SET invite_count = invite_count + 1",
-            (user_id, guild_id),
+            (inviter_id, guild_id),
         )
         await self._db.commit()
+
+    async def remove_invite(self, joined_id: int, guild_id: int):
+        """Remove the invite history and decrement the inviter's count."""
+        async with self._db.execute(
+            "SELECT inviter_user_id FROM invite_history WHERE joined_user_id = ? AND guild_id = ?",
+            (joined_id, guild_id)
+        ) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return
+            inviter_id = row[0]
+
+        # Delete history
+        await self._db.execute("DELETE FROM invite_history WHERE joined_user_id = ?", (joined_id,))
+        
+        # Decrement count
+        await self._db.execute(
+            "UPDATE invites SET invite_count = MAX(0, invite_count - 1) WHERE user_id = ? AND guild_id = ?",
+            (inviter_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def get_invited_users(self, inviter_id: int, guild_id: int) -> list[int]:
+        """Get a list of user IDs that were invited by this person."""
+        async with self._db.execute(
+            "SELECT joined_user_id FROM invite_history WHERE inviter_user_id = ? AND guild_id = ?",
+            (inviter_id, guild_id)
+        ) as cur:
+            rows = await cur.fetchall()
+            return [row[0] for row in rows]
 
     async def get_invites(self, user_id: int, guild_id: int) -> int:
         async with self._db.execute(
