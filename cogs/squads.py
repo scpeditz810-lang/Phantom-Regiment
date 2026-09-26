@@ -24,13 +24,13 @@ SQUADS = {
         "description": "## 🐎 Specialty: Elite Cavalry Masters\n\nLos Bluchigis consists of riders who have mastered every single horse unit in the game. They specialize in devastating cavalry charges, lightning-fast flanking maneuvers, and dominating the battlefield with unmatched speed and mobility."
     },
     2: {
-        "name": "Ignite's squad", 
+        "name": "Nocturne Pheonix", 
         "commander_id": 754264189601710100, 
         "invite_link": "https://discord.gg/NrgbGCDEwU",
         "emoji": "🏹",
         "short_desc": "Archery & Shield Formations",
-        "image_url": "", # Add your Ignite logo link here
-        "description": "## 🏹 Specialty: Archery & Shield Formations\n\nIgnite's squad are the undisputed masters of ranged combat and defensive lines. They specialize in raining down devastating arrow fire from afar, all while being protected behind an impenetrable wall of elite shield-holders that no enemy can break through."
+        "image_url": "https://raw.githubusercontent.com/scpeditz810-lang/Phantom/main/assets/nocturne.png",
+        "description": "## 🏹 Specialty: Archery & Shield Formations\n\nNocturne Pheonix are the undisputed masters of ranged combat and defensive lines. They specialize in raining down devastating arrow fire from afar, all while being protected behind an impenetrable wall of elite shield-holders that no enemy can break through."
     }
 }
 
