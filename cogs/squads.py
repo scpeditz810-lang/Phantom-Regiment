@@ -220,17 +220,6 @@ class SquadsCog(commands.Cog):
 
     async def cog_load(self):
         self.bot.add_dynamic_items(_SquadApproveBtn, _SquadDenyBtn)
-        # Create the cooldowns table if it doesn't exist
-        if hasattr(self.bot, "db") and hasattr(self.bot.db, "_db"):
-            await self.bot.db._db.execute("""
-                CREATE TABLE IF NOT EXISTS squad_cooldowns (
-                    user_id INTEGER,
-                    squad_idx INTEGER,
-                    denied_at REAL,
-                    PRIMARY KEY (user_id, squad_idx)
-                )
-            """)
-            await self.bot.db._db.commit()
 
     async def _run_squad_application(self, user: discord.User, guild: discord.Guild, sqd_idx: int):
         squad_info = SQUADS[sqd_idx]

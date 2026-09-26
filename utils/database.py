@@ -108,6 +108,13 @@ class Database:
                 original_msg_id   INTEGER PRIMARY KEY,
                 starboard_msg_id  INTEGER
             );
+
+            CREATE TABLE IF NOT EXISTS squad_cooldowns (
+                user_id INTEGER,
+                squad_idx INTEGER,
+                denied_at REAL,
+                PRIMARY KEY (user_id, squad_idx)
+            );
         """)
 
         # Safely migrate existing databases by adding new columns if they don't exist
