@@ -194,10 +194,13 @@ class _SquadSelect(discord.ui.Select):
         squad = SQUADS[sqd_idx]
         
         embed = discord.Embed(
-            title=f"{squad['emoji']} {squad['name']}",
+            title=f"{squad['emoji']} {squad['name'].upper()} SQUAD",
             description=squad['description'],
-            color=discord.Color.blurple()
+            color=discord.Color.gold()
         )
+        
+        embed.add_field(name="👑 Commander", value=f"<@{squad['commander_id']}>", inline=False)
+        
         if squad.get("image_url"):
             embed.set_thumbnail(url=squad["image_url"])
             
