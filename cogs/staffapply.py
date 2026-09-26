@@ -344,9 +344,11 @@ class StaffApplyCog(commands.Cog):
     @app_commands.command(name="staffapplications", description="Send a staff application embed to a channel")
     @app_commands.describe(channel="Channel to post the application embed in")
     async def staffapplications(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        # Only admins / server managers can use this
-        if not interaction.user.guild_permissions.manage_guild:
-            return await interaction.response.send_message("❌ You need **Manage Server** permissions to use this.", ephemeral=True)
+        # Only commanders or admins can use this
+        is_commander = any(r.name == "Commander" for r in interaction.user.roles)
+        is_admin = interaction.user.guild_permissions.administrator
+        if not is_commander and not is_admin:
+            return await interaction.response.send_message("❌ Only Commanders can use this.", ephemeral=True)
 
         embed = discord.Embed(
             title="📋 STAFF APPLICATIONS",
