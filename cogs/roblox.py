@@ -152,9 +152,14 @@ class RobloxCog(commands.Cog):
 
             avatar_url = await self._fetch_avatar_url(roblox_id) if roblox_id else None
 
+            # Check if they are in a squad
+            squad_names = ["Frontline", "Los Bluchigis", "Ignite's squad"]
+            member_squads = [r.name for r in member.roles if r.name in squad_names]
+            squad_text = f"🛡️ **Squad:** {member_squads[0]}" if member_squads else "🛡️ **Squad:** None"
+
             embed = discord.Embed(
                 title=f"{display_name} (@{username})",
-                description=f"Roblox ID: `{roblox_id}`",
+                description=f"Roblox ID: `{roblox_id}`\n\n{squad_text}",
                 color=discord.Color.blurple(),
             )
             embed.url = f"https://www.roblox.com/users/{roblox_id}/profile"
