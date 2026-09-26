@@ -1,5 +1,6 @@
 import asyncio
 import time
+import os
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -11,7 +12,8 @@ SQUADS = {
         "invite_link": "https://discord.gg/Buu6Xvr83x",
         "emoji": "⚔️",
         "short_desc": "Highly Adaptable Combat",
-        "image_url": "https://raw.githubusercontent.com/scpeditz810-lang/Phantom/main/assets/frontline.png",
+        "local_image": "assets/frontline.png",
+        "image_url": "",
         "description": "## 🛡️ Specialty: Highly Adaptable Combat\n\nThe Frontline squad is tactically fluid and plays strictly according to the situation. Whether the battle requires an aggressive push, a tactical retreat, or holding a choke point, they are the versatile backbone of the regiment that constantly adapts to overcome the enemy."
     },
     1: {
@@ -20,7 +22,8 @@ SQUADS = {
         "invite_link": "https://discord.gg/9Hv5rAaUkz",
         "emoji": "🐎",
         "short_desc": "Elite Cavalry Masters",
-        "image_url": "https://raw.githubusercontent.com/scpeditz810-lang/Phantom/main/assets/losbluchigis.png",
+        "local_image": "assets/losbluchigis.png",
+        "image_url": "",
         "description": "## 🐎 Specialty: Elite Cavalry Masters\n\nLos Bluchigis consists of riders who have mastered every single horse unit in the game. They specialize in devastating cavalry charges, lightning-fast flanking maneuvers, and dominating the battlefield with unmatched speed and mobility."
     },
     2: {
@@ -29,7 +32,8 @@ SQUADS = {
         "invite_link": "https://discord.gg/NrgbGCDEwU",
         "emoji": "🏹",
         "short_desc": "Archery & Shield Formations",
-        "image_url": "https://raw.githubusercontent.com/scpeditz810-lang/Phantom/main/assets/nocturne.png",
+        "local_image": "assets/nocturne.png",
+        "image_url": "",
         "description": "## 🏹 Specialty: Archery & Shield Formations\n\nNocturne Pheonix are the undisputed masters of ranged combat and defensive lines. They specialize in raining down devastating arrow fire from afar, all while being protected behind an impenetrable wall of elite shield-holders that no enemy can break through."
     }
 }
@@ -201,11 +205,16 @@ class _SquadSelect(discord.ui.Select):
         
         embed.add_field(name="👑 Commander", value=f"<@{squad['commander_id']}>", inline=False)
         
-        if squad.get("image_url"):
+        attachments = []
+        if squad.get("local_image") and os.path.exists(squad["local_image"]):
+            file = discord.File(squad["local_image"], filename="logo.png")
+            attachments.append(file)
+            embed.set_thumbnail(url="attachment://logo.png")
+        elif squad.get("image_url"):
             embed.set_thumbnail(url=squad["image_url"])
             
         new_view = _SquadDetailView(self.cog, self.guild, sqd_idx)
-        await interaction.response.edit_message(embed=embed, view=new_view)
+        await interaction.response.edit_message(embed=embed, view=new_view, attachments=attachments)
 
 
 class _SquadDetailView(discord.ui.View):
@@ -249,7 +258,7 @@ class _SquadDetailView(discord.ui.View):
             description="**Select a Squad, check their specialty, and choose for yourself!**",
             color=discord.Color.blurple()
         )
-        await interaction.response.edit_message(embed=embed, view=_SquadSelectView(self.cog, self.guild))
+        await interaction.response.edit_message(embed=embed, view=_SquadSelectView(self.cog, self.guild), attachments=[])
 
 
 class _SquadSelectView(discord.ui.View):
