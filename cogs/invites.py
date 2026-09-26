@@ -190,6 +190,34 @@ class InviteCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="addinvites", description="Manually add invites to a user's count")
+    @app_commands.describe(member="The member to add invites to", amount="Number of invites to add")
+    async def add_invites(self, interaction: discord.Interaction, member: discord.Member, amount: int) -> None:
+        """Add invites to a user — moderators and above only."""
+        # Permission check: Moderator role or higher, or manage_guild
+        staff_names = {"Trial Mod", "Moderator", "Senior Mod", "Admin", "Server Manager", "Commander"}
+        user_roles = {r.name for r in interaction.user.roles}
+        if not (user_roles & staff_names) and not interaction.user.guild_permissions.manage_guild:
+            return await interaction.response.send_message("❌ You need to be a Moderator or higher to use this.", ephemeral=True)
+
+        if amount == 0:
+            return await interaction.response.send_message("❌ Amount must not be zero.", ephemeral=True)
+
+        # Directly update the invite count in DB
+        await self.bot.db._db.execute(
+            "INSERT INTO invites (user_id, guild_id, invite_count) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id, guild_id) DO UPDATE SET invite_count = MAX(0, invite_count + ?)",
+            (member.id, interaction.guild_id, max(0, amount), amount),
+        )
+        await self.bot.db._db.commit()
+
+        new_count = await self.bot.db.get_invites(member.id, interaction.guild_id)
+
+        if amount > 0:
+            await interaction.response.send_message(f"✅ Added **{amount}** invite(s) to {member.mention}. They now have **{new_count}** total.")
+        else:
+            await interaction.response.send_message(f"✅ Removed **{abs(amount)}** invite(s) from {member.mention}. They now have **{new_count}** total.")
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(InviteCog(bot))

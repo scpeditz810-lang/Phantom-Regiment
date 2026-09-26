@@ -110,6 +110,7 @@ COGS = [
     "cogs.roblox",
     "cogs.suggestions",
     "cogs.squads",
+    "cogs.staffapply",
 ]
 
 
