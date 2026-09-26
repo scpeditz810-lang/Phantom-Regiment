@@ -111,6 +111,7 @@ COGS = [
     "cogs.suggestions",
     "cogs.squads",
     "cogs.staffapply",
+    "cogs.pingcooldown",
 ]
 
 
