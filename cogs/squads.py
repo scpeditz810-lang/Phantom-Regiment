@@ -29,7 +29,7 @@ SQUADS = {
         "invite_link": "https://discord.gg/NrgbGCDEwU",
         "emoji": "🏹",
         "short_desc": "Archery & Shield Formations",
-        "image_url": "https://raw.githubusercontent.com/scpeditz810-lang/Phantom/main/assets/nocturne.png",
+        "image_url": "", # Add your Nocturne Phoenix logo link here
         "description": "## 🏹 Specialty: Archery & Shield Formations\n\nNocturne Pheonix are the undisputed masters of ranged combat and defensive lines. They specialize in raining down devastating arrow fire from afar, all while being protected behind an impenetrable wall of elite shield-holders that no enemy can break through."
     }
 }
