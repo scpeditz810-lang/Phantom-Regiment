@@ -11,7 +11,8 @@ SQUADS = {
         "invite_link": "https://discord.gg/Buu6Xvr83x",
         "emoji": "⚔️",
         "short_desc": "Highly Adaptable Combat",
-        "description": "**Specialty: Highly Adaptable Combat**\nThe Frontline squad is tactically fluid and plays strictly according to the situation. Whether the battle requires an aggressive push, a tactical retreat, or holding a choke point, they are the versatile backbone of the regiment that constantly adapts to overcome the enemy."
+        "image_url": "https://raw.githubusercontent.com/scpeditz810-lang/Phantom/main/assets/frontline.png",
+        "description": "## 🛡️ Specialty: Highly Adaptable Combat\n\nThe Frontline squad is tactically fluid and plays strictly according to the situation. Whether the battle requires an aggressive push, a tactical retreat, or holding a choke point, they are the versatile backbone of the regiment that constantly adapts to overcome the enemy."
     },
     1: {
         "name": "Los Bluchigis", 
@@ -19,7 +20,8 @@ SQUADS = {
         "invite_link": "https://discord.gg/9Hv5rAaUkz",
         "emoji": "🐎",
         "short_desc": "Elite Cavalry Masters",
-        "description": "**Specialty: Elite Cavalry Masters**\nLos Bluchigis consists of riders who have mastered every single horse unit in the game. They specialize in devastating cavalry charges, lightning-fast flanking maneuvers, and dominating the battlefield with unmatched speed and mobility."
+        "image_url": "https://raw.githubusercontent.com/scpeditz810-lang/Phantom/main/assets/losbluchigis.png",
+        "description": "## 🐎 Specialty: Elite Cavalry Masters\n\nLos Bluchigis consists of riders who have mastered every single horse unit in the game. They specialize in devastating cavalry charges, lightning-fast flanking maneuvers, and dominating the battlefield with unmatched speed and mobility."
     },
     2: {
         "name": "Ignite's squad", 
@@ -27,7 +29,8 @@ SQUADS = {
         "invite_link": "https://discord.gg/NrgbGCDEwU",
         "emoji": "🏹",
         "short_desc": "Archery & Shield Formations",
-        "description": "**Specialty: Archery & Shield Formations**\nIgnite's squad are the undisputed masters of ranged combat and defensive lines. They specialize in raining down devastating arrow fire from afar, all while being protected behind an impenetrable wall of elite shield-holders that no enemy can break through."
+        "image_url": "", # Add your Ignite logo link here
+        "description": "## 🏹 Specialty: Archery & Shield Formations\n\nIgnite's squad are the undisputed masters of ranged combat and defensive lines. They specialize in raining down devastating arrow fire from afar, all while being protected behind an impenetrable wall of elite shield-holders that no enemy can break through."
     }
 }
 
@@ -188,30 +191,62 @@ class _SquadSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         sqd_idx = int(self.values[0])
-        squad_name = SQUADS[sqd_idx]["name"]
+        squad = SQUADS[sqd_idx]
+        
+        embed = discord.Embed(
+            title=f"{squad['emoji']} {squad['name']}",
+            description=squad['description'],
+            color=discord.Color.blurple()
+        )
+        if squad.get("image_url"):
+            embed.set_thumbnail(url=squad["image_url"])
+            
+        new_view = _SquadDetailView(self.cog, self.guild, sqd_idx)
+        await interaction.response.edit_message(embed=embed, view=new_view)
+
+
+class _SquadDetailView(discord.ui.View):
+    def __init__(self, cog, guild: discord.Guild, sqd_idx: int):
+        super().__init__(timeout=300)
+        self.cog = cog
+        self.guild = guild
+        self.sqd_idx = sqd_idx
+
+    @discord.ui.button(label="Apply to Squad", style=discord.ButtonStyle.success, emoji="📝")
+    async def apply_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        squad_name = SQUADS[self.sqd_idx]["name"]
         
         # Check cooldown
         db = getattr(interaction.client, "db", None)
         if db and hasattr(db, "_db"):
-            async with db._db.execute("SELECT denied_at FROM squad_cooldowns WHERE user_id = ? AND squad_idx = ?", (interaction.user.id, sqd_idx)) as cur:
+            async with db._db.execute("SELECT denied_at FROM squad_cooldowns WHERE user_id = ? AND squad_idx = ?", (interaction.user.id, self.sqd_idx)) as cur:
                 row = await cur.fetchone()
                 if row:
                     last_denied = row[0]
                     if time.time() - last_denied < 86400: # 24 hours
                         return await interaction.response.send_message("⏳ You were recently denied from this squad. Please wait 24 hours before applying again.", ephemeral=True)
         
-        await interaction.response.send_message(f"✅ You selected **{squad_name}**. Let's begin the interview!", ephemeral=True)
+        await interaction.response.send_message(f"✅ You are applying to **{squad_name}**. Let's begin the interview!", ephemeral=True)
         
-        # Disable the dropdown
-        for child in self.view.children:
+        # Disable buttons
+        for child in self.children:
             child.disabled = True
         try:
-            await interaction.message.edit(view=self.view)
+            await interaction.message.edit(view=self)
         except discord.HTTPException:
             pass
 
-        # Start the question loop in the background
-        asyncio.create_task(self.cog._run_squad_application(interaction.user, self.guild, sqd_idx))
+        # Start the question loop
+        asyncio.create_task(self.cog._run_squad_application(interaction.user, self.guild, self.sqd_idx))
+
+    @discord.ui.button(label="Select Another Squad", style=discord.ButtonStyle.secondary, emoji="↩️")
+    async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="🛡️ ENLIST IN A SQUAD",
+            description="**Select a Squad, check their specialty, and choose for yourself!**",
+            color=discord.Color.blurple()
+        )
+        await interaction.response.edit_message(embed=embed, view=_SquadSelectView(self.cog, self.guild))
 
 
 class _SquadSelectView(discord.ui.View):
@@ -357,7 +392,7 @@ class SquadsCog(commands.Cog):
         view = _SquadSelectView(self, interaction.guild)
         try:
             embed = discord.Embed(
-                title="🛡️ Enlist in a Squad",
+                title="🛡️ ENLIST IN A SQUAD",
                 description="**Select a Squad, check their specialty, and choose for yourself!**",
                 color=discord.Color.blurple()
             )
