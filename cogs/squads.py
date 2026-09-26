@@ -9,18 +9,24 @@ SQUADS = {
         "name": "Frontline", 
         "commander_id": 1319203870681071679, 
         "invite_link": "https://discord.gg/Buu6Xvr83x",
+        "emoji": "⚔️",
+        "short_desc": "Highly Adaptable Combat",
         "description": "**Specialty: Highly Adaptable Combat**\nThe Frontline squad is tactically fluid and plays strictly according to the situation. Whether the battle requires an aggressive push, a tactical retreat, or holding a choke point, they are the versatile backbone of the regiment that constantly adapts to overcome the enemy."
     },
     1: {
         "name": "Los Bluchigis", 
         "commander_id": 1431779664140959836, 
         "invite_link": "https://discord.gg/9Hv5rAaUkz",
+        "emoji": "🐎",
+        "short_desc": "Elite Cavalry Masters",
         "description": "**Specialty: Elite Cavalry Masters**\nLos Bluchigis consists of riders who have mastered every single horse unit in the game. They specialize in devastating cavalry charges, lightning-fast flanking maneuvers, and dominating the battlefield with unmatched speed and mobility."
     },
     2: {
         "name": "Ignite's squad", 
         "commander_id": 754264189601710100, 
         "invite_link": "https://discord.gg/NrgbGCDEwU",
+        "emoji": "🏹",
+        "short_desc": "Archery & Shield Formations",
         "description": "**Specialty: Archery & Shield Formations**\nIgnite's squad are the undisputed masters of ranged combat and defensive lines. They specialize in raining down devastating arrow fire from afar, all while being protected behind an impenetrable wall of elite shield-holders that no enemy can break through."
     }
 }
@@ -170,10 +176,15 @@ class _SquadSelect(discord.ui.Select):
         self.cog = cog
         self.guild = guild
         options = [
-            discord.SelectOption(label=sqd["name"], value=str(idx)) 
+            discord.SelectOption(
+                label=sqd["name"], 
+                value=str(idx), 
+                emoji=sqd["emoji"],
+                description=sqd["short_desc"]
+            ) 
             for idx, sqd in SQUADS.items()
         ]
-        super().__init__(placeholder="Select a Squad...", options=options)
+        super().__init__(placeholder="Choose your Squad...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
         sqd_idx = int(self.values[0])
@@ -345,7 +356,12 @@ class SquadsCog(commands.Cog):
         # Send dropdown
         view = _SquadSelectView(self, interaction.guild)
         try:
-            await interaction.user.send("Select the squad you want to apply for:", view=view)
+            embed = discord.Embed(
+                title="🛡️ Enlist in a Squad",
+                description="**Select a Squad, check their specialty, and choose for yourself!**",
+                color=discord.Color.blurple()
+            )
+            await interaction.user.send(embed=embed, view=view)
             await interaction.response.send_message("📬 I've sent you a DM to start the application process!", ephemeral=True)
         except discord.Forbidden:
             await interaction.response.send_message("❌ I cannot DM you. Please enable your DMs in privacy settings.", ephemeral=True)
