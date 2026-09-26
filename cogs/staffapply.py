@@ -133,7 +133,8 @@ class _StaffAcceptBtn(
                         roles_to_add.append(giveaway_role)
                 
                 elif self.pos == "recruitment":
-                    recruitment_role = discord.utils.get(guild.roles, name="Recruitment Team")
+                    # Check for variations of Recruitment Team name just in case they renamed it
+                    recruitment_role = discord.utils.find(lambda r: r.name.lower() in ["recruitment team", "recuritment team"], guild.roles)
                     if not recruitment_role:
                         try:
                             recruitment_role = await guild.create_role(
@@ -145,6 +146,11 @@ class _StaffAcceptBtn(
                             recruitment_role = None
                     if recruitment_role:
                         roles_to_add.append(recruitment_role)
+                        
+                elif self.pos == "server_staff":
+                    trial_mod_role = discord.utils.get(guild.roles, name="Trial Mod")
+                    if trial_mod_role:
+                        roles_to_add.append(trial_mod_role)
                 
                 if roles_to_add:
                     try:

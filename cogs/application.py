@@ -49,7 +49,9 @@ _ANSWER_LABELS = [
 # ════════════════════════════════════════════════════════════════════════════════
 
 def _is_reviewer(member: discord.Member) -> bool:
-    return bool({r.name for r in member.roles} & _REVIEWERS) or any(r.id == 1550978510229733396 for r in member.roles)
+    role_names = {r.name.lower() for r in getattr(member, "roles", [])}
+    allowed_names = {r["name"].lower() for r in STAFF_ROLES} | {"commander", "recruitment team", "recuritment team"}
+    return bool(role_names & allowed_names) or any(r.id == 1550978510229733396 for r in getattr(member, "roles", []))
 
 
 class _AcceptBtn(
