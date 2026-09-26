@@ -79,6 +79,12 @@ class _SquadApproveBtn(
         
         if guild:
             member = guild.get_member(self.uid)
+            if not member:
+                try:
+                    member = await guild.fetch_member(self.uid)
+                except discord.HTTPException:
+                    pass
+            
             if member:
                 # Find or create role
                 role = discord.utils.get(guild.roles, name=squad_info["name"])
@@ -333,6 +339,9 @@ class SquadsCog(commands.Cog):
 
     @app_commands.command(name="joinsquad", description="Apply to join one of the elite squads")
     async def joinsquad(self, interaction: discord.Interaction):
+        if not interaction.guild or isinstance(interaction.user, discord.User):
+            return await interaction.response.send_message("❌ Please run this command inside the server, not in DMs.", ephemeral=True)
+
         # 1. Verify Roblox Link
         roblox_link = await self.bot.db.get_roblox_link(interaction.user.id)
         if not roblox_link:
@@ -355,6 +364,9 @@ class SquadsCog(commands.Cog):
 
     @app_commands.command(name="squads", description="View information about the 3 elite squads")
     async def squads_info(self, interaction: discord.Interaction):
+        if not interaction.guild:
+            return await interaction.response.send_message("❌ Please run this command inside the server.", ephemeral=True)
+
         embeds = []
         for idx, sqd in SQUADS.items():
             # Find the role to get member count
@@ -375,6 +387,9 @@ class SquadsCog(commands.Cog):
 
     @app_commands.command(name="leavesquad", description="Officially resign from your current squad")
     async def leavesquad(self, interaction: discord.Interaction):
+        if not interaction.guild or isinstance(interaction.user, discord.User):
+            return await interaction.response.send_message("❌ Please run this command inside the server.", ephemeral=True)
+
         squad_names = {s["name"]: s for s in SQUADS.values()}
         user_roles = [r for r in interaction.user.roles if r.name in squad_names]
         
