@@ -13,6 +13,7 @@ import discord
 from discord.ext import commands
 
 PING_ROLE_ID = 1553465190648119378
+PING_ROLE_MENTION = f"<@&{PING_ROLE_ID}>"
 ALLOWED_CHANNEL_ID = 1550657825045221457
 COOLDOWN_SECONDS = 300  # 5 minutes
 
@@ -28,15 +29,23 @@ class PingCooldownCog(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
-        # Check if the message mentions the specific role
-        if not any(r.id == PING_ROLE_ID for r in message.role_mentions):
+        # Check if the message mentions the specific role (two methods for safety)
+        has_ping = (
+            any(r.id == PING_ROLE_ID for r in message.role_mentions)
+            or PING_ROLE_MENTION in (message.content or "")
+        )
+        if not has_ping:
+            return
+
+        # Skip if user is staff/admin
+        if message.author.guild_permissions.manage_messages:
             return
 
         # ── Wrong channel ──────────────────────────────────────────────
         if message.channel.id != ALLOWED_CHANNEL_ID:
             try:
                 await message.delete()
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.NotFound):
                 pass
 
             warning = await message.channel.send(
@@ -59,7 +68,7 @@ class PingCooldownCog(commands.Cog):
         if remaining > 0:
             try:
                 await message.delete()
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.NotFound):
                 pass
 
             ready_at = int(now + remaining)
