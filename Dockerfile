@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Fix permissions so the database is writable on Render
-RUN chmod -R 777 data
+RUN mkdir -p data && chmod -R 777 data
 
 EXPOSE 10000
 
