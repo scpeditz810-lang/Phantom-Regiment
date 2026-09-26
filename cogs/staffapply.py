@@ -43,6 +43,7 @@ POSITIONS = {
             "Why do you want to join the Recruitment team?",
             "How would you evaluate a new applicant's potential?",
             "Do you have experience managing communities or teams?",
+            "How many members do you think you can recruit for us?",
             "How long have you been a member of Phantom Regiment?",
             "Are you willing to follow orders from higher-ranking staff?",
         ],
