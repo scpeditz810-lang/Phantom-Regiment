@@ -116,6 +116,42 @@ class _StaffAcceptBtn(
         embed.add_field(name="✅ Result", value=f"Accepted by {interaction.user.mention}", inline=False)
         await interaction.message.edit(embed=embed, view=None)
 
+        guild = interaction.client.get_guild(self.gid)
+        if guild:
+            member = guild.get_member(self.uid)
+            if not member:
+                try:
+                    member = await guild.fetch_member(self.uid)
+                except discord.HTTPException:
+                    pass
+            
+            if member:
+                roles_to_add = []
+                if self.pos == "events":
+                    giveaway_role = guild.get_role(1551669862471049416)
+                    if giveaway_role:
+                        roles_to_add.append(giveaway_role)
+                
+                elif self.pos == "recruitment":
+                    recruitment_role = discord.utils.get(guild.roles, name="Recruitment Team")
+                    if not recruitment_role:
+                        try:
+                            recruitment_role = await guild.create_role(
+                                name="Recruitment Team", 
+                                reason="Auto-created for recruitment team",
+                                colour=discord.Colour.teal()
+                            )
+                        except discord.Forbidden:
+                            recruitment_role = None
+                    if recruitment_role:
+                        roles_to_add.append(recruitment_role)
+                
+                if roles_to_add:
+                    try:
+                        await member.add_roles(*roles_to_add, reason=f"Staff application accepted for {pos_label}")
+                    except discord.Forbidden:
+                        pass
+
         # DM user
         user = interaction.client.get_user(self.uid) or await interaction.client.fetch_user(self.uid)
         if user:
