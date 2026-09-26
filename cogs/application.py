@@ -23,7 +23,7 @@ from discord import app_commands
 
 from utils.constants import APPEAL_COOLDOWN_SECONDS, ACCEPTED_ROLE, STAFF_ROLES
 
-_REVIEWERS = {r["name"] for r in STAFF_ROLES} | {"Commander"}
+_REVIEWERS = {r["name"] for r in STAFF_ROLES} | {"Commander", "Recruitment Team"}
 
 _QUESTIONS = [
     ("1️⃣", "What is your **age**?"),
