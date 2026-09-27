@@ -9,7 +9,7 @@ SQUADS = {
     0: {
         "name": "Frontline", 
         "commander_id": 1319203870681071679, 
-        "invite_link": "https://discord.gg/Buu6Xvr83x",
+        "invite_link": "https://discord.gg/7FjWBvJ4hS",
         "emoji": "⚔️",
         "short_desc": "Highly Adaptable Combat",
         "local_image": "assets/frontline.png",
