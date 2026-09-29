@@ -194,11 +194,12 @@ class InviteCog(commands.Cog):
     @app_commands.describe(member="The member to add invites to", amount="Number of invites to add")
     async def add_invites(self, interaction: discord.Interaction, member: discord.Member, amount: int) -> None:
         """Add invites to a user — moderators and above only."""
-        # Permission check: Moderator role or higher, or manage_guild
-        staff_names = {"Trial Mod", "Moderator", "Senior Mod", "Admin", "Server Manager", "Commander"}
+        # Permission check: Moderator role, Commander, Recruitment Team, or special role
+        staff_names = {"Trial Mod", "Moderator", "Senior Mod", "Admin", "Server Manager", "Commander", "Recruitment Team"}
         user_roles = {r.name for r in interaction.user.roles}
-        if not (user_roles & staff_names) and not interaction.user.guild_permissions.manage_guild:
-            return await interaction.response.send_message("❌ You need to be a Moderator or higher to use this.", ephemeral=True)
+        has_role_id = any(r.id == 1551265887934218311 for r in interaction.user.roles)
+        if not (user_roles & staff_names) and not has_role_id and not interaction.user.guild_permissions.manage_guild:
+            return await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
 
         if amount == 0:
             return await interaction.response.send_message("❌ Amount must not be zero.", ephemeral=True)
@@ -217,6 +218,55 @@ class InviteCog(commands.Cog):
             await interaction.response.send_message(f"✅ Added **{amount}** invite(s) to {member.mention}. They now have **{new_count}** total.")
         else:
             await interaction.response.send_message(f"✅ Removed **{abs(amount)}** invite(s) from {member.mention}. They now have **{new_count}** total.")
+
+    @app_commands.command(name="submitscreenshot", description="Submit proof of inviting a member to the server")
+    @app_commands.describe(
+        inviting_proof="Screenshot showing you invited the member",
+        member_inside="Screenshot showing the member is inside the server",
+        extra_proof_1="Additional screenshot (optional)",
+        extra_proof_2="Additional screenshot (optional)"
+    )
+    async def submit_screenshot(
+        self, 
+        interaction: discord.Interaction, 
+        inviting_proof: discord.Attachment, 
+        member_inside: discord.Attachment,
+        extra_proof_1: discord.Attachment = None,
+        extra_proof_2: discord.Attachment = None
+    ) -> None:
+        """Submit invite proofs to the review channel."""
+        await interaction.response.defer(ephemeral=True)
+        
+        review_channel = interaction.guild.get_channel(1550657834142793909)
+        if not review_channel:
+            return await interaction.followup.send("❌ Review channel not found. Please contact staff.")
+            
+        attachments = [inviting_proof, member_inside]
+        if extra_proof_1: attachments.append(extra_proof_1)
+        if extra_proof_2: attachments.append(extra_proof_2)
+        
+        # Download files to re-upload them so links don't expire
+        files = []
+        import io
+        for i, att in enumerate(attachments):
+            try:
+                data = await att.read()
+                files.append(discord.File(io.BytesIO(data), filename=f"proof_{i}_{att.filename}"))
+            except Exception:
+                pass
+                
+        embed = discord.Embed(
+            title="📥 Invite Proof Submission",
+            description=f"**Submitted by:** {interaction.user.mention} (`{interaction.user}`)\n\n"
+                        f"Staff can review these screenshots and use `/addinvites {interaction.user.mention} 1` to manually add an invite to their count if valid.",
+            color=discord.Color.blue(),
+            timestamp=discord.utils.utcnow()
+        )
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        
+        await review_channel.send(embed=embed, files=files)
+        await interaction.followup.send("✅ Your proof has been submitted to the Recruitment Team for review!")
+
 
 
 async def setup(bot: commands.Bot) -> None:
