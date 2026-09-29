@@ -192,6 +192,7 @@ class InviteCog(commands.Cog):
 
     @app_commands.command(name="addinvites", description="Manually add invites to a user's count")
     @app_commands.describe(member="The member to add invites to", amount="Number of invites to add")
+    @app_commands.guild_only()
     async def add_invites(self, interaction: discord.Interaction, member: discord.Member, amount: int) -> None:
         """Add invites to a user — moderators and above only."""
         # Permission check: Moderator role, Commander, Recruitment Team, or special role
@@ -226,6 +227,7 @@ class InviteCog(commands.Cog):
         extra_proof_1="Additional screenshot (optional)",
         extra_proof_2="Additional screenshot (optional)"
     )
+    @app_commands.guild_only()
     async def submit_screenshot(
         self, 
         interaction: discord.Interaction, 
