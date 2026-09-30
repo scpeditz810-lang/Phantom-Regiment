@@ -515,6 +515,69 @@ class ModerationCog(commands.Cog):
         await msg.edit(embed=embed)
         await msg.clear_reactions()
 
+    # ── /notice ────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="notice", description="Send an official notice to a user via DM")
+    @app_commands.describe(user="The user to send the notice to", message="The body of the notice")
+    @app_commands.guild_only()
+    async def notice(self, interaction: discord.Interaction, user: discord.Member, message: str) -> None:
+        """Send a formal notice to a user's DMs."""
+        # Permission check: Staff roles + Head of Recruitment role
+        staff_names = {"Trial Mod", "Moderator", "Senior Mod", "Admin", "Server Manager", "Commander"}
+        user_roles = {r.name for r in interaction.user.roles}
+        has_special = any(r.id == 1554429786498277376 for r in interaction.user.roles)
+        if not (user_roles & staff_names) and not has_special and not interaction.user.guild_permissions.manage_guild:
+            return await interaction.response.send_message("❌ You don't have permission to send notices.", ephemeral=True)
+
+        await interaction.response.defer(ephemeral=True)
+
+        embed = discord.Embed(
+            title="📨  OFFICIAL NOTICE",
+            color=discord.Color.from_rgb(255, 69, 58),
+            timestamp=discord.utils.utcnow(),
+        )
+
+        embed.add_field(
+            name="📌 From",
+            value=f"**{interaction.user.display_name}** (`{interaction.user}`)",
+            inline=True,
+        )
+        embed.add_field(
+            name="🏠 Server",
+            value=f"**{interaction.guild.name}**",
+            inline=True,
+        )
+
+        embed.add_field(name="\u200b", value="\u200b", inline=False)  # spacer
+
+        embed.add_field(
+            name="📝 Notice",
+            value=message,
+            inline=False,
+        )
+
+        embed.set_footer(text="This is an official notice from the server staff. Please take it seriously.")
+
+        if interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+
+        embed.set_author(
+            name=f"{interaction.guild.name} — Staff Notice",
+            icon_url=interaction.guild.icon.url if interaction.guild.icon else None,
+        )
+
+        try:
+            await user.send(embed=embed)
+            confirm = discord.Embed(
+                title="✅ Notice Sent",
+                description=f"Successfully sent a notice to {user.mention}.",
+                color=discord.Color.green(),
+            )
+            confirm.add_field(name="Message", value=message[:1024], inline=False)
+            await interaction.followup.send(embed=confirm, ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send(f"❌ Could not DM {user.mention}. They may have DMs disabled.", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ModerationCog(bot))

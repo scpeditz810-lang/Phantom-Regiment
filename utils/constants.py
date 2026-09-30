@@ -92,6 +92,13 @@ STAFF_ROLES = [
     },
 ]
 
+# ─── Management Roles (between Commander and Staff) ────────────────────────────
+MANAGEMENT_ROLES = [
+    {"name": "Recruitment",                "color": 0x1ABC9C, "permissions": discord.Permissions.none()},
+    {"name": "Events/Giveaway Management", "color": 0xE91E63, "permissions": discord.Permissions.none()},
+    {"name": "Head of Recruitment",        "color": 0x00BCD4, "permissions": discord.Permissions.none()},
+]
+
 
 # Interleave Level Roles and In-Game Roles as requested
 INTERLEAVED_ROLES = []
@@ -108,6 +115,7 @@ ROLE_HIERARCHY = (
         {"name": "Member",     "color": 0x99AAB5, "permissions": discord.Permissions.none()},
     ]
     + INTERLEAVED_ROLES
+    + MANAGEMENT_ROLES
     + [COMMANDER_ROLE]
     + STAFF_ROLES
 )
