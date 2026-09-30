@@ -123,6 +123,7 @@ class RobloxCog(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
 
         except Exception as e:
+            print(f"[Verify] Error for {interaction.user}: {type(e).__name__}: {e}", flush=True)
             embed = discord.Embed(
                 title="Error",
                 description=f"Something went wrong: `{e}`",
@@ -153,7 +154,7 @@ class RobloxCog(commands.Cog):
             avatar_url = await self._fetch_avatar_url(roblox_id) if roblox_id else None
 
             # Check if they are in a squad
-            squad_names = ["Frontline", "Los Bluchigis", "Ignite's squad"]
+            squad_names = ["Frontline", "Los Bluchigis", "Nocturne Pheonix"]
             member_squads = [r.name for r in member.roles if r.name in squad_names]
             squad_text = f"🛡️ **Squad:** {member_squads[0]}" if member_squads else "🛡️ **Squad:** None"
 

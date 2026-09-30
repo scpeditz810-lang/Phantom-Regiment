@@ -20,12 +20,15 @@ class InviteCog(commands.Cog):
         try:
             invites = await guild.invites()
             self._invite_cache[guild.id] = {
-                invite.code: invite.uses for invite in invites
+                invite.code: (invite.uses or 0) for invite in invites
             }
+            print(f"[Invites] Cached {len(invites)} invites for {guild.name}", flush=True)
         except discord.Forbidden:
             self._invite_cache[guild.id] = {}
-        except Exception:
+            print(f"[Invites] No permission to fetch invites in {guild.name}", flush=True)
+        except Exception as e:
             self._invite_cache[guild.id] = {}
+            print(f"[Invites] Error caching invites for {guild.name}: {e}", flush=True)
 
     # ------------------------------------------------------------------
     # Listeners
@@ -63,36 +66,53 @@ class InviteCog(commands.Cog):
         try:
             new_invites = await guild.invites()
         except discord.Forbidden:
+            print(f"[Invites] Missing permissions to fetch invites in {guild.name}", flush=True)
             return
-        except Exception:
+        except Exception as e:
+            print(f"[Invites] Error fetching invites: {e}", flush=True)
             return
 
         inviter: discord.User | discord.Member | None = None
 
         for invite in new_invites:
             old_uses = old_cache.get(invite.code, 0)
-            if invite.uses is not None and invite.uses > old_uses:
+            new_uses = invite.uses or 0
+            if new_uses > old_uses:
                 inviter = invite.inviter
                 break
 
+        # Also check vanity invite
+        if inviter is None:
+            try:
+                vanity = await guild.vanity_invite()
+                if vanity:
+                    old_vanity = old_cache.get(vanity.code, 0)
+                    new_vanity = vanity.uses or 0
+                    if new_vanity > old_vanity:
+                        # Vanity invite used, no specific inviter to credit
+                        pass
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
         # Update the cache regardless of whether we found the inviter
         self._invite_cache[guild.id] = {
-            invite.code: invite.uses for invite in new_invites
+            inv.code: (inv.uses or 0) for inv in new_invites
         }
 
         if inviter is not None:
             try:
                 await self.bot.db.add_invite(inviter.id, member.id, guild.id)
-            except Exception:
-                pass
+                print(f"[Invites] {member} was invited by {inviter} in {guild.name}", flush=True)
+            except Exception as e:
+                print(f"[Invites] Failed to record invite: {e}", flush=True)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
         """Deduct invite count and remove history if an invited user leaves."""
         try:
             await self.bot.db.remove_invite(member.id, member.guild.id)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Invites] Failed to remove invite for {member}: {e}", flush=True)
 
     # ------------------------------------------------------------------
     # Slash commands
@@ -195,10 +215,11 @@ class InviteCog(commands.Cog):
     @app_commands.guild_only()
     async def add_invites(self, interaction: discord.Interaction, member: discord.Member, amount: int) -> None:
         """Add invites to a user — moderators and above only."""
-        # Permission check: Moderator role, Commander, Recruitment Team, or special role
+        # Permission check: Moderator role, Commander, Recruitment Team, or special roles
         staff_names = {"Trial Mod", "Moderator", "Senior Mod", "Admin", "Server Manager", "Commander", "Recruitment Team"}
         user_roles = {r.name for r in interaction.user.roles}
-        has_role_id = any(r.id == 1551265887934218311 for r in interaction.user.roles)
+        allowed_role_ids = {1551265887934218311, 1554429786498277376}
+        has_role_id = any(r.id in allowed_role_ids for r in interaction.user.roles)
         if not (user_roles & staff_names) and not has_role_id and not interaction.user.guild_permissions.manage_guild:
             return await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
 
