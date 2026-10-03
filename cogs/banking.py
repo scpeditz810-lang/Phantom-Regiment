@@ -40,6 +40,17 @@ class BankingCog(commands.Cog):
                 await user.send(f"⚠️ **Player Loan Overdue!** Your player loan #{loan_id} has expired. A 20% late fee (**{fee:,} medals**) has been added. Until this is paid, all medals you earn will be automatically seized and sent to the lender.")
             except: pass
             
+        # 3. Bank Interest (2.5% daily, capped at 650)
+        async with self.bot.db._db.execute("SELECT user_id, guild_id, balance, last_interest FROM banks WHERE balance > 0 AND last_interest < ?", (now - 86400,)) as cur:
+            banks = await cur.fetchall()
+            
+        for user_id, guild_id, balance, last_interest in banks:
+            interest = min(650, int(balance * 0.025))
+            if interest > 0:
+                await self.bot.db._db.execute("UPDATE banks SET balance = balance + ?, last_interest = ? WHERE user_id = ? AND guild_id = ?", (interest, now, user_id, guild_id))
+            else:
+                await self.bot.db._db.execute("UPDATE banks SET last_interest = ? WHERE user_id = ? AND guild_id = ?", (now, user_id, guild_id))
+            
         await self.bot.db._db.commit()
 
     @check_loans.before_loop

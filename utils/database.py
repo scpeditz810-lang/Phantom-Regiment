@@ -174,7 +174,9 @@ class Database:
             "ALTER TABLE users ADD COLUMN last_weekly REAL DEFAULT 0",
             "ALTER TABLE player_loans ADD COLUMN repaid INTEGER DEFAULT 0",
             "ALTER TABLE player_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0",
-            "ALTER TABLE bank_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0"
+            "ALTER TABLE bank_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0",
+            "ALTER TABLE banks ADD COLUMN last_interest REAL DEFAULT 0",
+            "PRAGMA journal_mode=WAL"
         ]:
             try:
                 await self._db.execute(query)

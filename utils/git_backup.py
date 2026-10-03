@@ -88,6 +88,11 @@ class GitBackup:
                   cwd=self.repo_dir, check=False)
         self._run(["git", "config", "core.fileMode", "false"],
                   cwd=self.repo_dir, check=False)
+        # Always keep local DB on merge conflicts
+        self._run(["git", "config", "merge.ours.driver", "true"],
+                  cwd=self.repo_dir, check=False)
+        with open(os.path.join(self.repo_dir, ".gitattributes"), "a") as f:
+            f.write("bot.db merge=ours\n")
 
         self._last_hash = self._file_hash()
         self._enabled = True
