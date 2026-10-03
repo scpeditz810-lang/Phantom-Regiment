@@ -487,10 +487,12 @@ class EconomyCog(commands.Cog):
             
         embed = discord.Embed(title="🏆 Medal Leaderboard", color=discord.Colour.gold())
         desc = []
-        for i, (user_id, medals) in enumerate(top_users, 1):
+        for i, user_data in enumerate(top_users, 1):
+            user_id = user_data["user_id"]
+            medals = user_data["medals"]
             user = interaction.guild.get_member(user_id)
             name = user.display_name if user else f"Unknown User ({user_id})"
-            desc.append(f"**{i}.** {name} - **{medals} Medals** 🏅")
+            desc.append(f"**{i}.** {name} - **{medals:,} Medals** 🏅")
             
         embed.description = "\n".join(desc)
         await interaction.response.send_message(embed=embed)
