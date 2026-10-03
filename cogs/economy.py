@@ -461,6 +461,15 @@ class EconomyCog(commands.Cog):
                     color=discord.Color(role_info["color"]),
                     reason="Created for Role Shop"
                 )
+                # Try to position it above Alliance
+                alliance_role = discord.utils.get(interaction.guild.roles, name="Alliance")
+                if alliance_role:
+                    try:
+                        # Moving a role requires setting its position 
+                        # to one higher than the target role's position
+                        await role.edit(position=alliance_role.position + 1)
+                    except discord.Forbidden:
+                        pass # Ignore if bot lacks permission to move roles this high
             except discord.Forbidden:
                 return await interaction.response.send_message("✅ You bought the role, but I lack permissions to create/assign it in the server. Please contact an admin.", ephemeral=True)
         
