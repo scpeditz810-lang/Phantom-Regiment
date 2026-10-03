@@ -112,6 +112,7 @@ COGS = [
     "cogs.squads",
     "cogs.staffapply",
     "cogs.pingcooldown",
+    "cogs.banking",
 ]
 
 

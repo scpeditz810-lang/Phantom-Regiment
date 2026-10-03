@@ -183,3 +183,15 @@ XP_BAR_FILL = (255, 215, 0)
 # ─── Application ──────────────────────────────────────────────────────────────
 APPEAL_COOLDOWN_SECONDS = 5 * 60 * 60   # 5 hours
 ACCEPTED_ROLE = "Rookie"                  # Role given on application acceptance
+
+# ─── Role Shop ────────────────────────────────────────────────────────────────
+ROLES_SHOP = {
+    "role_red": {"name": "🔴 Crimson", "color": 0xE74C3C, "price": 2000},
+    "role_blue": {"name": "🔵 Azure", "color": 0x3498DB, "price": 2000},
+    "role_green": {"name": "🟢 Emerald", "color": 0x2ECC71, "price": 2000},
+    "role_gold": {"name": "🟡 Gold", "color": 0xF1C40F, "price": 5000},
+    "role_purple": {"name": "🟣 Amethyst", "color": 0x9B59B6, "price": 3000},
+    "role_pink": {"name": "🌸 Sakura", "color": 0xFFB6C1, "price": 3000},
+    "role_black": {"name": "⚫ Obsidian", "color": 0x111111, "price": 4000},
+    "role_white": {"name": "⚪ Pearl", "color": 0xFFFFFF, "price": 4000},
+}

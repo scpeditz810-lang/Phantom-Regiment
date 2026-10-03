@@ -4,6 +4,7 @@ import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
+from utils.constants import ROLES_SHOP
 
 SHOP_ITEMS = {
     # Banners
@@ -340,18 +341,150 @@ class EconomyCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="daily", description="Claim your daily 100 Medals!")
+    @app_commands.command(name="daily", description="Claim your daily Medals and build a streak!")
     async def daily(self, interaction: discord.Interaction):
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
         now = time.time()
         last = data.get("last_daily", 0)
+        
         if now - last < 86400:
             rem = int(86400 - (now - last))
             return await interaction.response.send_message(f"⏳ Wait **{rem//3600}h {(rem%3600)//60}m**!", ephemeral=True)
             
+        streak = await self.bot.db.get_streak(interaction.user.id, interaction.guild_id)
+        
+        if now - last > 172800:
+            streak = 1
+        else:
+            streak += 1
+            
+        await self.bot.db.update_streak(interaction.user.id, interaction.guild_id, streak)
         await self.bot.db.set_last_daily(interaction.user.id, interaction.guild_id, now)
-        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, 100)
-        await interaction.response.send_message("🏅 You successfully claimed your **100 Daily Medals**!")
+        
+        if streak >= 30:
+            amount = 1000
+        elif streak >= 14:
+            amount = 500
+        elif streak >= 7:
+            amount = 300
+        elif streak >= 5:
+            amount = 200
+        elif streak >= 3:
+            amount = 150
+        elif streak >= 2:
+            amount = 120
+        else:
+            amount = 100
+            
+        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, amount)
+        await interaction.response.send_message(f"🏅 You claimed your daily **{amount} Medals**! (Current Streak: {streak} 🔥)")
+
+    @app_commands.command(name="work", description="Work for some medals (4h cooldown)")
+    async def work(self, interaction: discord.Interaction):
+        data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+        now = time.time()
+        last = data.get("last_work", 0)
+        if now - last < 14400:
+            rem = int(14400 - (now - last))
+            return await interaction.response.send_message(f"⏳ You are too tired. Wait **{rem//3600}h {(rem%3600)//60}m**!", ephemeral=True)
+            
+        amount = random.randint(50, 200)
+        await self.bot.db.set_last_work(interaction.user.id, interaction.guild_id, now)
+        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, amount)
+        
+        responses = [
+            f"You scrubbed the barracks and earned **{amount} Medals**.",
+            f"You went on a patrol and found **{amount} Medals** dropped by an enemy.",
+            f"You helped the quartermaster organize supplies for **{amount} Medals**."
+        ]
+        await interaction.response.send_message(f"💼 {random.choice(responses)}")
+
+    @app_commands.command(name="weekly", description="Claim your weekly 500 Medals!")
+    async def weekly(self, interaction: discord.Interaction):
+        data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+        now = time.time()
+        last = data.get("last_weekly", 0)
+        if now - last < 604800:
+            rem = int(604800 - (now - last))
+            return await interaction.response.send_message(f"⏳ Wait **{rem//86400}d {(rem%86400)//3600}h**!", ephemeral=True)
+            
+        await self.bot.db.set_last_weekly(interaction.user.id, interaction.guild_id, now)
+        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, 500)
+        await interaction.response.send_message("📅 You successfully claimed your weekly **500 Medals**!")
+
+    @app_commands.command(name="pay", description="Transfer medals to another user.")
+    async def pay(self, interaction: discord.Interaction, recipient: discord.Member, amount: int):
+        if amount <= 0: return await interaction.response.send_message("❌ Amount must be positive.", ephemeral=True)
+        if recipient.id == interaction.user.id or recipient.bot:
+            return await interaction.response.send_message("❌ Invalid recipient.", ephemeral=True)
+            
+        data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+        if data.get("medals", 0) < amount:
+            return await interaction.response.send_message("❌ You don't have enough Medals.", ephemeral=True)
+            
+        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -amount)
+        await self.bot.db.add_medals(recipient.id, interaction.guild_id, amount)
+        await interaction.response.send_message(f"💸 You paid **{amount} Medals** to {recipient.mention}.")
+
+    @app_commands.command(name="roleshop", description="View the cosmetic roles available for purchase.")
+    async def roleshop(self, interaction: discord.Interaction):
+        embed = discord.Embed(title="👗 Cosmetic Role Shop", description="Buy these roles using `/buyrole <role_id>`!", color=0x9B59B6)
+        roles_text = []
+        for role_id, details in ROLES_SHOP.items():
+            roles_text.append(f"**{details['name']}** — 🏅 {details['price']}\nID: `{role_id}`")
+        embed.add_field(name="Available Roles", value="\n\n".join(roles_text), inline=False)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="buyrole", description="Purchase a cosmetic role from the role shop.")
+    async def buyrole(self, interaction: discord.Interaction, role_id: str):
+        role_id = role_id.lower()
+        if role_id not in ROLES_SHOP:
+            return await interaction.response.send_message("❌ Role ID not found in shop.", ephemeral=True)
+            
+        if await self.bot.db.has_role_purchase(interaction.user.id, interaction.guild_id, role_id):
+            return await interaction.response.send_message("❌ You already own this role!", ephemeral=True)
+            
+        price = ROLES_SHOP[role_id]["price"]
+        data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+        if data.get("medals", 0) < price:
+            return await interaction.response.send_message(f"❌ You need {price} Medals to buy this role!", ephemeral=True)
+            
+        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -price)
+        await self.bot.db.add_role_purchase(interaction.user.id, interaction.guild_id, role_id)
+        
+        role_info = ROLES_SHOP[role_id]
+        role = discord.utils.get(interaction.guild.roles, name=role_info["name"])
+        if not role:
+            try:
+                role = await interaction.guild.create_role(
+                    name=role_info["name"], 
+                    color=discord.Color(role_info["color"]),
+                    reason="Created for Role Shop"
+                )
+            except discord.Forbidden:
+                return await interaction.response.send_message("✅ You bought the role, but I lack permissions to create/assign it in the server. Please contact an admin.", ephemeral=True)
+        
+        try:
+            await interaction.user.add_roles(role, reason="Purchased from Role Shop")
+            await interaction.response.send_message(f"🎉 You successfully purchased and equipped the **{role_info['name']}** role!")
+        except discord.Forbidden:
+            await interaction.response.send_message("✅ You bought the role, but I lack permissions to assign it to you (my role might be lower in the hierarchy).", ephemeral=True)
+
+    @app_commands.command(name="medalleaderboard", description="View the top medal earners in the server.")
+    async def medalleaderboard(self, interaction: discord.Interaction):
+        top_users = await self.bot.db.get_top_medals(interaction.guild_id, limit=10)
+        if not top_users:
+            return await interaction.response.send_message("No data found for the leaderboard.")
+            
+        embed = discord.Embed(title="🏆 Medal Leaderboard", color=discord.Colour.gold())
+        desc = []
+        for i, (user_id, medals) in enumerate(top_users, 1):
+            user = interaction.guild.get_member(user_id)
+            name = user.display_name if user else f"Unknown User ({user_id})"
+            desc.append(f"**{i}.** {name} - **{medals} Medals** 🏅")
+            
+        embed.description = "\n".join(desc)
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="balance", description="Check how many Medals you have.")
     async def balance(self, interaction: discord.Interaction):

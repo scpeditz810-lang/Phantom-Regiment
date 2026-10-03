@@ -115,6 +115,54 @@ class Database:
                 denied_at REAL,
                 PRIMARY KEY (user_id, squad_idx)
             );
+
+            CREATE TABLE IF NOT EXISTS banks (
+                user_id INTEGER,
+                guild_id INTEGER,
+                balance INTEGER DEFAULT 0,
+                created_at REAL,
+                PRIMARY KEY (user_id, guild_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS bank_loans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                guild_id INTEGER,
+                principal INTEGER,
+                interest INTEGER,
+                total_owed INTEGER,
+                due_at REAL,
+                created_at REAL,
+                repaid INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS player_loans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lender_id INTEGER,
+                borrower_id INTEGER,
+                guild_id INTEGER,
+                principal INTEGER,
+                interest INTEGER,
+                total_owed INTEGER,
+                due_at REAL,
+                created_at REAL,
+                status TEXT DEFAULT 'pending'
+            );
+
+            CREATE TABLE IF NOT EXISTS role_purchases (
+                user_id INTEGER,
+                guild_id INTEGER,
+                role_key TEXT,
+                PRIMARY KEY (user_id, guild_id, role_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS streaks (
+                user_id INTEGER,
+                guild_id INTEGER,
+                streak INTEGER DEFAULT 0,
+                last_claim REAL DEFAULT 0,
+                PRIMARY KEY (user_id, guild_id)
+            );
         """)
 
         # Safely migrate existing databases by adding new columns if they don't exist
@@ -461,3 +509,131 @@ class Database:
             (original_msg_id, starboard_msg_id),
         )
         await self._db.commit()
+
+    # ── economy system (bank & loans & roles & streaks) ─────────────────────
+
+    async def create_bank(self, user_id: int, guild_id: int) -> bool:
+        """Create a bank account if it doesn't exist. Returns True if created."""
+        async with self._db.execute("SELECT 1 FROM banks WHERE user_id = ? AND guild_id = ?", (user_id, guild_id)) as cur:
+            if await cur.fetchone():
+                return False
+        await self._db.execute(
+            "INSERT INTO banks (user_id, guild_id, balance, created_at) VALUES (?, ?, 0, ?)",
+            (user_id, guild_id, time.time())
+        )
+        await self._db.commit()
+        return True
+
+    async def get_bank(self, user_id: int, guild_id: int) -> dict | None:
+        async with self._db.execute("SELECT * FROM banks WHERE user_id = ? AND guild_id = ?", (user_id, guild_id)) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def deposit_bank(self, user_id: int, guild_id: int, amount: int):
+        await self._db.execute(
+            "UPDATE banks SET balance = balance + ? WHERE user_id = ? AND guild_id = ?",
+            (amount, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def withdraw_bank(self, user_id: int, guild_id: int, amount: int) -> bool:
+        """Returns True if successful, False if insufficient balance."""
+        bank = await self.get_bank(user_id, guild_id)
+        if bank and bank["balance"] >= amount:
+            await self._db.execute(
+                "UPDATE banks SET balance = balance - ? WHERE user_id = ? AND guild_id = ?",
+                (amount, user_id, guild_id)
+            )
+            await self._db.commit()
+            return True
+        return False
+
+    async def create_bank_loan(self, user_id: int, guild_id: int, principal: int, interest: int, due_at: float):
+        await self._db.execute(
+            "INSERT INTO bank_loans (user_id, guild_id, principal, interest, total_owed, due_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, guild_id, principal, interest, principal + interest, due_at, time.time())
+        )
+        await self._db.commit()
+
+    async def get_active_bank_loan(self, user_id: int, guild_id: int) -> dict | None:
+        async with self._db.execute(
+            "SELECT * FROM bank_loans WHERE user_id = ? AND guild_id = ? AND repaid < total_owed ORDER BY id DESC LIMIT 1",
+            (user_id, guild_id)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def repay_bank_loan(self, loan_id: int, amount: int):
+        await self._db.execute(
+            "UPDATE bank_loans SET repaid = repaid + ? WHERE id = ?",
+            (amount, loan_id)
+        )
+        await self._db.commit()
+
+    async def create_player_loan(self, lender_id: int, borrower_id: int, guild_id: int, principal: int, interest: int, due_at: float) -> int:
+        await self._db.execute(
+            "INSERT INTO player_loans (lender_id, borrower_id, guild_id, principal, interest, total_owed, due_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (lender_id, borrower_id, guild_id, principal, interest, principal + interest, due_at, time.time())
+        )
+        await self._db.commit()
+        async with self._db.execute("SELECT last_insert_rowid()") as cur:
+            row = await cur.fetchone()
+            return row[0]
+
+    async def accept_player_loan(self, loan_id: int):
+        await self._db.execute(
+            "UPDATE player_loans SET status = 'active' WHERE id = ?",
+            (loan_id,)
+        )
+        await self._db.commit()
+
+    async def repay_player_loan(self, loan_id: int):
+        await self._db.execute(
+            "UPDATE player_loans SET status = 'repaid' WHERE id = ?",
+            (loan_id,)
+        )
+        await self._db.commit()
+
+    async def get_all_player_loans(self, user_id: int, guild_id: int) -> list[dict]:
+        async with self._db.execute(
+            "SELECT * FROM player_loans WHERE (lender_id = ? OR borrower_id = ?) AND guild_id = ? AND status = 'active'",
+            (user_id, user_id, guild_id)
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def add_role_purchase(self, user_id: int, guild_id: int, role_key: str):
+        await self._db.execute(
+            "INSERT OR IGNORE INTO role_purchases (user_id, guild_id, role_key) VALUES (?, ?, ?)",
+            (user_id, guild_id, role_key)
+        )
+        await self._db.commit()
+
+    async def has_role_purchase(self, user_id: int, guild_id: int, role_key: str) -> bool:
+        async with self._db.execute(
+            "SELECT 1 FROM role_purchases WHERE user_id = ? AND guild_id = ? AND role_key = ?",
+            (user_id, guild_id, role_key)
+        ) as cur:
+            return await cur.fetchone() is not None
+
+    async def get_streak(self, user_id: int, guild_id: int) -> dict:
+        async with self._db.execute(
+            "SELECT streak, last_claim FROM streaks WHERE user_id = ? AND guild_id = ?",
+            (user_id, guild_id)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else {"streak": 0, "last_claim": 0}
+
+    async def update_streak(self, user_id: int, guild_id: int, streak: int):
+        await self._db.execute(
+            "INSERT INTO streaks (user_id, guild_id, streak, last_claim) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, guild_id) DO UPDATE SET streak = ?, last_claim = ?",
+            (user_id, guild_id, streak, time.time(), streak, time.time())
+        )
+        await self._db.commit()
+
+    async def get_top_medals(self, guild_id: int, limit: int = 10) -> list[dict]:
+        async with self._db.execute(
+            "SELECT user_id, medals FROM users WHERE guild_id = ? AND medals > 0 ORDER BY medals DESC LIMIT ?",
+            (guild_id, limit)
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
