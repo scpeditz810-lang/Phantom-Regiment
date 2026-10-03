@@ -157,12 +157,13 @@ class Fighter:
                 self.accuracy += 35
 
 class BattleView(discord.ui.View):
-    def __init__(self, p1: Fighter, p2: Fighter, bot: commands.Bot, message: discord.Message):
+    def __init__(self, p1: Fighter, p2: Fighter, bot: commands.Bot, message: discord.Message, bet: int):
         super().__init__(timeout=300)
         self.p1 = p1
         self.p2 = p2
         self.bot = bot
         self.message = message
+        self.bet = bet
         self.log = ["*The battle begins!*"]
 
     def update_buttons(self):
@@ -237,13 +238,14 @@ class BattleView(discord.ui.View):
             self.stop()
             winner = self.p1 if self.p1.hp > 0 else self.p2
             loser = self.p2 if self.p1.hp > 0 else self.p1
-            # Prize
-            data = await self.bot.db.get_user(loser.member.id, self.message.guild.id)
-            prize = min(500, int(data.get("medals", 0) * 0.1))
-            if prize > 0:
-                await self.bot.db.add_medals(winner.member.id, self.message.guild.id, prize)
-                await self.bot.db.add_medals(loser.member.id, self.message.guild.id, -prize)
-            self.log.append(f"\n🏆 **{winner.member.display_name}** WINS! They stole **{prize} Medals**!")
+            
+            pot = self.bet * 2
+            if pot > 0:
+                await self.bot.db.add_medals(winner.member.id, self.message.guild.id, pot)
+                self.log.append(f"\n🏆 **{winner.member.display_name}** WINS and takes the **{pot:,} Medals** pot!")
+            else:
+                self.log.append(f"\n🏆 **{winner.member.display_name}** WINS!")
+                
             self.clear_items()
             
         await self.update_embed()
@@ -303,11 +305,12 @@ class LoadoutModal(discord.ui.Modal, title="Equip Your Loadout"):
 
 
 class ChallengeView(discord.ui.View):
-    def __init__(self, challenger: discord.Member, opponent: discord.Member, bot: commands.Bot):
+    def __init__(self, challenger: discord.Member, opponent: discord.Member, bot: commands.Bot, bet: int):
         super().__init__(timeout=300)
         self.challenger = challenger
         self.opponent = opponent
         self.bot = bot
+        self.bet = bet
         self.p1_loadout = None
         self.p2_loadout = None
         
@@ -329,10 +332,23 @@ class ChallengeView(discord.ui.View):
         
     async def check_start(self, message: discord.Message):
         if self.p1_loadout and self.p2_loadout:
+            # Check balances one last time before starting
+            u1 = await self.bot.db.get_user(self.challenger.id, message.guild.id)
+            u2 = await self.bot.db.get_user(self.opponent.id, message.guild.id)
+            if (u1.get("medals", 0) if u1 else 0) < self.bet or (u2.get("medals", 0) if u2 else 0) < self.bet:
+                self.stop()
+                await message.edit(content="❌ Someone no longer has enough medals for the wager. Fight cancelled.", embed=None, view=None)
+                return
+                
+            # Deduct the bet from both players
+            if self.bet > 0:
+                await self.bot.db.add_medals(self.challenger.id, message.guild.id, -self.bet)
+                await self.bot.db.add_medals(self.opponent.id, message.guild.id, -self.bet)
+            
             self.stop()
             f1 = Fighter(self.challenger, self.p1_loadout)
             f2 = Fighter(self.opponent, self.p2_loadout)
-            battle = BattleView(f1, f2, self.bot, message)
+            battle = BattleView(f1, f2, self.bot, message, self.bet)
             await battle.update_embed()
 
 # ── Economy Cog ──────────────────────────────────────────────────────────
@@ -584,24 +600,38 @@ class EconomyCog(commands.Cog):
         await interaction.response.send_message("Select a banner from your inventory below to equip it:", view=BannerView(owned_items), ephemeral=True)
 
     @app_commands.command(name="fight", description="Challenge someone to an interactive Arena Battle!")
-    async def fight(self, interaction: discord.Interaction, opponent: discord.Member):
+    @app_commands.describe(opponent="The user to fight", bet="Amount of medals to wager")
+    async def fight(self, interaction: discord.Interaction, opponent: discord.Member, bet: int):
+        if bet < 0: return await interaction.response.send_message("❌ Bet cannot be negative.", ephemeral=True)
         if opponent.id == interaction.user.id or opponent.bot: return await interaction.response.send_message("❌ Invalid opponent!", ephemeral=True)
-        embed = discord.Embed(title="⚔️ ARENA CHALLENGE", description=f"{interaction.user.mention} has challenged {opponent.mention} to a deathmatch!\n\nBoth players: Click your button below to equip your Weapon and Utilities from your inventory!", color=0xE74C3C)
-        await interaction.response.send_message(content=opponent.mention, embed=embed, view=ChallengeView(interaction.user, opponent, self.bot))
+        
+        # Initial check
+        u1 = await self.bot.db.get_user(interaction.user.id, interaction.guild_id)
+        u2 = await self.bot.db.get_user(opponent.id, interaction.guild_id)
+        u1_medals = u1.get("medals", 0) if u1 else 0
+        u2_medals = u2.get("medals", 0) if u2 else 0
+        
+        if u1_medals < bet:
+            return await interaction.response.send_message(f"❌ You don't have enough medals to bet {bet:,}.", ephemeral=True)
+        if u2_medals < bet:
+            return await interaction.response.send_message(f"❌ {opponent.display_name} doesn't have enough medals to match the bet of {bet:,}.", ephemeral=True)
+            
+        embed = discord.Embed(title="⚔️ ARENA CHALLENGE", description=f"{interaction.user.mention} has challenged {opponent.mention} to a deathmatch!\n**Wager:** 🏅 {bet:,} Medals\n\nBoth players: Click your button below to equip your Weapon and Utilities from your inventory!", color=0xE74C3C)
+        await interaction.response.send_message(content=opponent.mention, embed=embed, view=ChallengeView(interaction.user, opponent, self.bot, bet))
 
     @app_commands.command(name="givemedals", description="Give Medals to a user (Staff Only)")
     @app_commands.default_permissions(manage_guild=True)
     async def givemedals(self, interaction: discord.Interaction, member: discord.Member, amount: int):
         if amount <= 0: return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
         await self.bot.db.add_medals(member.id, interaction.guild_id, amount)
-        await interaction.response.send_message(f"✅ Gave **{amount} Medals** to {member.mention}.")
+        await interaction.response.send_message(f"✅ Gave **{amount:,} Medals** to {member.mention}.")
 
     @app_commands.command(name="removemedals", description="Remove Medals from a user (Staff Only)")
     @app_commands.default_permissions(manage_guild=True)
     async def removemedals(self, interaction: discord.Interaction, member: discord.Member, amount: int):
         if amount <= 0: return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
         await self.bot.db.add_medals(member.id, interaction.guild_id, -amount)
-        await interaction.response.send_message(f"✅ Removed **{amount} Medals** from {member.mention}.")
+        await interaction.response.send_message(f"✅ Removed **{amount:,} Medals** from {member.mention}.")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EconomyCog(bot))
