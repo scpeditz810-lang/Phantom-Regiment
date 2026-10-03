@@ -3,9 +3,48 @@ from discord.ext import commands
 from discord import app_commands
 import time
 
+from discord.ext import tasks
+
 class BankingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.check_loans.start()
+        
+    def cog_unload(self):
+        self.check_loans.cancel()
+        
+    @tasks.loop(minutes=10)
+    async def check_loans(self):
+        now = time.time()
+        # 1. Bank loans
+        async with self.bot.db._db.execute("SELECT id, user_id, principal, total_owed FROM bank_loans WHERE repaid < total_owed AND due_at < ? AND late_fee_applied = 0", (now,)) as cur:
+            bank_loans = await cur.fetchall()
+            
+        for loan_id, user_id, principal, owed in bank_loans:
+            fee = int(principal * 0.20)
+            await self.bot.db._db.execute("UPDATE bank_loans SET total_owed = total_owed + ?, late_fee_applied = 1 WHERE id = ?", (fee, loan_id))
+            try:
+                user = await self.bot.fetch_user(user_id)
+                await user.send(f"⚠️ **Bank Loan Overdue!** Your bank loan has expired. A 20% late fee (**{fee:,} medals**) has been added to your debt. Until this is paid, all medals you earn will be automatically seized by the bank.")
+            except: pass
+            
+        # 2. Player loans
+        async with self.bot.db._db.execute("SELECT id, borrower_id, principal, total_owed FROM player_loans WHERE status = 'active' AND due_at < ? AND late_fee_applied = 0", (now,)) as cur:
+            player_loans = await cur.fetchall()
+            
+        for loan_id, borrower_id, principal, owed in player_loans:
+            fee = int(principal * 0.20)
+            await self.bot.db._db.execute("UPDATE player_loans SET total_owed = total_owed + ?, late_fee_applied = 1 WHERE id = ?", (fee, loan_id))
+            try:
+                user = await self.bot.fetch_user(borrower_id)
+                await user.send(f"⚠️ **Player Loan Overdue!** Your player loan #{loan_id} has expired. A 20% late fee (**{fee:,} medals**) has been added. Until this is paid, all medals you earn will be automatically seized and sent to the lender.")
+            except: pass
+            
+        await self.bot.db._db.commit()
+
+    @check_loans.before_loop
+    async def before_check_loans(self):
+        await self.bot.wait_until_ready()
 
     bank = app_commands.Group(name="bank", description="Banking system")
     loan = app_commands.Group(name="loan", description="Player-to-player loans")

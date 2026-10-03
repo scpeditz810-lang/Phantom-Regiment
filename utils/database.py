@@ -171,7 +171,10 @@ class Database:
             "ALTER TABLE users ADD COLUMN last_daily REAL DEFAULT 0",
             "ALTER TABLE users ADD COLUMN active_banner TEXT DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN last_work REAL DEFAULT 0",
-            "ALTER TABLE users ADD COLUMN last_weekly REAL DEFAULT 0"
+            "ALTER TABLE users ADD COLUMN last_weekly REAL DEFAULT 0",
+            "ALTER TABLE player_loans ADD COLUMN repaid INTEGER DEFAULT 0",
+            "ALTER TABLE player_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0",
+            "ALTER TABLE bank_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0"
         ]:
             try:
                 await self._db.execute(query)
@@ -240,10 +243,41 @@ class Database:
 
     async def add_medals(self, user_id: int, guild_id: int, amount: int):
         await self.ensure_user(user_id, guild_id)
-        await self._db.execute(
-            "UPDATE users SET medals = medals + ? WHERE user_id = ? AND guild_id = ?",
-            (amount, user_id, guild_id)
-        )
+        
+        if amount > 0:
+            # 1. Divert to overdue Bank Loans
+            async with self._db.execute("SELECT id, total_owed, repaid FROM bank_loans WHERE user_id = ? AND guild_id = ? AND repaid < total_owed AND due_at < ?", (user_id, guild_id, time.time())) as cur:
+                bank_loan = await cur.fetchone()
+                
+            if bank_loan and amount > 0:
+                loan_id, owed, repaid = bank_loan
+                rem = owed - repaid
+                take = min(amount, rem)
+                amount -= take
+                await self._db.execute("UPDATE bank_loans SET repaid = repaid + ? WHERE id = ?", (take, loan_id))
+                
+            # 2. Divert to overdue Player Loans
+            async with self._db.execute("SELECT id, total_owed, repaid, lender_id FROM player_loans WHERE borrower_id = ? AND guild_id = ? AND status = 'active' AND due_at < ?", (user_id, guild_id, time.time())) as cur:
+                player_loan = await cur.fetchone()
+                
+            if player_loan and amount > 0:
+                loan_id, owed, repaid, lender_id = player_loan
+                rem = owed - repaid
+                take = min(amount, rem)
+                amount -= take
+                await self._db.execute("UPDATE player_loans SET repaid = repaid + ? WHERE id = ?", (take, loan_id))
+                # Give the diverted funds to the lender's wallet directly
+                await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ? AND guild_id = ?", (take, lender_id, guild_id))
+                
+                # Check if fully repaid
+                if repaid + take >= owed:
+                    await self._db.execute("UPDATE player_loans SET status = 'repaid' WHERE id = ?", (loan_id,))
+
+        if amount != 0:
+            await self._db.execute(
+                "UPDATE users SET medals = medals + ? WHERE user_id = ? AND guild_id = ?",
+                (amount, user_id, guild_id)
+            )
         await self._db.commit()
 
     async def set_last_daily(self, user_id: int, guild_id: int, timestamp: float):
