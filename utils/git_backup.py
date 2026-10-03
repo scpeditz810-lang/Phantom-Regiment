@@ -86,6 +86,8 @@ class GitBackup:
                   cwd=self.repo_dir, check=False)
         self._run(["git", "config", "user.name", "CommandArmyBot"],
                   cwd=self.repo_dir, check=False)
+        self._run(["git", "config", "core.fileMode", "false"],
+                  cwd=self.repo_dir, check=False)
 
         self._last_hash = self._file_hash()
         self._enabled = True
