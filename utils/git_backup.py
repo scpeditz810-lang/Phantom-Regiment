@@ -79,6 +79,8 @@ class GitBackup:
                 # Might be on master or empty — that's fine
                 pass
 
+        self._fix_permissions()
+
         # Configure identity
         self._run(["git", "config", "user.email", "bot@command-army.com"],
                   cwd=self.repo_dir, check=False)
@@ -88,6 +90,15 @@ class GitBackup:
         self._last_hash = self._file_hash()
         self._enabled = True
         return True
+
+    def _fix_permissions(self):
+        try:
+            import stat
+            os.chmod(self.repo_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            if os.path.exists(self.db_path):
+                os.chmod(self.db_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+        except Exception:
+            pass
 
     def push_if_changed(self) -> bool:
         """Commit & push if the DB file changed since last check.
@@ -127,6 +138,7 @@ class GitBackup:
             # Try to pull --rebase and push again
             try:
                 self._run(["git", "pull", "--rebase", "origin", "main"], cwd=self.repo_dir)
+                self._fix_permissions()
                 self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
                 print("✅  Successfully rebased and pushed backup!")
                 return True

@@ -158,7 +158,8 @@ class BankingCog(commands.Cog):
         
         total_repay = amount + interest_amount
         await interaction.response.send_message(f"✅ You took a bank loan of **{amount:,} medals** for **{days} days**.\n"
-                                                f"You received the funds in your wallet. You must repay **{total_repay:,} medals**.")
+                                                f"You received the funds in your wallet. You must repay **{total_repay:,} medals**.\n\n"
+                                                f"⚠️ **WARNING:** If you fail to repay by the deadline, a **20% late fee** will be added to your debt, and **all your future earnings will be automatically seized** until the debt is clear.")
 
     @bank.command(name="repay", description="Repay your bank loan")
     async def bank_loan_repay(self, interaction: discord.Interaction):
@@ -210,6 +211,7 @@ class BankingCog(commands.Cog):
                             f"**Interest:** {interest}%\n"
                             f"**Total Owed:** {amount + interest_medals:,} medals\n"
                             f"**Duration:** {days} days\n\n"
+                            f"⚠️ **WARNING:** If you fail to repay by the deadline, a **20% late fee** will be added and **all your future earnings will be automatically seized** until paid.\n\n"
                             f"Run `/loan accept {loan_id}` in the server to accept it.")
         except:
             pass
@@ -231,7 +233,8 @@ class BankingCog(commands.Cog):
         await self.bot.db.accept_player_loan(loan_id)
         
         await interaction.response.send_message(f"✅ You accepted the loan! **{loan['principal']:,} medals** have been added to your wallet.\n"
-                                                f"You must repay **{loan['total_owed']:,} medals** before it expires.")
+                                                f"You must repay **{loan['total_owed']:,} medals** before it expires.\n\n"
+                                                f"⚠️ **WARNING:** If you fail to repay by the deadline, a **20% late fee** will be added to your debt, and **all your future earnings will be automatically seized** until the debt is clear.")
 
     @loan.command(name="reject", description="Reject a loan offer")
     @app_commands.describe(loan_id="The ID of the loan offer")
