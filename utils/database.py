@@ -166,12 +166,17 @@ class Database:
         """)
 
         # Safely migrate existing databases by adding new columns if they don't exist
-        try:
-            await self._db.execute("ALTER TABLE users ADD COLUMN medals INTEGER DEFAULT 0")
-            await self._db.execute("ALTER TABLE users ADD COLUMN last_daily REAL DEFAULT 0")
-            await self._db.execute("ALTER TABLE users ADD COLUMN active_banner TEXT DEFAULT NULL")
-        except aiosqlite.OperationalError:
-            pass  # Columns already exist
+        for query in [
+            "ALTER TABLE users ADD COLUMN medals INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN last_daily REAL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN active_banner TEXT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN last_work REAL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN last_weekly REAL DEFAULT 0"
+        ]:
+            try:
+                await self._db.execute(query)
+            except aiosqlite.OperationalError:
+                pass  # Column already exists
 
         await self._db.commit()
 
@@ -245,6 +250,22 @@ class Database:
         await self.ensure_user(user_id, guild_id)
         await self._db.execute(
             "UPDATE users SET last_daily = ? WHERE user_id = ? AND guild_id = ?",
+            (timestamp, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def set_last_work(self, user_id: int, guild_id: int, timestamp: float):
+        await self.ensure_user(user_id, guild_id)
+        await self._db.execute(
+            "UPDATE users SET last_work = ? WHERE user_id = ? AND guild_id = ?",
+            (timestamp, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def set_last_weekly(self, user_id: int, guild_id: int, timestamp: float):
+        await self.ensure_user(user_id, guild_id)
+        await self._db.execute(
+            "UPDATE users SET last_weekly = ? WHERE user_id = ? AND guild_id = ?",
             (timestamp, user_id, guild_id)
         )
         await self._db.commit()
