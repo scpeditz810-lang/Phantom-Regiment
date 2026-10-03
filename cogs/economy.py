@@ -412,19 +412,22 @@ class EconomyCog(commands.Cog):
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, 500)
         await interaction.response.send_message("📅 You successfully claimed your weekly **500 Medals**!")
 
-    @app_commands.command(name="pay", description="Transfer medals to another user.")
-    async def pay(self, interaction: discord.Interaction, recipient: discord.Member, amount: int):
+    @app_commands.command(name="transfer", description="Transfer medals to another user (30% tax applied).")
+    async def transfer(self, interaction: discord.Interaction, recipient: discord.Member, amount: int):
         if amount <= 0: return await interaction.response.send_message("❌ Amount must be positive.", ephemeral=True)
         if recipient.id == interaction.user.id or recipient.bot:
             return await interaction.response.send_message("❌ Invalid recipient.", ephemeral=True)
             
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
         if data.get("medals", 0) < amount:
-            return await interaction.response.send_message("❌ You don't have enough Medals.", ephemeral=True)
+            return await interaction.response.send_message(f"❌ You don't have enough Medals to send {amount:,}.", ephemeral=True)
             
+        tax = int(amount * 0.30)
+        final_amount = amount - tax
+        
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -amount)
-        await self.bot.db.add_medals(recipient.id, interaction.guild_id, amount)
-        await interaction.response.send_message(f"💸 You paid **{amount} Medals** to {recipient.mention}.")
+        await self.bot.db.add_medals(recipient.id, interaction.guild_id, final_amount)
+        await interaction.response.send_message(f"💸 You transferred **{amount:,} Medals** to {recipient.mention}.\nAfter a 30% tax (**-{tax:,}**), they received **{final_amount:,} Medals**.")
 
     @app_commands.command(name="roleshop", description="View the cosmetic roles available for purchase.")
     async def roleshop(self, interaction: discord.Interaction):
