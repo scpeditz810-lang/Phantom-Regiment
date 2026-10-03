@@ -50,6 +50,18 @@ class BankingCog(commands.Cog):
                 await self.bot.db._db.execute("UPDATE banks SET balance = balance + ?, last_interest = ? WHERE user_id = ? AND guild_id = ?", (interest, now, user_id, guild_id))
             else:
                 await self.bot.db._db.execute("UPDATE banks SET last_interest = ? WHERE user_id = ? AND guild_id = ?", (now, user_id, guild_id))
+                
+        # 4. Expired pending player loans (24 hours)
+        async with self.bot.db._db.execute("SELECT id, lender_id, guild_id, principal FROM player_loans WHERE status = 'pending' AND ? - created_at > 86400", (now,)) as cur:
+            expired_offers = await cur.fetchall()
+            
+        for loan_id, lender_id, guild_id, principal in expired_offers:
+            await self.bot.db._db.execute("UPDATE player_loans SET status = 'expired' WHERE id = ?", (loan_id,))
+            await self.bot.db.add_medals(lender_id, guild_id, principal)
+            try:
+                user = await self.bot.fetch_user(lender_id)
+                await user.send(f"⏳ **Loan Offer Expired!** Your pending loan offer #{loan_id} was not accepted within 24 hours. The **{principal:,} medals** have been refunded to your wallet.")
+            except: pass
             
         await self.bot.db._db.commit()
 
@@ -216,14 +228,15 @@ class BankingCog(commands.Cog):
         loan_id = await self.bot.db.create_player_loan(interaction.user.id, user.id, interaction.guild_id, amount, interest_medals, due_at)
         
         await interaction.response.send_message(f"✅ Loan offer sent to {user.mention}! The **{amount:,} medals** have been held from your wallet.\n"
-                                                f"They can run `/loan accept {loan_id}` to take it, or `/loan reject {loan_id}` to refund you.")
+                                                f"They can run `/loan accept {loan_id}` to take it, or `/loan reject {loan_id}` to refund you.\n"
+                                                f"*(If not accepted within 24 hours, the offer will expire and your medals will be refunded)*")
         try:
             await user.send(f"📬 **{interaction.user.display_name}** has offered you a loan of **{amount:,} medals**!\n"
                             f"**Interest:** {interest}%\n"
                             f"**Total Owed:** {amount + interest_medals:,} medals\n"
                             f"**Duration:** {days} days\n\n"
                             f"⚠️ **WARNING:** If you fail to repay by the deadline, a **20% late fee** will be added and **all your future earnings will be automatically seized** until paid.\n\n"
-                            f"Run `/loan accept {loan_id}` in the server to accept it.")
+                            f"Run `/loan accept {loan_id}` in the server to accept it. *(Expires in 24 hours)*")
         except:
             pass
 
