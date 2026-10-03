@@ -367,12 +367,13 @@ class EconomyCog(commands.Cog):
             rem = int(86400 - (now - last))
             return await interaction.response.send_message(f"⏳ Wait **{rem//3600}h {(rem%3600)//60}m**!", ephemeral=True)
             
-        streak = await self.bot.db.get_streak(interaction.user.id, interaction.guild_id)
+        streak_data = await self.bot.db.get_streak(interaction.user.id, interaction.guild_id)
+        current_streak = streak_data.get("streak", 0)
         
         if now - last > 172800:
             streak = 1
         else:
-            streak += 1
+            streak = current_streak + 1
             
         await self.bot.db.update_streak(interaction.user.id, interaction.guild_id, streak)
         await self.bot.db.set_last_daily(interaction.user.id, interaction.guild_id, now)
