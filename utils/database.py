@@ -638,9 +638,10 @@ class Database:
             return row[0]
 
     async def accept_player_loan(self, loan_id: int):
+        import time
         await self._db.execute(
-            "UPDATE player_loans SET status = 'active' WHERE id = ?",
-            (loan_id,)
+            "UPDATE player_loans SET status = 'active', due_at = (due_at - created_at) + ? WHERE id = ?",
+            (time.time(), loan_id)
         )
         await self._db.commit()
 
