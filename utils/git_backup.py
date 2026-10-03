@@ -144,7 +144,7 @@ class GitBackup:
             # The remote probably contains new code (e.g. pushed by developer)
             # Try to pull --rebase and push again
             try:
-                self._run(["git", "pull", "--rebase", "origin", "main"], cwd=self.repo_dir)
+                self._run(["git", "pull", "--no-rebase", "--no-edit", "origin", "main"], cwd=self.repo_dir)
                 self._fix_permissions()
                 self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
                 print("✅  Successfully rebased and pushed backup!")
