@@ -227,9 +227,10 @@ class BankingCog(commands.Cog):
         
         loan_id = await self.bot.db.create_player_loan(interaction.user.id, user.id, interaction.guild_id, amount, interest_medals, due_at)
         
-        await interaction.response.send_message(f"✅ Loan offer sent to {user.mention}! The **{amount:,} medals** have been held from your wallet.\n"
-                                                f"They can run `/loan accept {loan_id}` to take it, or `/loan reject {loan_id}` to refund you.\n"
-                                                f"*(If not accepted within 24 hours, the offer will expire and your medals will be refunded)*")
+        await interaction.response.send_message(f"✅ **Loan Offer Sent!** {interaction.user.mention} has offered {user.mention} a loan of **{amount:,} medals**.\n"
+                                                f"**Terms:** {interest}% interest over {days} days. Total repayment: **{amount + interest_medals:,} medals**.\n\n"
+                                                f"{user.mention}, run `/loan accept {loan_id}` to take it, or `/loan reject {loan_id}` to decline.\n"
+                                                f"*(If not accepted within 24 hours, the offer will expire)*")
         try:
             await user.send(f"📬 **{interaction.user.display_name}** has offered you a loan of **{amount:,} medals**!\n"
                             f"**Interest:** {interest}%\n"
