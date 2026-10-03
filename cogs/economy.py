@@ -435,25 +435,43 @@ class EconomyCog(commands.Cog):
         embed.add_field(name="Available Roles", value="\n\n".join(roles_text), inline=False)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="buyrole", description="Purchase a cosmetic role from the role shop.")
+    @app_commands.command(name="buyrole", description="Purchase or equip a cosmetic role from the role shop.")
+    @app_commands.choices(role_id=[
+        app_commands.Choice(name="💰 Wealthy (5,000)", value="role_wealthy"),
+        app_commands.Choice(name="💸 Rich (10,000)", value="role_rich"),
+        app_commands.Choice(name="📈 High Roller (15,000)", value="role_investor"),
+        app_commands.Choice(name="💎 Millionaire (25,000)", value="role_millionaire"),
+        app_commands.Choice(name="👑 Billionaire (50,000)", value="role_billionaire"),
+        app_commands.Choice(name="👻 Phantom Regiment Elite (100,000)", value="role_phantom")
+    ])
     async def buyrole(self, interaction: discord.Interaction, role_id: str):
-        role_id = role_id.lower()
         if role_id not in ROLES_SHOP:
-            return await interaction.response.send_message("❌ Role ID not found in shop.", ephemeral=True)
+            return await interaction.response.send_message("❌ Role not found.", ephemeral=True)
             
-        if await self.bot.db.has_role_purchase(interaction.user.id, interaction.guild_id, role_id):
-            return await interaction.response.send_message("❌ You already own this role!", ephemeral=True)
-            
-        price = ROLES_SHOP[role_id]["price"]
-        data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
-        if data.get("medals", 0) < price:
-            return await interaction.response.send_message(f"❌ You need {price} Medals to buy this role!", ephemeral=True)
-            
-        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -price)
-        await self.bot.db.add_role_purchase(interaction.user.id, interaction.guild_id, role_id)
-        
         role_info = ROLES_SHOP[role_id]
         role = discord.utils.get(interaction.guild.roles, name=role_info["name"])
+        
+        owned = await self.bot.db.has_role_purchase(interaction.user.id, interaction.guild_id, role_id)
+        
+        if owned:
+            if role:
+                try:
+                    await interaction.user.add_roles(role, reason="Equipping owned Role Shop role")
+                    return await interaction.response.send_message(f"✅ You already own **{role_info['name']}**, so it has been equipped for free!", ephemeral=True)
+                except discord.Forbidden:
+                    return await interaction.response.send_message("✅ You own this role, but I lack permissions to assign it.", ephemeral=True)
+            else:
+                pass # Fall through to creation logic if role got deleted
+                
+        if not owned:
+            price = role_info["price"]
+            data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+            if data.get("medals", 0) < price:
+                return await interaction.response.send_message(f"❌ You need {price:,} Medals to buy this role!", ephemeral=True)
+                
+            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -price)
+            await self.bot.db.add_role_purchase(interaction.user.id, interaction.guild_id, role_id)
+        
         if not role:
             try:
                 role = await interaction.guild.create_role(
@@ -461,23 +479,23 @@ class EconomyCog(commands.Cog):
                     color=discord.Color(role_info["color"]),
                     reason="Created for Role Shop"
                 )
-                # Try to position it above Alliance
                 alliance_role = discord.utils.get(interaction.guild.roles, name="Alliance")
                 if alliance_role:
                     try:
-                        # Moving a role requires setting its position 
-                        # to one higher than the target role's position
                         await role.edit(position=alliance_role.position + 1)
                     except discord.Forbidden:
-                        pass # Ignore if bot lacks permission to move roles this high
+                        pass
             except discord.Forbidden:
-                return await interaction.response.send_message("✅ You bought the role, but I lack permissions to create/assign it in the server. Please contact an admin.", ephemeral=True)
+                return await interaction.response.send_message("✅ Role registered to your account, but I lack permissions to create it in the server.", ephemeral=True)
         
         try:
             await interaction.user.add_roles(role, reason="Purchased from Role Shop")
-            await interaction.response.send_message(f"🎉 You successfully purchased and equipped the **{role_info['name']}** role!")
+            if not owned:
+                await interaction.response.send_message(f"🎉 You successfully purchased and equipped the **{role_info['name']}** role!")
+            else:
+                await interaction.response.send_message(f"✅ The deleted role was recreated and equipped since you already own it!")
         except discord.Forbidden:
-            await interaction.response.send_message("✅ You bought the role, but I lack permissions to assign it to you (my role might be lower in the hierarchy).", ephemeral=True)
+            await interaction.response.send_message("✅ Role registered, but I lack permissions to assign it to you (hierarchy issue).", ephemeral=True)
 
     @app_commands.command(name="medalleaderboard", description="View the top medal earners in the server.")
     async def medalleaderboard(self, interaction: discord.Interaction):
