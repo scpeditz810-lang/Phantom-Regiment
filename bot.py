@@ -113,6 +113,7 @@ COGS = [
     "cogs.staffapply",
     "cogs.pingcooldown",
     "cogs.banking",
+    "cogs.convert",
 ]
 
 
