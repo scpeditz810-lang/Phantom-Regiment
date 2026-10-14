@@ -216,8 +216,8 @@ class BankingCog(commands.Cog):
     @loan.command(name="offer", description="Offer a loan to another player")
     @app_commands.describe(user="The user to offer the loan to", amount="Amount of medals", interest="Interest rate percentage (e.g. 10)", days="Duration in days")
     async def player_loan_offer(self, interaction: discord.Interaction, user: discord.Member, amount: int, interest: float, days: int):
-        if amount <= 0 or days <= 0 or interest < 0:
-            return await interaction.response.send_message("❌ Invalid loan parameters.", ephemeral=True)
+        if amount <= 0 or amount > 50000 or days <= 0 or days > 30 or interest < 0 or interest > 100:
+            return await interaction.response.send_message("❌ Invalid loan parameters. Max loan is **50,000 medals**, max interest is **100%**, and max duration is **30 days**.", ephemeral=True)
             
         if user.id == interaction.user.id or user.bot:
             return await interaction.response.send_message("❌ You cannot loan to yourself or a bot.", ephemeral=True)
