@@ -163,6 +163,14 @@ class Database:
                 last_claim REAL DEFAULT 0,
                 PRIMARY KEY (user_id, guild_id)
             );
+
+            CREATE TABLE IF NOT EXISTS rob_cooldowns (
+                robber_id INTEGER,
+                target_id INTEGER,
+                guild_id INTEGER,
+                last_attempt REAL DEFAULT 0,
+                PRIMARY KEY (robber_id, target_id, guild_id)
+            );
         """)
 
         # Safely migrate existing databases by adding new columns if they don't exist
@@ -176,6 +184,7 @@ class Database:
             "ALTER TABLE player_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0",
             "ALTER TABLE bank_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0",
             "ALTER TABLE banks ADD COLUMN last_interest REAL DEFAULT 0",
+            "ALTER TABLE banks ADD COLUMN password_hash TEXT DEFAULT NULL",
             "PRAGMA journal_mode=WAL"
         ]:
             try:
@@ -569,14 +578,14 @@ class Database:
 
     # ── economy system (bank & loans & roles & streaks) ─────────────────────
 
-    async def create_bank(self, user_id: int, guild_id: int) -> bool:
+    async def create_bank(self, user_id: int, guild_id: int, password_hash: str = None) -> bool:
         """Create a bank account if it doesn't exist. Returns True if created."""
         async with self._db.execute("SELECT 1 FROM banks WHERE user_id = ? AND guild_id = ?", (user_id, guild_id)) as cur:
             if await cur.fetchone():
                 return False
         await self._db.execute(
-            "INSERT INTO banks (user_id, guild_id, balance, created_at) VALUES (?, ?, 0, ?)",
-            (user_id, guild_id, time.time())
+            "INSERT INTO banks (user_id, guild_id, balance, created_at, password_hash) VALUES (?, ?, 0, ?, ?)",
+            (user_id, guild_id, time.time(), password_hash)
         )
         await self._db.commit()
         return True
@@ -694,4 +703,35 @@ class Database:
             (guild_id, limit)
         ) as cur:
             return [dict(r) for r in await cur.fetchall()]
+
+    async def set_bank_password(self, user_id: int, guild_id: int, password_hash: str):
+        await self._db.execute(
+            "UPDATE banks SET password_hash = ? WHERE user_id = ? AND guild_id = ?",
+            (password_hash, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def get_rob_cooldown(self, robber_id: int, target_id: int, guild_id: int) -> float:
+        async with self._db.execute(
+            "SELECT last_attempt FROM rob_cooldowns WHERE robber_id = ? AND target_id = ? AND guild_id = ?",
+            (robber_id, target_id, guild_id)
+        ) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else 0
+
+    async def set_rob_cooldown(self, robber_id: int, target_id: int, guild_id: int):
+        await self._db.execute(
+            "INSERT OR REPLACE INTO rob_cooldowns (robber_id, target_id, guild_id, last_attempt) VALUES (?, ?, ?, ?)",
+            (robber_id, target_id, guild_id, time.time())
+        )
+        await self._db.commit()
+
+    async def get_global_leaderboard(self, limit: int = 10) -> list[dict]:
+        """Get top users across ALL guilds by medals."""
+        async with self._db.execute(
+            "SELECT user_id, SUM(medals) as total_medals FROM users GROUP BY user_id ORDER BY total_medals DESC LIMIT ?",
+            (limit,)
+        ) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
 
