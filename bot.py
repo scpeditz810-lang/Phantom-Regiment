@@ -116,6 +116,46 @@ COGS = [
     "cogs.convert",
 ]
 
+PARTNER_COGS = [
+    "cogs.economy",
+    "cogs.banking",
+    "cogs.convert",
+    "cogs.roblox",
+    "cogs.giveaway",
+    "cogs.suggestions",
+]
+
+# ── Partner Bot Setup (Multi-Clan Support) ────────────────────────────────────
+partner_token = os.environ.get("PARTNER_BOT_TOKEN")
+partner_bot = None
+
+if partner_token:
+    partner_intents = discord.Intents.all()
+    partner_bot = commands.Bot(command_prefix="!", intents=partner_intents)
+    partner_bot.db = bot.db
+    partner_bot.is_partner = True
+
+    @partner_bot.event
+    async def on_ready():
+        print(f"🤝  [Partner Bot] {partner_bot.user} is online!  (ID {partner_bot.user.id})", flush=True)
+        try:
+            synced = await partner_bot.tree.sync()
+            print(f"🤝  [Partner Bot] Synced {len(synced)} slash commands.", flush=True)
+        except Exception as e:
+            print(f"❌  [Partner Bot] Sync failed: {e}", flush=True)
+
+    @partner_bot.command()
+    @commands.is_owner()
+    async def sync(ctx: commands.Context):
+        partner_bot.tree.copy_global_to(guild=ctx.guild)
+        synced = await partner_bot.tree.sync(guild=ctx.guild)
+        await ctx.send(f"✅  [Partner Bot] Instantly synced {len(synced)} commands to this server!")
+
+
+async def _start_client(client, client_token):
+    async with client:
+        await client.start(client_token)
+
 
 async def main():
     # Restore DB from GitHub backup (runs before bot connects)
@@ -124,19 +164,33 @@ async def main():
     # Start Flask in a daemon thread
     threading.Thread(target=_run_flask, daemon=True).start()
 
-    async with bot:
-        for cog in COGS:
-            try:
-                await bot.load_extension(cog)
-                print(f"✅  Loaded {cog}", flush=True)
-            except Exception as e:
-                print(f"❌  Failed to load {cog}: {e}", flush=True)
+    token = os.environ.get("DISCORD_TOKEN")
+    if not token:
+        print("❌  DISCORD_TOKEN not set!  Create a .env file (see .env.example).", flush=True)
+        return
 
-        token = os.environ.get("DISCORD_TOKEN")
-        if not token:
-            print("❌  DISCORD_TOKEN not set!  Create a .env file (see .env.example).", flush=True)
-            return
-        await bot.start(token)
+    # Load primary cogs
+    for cog in COGS:
+        try:
+            await bot.load_extension(cog)
+            print(f"✅  Loaded {cog} on Primary Bot", flush=True)
+        except Exception as e:
+            print(f"❌  Failed to load {cog} on Primary Bot: {e}", flush=True)
+
+    clients_to_run = [_start_client(bot, token)]
+
+    # Load partner bot if token provided
+    if partner_token and partner_bot:
+        print("🤝  Loading extensions for Partner Bot...", flush=True)
+        for cog in PARTNER_COGS:
+            try:
+                await partner_bot.load_extension(cog)
+                print(f"✅  Loaded {cog} on Partner Bot", flush=True)
+            except Exception as e:
+                print(f"❌  Failed to load {cog} on Partner Bot: {e}", flush=True)
+        clients_to_run.append(_start_client(partner_bot, partner_token))
+
+    await asyncio.gather(*clients_to_run)
 
 
 if __name__ == "__main__":

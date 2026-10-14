@@ -10,10 +10,12 @@ from discord.ext import tasks
 class BankingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.check_loans.start()
+        if not getattr(bot, "is_partner", False):
+            self.check_loans.start()
         
     def cog_unload(self):
-        self.check_loans.cancel()
+        if not getattr(self.bot, "is_partner", False):
+            self.check_loans.cancel()
         
     @tasks.loop(minutes=10)
     async def check_loans(self):
