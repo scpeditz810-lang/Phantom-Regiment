@@ -508,22 +508,20 @@ class BankingCog(commands.Cog):
 
     @bank.command(name="resetall", description="[OWNER ONLY] Wipe all banks, loans, and economy balances")
     async def bank_resetall(self, interaction: discord.Interaction):
-        if interaction.user.id not in [1162404296097275904, 1457529756617670914] and not await self.bot.is_owner(interaction.user):
+        if interaction.user.id != 1162404296097275904 and not await self.bot.is_owner(interaction.user):
             return await interaction.response.send_message("❌ Owner only.", ephemeral=True)
         await self.bot.db.hard_reset_all_banks()
-        for uid in [1162404296097275904, 1457529756617670914]:
-            await self.bot.db.add_role_purchase(uid, 1550544659217125467, "role_phantom")
-        await interaction.response.send_message("💥 All banks, loans, and wallets have been completely wiped! Elite roles preserved.")
+        await self.bot.db.add_role_purchase(1162404296097275904, 1550544659217125467, "role_phantom")
+        await interaction.response.send_message("💥 All banks, loans, and wallets have been completely wiped! Elite role preserved for TS_Aryan.")
 
     @commands.command(name="resetbanks")
     async def resetbanks_prefix(self, ctx: commands.Context):
         """Owner prefix command to wipe all banks and economy balances."""
-        if ctx.author.id not in [1162404296097275904, 1457529756617670914] and not await self.bot.is_owner(ctx.author):
+        if ctx.author.id != 1162404296097275904 and not await self.bot.is_owner(ctx.author):
             return await ctx.send("❌ Owner only.")
         await self.bot.db.hard_reset_all_banks()
-        for uid in [1162404296097275904, 1457529756617670914]:
-            await self.bot.db.add_role_purchase(uid, 1550544659217125467, "role_phantom")
-        await ctx.send("💥 All banks, loans, and wallets have been completely wiped! Elite roles preserved.")
+        await self.bot.db.add_role_purchase(1162404296097275904, 1550544659217125467, "role_phantom")
+        await ctx.send("💥 All banks, loans, and wallets have been completely wiped! Elite role preserved for TS_Aryan.")
 
 # ── Bank Password Modals ────────────────────────────────────────────────────
 
