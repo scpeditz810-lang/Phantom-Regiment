@@ -144,6 +144,17 @@ if partner_token:
         except Exception as e:
             print(f"❌  [Partner Bot] Sync failed: {e}", flush=True)
 
+    @partner_bot.tree.error
+    async def on_partner_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+        print(f"❌  [Partner Bot] Slash command error in {interaction.command.name if interaction.command else 'Unknown'}: {error}")
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"❌ Internal error: {error}", ephemeral=True)
+            else:
+                await interaction.followup.send(f"❌ Internal error: {error}", ephemeral=True)
+        except:
+            pass
+
     @partner_bot.command()
     @commands.is_owner()
     async def sync(ctx: commands.Context):

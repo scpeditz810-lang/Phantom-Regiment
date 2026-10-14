@@ -1051,6 +1051,8 @@ class EconomyCog(commands.Cog):
             return await interaction.response.send_message("❌ Medal management is restricted to Phantom Regiment High Command in the main server.", ephemeral=True)
         if amount <= 0: return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
         await self.bot.db.add_medals(member.id, interaction.guild_id, -amount)
+        await interaction.response.send_message(f"✅ Removed **{amount:,} Medals** from {member.mention}.")
+
     @app_commands.command(name="guide", description="Comprehensive guide to the server economy, medals, banking, and features.")
     async def guide(self, interaction: discord.Interaction):
         embed = discord.Embed(

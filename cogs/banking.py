@@ -449,6 +449,15 @@ class BankPasswordModal(discord.ui.Modal, title="Set Bank Password"):
         if self.password.value != self.confirm.value:
             return await interaction.response.send_message("❌ Passwords don't match! Try again.", ephemeral=True)
         
+        existing = await self.bot.db.get_bank(interaction.user.id, interaction.guild_id)
+        if existing:
+            return await interaction.response.send_message("❌ You already have a bank account.", ephemeral=True)
+
+        user = await self.bot.db.get_user(interaction.user.id, interaction.guild_id)
+        wallet = user.get("medals", 0) if user else 0
+        if wallet < 500:
+            return await interaction.response.send_message("❌ You need **500 medals** in your wallet to open a bank account.", ephemeral=True)
+
         from utils.cipher import hash_password
         pw_hash = hash_password(self.password.value)
         
