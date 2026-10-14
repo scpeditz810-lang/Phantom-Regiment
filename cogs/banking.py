@@ -7,6 +7,19 @@ import hashlib
 
 from discord.ext import tasks
 
+BANK_TIERS = {
+    1: {"name": "Basic Vault", "cap": 1000, "upgrade_cost": 0},
+    2: {"name": "Iron Vault", "cap": 2500, "upgrade_cost": 2500},
+    3: {"name": "Steel Vault", "cap": 7500, "upgrade_cost": 7500},
+    4: {"name": "Reinforced Vault", "cap": 20000, "upgrade_cost": 20000},
+    5: {"name": "Titanium Vault", "cap": 50000, "upgrade_cost": 50000},
+    6: {"name": "Obsidian Vault", "cap": 100000, "upgrade_cost": 120000},
+    7: {"name": "Quantum Vault", "cap": 250000, "upgrade_cost": 250000},
+    8: {"name": "Cybernetic Vault", "cap": 500000, "upgrade_cost": 500000},
+    9: {"name": "Apex Vault", "cap": 750000, "upgrade_cost": 1000000},
+    10: {"name": "Phantom Sovereign Vault", "cap": 1000000, "upgrade_cost": 2000000},
+}
+
 class BankingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -44,12 +57,14 @@ class BankingCog(commands.Cog):
                 await user.send(f"⚠️ **Player Loan Overdue!** Your player loan #{loan_id} has expired. A 20% late fee (**{fee:,} medals**) has been added. Until this is paid, all medals you earn will be automatically seized and sent to the lender.")
             except: pass
             
-        # 3. Bank Interest (2.5% daily, capped at 650)
-        async with self.bot.db._db.execute("SELECT user_id, guild_id, balance, last_interest FROM banks WHERE balance > 0 AND last_interest < ?", (now - 86400,)) as cur:
+        # 3. Bank Interest (2.5% daily, capped based on vault tier up to 1M)
+        async with self.bot.db._db.execute("SELECT user_id, guild_id, balance, last_interest, tier FROM banks WHERE balance > 0 AND last_interest < ?", (now - 86400,)) as cur:
             banks = await cur.fetchall()
             
-        for user_id, guild_id, balance, last_interest in banks:
-            interest = min(650, int(balance * 0.025))
+        for user_id, guild_id, balance, last_interest, tier in banks:
+            tier_num = tier or 1
+            tier_info = BANK_TIERS.get(tier_num, BANK_TIERS[1])
+            interest = min(tier_info["cap"], int(balance * 0.025))
             if interest > 0:
                 await self.bot.db._db.execute("UPDATE banks SET balance = balance + ?, last_interest = ? WHERE user_id = ? AND guild_id = ?", (interest, now, user_id, guild_id))
             else:
@@ -152,11 +167,70 @@ class BankingCog(commands.Cog):
         embed = discord.Embed(title="💰 Your Balances", color=discord.Color.green())
         embed.add_field(name="👛 Wallet", value=f"**{wallet:,} 🏅**", inline=True)
         if bank:
+            tier_num = bank.get("tier") or 1
+            tier_info = BANK_TIERS.get(tier_num, BANK_TIERS[1])
             embed.add_field(name="🏦 Bank", value=f"**{bank['balance']:,} 🏅**", inline=True)
+            embed.add_field(
+                name="🛡️ Vault Tier",
+                value=f"**Tier {tier_num}/10** — {tier_info['name']}\n📈 **Daily Interest Cap:** {tier_info['cap']:,} medals/day (2.5% yield)",
+                inline=False
+            )
         else:
-            embed.add_field(name="🏦 Bank", value="*No Account*", inline=True)
+            embed.add_field(name="🏦 Bank", value="*No Account (Use `/bank create`)*", inline=True)
             
+        embed.set_footer(text="Made By Phantom Regiment")
         await interaction.response.send_message(embed=embed)
+
+    async def _handle_upgrade(self, interaction: discord.Interaction):
+        bank = await self.bot.db.get_bank(interaction.user.id, interaction.guild_id)
+        if not bank:
+            return await interaction.response.send_message("❌ You do not have a bank account. Create one with `/bank create`.", ephemeral=True)
+            
+        current_tier = bank.get("tier") or 1
+        if current_tier >= 10:
+            return await interaction.response.send_message("🏆 Your bank vault is already at the maximum **Tier 10 (Phantom Sovereign Vault)** with a **1,000,000 Medals/day** cap!", ephemeral=True)
+            
+        next_tier = current_tier + 1
+        next_info = BANK_TIERS[next_tier]
+        cost = next_info["upgrade_cost"]
+        
+        user = await self.bot.db.get_user(interaction.user.id, interaction.guild_id)
+        wallet = user.get("medals", 0) if user else 0
+        
+        if wallet < cost:
+            return await interaction.response.send_message(
+                f"❌ You need **{cost:,} Medals** in your wallet to upgrade to **Tier {next_tier} ({next_info['name']})**.\n"
+                f"Your wallet only has **{wallet:,} Medals**.",
+                ephemeral=True
+            )
+            
+        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -cost)
+        await self.bot.db.upgrade_bank_tier(interaction.user.id, interaction.guild_id, next_tier)
+        
+        if next_tier == 10:
+            next_text = "Max Level Reached 🏆"
+        else:
+            next_cost = BANK_TIERS[next_tier + 1]["upgrade_cost"]
+            next_text = f"Tier {next_tier + 1} ({next_cost:,} Medals)"
+
+        embed = discord.Embed(
+            title="🛡️ Vault Upgraded!",
+            description=f"Congratulations! Your bank vault has been upgraded to **Tier {next_tier} — {next_info['name']}**!\n\n"
+                        f"• **New Daily Interest Cap:** **{next_info['cap']:,} Medals / day** (2.5% daily yield)\n"
+                        f"• **Upgrade Cost Paid:** {cost:,} Medals\n"
+                        f"• **Next Upgrade:** {next_text}",
+            color=0x2ECC71
+        )
+        embed.set_footer(text="Made By Phantom Regiment")
+        await interaction.response.send_message(embed=embed)
+
+    @bank.command(name="upgrade", description="Upgrade your bank vault tier to increase your daily interest cap (up to 1M)!")
+    async def bank_upgrade(self, interaction: discord.Interaction):
+        await self._handle_upgrade(interaction)
+
+    @app_commands.command(name="updatebank", description="Upgrade your bank vault tier to increase your daily interest cap (up to 1M)!")
+    async def updatebank(self, interaction: discord.Interaction):
+        await self._handle_upgrade(interaction)
 
     @bank.command(name="loan", description="Take a loan from the bank")
     @app_commands.describe(amount="Amount to borrow (max 5000)", days="Duration in days (1, 3, 7, 14, 30)")
@@ -331,9 +405,7 @@ class BankingCog(commands.Cog):
             
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="rob", description="Attempt to breach a player's bank vault using their password!")
-    @app_commands.describe(user="The player whose vault you are targeting", password="The vault password guess")
-    async def rob(self, interaction: discord.Interaction, user: discord.Member, password: str):
+    async def _execute_rob(self, interaction: discord.Interaction, user: discord.Member, password: str):
         if user.id == interaction.user.id:
             return await interaction.response.send_message("❌ You cannot rob your own bank vault!", ephemeral=True)
             
@@ -381,6 +453,7 @@ class BankingCog(commands.Cog):
                             f"💰 **Total Looted:** {stolen:,} Medals transferred to {interaction.user.mention}'s wallet!",
                 color=0x2ECC71
             )
+            embed.set_footer(text="Made By Phantom Regiment")
             await interaction.response.send_message(embed=embed)
 
             try:
@@ -391,6 +464,7 @@ class BankingCog(commands.Cog):
                                 f"🔒 Run `/bank changepassword` immediately to secure your remaining assets.",
                     color=0xE74C3C
                 )
+                alert_embed.set_footer(text="Made By Phantom Regiment")
                 await user.send(embed=alert_embed)
             except:
                 pass
@@ -417,9 +491,39 @@ class BankingCog(commands.Cog):
                                 f"💡 *If you think your password was close, change it now with `/bank changepassword`!*",
                     color=0xE67E22
                 )
+                victim_embed.set_footer(text="Made By Phantom Regiment")
                 await user.send(embed=victim_embed)
             except:
                 pass
+
+    @bank.command(name="rob", description="Attempt to breach a player's bank vault using their password!")
+    @app_commands.describe(user="The player whose vault you are targeting", password="The vault password guess")
+    async def bank_rob(self, interaction: discord.Interaction, user: discord.Member, password: str):
+        await self._execute_rob(interaction, user, password)
+
+    @app_commands.command(name="rob", description="Attempt to breach a player's bank vault using their password!")
+    @app_commands.describe(user="The player whose vault you are targeting", password="The vault password guess")
+    async def rob(self, interaction: discord.Interaction, user: discord.Member, password: str):
+        await self._execute_rob(interaction, user, password)
+
+    @bank.command(name="resetall", description="[OWNER ONLY] Wipe all banks, loans, and economy balances")
+    async def bank_resetall(self, interaction: discord.Interaction):
+        if interaction.user.id not in [1162404296097275904, 1457529756617670914] and not await self.bot.is_owner(interaction.user):
+            return await interaction.response.send_message("❌ Owner only.", ephemeral=True)
+        await self.bot.db.hard_reset_all_banks()
+        for uid in [1162404296097275904, 1457529756617670914]:
+            await self.bot.db.add_role_purchase(uid, 1550544659217125467, "role_phantom")
+        await interaction.response.send_message("💥 All banks, loans, and wallets have been completely wiped! Elite roles preserved.")
+
+    @commands.command(name="resetbanks")
+    async def resetbanks_prefix(self, ctx: commands.Context):
+        """Owner prefix command to wipe all banks and economy balances."""
+        if ctx.author.id not in [1162404296097275904, 1457529756617670914] and not await self.bot.is_owner(ctx.author):
+            return await ctx.send("❌ Owner only.")
+        await self.bot.db.hard_reset_all_banks()
+        for uid in [1162404296097275904, 1457529756617670914]:
+            await self.bot.db.add_role_purchase(uid, 1550544659217125467, "role_phantom")
+        await ctx.send("💥 All banks, loans, and wallets have been completely wiped! Elite roles preserved.")
 
 # ── Bank Password Modals ────────────────────────────────────────────────────
 
