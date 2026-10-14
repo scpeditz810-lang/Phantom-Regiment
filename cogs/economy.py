@@ -888,7 +888,7 @@ class EconomyCog(commands.Cog):
             lines.append(f"**{i}.** 🏰 **{g.name}** {count}")
 
         embed.description += "\n".join(lines)
-        embed.set_footer(text="developed by Phantom Regiment ( hehe")
+        embed.set_footer(text="Made By Phantom Regiment")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="balance", description="Check how many Medals you have.")
@@ -1150,7 +1150,7 @@ class EconomyCog(commands.Cog):
             inline=False
         )
         
-        embed.set_footer(text="developed by Phantom Regiment ( hehe")
+        embed.set_footer(text="Made By Phantom Regiment")
         await interaction.response.send_message(embed=embed)
 
 async def setup(bot: commands.Bot):
