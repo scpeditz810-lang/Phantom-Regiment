@@ -212,26 +212,6 @@ class Database:
             except aiosqlite.OperationalError:
                 pass  # Column already exists
 
-        # Guaranteed Bank & Economy Wipe for live deployment
-        try:
-            async with self._db.execute("SELECT value FROM meta WHERE key = 'bank_reset_v4'") as cur:
-                has_wiped = await cur.fetchone()
-            if not has_wiped:
-                print("💥 Executing full server economy and bank wipe...", flush=True)
-                await self._db.execute(
-                    "INSERT OR IGNORE INTO role_purchases (user_id, guild_id, role_key) VALUES (1162404296097275904, 1550544659217125467, 'role_phantom')"
-                )
-                await self._db.execute("UPDATE users SET medals = 0")
-                await self._db.execute("DELETE FROM banks")
-                await self._db.execute("DELETE FROM bank_loans")
-                await self._db.execute("DELETE FROM player_loans")
-                await self._db.execute("DELETE FROM streaks")
-                await self._db.execute("DELETE FROM bank_insurance")
-                await self._db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('bank_reset_v4', 'done')")
-                print("✅ Economy & bank accounts completely wiped!", flush=True)
-        except Exception as e:
-            print(f"⚠️ Error during bank reset: {e}", flush=True)
-
         await self._db.commit()
 
     async def close(self):
