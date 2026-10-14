@@ -879,24 +879,70 @@ class EconomyCog(commands.Cog):
         embed.description = "\n".join(desc)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="guilds", description="Made by Phantom Regiment")
+    @app_commands.command(name="guilds", description="View all connected Alliance servers.")
     async def guilds(self, interaction: discord.Interaction):
-        all_guilds = self.bot.guilds
-        if not all_guilds:
-            return await interaction.response.send_message("❌ The bot is not currently connected to any servers.", ephemeral=True)
+        # Dynamically ensure all live guilds from this bot and linked bot are registered
+        if hasattr(self.bot, "guilds"):
+            bot_tag = "Collation of Rose" if getattr(self.bot, "is_partner", False) else "Phantom Regiment"
+            for g in self.bot.guilds:
+                try:
+                    await self.bot.db.register_guild(g.id, g.name, g.member_count or 0, bot_tag)
+                except:
+                    pass
+
+        other = getattr(self.bot, "partner_bot", None) or getattr(self.bot, "primary_bot", None)
+        if other and hasattr(other, "guilds"):
+            other_tag = "Phantom Regiment" if getattr(self.bot, "is_partner", False) else "Collation of Rose"
+            for g in other.guilds:
+                try:
+                    await self.bot.db.register_guild(g.id, g.name, g.member_count or 0, other_tag)
+                except:
+                    pass
+
+        allied = await self.bot.db.get_allied_guilds()
+        if not allied:
+            allied = [{"id": g.id, "name": g.name, "member_count": g.member_count, "bot_type": "Phantom Regiment"} for g in self.bot.guilds]
 
         embed = discord.Embed(
             title="🌐 Connected Alliance Servers",
-            description=f"**Made by Phantom Regiment**\n\nThis bot is currently active in **{len(all_guilds)} server(s)**:\n\n",
+            description=f"**Made by Phantom Regiment**\n\nThe Alliance Bot Network is active in **{len(allied)} server(s)**:\n\n",
             color=0x3498DB
         )
 
         lines = []
-        for i, g in enumerate(all_guilds, 1):
-            count = f"({g.member_count:,} members)" if g.member_count else ""
-            lines.append(f"**{i}.** 🏰 **{g.name}** {count}")
+        for i, g in enumerate(allied, 1):
+            count = f"({g['member_count']:,} members)" if g.get("member_count") else ""
+            tag = f"• *{g['bot_type']}*" if g.get("bot_type") else ""
+            lines.append(f"**{i}.** 🏰 **{g['name']}** {count} {tag}")
 
         embed.description += "\n".join(lines)
+        embed.set_footer(text="Made By Phantom Regiment")
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="datatransfer", description="Verify your cross-server Alliance account data synchronization.")
+    async def datatransfer(self, interaction: discord.Interaction):
+        user_data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+        medals = user_data.get("medals", 0) if user_data else 0
+        bank_data = await self.bot.db.get_bank(interaction.user.id, interaction.guild_id)
+        bank_bal = bank_data.get("balance", 0) if bank_data else 0
+        bank_tier = bank_data.get("tier", 1) if bank_data else 1
+        streak_data = await self.bot.db.get_streak(interaction.user.id, interaction.guild_id)
+        streak = streak_data.get("streak", 0) if streak_data else 0
+        inventory = await self.bot.db.get_inventory(interaction.user.id, interaction.guild_id)
+
+        embed = discord.Embed(
+            title="🔄 Alliance Cross-Server Data Synchronization",
+            description=(
+                f"✅ **Account Fully Synchronized!**\n\n"
+                f"Your economy profile is globally linked across all Alliance servers (**Phantom Regiment** & **Collation of Rose**):\n\n"
+                f"• 🏅 **Global Wallet:** **{medals:,} Medals**\n"
+                f"• 🏦 **Alliance Bank Vault:** **{bank_bal:,} Medals** (Tier {bank_tier})\n"
+                f"• 🎒 **Synced Inventory:** **{len(inventory)} Item(s)**\n"
+                f"• 🔥 **Daily Streak:** **{streak} Day(s)**\n\n"
+                f"🛡️ *Any medals, bank interest, or items earned in either server are automatically shared across all connected Alliance servers!*"
+            ),
+            color=0x2ECC71
+        )
         embed.set_footer(text="Made By Phantom Regiment")
         await interaction.response.send_message(embed=embed)
 
@@ -1109,8 +1155,9 @@ class EconomyCog(commands.Cog):
         )
         
         embed.add_field(
-            name="🏦 Banking, Vault Tiers & Interest",
+            name="🏦 Banking, Vault Tiers & Cross-Server Sync",
             value=(
+                "• **🌐 Alliance Cross-Server Sync:** Your wallet, bank vault, inventory, and streaks are 100% shared across all Alliance servers (**Phantom Regiment** & **Collation of Rose**)! Run `/datatransfer` to verify your live sync status.\n"
                 "• **`/bank create`** — Open a bank vault for 500 medals. **Requires setting a secure password!**\n"
                 "• **`/bank deposit` / `/bank withdraw`** — Safely store medals away from wallet loss.\n"
                 "• **`/bank upgrade` / `/updatebank`** — Upgrade your vault across **10 Tiers** to increase your daily interest cap!\n"

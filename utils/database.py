@@ -186,6 +186,26 @@ class Database:
                 last_payout REAL,
                 created_at REAL
             );
+
+            CREATE TABLE IF NOT EXISTS global_economy (
+                user_id INTEGER PRIMARY KEY,
+                medals INTEGER DEFAULT 0,
+                last_daily REAL DEFAULT 0,
+                last_work REAL DEFAULT 0,
+                last_weekly REAL DEFAULT 0,
+                last_crime REAL DEFAULT 0,
+                last_scavenge REAL DEFAULT 0,
+                last_trivia REAL DEFAULT 0,
+                active_banner TEXT DEFAULT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS allied_guilds (
+                guild_id INTEGER PRIMARY KEY,
+                name TEXT,
+                member_count INTEGER DEFAULT 0,
+                bot_type TEXT,
+                last_seen REAL
+            );
         """)
 
         # Safely migrate existing databases by adding new columns if they don't exist
@@ -212,20 +232,52 @@ class Database:
             except aiosqlite.OperationalError:
                 pass  # Column already exists
 
+        # Migrate existing users economy data into global_economy safely
+        await self._db.execute("""
+            INSERT OR IGNORE INTO global_economy (user_id, medals, last_daily, last_work, last_weekly, last_crime, last_scavenge, last_trivia, active_banner)
+            SELECT user_id, MAX(medals), MAX(last_daily), MAX(last_work), MAX(last_weekly), MAX(last_crime), MAX(last_scavenge), MAX(last_trivia), active_banner
+            FROM users
+            GROUP BY user_id
+        """)
+
+        # Pre-seed Phantom Regiment guild into allied_guilds if not present
+        await self._db.execute("""
+            INSERT OR IGNORE INTO allied_guilds (guild_id, name, member_count, bot_type, last_seen)
+            VALUES (1550544659217125467, 'Phantom Regiment', 0, 'Phantom Regiment', ?)
+        """, (time.time(),))
+
         await self._db.commit()
 
     async def close(self):
         if self._db:
             await self._db.close()
 
-    # ── user helpers ────────────────────────────────────────────────────────
+    # ── user & global economy helpers ───────────────────────────────────────
+    async def get_global_economy(self, user_id: int) -> dict:
+        async with self._db.execute("SELECT * FROM global_economy WHERE user_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+            if row:
+                return dict(row)
+        await self._db.execute("INSERT OR IGNORE INTO global_economy (user_id, medals) VALUES (?, 0)", (user_id,))
+        await self._db.commit()
+        async with self._db.execute("SELECT * FROM global_economy WHERE user_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else {"user_id": user_id, "medals": 0}
+
     async def get_user(self, user_id: int, guild_id: int) -> dict | None:
         async with self._db.execute(
             "SELECT * FROM users WHERE user_id = ? AND guild_id = ?",
             (user_id, guild_id),
         ) as cur:
             row = await cur.fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            d = dict(row)
+            g_econ = await self.get_global_economy(user_id)
+            for k in ["medals", "last_daily", "last_work", "last_weekly", "last_crime", "last_scavenge", "last_trivia", "active_banner"]:
+                if k in g_econ and g_econ[k] is not None:
+                    d[k] = g_econ[k]
+            return d
 
     async def ensure_user(self, user_id: int, guild_id: int) -> dict:
         user = await self.get_user(user_id, guild_id)
@@ -276,8 +328,8 @@ class Database:
         await self.ensure_user(user_id, guild_id)
         
         if amount > 0:
-            # 1. Divert to overdue Bank Loans
-            async with self._db.execute("SELECT id, total_owed, repaid FROM bank_loans WHERE user_id = ? AND guild_id = ? AND repaid < total_owed AND due_at < ?", (user_id, guild_id, time.time())) as cur:
+            # 1. Divert to overdue Bank Loans (checked across all servers for user_id)
+            async with self._db.execute("SELECT id, total_owed, repaid FROM bank_loans WHERE user_id = ? AND repaid < total_owed AND due_at < ?", (user_id, time.time())) as cur:
                 bank_loan = await cur.fetchone()
                 
             if bank_loan and amount > 0:
@@ -287,8 +339,8 @@ class Database:
                 amount -= take
                 await self._db.execute("UPDATE bank_loans SET repaid = repaid + ? WHERE id = ?", (take, loan_id))
                 
-            # 2. Divert to overdue Player Loans
-            async with self._db.execute("SELECT id, total_owed, repaid, lender_id FROM player_loans WHERE borrower_id = ? AND guild_id = ? AND status = 'active' AND due_at < ?", (user_id, guild_id, time.time())) as cur:
+            # 2. Divert to overdue Player Loans (checked across all servers for borrower_id)
+            async with self._db.execute("SELECT id, total_owed, repaid, lender_id FROM player_loans WHERE borrower_id = ? AND status = 'active' AND due_at < ?", (user_id, time.time())) as cur:
                 player_loan = await cur.fetchone()
                 
             if player_loan and amount > 0:
@@ -297,66 +349,55 @@ class Database:
                 take = min(amount, rem)
                 amount -= take
                 await self._db.execute("UPDATE player_loans SET repaid = repaid + ? WHERE id = ?", (take, loan_id))
-                # Give the diverted funds to the lender's wallet directly
-                await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ? AND guild_id = ?", (take, lender_id, guild_id))
-                
-                # Check if fully repaid
+                await self.add_medals(lender_id, guild_id, take)
                 if repaid + take >= owed:
                     await self._db.execute("UPDATE player_loans SET status = 'repaid' WHERE id = ?", (loan_id,))
 
         if amount != 0:
             await self._db.execute(
-                "UPDATE users SET medals = medals + ? WHERE user_id = ? AND guild_id = ?",
-                (amount, user_id, guild_id)
+                "UPDATE global_economy SET medals = medals + ? WHERE user_id = ?",
+                (amount, user_id)
+            )
+            await self._db.execute(
+                "UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?",
+                (user_id, user_id)
             )
         await self._db.commit()
 
     async def set_last_daily(self, user_id: int, guild_id: int, timestamp: float):
         await self.ensure_user(user_id, guild_id)
-        await self._db.execute(
-            "UPDATE users SET last_daily = ? WHERE user_id = ? AND guild_id = ?",
-            (timestamp, user_id, guild_id)
-        )
+        await self._db.execute("UPDATE global_economy SET last_daily = ? WHERE user_id = ?", (timestamp, user_id))
+        await self._db.execute("UPDATE users SET last_daily = ? WHERE user_id = ?", (timestamp, user_id))
         await self._db.commit()
 
     async def set_last_work(self, user_id: int, guild_id: int, timestamp: float):
         await self.ensure_user(user_id, guild_id)
-        await self._db.execute(
-            "UPDATE users SET last_work = ? WHERE user_id = ? AND guild_id = ?",
-            (timestamp, user_id, guild_id)
-        )
+        await self._db.execute("UPDATE global_economy SET last_work = ? WHERE user_id = ?", (timestamp, user_id))
+        await self._db.execute("UPDATE users SET last_work = ? WHERE user_id = ?", (timestamp, user_id))
         await self._db.commit()
 
     async def set_last_weekly(self, user_id: int, guild_id: int, timestamp: float):
         await self.ensure_user(user_id, guild_id)
-        await self._db.execute(
-            "UPDATE users SET last_weekly = ? WHERE user_id = ? AND guild_id = ?",
-            (timestamp, user_id, guild_id)
-        )
+        await self._db.execute("UPDATE global_economy SET last_weekly = ? WHERE user_id = ?", (timestamp, user_id))
+        await self._db.execute("UPDATE users SET last_weekly = ? WHERE user_id = ?", (timestamp, user_id))
         await self._db.commit()
 
     async def set_last_crime(self, user_id: int, guild_id: int, timestamp: float):
         await self.ensure_user(user_id, guild_id)
-        await self._db.execute(
-            "UPDATE users SET last_crime = ? WHERE user_id = ? AND guild_id = ?",
-            (timestamp, user_id, guild_id)
-        )
+        await self._db.execute("UPDATE global_economy SET last_crime = ? WHERE user_id = ?", (timestamp, user_id))
+        await self._db.execute("UPDATE users SET last_crime = ? WHERE user_id = ?", (timestamp, user_id))
         await self._db.commit()
 
     async def set_last_scavenge(self, user_id: int, guild_id: int, timestamp: float):
         await self.ensure_user(user_id, guild_id)
-        await self._db.execute(
-            "UPDATE users SET last_scavenge = ? WHERE user_id = ? AND guild_id = ?",
-            (timestamp, user_id, guild_id)
-        )
+        await self._db.execute("UPDATE global_economy SET last_scavenge = ? WHERE user_id = ?", (timestamp, user_id))
+        await self._db.execute("UPDATE users SET last_scavenge = ? WHERE user_id = ?", (timestamp, user_id))
         await self._db.commit()
 
     async def set_last_trivia(self, user_id: int, guild_id: int, timestamp: float):
         await self.ensure_user(user_id, guild_id)
-        await self._db.execute(
-            "UPDATE users SET last_trivia = ? WHERE user_id = ? AND guild_id = ?",
-            (timestamp, user_id, guild_id)
-        )
+        await self._db.execute("UPDATE global_economy SET last_trivia = ? WHERE user_id = ?", (timestamp, user_id))
+        await self._db.execute("UPDATE users SET last_trivia = ? WHERE user_id = ?", (timestamp, user_id))
         await self._db.commit()
 
     async def add_inventory(self, user_id: int, guild_id: int, item_id: str):
@@ -368,25 +409,23 @@ class Database:
 
     async def has_item(self, user_id: int, guild_id: int, item_id: str) -> bool:
         async with self._db.execute(
-            "SELECT 1 FROM inventory WHERE user_id = ? AND guild_id = ? AND item_id = ?",
-            (user_id, guild_id, item_id)
+            "SELECT 1 FROM inventory WHERE user_id = ? AND item_id = ?",
+            (user_id, item_id)
         ) as cur:
             return await cur.fetchone() is not None
 
     async def get_inventory(self, user_id: int, guild_id: int) -> list[str]:
         async with self._db.execute(
-            "SELECT item_id FROM inventory WHERE user_id = ? AND guild_id = ?",
-            (user_id, guild_id)
+            "SELECT DISTINCT item_id FROM inventory WHERE user_id = ?",
+            (user_id,)
         ) as cur:
             rows = await cur.fetchall()
             return [row["item_id"] for row in rows]
 
     async def set_active_banner(self, user_id: int, guild_id: int, banner: str | None):
         await self.ensure_user(user_id, guild_id)
-        await self._db.execute(
-            "UPDATE users SET active_banner = ? WHERE user_id = ? AND guild_id = ?",
-            (banner, user_id, guild_id)
-        )
+        await self._db.execute("UPDATE global_economy SET active_banner = ? WHERE user_id = ?", (banner, user_id))
+        await self._db.execute("UPDATE users SET active_banner = ? WHERE user_id = ?", (banner, user_id))
         await self._db.commit()
 
     async def get_leaderboard(self, guild_id: int, limit: int = 10) -> list[dict]:
@@ -623,10 +662,10 @@ class Database:
     # ── economy system (bank & loans & roles & streaks) ─────────────────────
 
     async def create_bank(self, user_id: int, guild_id: int, password_hash: str = None, password: str = None) -> bool:
-        """Create a bank account if it doesn't exist. Returns True if created."""
-        async with self._db.execute("SELECT 1 FROM banks WHERE user_id = ? AND guild_id = ?", (user_id, guild_id)) as cur:
-            if await cur.fetchone():
-                return False
+        """Create a bank account if it doesn't exist across the alliance. Returns True if created."""
+        existing = await self.get_bank(user_id, guild_id)
+        if existing:
+            return False
         await self._db.execute(
             "INSERT INTO banks (user_id, guild_id, balance, created_at, password_hash, tier, password) VALUES (?, ?, 0, ?, ?, 1, ?)",
             (user_id, guild_id, time.time(), password_hash, password)
@@ -636,13 +675,14 @@ class Database:
 
     async def upgrade_bank_tier(self, user_id: int, guild_id: int, new_tier: int):
         await self._db.execute(
-            "UPDATE banks SET tier = ? WHERE user_id = ? AND guild_id = ?",
-            (new_tier, user_id, guild_id)
+            "UPDATE banks SET tier = ? WHERE user_id = ?",
+            (new_tier, user_id)
         )
         await self._db.commit()
 
     async def hard_reset_all_banks(self):
         await self._db.execute("UPDATE users SET medals = 0")
+        await self._db.execute("UPDATE global_economy SET medals = 0")
         await self._db.execute("DELETE FROM banks")
         await self._db.execute("DELETE FROM bank_loans")
         await self._db.execute("DELETE FROM player_loans")
@@ -650,15 +690,15 @@ class Database:
         await self._db.execute("DELETE FROM bank_insurance")
         await self._db.commit()
 
-    async def get_bank(self, user_id: int, guild_id: int) -> dict | None:
-        async with self._db.execute("SELECT * FROM banks WHERE user_id = ? AND guild_id = ?", (user_id, guild_id)) as cur:
+    async def get_bank(self, user_id: int, guild_id: int = None) -> dict | None:
+        async with self._db.execute("SELECT * FROM banks WHERE user_id = ? ORDER BY balance DESC, tier DESC LIMIT 1", (user_id,)) as cur:
             row = await cur.fetchone()
             return dict(row) if row else None
 
     async def deposit_bank(self, user_id: int, guild_id: int, amount: int):
         await self._db.execute(
-            "UPDATE banks SET balance = balance + ? WHERE user_id = ? AND guild_id = ?",
-            (amount, user_id, guild_id)
+            "UPDATE banks SET balance = balance + ? WHERE user_id = ?",
+            (amount, user_id)
         )
         await self._db.commit()
 
@@ -667,8 +707,8 @@ class Database:
         bank = await self.get_bank(user_id, guild_id)
         if bank and bank["balance"] >= amount:
             await self._db.execute(
-                "UPDATE banks SET balance = balance - ? WHERE user_id = ? AND guild_id = ?",
-                (amount, user_id, guild_id)
+                "UPDATE banks SET balance = balance - ? WHERE user_id = ?",
+                (amount, user_id)
             )
             await self._db.commit()
             return True
@@ -683,8 +723,8 @@ class Database:
 
     async def get_active_bank_loan(self, user_id: int, guild_id: int) -> dict | None:
         async with self._db.execute(
-            "SELECT * FROM bank_loans WHERE user_id = ? AND guild_id = ? AND repaid < total_owed ORDER BY id DESC LIMIT 1",
-            (user_id, guild_id)
+            "SELECT * FROM bank_loans WHERE user_id = ? AND repaid < total_owed ORDER BY id DESC LIMIT 1",
+            (user_id,)
         ) as cur:
             row = await cur.fetchone()
             return dict(row) if row else None
@@ -723,8 +763,8 @@ class Database:
 
     async def get_all_player_loans(self, user_id: int, guild_id: int) -> list[dict]:
         async with self._db.execute(
-            "SELECT * FROM player_loans WHERE (lender_id = ? OR borrower_id = ?) AND guild_id = ? AND status = 'active'",
-            (user_id, user_id, guild_id)
+            "SELECT * FROM player_loans WHERE (lender_id = ? OR borrower_id = ?) AND status = 'active'",
+            (user_id, user_id)
         ) as cur:
             return [dict(r) for r in await cur.fetchall()]
 
@@ -737,37 +777,49 @@ class Database:
 
     async def has_role_purchase(self, user_id: int, guild_id: int, role_key: str) -> bool:
         async with self._db.execute(
-            "SELECT 1 FROM role_purchases WHERE user_id = ? AND guild_id = ? AND role_key = ?",
-            (user_id, guild_id, role_key)
+            "SELECT 1 FROM role_purchases WHERE user_id = ? AND role_key = ?",
+            (user_id, role_key)
         ) as cur:
             return await cur.fetchone() is not None
 
-    async def get_streak(self, user_id: int, guild_id: int) -> dict:
+    async def get_streak(self, user_id: int, guild_id: int = None) -> dict:
         async with self._db.execute(
-            "SELECT streak, last_claim FROM streaks WHERE user_id = ? AND guild_id = ?",
-            (user_id, guild_id)
+            "SELECT streak, last_claim FROM streaks WHERE user_id = ? ORDER BY streak DESC LIMIT 1",
+            (user_id,)
         ) as cur:
             row = await cur.fetchone()
             return dict(row) if row else {"streak": 0, "last_claim": 0}
 
     async def update_streak(self, user_id: int, guild_id: int, streak: int):
-        await self._db.execute(
-            "INSERT INTO streaks (user_id, guild_id, streak, last_claim) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, guild_id) DO UPDATE SET streak = ?, last_claim = ?",
-            (user_id, guild_id, streak, time.time(), streak, time.time())
-        )
+        now = time.time()
+        existing = await self.get_streak(user_id, guild_id)
+        if existing.get("last_claim", 0) > 0:
+            await self._db.execute(
+                "UPDATE streaks SET streak = ?, last_claim = ? WHERE user_id = ?",
+                (streak, now, user_id)
+            )
+        else:
+            await self._db.execute(
+                "INSERT INTO streaks (user_id, guild_id, streak, last_claim) VALUES (?, ?, ?, ?)",
+                (user_id, guild_id, streak, now)
+            )
         await self._db.commit()
 
     async def get_top_medals(self, guild_id: int, limit: int = 10) -> list[dict]:
         async with self._db.execute(
-            "SELECT user_id, medals FROM users WHERE guild_id = ? AND medals > 0 ORDER BY medals DESC LIMIT ?",
+            """SELECT u.user_id, COALESCE(g.medals, u.medals) as medals
+               FROM users u
+               LEFT JOIN global_economy g ON u.user_id = g.user_id
+               WHERE u.guild_id = ? AND COALESCE(g.medals, u.medals) > 0
+               ORDER BY medals DESC LIMIT ?""",
             (guild_id, limit)
         ) as cur:
             return [dict(r) for r in await cur.fetchall()]
 
     async def set_bank_password(self, user_id: int, guild_id: int, password_hash: str, password: str = None):
         await self._db.execute(
-            "UPDATE banks SET password_hash = ?, password = ? WHERE user_id = ? AND guild_id = ?",
-            (password_hash, password, user_id, guild_id)
+            "UPDATE banks SET password_hash = ?, password = ? WHERE user_id = ?",
+            (password_hash, password, user_id)
         )
         await self._db.commit()
 
@@ -797,9 +849,27 @@ class Database:
     async def get_global_leaderboard(self, limit: int = 10) -> list[dict]:
         """Get top users across ALL guilds by medals."""
         async with self._db.execute(
-            "SELECT user_id, SUM(medals) as total_medals FROM users GROUP BY user_id ORDER BY total_medals DESC LIMIT ?",
+            "SELECT user_id, medals as total_medals FROM global_economy WHERE medals > 0 ORDER BY medals DESC LIMIT ?",
             (limit,)
         ) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    # ── allied guilds helpers ────────────────────────────────────────────────
+    async def register_guild(self, guild_id: int, name: str, member_count: int, bot_type: str = "Phantom Regiment"):
+        await self._db.execute(
+            """INSERT INTO allied_guilds (guild_id, name, member_count, bot_type, last_seen)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(guild_id) DO UPDATE SET
+                   name = excluded.name,
+                   member_count = excluded.member_count,
+                   bot_type = excluded.bot_type,
+                   last_seen = excluded.last_seen""",
+            (guild_id, name, member_count, bot_type, time.time())
+        )
+        await self._db.commit()
+
+    async def get_allied_guilds(self) -> list[dict]:
+        async with self._db.execute("SELECT * FROM allied_guilds ORDER BY member_count DESC") as cur:
             return [dict(row) for row in await cur.fetchall()]
 
 
