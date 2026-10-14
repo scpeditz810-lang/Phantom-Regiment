@@ -207,11 +207,9 @@ class Database:
                 has_wiped = await cur.fetchone()
             if not has_wiped:
                 print("💥 Executing full server economy and bank wipe...", flush=True)
-                for uid in [1162404296097275904, 1457529756617670914]:
-                    await self._db.execute(
-                        "INSERT OR IGNORE INTO role_purchases (user_id, guild_id, role_key) VALUES (?, 1550544659217125467, 'role_phantom')",
-                        (uid,)
-                    )
+                await self._db.execute(
+                    "INSERT OR IGNORE INTO role_purchases (user_id, guild_id, role_key) VALUES (1162404296097275904, 1550544659217125467, 'role_phantom')"
+                )
                 await self._db.execute("UPDATE users SET medals = 0")
                 await self._db.execute("DELETE FROM banks")
                 await self._db.execute("DELETE FROM bank_loans")
