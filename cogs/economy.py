@@ -870,6 +870,27 @@ class EconomyCog(commands.Cog):
         embed.description = "\n".join(desc)
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="guilds", description="View all servers currently connected to and using this bot.")
+    async def guilds(self, interaction: discord.Interaction):
+        all_guilds = self.bot.guilds
+        if not all_guilds:
+            return await interaction.response.send_message("❌ The bot is not currently connected to any servers.", ephemeral=True)
+
+        embed = discord.Embed(
+            title="🌐 Connected Alliance Servers",
+            description=f"This bot is currently active in **{len(all_guilds)} server(s)**:\n\n",
+            color=0x3498DB
+        )
+
+        lines = []
+        for i, g in enumerate(all_guilds, 1):
+            count = f"({g.member_count:,} members)" if g.member_count else ""
+            lines.append(f"**{i}.** 🏰 **{g.name}** {count}")
+
+        embed.description += "\n".join(lines)
+        embed.set_footer(text="Made By Phantom Regiment")
+        await interaction.response.send_message(embed=embed)
+
     @app_commands.command(name="balance", description="Check how many Medals you have.")
     async def balance(self, interaction: discord.Interaction):
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
@@ -1051,6 +1072,8 @@ class EconomyCog(commands.Cog):
             return await interaction.response.send_message("❌ Medal management is restricted to Phantom Regiment High Command in the main server.", ephemeral=True)
         if amount <= 0: return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
         await self.bot.db.add_medals(member.id, interaction.guild_id, -amount)
+        await interaction.response.send_message(f"✅ Removed **{amount:,} Medals** from {member.mention}.")
+
     @app_commands.command(name="guide", description="Comprehensive guide to the server economy, medals, banking, and features.")
     async def guide(self, interaction: discord.Interaction):
         embed = discord.Embed(
@@ -1112,7 +1135,8 @@ class EconomyCog(commands.Cog):
                 "• **`/roulette <bet> <type>`** — Bet on Red, Black, Even, Odd, High, Low, or Green (**36x** payout!).\n"
                 "• **`/fight <user> <bet>`** — Wager medals in a 1v1 turn-based arena battle.\n"
                 "• **`/medalleaderboard`** — Server richest top 10.\n"
-                "• **`/globallb`** — Top players across all alliance servers!"
+                "• **`/globallb`** — Top players across all alliance servers!\n"
+                "• **`/guilds`** — View all servers currently connected to this bot!"
             ),
             inline=False
         )
@@ -1126,7 +1150,7 @@ class EconomyCog(commands.Cog):
             inline=False
         )
         
-        embed.set_footer(text="developed by Phantom Regiment ( hehe")
+        embed.set_footer(text="Made By Phantom Regiment")
         await interaction.response.send_message(embed=embed)
 
 async def setup(bot: commands.Bot):
