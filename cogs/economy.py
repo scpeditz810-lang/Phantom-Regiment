@@ -1142,10 +1142,9 @@ class EconomyCog(commands.Cog):
         )
         
         embed.add_field(
-            name="🛍️ Role Shop & Robux Conversions",
+            name="🛍️ Role Shop",
             value=(
-                "• **`/roleshop`** / **`/buyrole`** — Buy prestigious colored roles (Wealthy up to Phantom Regiment Elite).\n"
-                "• **`/convertmedals <amount>`** — Convert **25,000 Medals into 10 Robux**! *(Blocked if you have active unpaid debt)*."
+                "• **`/roleshop`** / **`/buyrole`** — Buy prestigious colored cosmetic roles (from Wealthy up to Phantom Regiment Elite) to showcase your wealth and status!"
             ),
             inline=False
         )

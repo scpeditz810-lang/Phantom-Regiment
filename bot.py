@@ -113,13 +113,11 @@ COGS = [
     "cogs.staffapply",
     "cogs.pingcooldown",
     "cogs.banking",
-    "cogs.convert",
 ]
 
 PARTNER_COGS = [
     "cogs.economy",
     "cogs.banking",
-    "cogs.convert",
     "cogs.roblox",
     "cogs.giveaway",
     "cogs.suggestions",
