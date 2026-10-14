@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import time
+import random
+import hashlib
 
 from discord.ext import tasks
 
@@ -75,8 +77,8 @@ class BankingCog(commands.Cog):
     @bank.command(name="create", description="Create a bank account (costs 500 medals)")
     async def bank_create(self, interaction: discord.Interaction):
         # Check if already has bank
-        bank = await self.bot.db.get_bank(interaction.user.id, interaction.guild_id)
-        if bank:
+        existing = await self.bot.db.get_bank(interaction.user.id, interaction.guild_id)
+        if existing:
             return await interaction.response.send_message("❌ You already have a bank account.", ephemeral=True)
             
         # Check wallet
@@ -86,11 +88,15 @@ class BankingCog(commands.Cog):
         if wallet < 500:
             return await interaction.response.send_message("❌ You need **500 medals** in your wallet to open a bank account.", ephemeral=True)
             
-        # Create bank and deduct fee
-        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -500)
-        await self.bot.db.create_bank(interaction.user.id, interaction.guild_id)
-        
-        await interaction.response.send_message("✅ Bank account created successfully! **500 medals** were deducted from your wallet.")
+        # Show password modal
+        await interaction.response.send_modal(BankPasswordModal(self.bot))
+
+    @bank.command(name="changepassword", description="Change your bank password")
+    async def bank_changepassword(self, interaction: discord.Interaction):
+        existing = await self.bot.db.get_bank(interaction.user.id, interaction.guild_id)
+        if not existing:
+            return await interaction.response.send_message("❌ You don't have a bank account.", ephemeral=True)
+        await interaction.response.send_modal(BankChangePasswordModal(self.bot))
 
     @bank.command(name="deposit", description="Deposit medals into your bank")
     @app_commands.describe(amount="Amount of medals to deposit")
@@ -322,6 +328,157 @@ class BankingCog(commands.Cog):
             )
             
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="rob", description="Attempt to breach a player's bank vault using their password!")
+    @app_commands.describe(user="The player whose vault you are targeting", password="The vault password guess")
+    async def rob(self, interaction: discord.Interaction, user: discord.Member, password: str):
+        if user.id == interaction.user.id:
+            return await interaction.response.send_message("❌ You cannot rob your own bank vault!", ephemeral=True)
+            
+        if user.bot:
+            return await interaction.response.send_message("❌ Bots do not have bank vaults.", ephemeral=True)
+
+        target_bank = await self.bot.db.get_bank(user.id, interaction.guild_id)
+        if not target_bank:
+            return await interaction.response.send_message(f"❌ {user.display_name} does not have a bank account.", ephemeral=True)
+
+        balance = target_bank.get("balance", 0)
+        if balance <= 0:
+            return await interaction.response.send_message(f"❌ {user.display_name}'s bank vault has no medals inside.", ephemeral=True)
+
+        now = time.time()
+        last_attempt = await self.bot.db.get_rob_cooldown(interaction.user.id, user.id, interaction.guild_id)
+        COOLDOWN = 1800  # 30 minutes cooldown per target
+        if now - last_attempt < COOLDOWN:
+            rem = int(COOLDOWN - (now - last_attempt))
+            return await interaction.response.send_message(
+                f"⏳ **Lockdown Active!** You must wait **{rem // 60}m {rem % 60}s** before attempting to breach {user.display_name}'s vault again.",
+                ephemeral=True
+            )
+
+        # Update cooldown
+        await self.bot.db.set_rob_cooldown(interaction.user.id, user.id, interaction.guild_id)
+
+        from utils.cipher import verify_password, encrypt_robber_hint
+
+        stored_hash = target_bank.get("password_hash")
+        if not stored_hash:
+            return await interaction.response.send_message("❌ This vault has an outdated lock and cannot be breached right now.", ephemeral=True)
+
+        is_correct = verify_password(password, stored_hash)
+
+        if is_correct:
+            # Success! Steal the entire bank balance
+            stolen = balance
+            await self.bot.db.withdraw_bank(user.id, interaction.guild_id, stolen)
+            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, stolen)
+
+            embed = discord.Embed(
+                title="🚨 VAULT HEIST SUCCESSFUL! 🚨",
+                description=f"💥 {interaction.user.mention} cracked the security passcode to {user.mention}'s vault!\n\n"
+                            f"💰 **Total Looted:** {stolen:,} Medals transferred to {interaction.user.mention}'s wallet!",
+                color=0x2ECC71
+            )
+            await interaction.response.send_message(embed=embed)
+
+            try:
+                alert_embed = discord.Embed(
+                    title="🚨 CRITICAL SECURITY ALERT: VAULT BREACHED!",
+                    description=f"Your bank vault in **{interaction.guild.name}** was compromised by **{interaction.user.display_name}**!\n"
+                                f"They successfully guessed your password and stole **{stolen:,} medals**!\n\n"
+                                f"🔒 Run `/bank changepassword` immediately to secure your remaining assets.",
+                    color=0xE74C3C
+                )
+                await user.send(embed=alert_embed)
+            except:
+                pass
+        else:
+            # Failed attempt! Encrypt hint with multi-layer cipher
+            hint_cipher = encrypt_robber_hint(f"{interaction.user.name}#{interaction.user.id}", now)
+
+            # Ephemeral failure message to robber
+            await interaction.response.send_message(
+                f"❌ **BREACH FAILED!** Access denied for {user.display_name}'s vault.\n"
+                f"The security alarm was triggered and an encrypted biometric trace of your attempt was logged!\n"
+                f"*(You are on cooldown for 30 minutes for this target)*",
+                ephemeral=True
+            )
+
+            # Send encrypted trace to victim
+            try:
+                victim_embed = discord.Embed(
+                    title="🛡️ VAULT BREACH DEFENDED",
+                    description=f"An unauthorized intruder just attempted to guess your bank vault password in **{interaction.guild.name}** and was repelled!\n\n"
+                                f"Your security mainframe captured an encrypted biometric trace of the perpetrator:\n"
+                                f"```\n{hint_cipher}\n```\n"
+                                f"*(This trace is protected by a multi-layer runic quantum transposition cipher. Decrypting the 5 layers will expose the suspect's identity!)*\n\n"
+                                f"💡 *If you think your password was close, change it now with `/bank changepassword`!*",
+                    color=0xE67E22
+                )
+                await user.send(embed=victim_embed)
+            except:
+                pass
+
+# ── Bank Password Modals ────────────────────────────────────────────────────
+
+class BankPasswordModal(discord.ui.Modal, title="Set Bank Password"):
+    password = discord.ui.TextInput(
+        label="Choose a secure password",
+        placeholder="Your bank vault password...",
+        min_length=4,
+        max_length=32,
+        style=discord.TextStyle.short,
+        required=True
+    )
+    confirm = discord.ui.TextInput(
+        label="Confirm your password",
+        placeholder="Type it again to confirm...",
+        min_length=4,
+        max_length=32,
+        style=discord.TextStyle.short,
+        required=True
+    )
+    
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+        
+    async def on_submit(self, interaction: discord.Interaction):
+        if self.password.value != self.confirm.value:
+            return await interaction.response.send_message("❌ Passwords don't match! Try again.", ephemeral=True)
+        
+        from utils.cipher import hash_password
+        pw_hash = hash_password(self.password.value)
+        
+        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -500)
+        await self.bot.db.create_bank(interaction.user.id, interaction.guild_id, pw_hash)
+        
+        await interaction.response.send_message(
+            "✅ Bank account created with a secure password! **500 medals** deducted.\n"
+            "**Remember your password!** Other players can try to `/rob` your vault by guessing it.", ephemeral=True
+        )
+
+class BankChangePasswordModal(discord.ui.Modal, title="Change Bank Password"):
+    old_pw = discord.ui.TextInput(label="Current password", style=discord.TextStyle.short, required=True)
+    new_pw = discord.ui.TextInput(label="New password", min_length=4, max_length=32, style=discord.TextStyle.short, required=True)
+    confirm_pw = discord.ui.TextInput(label="Confirm new password", min_length=4, max_length=32, style=discord.TextStyle.short, required=True)
+    
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        from utils.cipher import hash_password, verify_password
+        
+        bank = await self.bot.db.get_bank(interaction.user.id, interaction.guild_id)
+        if not bank or not verify_password(self.old_pw.value, bank.get("password_hash", "")):
+            return await interaction.response.send_message("❌ Current password is incorrect.", ephemeral=True)
+        
+        if self.new_pw.value != self.confirm_pw.value:
+            return await interaction.response.send_message("❌ New passwords don't match.", ephemeral=True)
+        
+        await self.bot.db.set_bank_password(interaction.user.id, interaction.guild_id, hash_password(self.new_pw.value))
+        await interaction.response.send_message("✅ Bank password changed successfully!", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(BankingCog(bot))

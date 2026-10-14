@@ -607,6 +607,29 @@ class EconomyCog(commands.Cog):
         embed.description = "\n".join(desc)
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="globallb", description="View the top medal earners across all connected clans and servers.")
+    async def globallb(self, interaction: discord.Interaction):
+        top_users = await self.bot.db.get_global_leaderboard(limit=10)
+        if not top_users:
+            return await interaction.response.send_message("No data found for the global leaderboard.")
+            
+        embed = discord.Embed(title="🌐 Global Alliance Medal Leaderboard", color=0x3498DB)
+        desc = []
+        for i, user_data in enumerate(top_users, 1):
+            user_id = user_data["user_id"]
+            medals = user_data["total_medals"]
+            user = self.bot.get_user(user_id)
+            if not user:
+                try:
+                    user = await self.bot.fetch_user(user_id)
+                except:
+                    user = None
+            name = user.display_name if user else f"User {user_id}"
+            desc.append(f"**{i}.** {name} — **{medals:,} Medals** 🏅")
+            
+        embed.description = "\n".join(desc)
+        await interaction.response.send_message(embed=embed)
+
     @app_commands.command(name="balance", description="Check how many Medals you have.")
     async def balance(self, interaction: discord.Interaction):
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
@@ -772,16 +795,20 @@ class EconomyCog(commands.Cog):
             await interaction.response.send_message(f"🎰 The wheel landed on {color_emoji} **{result}**...\n💀 You lost **{bet:,} Medals**.")
 
 
-    @app_commands.command(name="givemedals", description="Give Medals to a user (Staff Only)")
+    @app_commands.command(name="givemedals", description="Give Medals to a user (PR High Command Only)")
     @app_commands.default_permissions(manage_guild=True)
     async def givemedals(self, interaction: discord.Interaction, member: discord.Member, amount: int):
+        if interaction.guild_id != 1550544659217125467 and not await self.bot.is_owner(interaction.user):
+            return await interaction.response.send_message("❌ Medal minting is restricted to Phantom Regiment High Command in the main server.", ephemeral=True)
         if amount <= 0: return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
         await self.bot.db.add_medals(member.id, interaction.guild_id, amount)
         await interaction.response.send_message(f"✅ Gave **{amount:,} Medals** to {member.mention}.")
 
-    @app_commands.command(name="removemedals", description="Remove Medals from a user (Staff Only)")
+    @app_commands.command(name="removemedals", description="Remove Medals from a user (PR High Command Only)")
     @app_commands.default_permissions(manage_guild=True)
     async def removemedals(self, interaction: discord.Interaction, member: discord.Member, amount: int):
+        if interaction.guild_id != 1550544659217125467 and not await self.bot.is_owner(interaction.user):
+            return await interaction.response.send_message("❌ Medal management is restricted to Phantom Regiment High Command in the main server.", ephemeral=True)
         if amount <= 0: return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
         await self.bot.db.add_medals(member.id, interaction.guild_id, -amount)
         await interaction.response.send_message(f"✅ Removed **{amount:,} Medals** from {member.mention}.")
