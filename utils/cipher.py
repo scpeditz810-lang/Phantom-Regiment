@@ -102,3 +102,39 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, stored_hash: str) -> bool:
     """Verify a password against its stored hash."""
     return hash_password(password) == stored_hash
+
+def generate_password_hint(password: str) -> str:
+    """
+    Generate an encrypted-style masked hint of the bank password.
+    Format: XXX...masked_letters...XX
+    Reveals ~35-45% of characters/words so the robber has clues to guess next time.
+    """
+    if not password:
+        return "XXXENCRYPTEDHINTXX"
+        
+    chars = list(password)
+    n = len(chars)
+    
+    if n <= 3:
+        return f"XXX{chars[0]}X{'X' if n == 3 else ''}XX"
+        
+    # Find all non-space indices
+    valid_indices = [i for i, c in enumerate(chars) if c != " "]
+    reveal_count = max(1, int(len(valid_indices) * 0.40))
+    
+    # Deterministic seed using MD5 of password so the hint stays consistent
+    seed = int(hashlib.md5(password.encode()).hexdigest()[:8], 16)
+    rng = random.Random(seed)
+    revealed_set = set(rng.sample(valid_indices, reveal_count))
+    
+    masked = []
+    for i, c in enumerate(chars):
+        if c == " ":
+            masked.append(" ")
+        elif i in revealed_set:
+            masked.append(c)
+        else:
+            masked.append("X")
+            
+    return f"XXX{''.join(masked)}XX"
+
