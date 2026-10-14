@@ -195,6 +195,26 @@ class Database:
             except aiosqlite.OperationalError:
                 pass  # Column already exists
 
+        # One-time economy reset & inflation purge
+        try:
+            async with self._db.execute("SELECT 1 FROM users WHERE medals > 1000000000") as cur:
+                has_corrupt_economy = await cur.fetchone()
+            if has_corrupt_economy:
+                print("🚨 Inflated economy detected on live server! Executing full database reset...", flush=True)
+                for uid in [1162404296097275904, 1457529756617670914]:
+                    await self._db.execute(
+                        "INSERT OR IGNORE INTO role_purchases (user_id, guild_id, role_key) VALUES (?, 1550544659217125467, 'role_phantom')",
+                        (uid,)
+                    )
+                await self._db.execute("UPDATE users SET medals = 0")
+                await self._db.execute("DELETE FROM banks")
+                await self._db.execute("DELETE FROM bank_loans")
+                await self._db.execute("DELETE FROM player_loans")
+                await self._db.execute("DELETE FROM streaks")
+                print("✅ Economy successfully reset and Elite roles awarded!", flush=True)
+        except Exception as e:
+            print(f"⚠️ Error during economy reset check: {e}", flush=True)
+
         await self._db.commit()
 
     async def close(self):
