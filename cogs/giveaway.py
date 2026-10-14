@@ -93,10 +93,12 @@ class GiveawayCog(commands.Cog):
     async def cog_load(self):
         """Register the persistent view and start the checker loop."""
         self.bot.add_dynamic_items(EnterGiveawayButton)
-        self.giveaway_checker.start()
+        if not getattr(self.bot, "is_partner", False):
+            self.giveaway_checker.start()
 
     async def cog_unload(self):
-        self.giveaway_checker.cancel()
+        if not getattr(self.bot, "is_partner", False):
+            self.giveaway_checker.cancel()
 
     # ── Checker loop ───────────────────────────────────────────────────────
     @tasks.loop(seconds=30)
