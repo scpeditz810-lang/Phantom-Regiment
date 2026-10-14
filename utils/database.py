@@ -176,6 +176,16 @@ class Database:
                 key TEXT PRIMARY KEY,
                 value TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS bank_insurance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                guild_id INTEGER,
+                daily_amount INTEGER,
+                days_remaining INTEGER DEFAULT 7,
+                last_payout REAL,
+                created_at REAL
+            );
         """)
 
         # Safely migrate existing databases by adding new columns if they don't exist
@@ -190,6 +200,7 @@ class Database:
             "ALTER TABLE bank_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0",
             "ALTER TABLE banks ADD COLUMN last_interest REAL DEFAULT 0",
             "ALTER TABLE banks ADD COLUMN password_hash TEXT DEFAULT NULL",
+            "ALTER TABLE banks ADD COLUMN password TEXT DEFAULT NULL",
             "ALTER TABLE banks ADD COLUMN tier INTEGER DEFAULT 1",
             "ALTER TABLE users ADD COLUMN last_crime REAL DEFAULT 0",
             "ALTER TABLE users ADD COLUMN last_scavenge REAL DEFAULT 0",
@@ -215,6 +226,7 @@ class Database:
                 await self._db.execute("DELETE FROM bank_loans")
                 await self._db.execute("DELETE FROM player_loans")
                 await self._db.execute("DELETE FROM streaks")
+                await self._db.execute("DELETE FROM bank_insurance")
                 await self._db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('bank_reset_v4', 'done')")
                 print("✅ Economy & bank accounts completely wiped!", flush=True)
         except Exception as e:
@@ -630,14 +642,14 @@ class Database:
 
     # ── economy system (bank & loans & roles & streaks) ─────────────────────
 
-    async def create_bank(self, user_id: int, guild_id: int, password_hash: str = None) -> bool:
+    async def create_bank(self, user_id: int, guild_id: int, password_hash: str = None, password: str = None) -> bool:
         """Create a bank account if it doesn't exist. Returns True if created."""
         async with self._db.execute("SELECT 1 FROM banks WHERE user_id = ? AND guild_id = ?", (user_id, guild_id)) as cur:
             if await cur.fetchone():
                 return False
         await self._db.execute(
-            "INSERT INTO banks (user_id, guild_id, balance, created_at, password_hash, tier) VALUES (?, ?, 0, ?, ?, 1)",
-            (user_id, guild_id, time.time(), password_hash)
+            "INSERT INTO banks (user_id, guild_id, balance, created_at, password_hash, tier, password) VALUES (?, ?, 0, ?, ?, 1, ?)",
+            (user_id, guild_id, time.time(), password_hash, password)
         )
         await self._db.commit()
         return True
@@ -655,6 +667,7 @@ class Database:
         await self._db.execute("DELETE FROM bank_loans")
         await self._db.execute("DELETE FROM player_loans")
         await self._db.execute("DELETE FROM streaks")
+        await self._db.execute("DELETE FROM bank_insurance")
         await self._db.commit()
 
     async def get_bank(self, user_id: int, guild_id: int) -> dict | None:
@@ -771,10 +784,18 @@ class Database:
         ) as cur:
             return [dict(r) for r in await cur.fetchall()]
 
-    async def set_bank_password(self, user_id: int, guild_id: int, password_hash: str):
+    async def set_bank_password(self, user_id: int, guild_id: int, password_hash: str, password: str = None):
         await self._db.execute(
-            "UPDATE banks SET password_hash = ? WHERE user_id = ? AND guild_id = ?",
-            (password_hash, user_id, guild_id)
+            "UPDATE banks SET password_hash = ?, password = ? WHERE user_id = ? AND guild_id = ?",
+            (password_hash, password, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def create_bank_insurance(self, user_id: int, guild_id: int, daily_amount: int, days: int = 7):
+        now = time.time()
+        await self._db.execute(
+            "INSERT INTO bank_insurance (user_id, guild_id, daily_amount, days_remaining, last_payout, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, guild_id, daily_amount, days, now, now)
         )
         await self._db.commit()
 

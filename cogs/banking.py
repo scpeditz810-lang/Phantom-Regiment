@@ -80,8 +80,41 @@ class BankingCog(commands.Cog):
             try:
                 user = await self.bot.fetch_user(lender_id)
                 await user.send(f"⏳ **Loan Offer Expired!** Your pending loan offer #{loan_id} was not accepted within 24 hours. The **{principal:,} medals** have been refunded to your wallet.")
-            except: pass
-            
+            except:
+                pass
+
+        # 5. Bank Insurance Daily Payouts (10% daily for 7 days)
+        async with self.bot.db._db.execute(
+            "SELECT id, user_id, guild_id, daily_amount, days_remaining, last_payout FROM bank_insurance WHERE days_remaining > 0 AND last_payout < ?",
+            (now - 86400,)
+        ) as cur:
+            insurances = await cur.fetchall()
+
+        for ins_id, ins_uid, ins_gid, daily_amount, days_rem, last_payout in insurances:
+            new_days = days_rem - 1
+            await self.bot.db._db.execute(
+                "UPDATE banks SET balance = balance + ? WHERE user_id = ? AND guild_id = ?",
+                (daily_amount, ins_uid, ins_gid)
+            )
+            if new_days <= 0:
+                await self.bot.db._db.execute("DELETE FROM bank_insurance WHERE id = ?", (ins_id,))
+            else:
+                await self.bot.db._db.execute(
+                    "UPDATE bank_insurance SET days_remaining = ?, last_payout = ? WHERE id = ?",
+                    (new_days, now, ins_id)
+                )
+            try:
+                ins_user = await self.bot.fetch_user(ins_uid)
+                day_num = 7 - new_days
+                await ins_user.send(
+                    f"🏦 **Bank Vault Insurance Payout (Day {day_num}/7)**\n"
+                    f"The Central Bank has deposited your daily insurance compensation of **{daily_amount:,} Medals** into your vault!\n"
+                    f"• **Remaining Days:** {new_days} days ({new_days * daily_amount:,} Medals pending)\n"
+                    f"• *Made By Phantom Regiment*"
+                )
+            except:
+                pass
+
         await self.bot.db._db.commit()
 
     @check_loans.before_loop
@@ -433,7 +466,7 @@ class BankingCog(commands.Cog):
         # Update cooldown
         await self.bot.db.set_rob_cooldown(interaction.user.id, user.id, interaction.guild_id)
 
-        from utils.cipher import verify_password, encrypt_robber_hint
+        from utils.cipher import verify_password, generate_password_hint
 
         stored_hash = target_bank.get("password_hash")
         if not stored_hash:
@@ -442,10 +475,20 @@ class BankingCog(commands.Cog):
         is_correct = verify_password(password, stored_hash)
 
         if is_correct:
-            # Success! Steal the entire bank balance
+            # Success! Robber steals the bank balance
             stolen = balance
             await self.bot.db.withdraw_bank(user.id, interaction.guild_id, stolen)
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, stolen)
+
+            # Bank Insurance for Victim:
+            # 30% immediate relief returned directly to their bank vault
+            immediate_comp = int(stolen * 0.30)
+            # Remaining 70% paid over 7 days (10% each day)
+            daily_comp = int(stolen * 0.10)
+            if immediate_comp > 0:
+                await self.bot.db.deposit_bank(user.id, interaction.guild_id, immediate_comp)
+            if daily_comp > 0:
+                await self.bot.db.create_bank_insurance(user.id, interaction.guild_id, daily_comp, days=7)
 
             embed = discord.Embed(
                 title="🚨 VAULT HEIST SUCCESSFUL! 🚨",
@@ -460,8 +503,11 @@ class BankingCog(commands.Cog):
                 alert_embed = discord.Embed(
                     title="🚨 CRITICAL SECURITY ALERT: VAULT BREACHED!",
                     description=f"Your bank vault in **{interaction.guild.name}** was compromised by **{interaction.user.display_name}**!\n"
-                                f"They successfully guessed your password and stole **{stolen:,} medals**!\n\n"
-                                f"🔒 Run `/bank changepassword` immediately to secure your remaining assets.",
+                                f"They guessed your password and looted **{stolen:,} medals**!\n\n"
+                                f"🛡️ **Central Bank Insurance Activated:**\n"
+                                f"• **30% Immediate Relief:** **{immediate_comp:,} Medals** credited back to your bank vault!\n"
+                                f"• **Remaining 70% Compensation:** **{daily_comp:,} Medals/day** will be paid daily over the next **7 days** (10% each day)!\n\n"
+                                f"🔒 Run `/bank changepassword` immediately to secure your new vault password.",
                     color=0xE74C3C
                 )
                 alert_embed.set_footer(text="Made By Phantom Regiment")
@@ -469,26 +515,30 @@ class BankingCog(commands.Cog):
             except:
                 pass
         else:
-            # Failed attempt! Encrypt hint with multi-layer cipher
-            hint_cipher = encrypt_robber_hint(f"{interaction.user.name}#{interaction.user.id}", now)
+            # Failed attempt! Send the robber an encrypted hint of the victim's password
+            raw_password = target_bank.get("password")
+            hint = generate_password_hint(raw_password) if raw_password else "XXXENCRYPTEDHINTXX"
 
-            # Ephemeral failure message to robber
-            await interaction.response.send_message(
-                f"❌ **BREACH FAILED!** Access denied for {user.display_name}'s vault.\n"
-                f"The security alarm was triggered and an encrypted biometric trace of your attempt was logged!\n"
-                f"*(You are on cooldown for 30 minutes for this target)*",
-                ephemeral=True
+            # Ephemeral failure message to robber with the clue
+            fail_embed = discord.Embed(
+                title="❌ VAULT BREACH FAILED",
+                description=f"Access denied for **{user.display_name}**'s bank vault!\n\n"
+                            f"The security firewall repelled your attempt, but your scanner managed to intercept an encrypted password fragment:\n\n"
+                            f"🔐 **Password Hint:**\n"
+                            f"```\n{hint}\n```\n"
+                            f"*(Use this clue to deduce the missing words/letters and try again next time!)*\n\n"
+                            f"⏳ **Lockdown Cooldown:** You must wait **30 minutes** before attempting to breach {user.display_name}'s vault again.",
+                color=0xE74C3C
             )
+            fail_embed.set_footer(text="Made By Phantom Regiment")
+            await interaction.response.send_message(embed=fail_embed, ephemeral=True)
 
-            # Send encrypted trace to victim
+            # Send defense alert to victim
             try:
                 victim_embed = discord.Embed(
                     title="🛡️ VAULT BREACH DEFENDED",
-                    description=f"An unauthorized intruder just attempted to guess your bank vault password in **{interaction.guild.name}** and was repelled!\n\n"
-                                f"Your security mainframe captured an encrypted biometric trace of the perpetrator:\n"
-                                f"```\n{hint_cipher}\n```\n"
-                                f"*(This trace is protected by a multi-layer runic quantum transposition cipher. Decrypting the 5 layers will expose the suspect's identity!)*\n\n"
-                                f"💡 *If you think your password was close, change it now with `/bank changepassword`!*",
+                    description=f"An unauthorized intruder (**{interaction.user.display_name}**) attempted to guess your bank vault password in **{interaction.guild.name}** and was repelled!\n\n"
+                                f"💡 *If you think your password is weak or might be discovered, change it now with `/bank changepassword`!*",
                     color=0xE67E22
                 )
                 victim_embed.set_footer(text="Made By Phantom Regiment")
@@ -562,9 +612,10 @@ class BankPasswordModal(discord.ui.Modal, title="Set Bank Password"):
 
         from utils.cipher import hash_password
         pw_hash = hash_password(self.password.value)
+        raw_password = self.password.value
         
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -500)
-        await self.bot.db.create_bank(interaction.user.id, interaction.guild_id, pw_hash)
+        await self.bot.db.create_bank(interaction.user.id, interaction.guild_id, pw_hash, raw_password)
         
         await interaction.response.send_message(
             "✅ Bank account created with a secure password! **500 medals** deducted.\n"
@@ -590,7 +641,12 @@ class BankChangePasswordModal(discord.ui.Modal, title="Change Bank Password"):
         if self.new_pw.value != self.confirm_pw.value:
             return await interaction.response.send_message("❌ New passwords don't match.", ephemeral=True)
         
-        await self.bot.db.set_bank_password(interaction.user.id, interaction.guild_id, hash_password(self.new_pw.value))
+        await self.bot.db.set_bank_password(
+            interaction.user.id, 
+            interaction.guild_id, 
+            hash_password(self.new_pw.value),
+            self.new_pw.value
+        )
         await interaction.response.send_message("✅ Bank password changed successfully!", ephemeral=True)
 
 async def setup(bot):
