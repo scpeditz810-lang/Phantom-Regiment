@@ -171,6 +171,11 @@ class Database:
                 last_attempt REAL DEFAULT 0,
                 PRIMARY KEY (robber_id, target_id, guild_id)
             );
+
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
         """)
 
         # Safely migrate existing databases by adding new columns if they don't exist
@@ -185,6 +190,7 @@ class Database:
             "ALTER TABLE bank_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0",
             "ALTER TABLE banks ADD COLUMN last_interest REAL DEFAULT 0",
             "ALTER TABLE banks ADD COLUMN password_hash TEXT DEFAULT NULL",
+            "ALTER TABLE banks ADD COLUMN tier INTEGER DEFAULT 1",
             "ALTER TABLE users ADD COLUMN last_crime REAL DEFAULT 0",
             "ALTER TABLE users ADD COLUMN last_scavenge REAL DEFAULT 0",
             "ALTER TABLE users ADD COLUMN last_trivia REAL DEFAULT 0",
@@ -195,12 +201,12 @@ class Database:
             except aiosqlite.OperationalError:
                 pass  # Column already exists
 
-        # One-time economy reset & inflation purge
+        # Guaranteed Bank & Economy Wipe for live deployment
         try:
-            async with self._db.execute("SELECT 1 FROM users WHERE medals > 1000000000") as cur:
-                has_corrupt_economy = await cur.fetchone()
-            if has_corrupt_economy:
-                print("🚨 Inflated economy detected on live server! Executing full database reset...", flush=True)
+            async with self._db.execute("SELECT value FROM meta WHERE key = 'bank_reset_v4'") as cur:
+                has_wiped = await cur.fetchone()
+            if not has_wiped:
+                print("💥 Executing full server economy and bank wipe...", flush=True)
                 for uid in [1162404296097275904, 1457529756617670914]:
                     await self._db.execute(
                         "INSERT OR IGNORE INTO role_purchases (user_id, guild_id, role_key) VALUES (?, 1550544659217125467, 'role_phantom')",
@@ -211,9 +217,10 @@ class Database:
                 await self._db.execute("DELETE FROM bank_loans")
                 await self._db.execute("DELETE FROM player_loans")
                 await self._db.execute("DELETE FROM streaks")
-                print("✅ Economy successfully reset and Elite roles awarded!", flush=True)
+                await self._db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('bank_reset_v4', 'done')")
+                print("✅ Economy & bank accounts completely wiped!", flush=True)
         except Exception as e:
-            print(f"⚠️ Error during economy reset check: {e}", flush=True)
+            print(f"⚠️ Error during bank reset: {e}", flush=True)
 
         await self._db.commit()
 
@@ -631,11 +638,26 @@ class Database:
             if await cur.fetchone():
                 return False
         await self._db.execute(
-            "INSERT INTO banks (user_id, guild_id, balance, created_at, password_hash) VALUES (?, ?, 0, ?, ?)",
+            "INSERT INTO banks (user_id, guild_id, balance, created_at, password_hash, tier) VALUES (?, ?, 0, ?, ?, 1)",
             (user_id, guild_id, time.time(), password_hash)
         )
         await self._db.commit()
         return True
+
+    async def upgrade_bank_tier(self, user_id: int, guild_id: int, new_tier: int):
+        await self._db.execute(
+            "UPDATE banks SET tier = ? WHERE user_id = ? AND guild_id = ?",
+            (new_tier, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def hard_reset_all_banks(self):
+        await self._db.execute("UPDATE users SET medals = 0")
+        await self._db.execute("DELETE FROM banks")
+        await self._db.execute("DELETE FROM bank_loans")
+        await self._db.execute("DELETE FROM player_loans")
+        await self._db.execute("DELETE FROM streaks")
+        await self._db.commit()
 
     async def get_bank(self, user_id: int, guild_id: int) -> dict | None:
         async with self._db.execute("SELECT * FROM banks WHERE user_id = ? AND guild_id = ?", (user_id, guild_id)) as cur:
