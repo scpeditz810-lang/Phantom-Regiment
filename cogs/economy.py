@@ -870,7 +870,7 @@ class EconomyCog(commands.Cog):
         embed.description = "\n".join(desc)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="guilds", description="View all servers currently connected to and using this bot.")
+    @app_commands.command(name="guilds", description="Made by Phantom Regiment")
     async def guilds(self, interaction: discord.Interaction):
         all_guilds = self.bot.guilds
         if not all_guilds:
@@ -878,7 +878,7 @@ class EconomyCog(commands.Cog):
 
         embed = discord.Embed(
             title="🌐 Connected Alliance Servers",
-            description=f"This bot is currently active in **{len(all_guilds)} server(s)**:\n\n",
+            description=f"**Made by Phantom Regiment**\n\nThis bot is currently active in **{len(all_guilds)} server(s)**:\n\n",
             color=0x3498DB
         )
 
@@ -1074,11 +1074,11 @@ class EconomyCog(commands.Cog):
         await self.bot.db.add_medals(member.id, interaction.guild_id, -amount)
         await interaction.response.send_message(f"✅ Removed **{amount:,} Medals** from {member.mention}.")
 
-    @app_commands.command(name="guide", description="Comprehensive guide to the server economy, medals, banking, and features.")
+    @app_commands.command(name="guide", description="Made by Phantom Regiment")
     async def guide(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="📖 Phantom Regiment — Economy & Medal Guide",
-            description="Welcome to the server economy guide! Here is everything you need to know about earning, storing, gambling, robbing, and converting Medals.",
+            description="**Made by Phantom Regiment**\n\nWelcome to the official economy guide! Here is everything you need to know about earning, storing, gambling, robbing, and converting Medals.",
             color=0x3498DB
         )
         
