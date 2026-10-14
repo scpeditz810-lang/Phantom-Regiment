@@ -1085,9 +1085,10 @@ class EconomyCog(commands.Cog):
 
     @app_commands.command(name="guide", description="Made by Phantom Regiment")
     async def guide(self, interaction: discord.Interaction):
+        header_title = "Collation of Rose" if getattr(self.bot, "is_partner", False) else "Phantom Regiment"
         embed = discord.Embed(
-            title="📖 Phantom Regiment — Economy & Medal Guide",
-            description="**Made by Phantom Regiment**\n\nWelcome to the official economy guide! Here is everything you need to know about earning, storing, gambling, robbing, and converting Medals.",
+            title=f"📖 {header_title} — Economy & Medal Guide",
+            description="**Made by Phantom Regiment**\n\nWelcome to the official economy guide! Here is everything you need to know about earning, storing, upgrading vaults, robbing, and protection.",
             color=0x3498DB
         )
         
@@ -1106,33 +1107,37 @@ class EconomyCog(commands.Cog):
         )
         
         embed.add_field(
-            name="🏦 Banking, Vaults & Interest",
+            name="🏦 Banking, Vault Tiers & Interest",
             value=(
                 "• **`/bank create`** — Open a bank vault for 500 medals. **Requires setting a secure password!**\n"
-                "• **`/bank deposit` / `withdraw`** — Store medals safely away from wallet loss.\n"
-                "• **2.5% Daily Interest** — Your bank generates 2.5% yield every 24 hours (capped at 650 medals/day).\n"
+                "• **`/bank deposit` / `/bank withdraw`** — Safely store medals away from wallet loss.\n"
+                "• **`/bank upgrade` / `/updatebank`** — Upgrade your vault across **10 Tiers** to increase your daily interest cap!\n"
+                "• **2.5% Daily Interest** — Vaults generate 2.5% daily yield, scaling from **1,000 Medals/day** (Tier 1) up to **1,000,000 Medals/day** (Tier 10)!\n"
+                "• **`/bank balance`** — Check your wallet, vault balance, current tier, and daily interest cap.\n"
                 "• **`/bank changepassword`** — Update your vault password anytime to stay secure."
             ),
             inline=False
         )
         
         embed.add_field(
-            name="🦹 Bank Robberies (`/rob`)",
+            name="🦹 Bank Robberies (`/rob` & `/bank rob`)",
             value=(
-                "• **`/rob <user> <password>`** — Attempt to guess a player's vault password!\n"
-                "• **Success:** You breach their vault and steal **100%** of their medals!\n"
-                "• **Failure:** The alarm triggers, giving you a 30m cooldown. The victim receives an encrypted biometric trace of your identity protected by a 5-layer quantum cipher!"
+                "• **`/rob <user> <password>`** — Attempt to breach a player's vault using their password!\n"
+                "• **Heist Success:** Breach the vault and loot their medals into your wallet!\n"
+                "• **🛡️ Bank Insurance Protection:** The Central Bank protects victims! You immediately get **30%** of your medals restored to your vault, and the remaining **70%** is paid back over **7 days** (**10% each day**)!\n"
+                "• **Breach Failure:** Triggers the alarm (30m lockdown) and intercepts a password clue in **`XXXHINTXX`** format with partial words/letters to help you deduce it next time!\n"
+                "• **Defense Alert:** Victims receive an alert when someone tries to guess their password."
             ),
             inline=False
         )
         
         embed.add_field(
-            name="💳 Loans & Strict Debt Enforcement",
+            name="💳 Loans & Debt Enforcement",
             value=(
-                "• **`/bank loan`** — Borrow up to 5,000 medals from the system (1 to 30 days).\n"
-                "• **`/loan offer <user> <amount> <interest> <days>`** — Lend medals to players.\n"
-                "• **`/loan accept <id>` / `reject <id>`** — Pending offers expire in 24h.\n"
-                "• ⚠️ **Debt Warning:** Expired loans incur a **20% late fee**, and **ALL your future earnings will be automatically seized** until repaid!"
+                "• **`/bank loan`** — Borrow up to 5,000 medals from the bank (1 to 30 days).\n"
+                "• **`/loan offer <user> <amount> <interest> <days>`** — Offer peer-to-peer player loans.\n"
+                "• **`/loan accept <id>` / `reject <id>`** — Accept or reject incoming loan offers (expires in 24h).\n"
+                "• ⚠️ **Debt Warning:** Expired loans incur a **20% late fee**, and **ALL your future earnings are automatically seized** until repaid!"
             ),
             inline=False
         )
@@ -1140,11 +1145,11 @@ class EconomyCog(commands.Cog):
         embed.add_field(
             name="🎰 Casino, PvP Battles & Leaderboards",
             value=(
-                "• **`/blackjack <bet>`** — Play interactive Blackjack against the dealer (1.5x on 21).\n"
+                "• **`/blackjack <bet>`** — Interactive Blackjack against the dealer (1.5x on 21).\n"
                 "• **`/roulette <bet> <type>`** — Bet on Red, Black, Even, Odd, High, Low, or Green (**36x** payout!).\n"
                 "• **`/fight <user> <bet>`** — Wager medals in a 1v1 turn-based arena battle.\n"
-                "• **`/medalleaderboard`** — Server richest top 10.\n"
-                "• **`/globallb`** — Top players across all alliance servers!\n"
+                "• **`/medalleaderboard`** — Top 10 richest players in this server.\n"
+                "• **`/globallb`** — Top players across all connected servers!\n"
                 "• **`/guilds`** — View all servers currently connected to this bot!"
             ),
             inline=False
