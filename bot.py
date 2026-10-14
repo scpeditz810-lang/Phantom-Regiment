@@ -59,6 +59,13 @@ async def on_ready():
     await bot.db.setup()
     print(f"✅  {bot.user} is online!  (ID {bot.user.id})", flush=True)
 
+    # Register all connected guilds into the alliance database
+    for g in bot.guilds:
+        try:
+            await bot.db.register_guild(g.id, g.name, g.member_count or 0, "Phantom Regiment")
+        except Exception as e:
+            print(f"⚠️ Failed to register guild {g.id}: {e}")
+
     # Start the backup loop
     if not backup_loop.is_running():
         backup_loop.start()
@@ -68,6 +75,13 @@ async def on_ready():
         print(f"✅  Synced {len(synced)} slash commands.", flush=True)
     except Exception as e:
         print(f"❌  Sync failed: {e}", flush=True)
+
+@bot.event
+async def on_guild_join(guild: discord.Guild):
+    try:
+        await bot.db.register_guild(guild.id, guild.name, guild.member_count or 0, "Phantom Regiment")
+    except Exception as e:
+        print(f"⚠️ Failed to register joined guild {guild.id}: {e}")
 
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
@@ -133,14 +147,33 @@ if partner_token:
     partner_bot.db = bot.db
     partner_bot.is_partner = True
 
+    # Link both bots in memory
+    bot.partner_bot = partner_bot
+    partner_bot.primary_bot = bot
+
     @partner_bot.event
     async def on_ready():
         print(f"🤝  [Partner Bot] {partner_bot.user} is online!  (ID {partner_bot.user.id})", flush=True)
+
+        # Register partner bot guilds into alliance database
+        for g in partner_bot.guilds:
+            try:
+                await partner_bot.db.register_guild(g.id, g.name, g.member_count or 0, "Collation of Rose")
+            except Exception as e:
+                print(f"⚠️ [Partner Bot] Failed to register guild {g.id}: {e}")
+
         try:
             synced = await partner_bot.tree.sync()
             print(f"🤝  [Partner Bot] Synced {len(synced)} slash commands.", flush=True)
         except Exception as e:
             print(f"❌  [Partner Bot] Sync failed: {e}", flush=True)
+
+    @partner_bot.event
+    async def on_guild_join(guild: discord.Guild):
+        try:
+            await partner_bot.db.register_guild(guild.id, guild.name, guild.member_count or 0, "Collation of Rose")
+        except Exception as e:
+            print(f"⚠️ [Partner Bot] Failed to register joined guild {guild.id}: {e}")
 
     @partner_bot.tree.error
     async def on_partner_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
