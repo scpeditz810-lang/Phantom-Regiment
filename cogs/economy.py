@@ -931,7 +931,8 @@ class EconomyCog(commands.Cog):
 
     @app_commands.command(name="shop", description="View the Armory and Banner Shop")
     async def shop(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="🛒 Phantom Regiment Shop", description="Buy items using `/buy <id>`!", color=0x2ECC71)
+        shop_title = "Collation of Rose" if getattr(self.bot, "is_partner", False) else "Phantom Regiment"
+        embed = discord.Embed(title=f"🛒 {shop_title} Shop", description="Buy items using `/buy <id>`!", color=0x2ECC71)
         for cat_name, type_id in [("🎨 Banners", "banner"), ("⚔️ Weapons", "weapon"), ("🎒 Utility", "utility")]:
             items = []
             for item_id, details in SHOP_ITEMS.items():
@@ -939,6 +940,7 @@ class EconomyCog(commands.Cog):
                     items.append(f"**{details['name']}** — 🏅 {details['price']}\nID: `{item_id}`\n*{details['desc']}*")
             if items:
                 embed.add_field(name=cat_name, value="\n\n".join(items), inline=False)
+        embed.set_footer(text="Made By Phantom Regiment")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="buy", description="Buy an item from the shop")
