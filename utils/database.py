@@ -185,6 +185,9 @@ class Database:
             "ALTER TABLE bank_loans ADD COLUMN late_fee_applied INTEGER DEFAULT 0",
             "ALTER TABLE banks ADD COLUMN last_interest REAL DEFAULT 0",
             "ALTER TABLE banks ADD COLUMN password_hash TEXT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN last_crime REAL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN last_scavenge REAL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN last_trivia REAL DEFAULT 0",
             "PRAGMA journal_mode=WAL"
         ]:
             try:
@@ -311,6 +314,30 @@ class Database:
         await self.ensure_user(user_id, guild_id)
         await self._db.execute(
             "UPDATE users SET last_weekly = ? WHERE user_id = ? AND guild_id = ?",
+            (timestamp, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def set_last_crime(self, user_id: int, guild_id: int, timestamp: float):
+        await self.ensure_user(user_id, guild_id)
+        await self._db.execute(
+            "UPDATE users SET last_crime = ? WHERE user_id = ? AND guild_id = ?",
+            (timestamp, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def set_last_scavenge(self, user_id: int, guild_id: int, timestamp: float):
+        await self.ensure_user(user_id, guild_id)
+        await self._db.execute(
+            "UPDATE users SET last_scavenge = ? WHERE user_id = ? AND guild_id = ?",
+            (timestamp, user_id, guild_id)
+        )
+        await self._db.commit()
+
+    async def set_last_trivia(self, user_id: int, guild_id: int, timestamp: float):
+        await self.ensure_user(user_id, guild_id)
+        await self._db.execute(
+            "UPDATE users SET last_trivia = ? WHERE user_id = ? AND guild_id = ?",
             (timestamp, user_id, guild_id)
         )
         await self._db.commit()

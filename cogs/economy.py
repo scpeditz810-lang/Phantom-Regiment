@@ -423,6 +423,116 @@ class BlackjackView(discord.ui.View):
             self.dealer_hand.append(self.deck.pop())
         await self.update_embed(interaction, final=True)
 
+# ── Trivia View & Questions ────────────────────────────────────────────────
+
+TRIVIA_QUESTIONS = [
+    {
+        "q": "What is the primary role of a Vanguard in tactical military operations?",
+        "options": ["Lead the advance guard", "Provide rear medical support", "Manage supply communications", "Guard artillery reserves"],
+        "answer": 0
+    },
+    {
+        "q": "Which classic strategy involves encircling an enemy force to cut off retreat and supplies?",
+        "options": ["Scorched Earth", "Pincer / Encirclement", "Fabian Strategy", "Blitzkrieg"],
+        "answer": 1
+    },
+    {
+        "q": "In naval warfare, what does the term 'Broadside' refer to?",
+        "options": ["Surrendering flag", "Simultaneous fire from one side of a ship", "Ramming enemy bow", "Depth charge pattern"],
+        "answer": 1
+    },
+    {
+        "q": "What legendary ancient general crossed the Alps with war elephants in 218 BC?",
+        "options": ["Julius Caesar", "Alexander the Great", "Hannibal Barca", "Scipio Africanus"],
+        "answer": 2
+    },
+    {
+        "q": "What is a Spartan 'Phalanx' formation primarily known for?",
+        "options": ["Horse archer skirmishing", "Dense wall of overlapping shields & spears", "Stealth jungle guerrilla tactics", "High-ground sniper firing lines"],
+        "answer": 1
+    },
+    {
+        "q": "Who is the legendary ancient author of 'The Art of War'?",
+        "options": ["Sun Tzu", "Miyamoto Musashi", "Carl von Clausewitz", "Laozi"],
+        "answer": 0
+    },
+    {
+        "q": "In military aviation, what does the tactical acronym 'CAS' stand for?",
+        "options": ["Combat Armored Strike", "Command And Surveillance", "Close Air Support", "Covert Assault Squad"],
+        "answer": 2
+    },
+    {
+        "q": "In NATO phonetic alphabet, which code word represents the letter 'P'?",
+        "options": ["Phantom", "Papa", "Peter", "Pioneer"],
+        "answer": 1
+    },
+    {
+        "q": "Which famous French defense fortification was bypassed during the 1940 Ardennes offensive?",
+        "options": ["Siegfried Line", "Maginot Line", "Mannerheim Line", "Hindenburg Line"],
+        "answer": 1
+    },
+    {
+        "q": "What tactical maneuver involves a controlled retreat while continuing to inflict damage on the pursuer?",
+        "options": ["Fighting Withdrawal", "Kamikaze Rush", "Siege Collapse", "Ambush Route"],
+        "answer": 0
+    }
+]
+
+class TriviaView(discord.ui.View):
+    def __init__(self, user: discord.Member, correct_idx: int, reward: int, bot):
+        super().__init__(timeout=25)
+        self.user = user
+        self.correct_idx = correct_idx
+        self.reward = reward
+        self.bot = bot
+        self.answered = False
+
+    async def handle_answer(self, interaction: discord.Interaction, selected_idx: int):
+        if interaction.user.id != self.user.id:
+            return await interaction.response.send_message("❌ This is not your trivia question!", ephemeral=True)
+        if self.answered:
+            return
+        self.answered = True
+        self.stop()
+
+        for i, child in enumerate(self.children):
+            child.disabled = True
+            if i == self.correct_idx:
+                child.style = discord.ButtonStyle.success
+            elif i == selected_idx:
+                child.style = discord.ButtonStyle.danger
+
+        if selected_idx == self.correct_idx:
+            await self.bot.db.add_medals(self.user.id, interaction.guild_id, self.reward)
+            embed = discord.Embed(
+                title="🎯 CORRECT ANSWER!",
+                description=f"Outstanding tactical intelligence, soldier!\nYou were awarded **{self.reward} Medals**! 🏅",
+                color=0x2ECC71
+            )
+        else:
+            embed = discord.Embed(
+                title="❌ INCORRECT!",
+                description=f"Wrong answer! The correct answer was **Option {chr(65 + self.correct_idx)}**.\nReview your tactical manuals and try again later!",
+                color=0xE74C3C
+            )
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="A", style=discord.ButtonStyle.secondary)
+    async def btn_a(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_answer(interaction, 0)
+
+    @discord.ui.button(label="B", style=discord.ButtonStyle.secondary)
+    async def btn_b(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_answer(interaction, 1)
+
+    @discord.ui.button(label="C", style=discord.ButtonStyle.secondary)
+    async def btn_c(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_answer(interaction, 2)
+
+    @discord.ui.button(label="D", style=discord.ButtonStyle.secondary)
+    async def btn_d(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_answer(interaction, 3)
+
 # ── Economy Cog ──────────────────────────────────────────────────────────
 
 class EconomyCog(commands.Cog):
@@ -500,6 +610,136 @@ class EconomyCog(commands.Cog):
         await self.bot.db.set_last_weekly(interaction.user.id, interaction.guild_id, now)
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, 500)
         await interaction.response.send_message("📅 You successfully claimed your weekly **500 Medals**!")
+
+    @app_commands.command(name="crime", description="Commit a high-risk criminal operation for high rewards (2h cooldown)!")
+    @app_commands.choices(operation=[
+        app_commands.Choice(name="🎒 Pickpocket a Civilian (85% win, 75-150 medals)", value="pickpocket"),
+        app_commands.Choice(name="💻 Hack an ATM Terminal (65% win, 200-450 medals)", value="hack"),
+        app_commands.Choice(name="🚛 Hijack a Supply Convoy (45% win, 600-1,200 medals)", value="convoy"),
+        app_commands.Choice(name="🏰 Infiltrate Rival Clan Base (25% win, 1,500-3,500 medals)", value="infiltrate")
+    ])
+    async def crime(self, interaction: discord.Interaction, operation: str):
+        data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+        now = time.time()
+        last = data.get("last_crime", 0)
+        COOLDOWN = 7200  # 2 hours
+        if now - last < COOLDOWN:
+            rem = int(COOLDOWN - (now - last))
+            return await interaction.response.send_message(f"🚨 **Heat is too high!** The authorities are hunting you. Wait **{rem//3600}h {(rem%3600)//60}m**!", ephemeral=True)
+
+        ops = {
+            "pickpocket": {"chance": 0.85, "min": 75, "max": 150, "fail_penalty": 40, "name": "Pickpocketing"},
+            "hack": {"chance": 0.65, "min": 200, "max": 450, "fail_penalty": 100, "name": "ATM Hack"},
+            "convoy": {"chance": 0.45, "min": 600, "max": 1200, "fail_penalty": 250, "name": "Supply Convoy Hijack"},
+            "infiltrate": {"chance": 0.25, "min": 1500, "max": 3500, "fail_penalty": 500, "name": "Clan Base Infiltration"}
+        }
+        op = ops[operation]
+        await self.bot.db.set_last_crime(interaction.user.id, interaction.guild_id, now)
+
+        if random.random() < op["chance"]:
+            payout = random.randint(op["min"], op["max"])
+            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, payout)
+            embed = discord.Embed(
+                title="💰 HEIST SUCCESSFUL!",
+                description=f"Your **{op['name']}** went off smoothly!\nYou made off with **{payout:,} Medals**! 💵",
+                color=0x2ECC71
+            )
+        else:
+            penalty = op["fail_penalty"]
+            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -penalty)
+            embed = discord.Embed(
+                title="🚨 BUSTED BY GUARDS!",
+                description=f"Your **{op['name']}** was compromised!\nYou were apprehended and fined **{penalty:,} Medals**! 🚔",
+                color=0xE74C3C
+            )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="scavenge", description="Scavenge ruins and warzones for hidden medals (45m cooldown)!")
+    @app_commands.choices(location=[
+        app_commands.Choice(name="🏚️ Abandoned Military Outpost", value="outpost"),
+        app_commands.Choice(name="🌲 Dark Tactical Woods", value="woods"),
+        app_commands.Choice(name="⚔️ Ancient War Ruins", value="ruins"),
+        app_commands.Choice(name="⚓ Sunken Armory Wreck", value="wreck")
+    ])
+    async def scavenge(self, interaction: discord.Interaction, location: str):
+        data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+        now = time.time()
+        last = data.get("last_scavenge", 0)
+        COOLDOWN = 2700  # 45 minutes
+        if now - last < COOLDOWN:
+            rem = int(COOLDOWN - (now - last))
+            return await interaction.response.send_message(f"⏳ Your squad is exhausted. Wait **{rem//60}m {rem%60}s** before searching again!", ephemeral=True)
+
+        await self.bot.db.set_last_scavenge(interaction.user.id, interaction.guild_id, now)
+        roll = random.random()
+
+        loc_names = {
+            "outpost": "the Abandoned Military Outpost",
+            "woods": "the Dark Tactical Woods",
+            "ruins": "the Ancient War Ruins",
+            "wreck": "the Sunken Armory Wreck"
+        }
+        loc = loc_names.get(location, "the wasteland")
+
+        if roll < 0.10:
+            loot = 1000
+            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, loot)
+            embed = discord.Embed(
+                title="🌟 JACKPOT DISCOVERY! 🌟",
+                description=f"While scouring {loc}, you breached a pristine military emergency vault!\nYou extracted a golden bullion worth **{loot:,} Medals**! 🏆",
+                color=0xF1C40F
+            )
+        elif roll < 0.45:
+            loot = random.randint(250, 500)
+            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, loot)
+            embed = discord.Embed(
+                title="📦 Heavy Supply Cache Found",
+                description=f"You searched {loc} and recovered a locked supply crate containing **{loot:,} Medals**!",
+                color=0x3498DB
+            )
+        elif roll < 0.85:
+            loot = random.randint(50, 180)
+            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, loot)
+            embed = discord.Embed(
+                title="🔍 Battlefield Scraps Salvaged",
+                description=f"You combed through {loc} and salvaged leftover ammunition and equipment worth **{loot:,} Medals**.",
+                color=0x95A5A6
+            )
+        else:
+            embed = discord.Embed(
+                title="⚠️ Hostile Ambush!",
+                description=f"Enemy scouts spotted your squad in {loc}! You were forced to retreat empty-handed before extracting any loot.",
+                color=0xE67E22
+            )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="trivia", description="Answer a tactical military quiz question for instant medals (30m cooldown)!")
+    async def trivia(self, interaction: discord.Interaction):
+        data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
+        now = time.time()
+        last = data.get("last_trivia", 0)
+        COOLDOWN = 1800  # 30 minutes
+        if now - last < COOLDOWN:
+            rem = int(COOLDOWN - (now - last))
+            return await interaction.response.send_message(f"⏳ Next quiz available in **{rem//60}m {rem%60}s**!", ephemeral=True)
+
+        await self.bot.db.set_last_trivia(interaction.user.id, interaction.guild_id, now)
+
+        q_data = random.choice(TRIVIA_QUESTIONS)
+        reward = random.randint(120, 250)
+
+        embed = discord.Embed(
+            title="🎖️ Tactical Combat Quiz",
+            description=f"**{q_data['q']}**\n\n" +
+                        f"**A)** {q_data['options'][0]}\n" +
+                        f"**B)** {q_data['options'][1]}\n" +
+                        f"**C)** {q_data['options'][2]}\n" +
+                        f"**D)** {q_data['options'][3]}\n\n" +
+                        f"💰 **Reward:** {reward} Medals | ⏱️ *You have 25 seconds to choose!*",
+            color=0x9B59B6
+        )
+        view = TriviaView(interaction.user, q_data["answer"], reward, self.bot)
+        await interaction.response.send_message(embed=embed, view=view)
 
     @app_commands.command(name="transfer", description="Transfer medals to another user (30% tax applied).")
     async def transfer(self, interaction: discord.Interaction, recipient: discord.Member, amount: int):
