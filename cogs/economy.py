@@ -1051,7 +1051,83 @@ class EconomyCog(commands.Cog):
             return await interaction.response.send_message("❌ Medal management is restricted to Phantom Regiment High Command in the main server.", ephemeral=True)
         if amount <= 0: return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
         await self.bot.db.add_medals(member.id, interaction.guild_id, -amount)
-        await interaction.response.send_message(f"✅ Removed **{amount:,} Medals** from {member.mention}.")
+    @app_commands.command(name="guide", description="Comprehensive guide to the server economy, medals, banking, and features.")
+    async def guide(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="📖 Phantom Regiment — Economy & Medal Guide",
+            description="Welcome to the server economy guide! Here is everything you need to know about earning, storing, gambling, robbing, and converting Medals.",
+            color=0x3498DB
+        )
+        
+        embed.add_field(
+            name="💰 Earning Medals",
+            value=(
+                "• **`/trivia`** *(30m)* — Answer tactical combat questions for **120 – 250** medals.\n"
+                "• **`/scavenge`** *(45m)* — Scour warzones for loot (**50 – 500** medals, 10% chance for **1,000** jackpot!)\n"
+                "• **`/crime`** *(2h)* — High-risk operations (Pickpocket, ATM hack, Convoy, Base Infiltration) for up to **3,500** medals!\n"
+                "• **`/work`** *(4h)* — Do standard garrison duty for **50 – 200** medals.\n"
+                "• **`/daily`** *(24h)* — Claim daily medals and build a streak up to 30 days (**100 – 1,000** medals).\n"
+                "• **`/weekly`** *(7d)* — Flat **500** medals claim.\n"
+                "• **Chatting** — Chatting earns XP and leveling up rewards bonus medals automatically!"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🏦 Banking, Vaults & Interest",
+            value=(
+                "• **`/bank create`** — Open a bank vault for 500 medals. **Requires setting a secure password!**\n"
+                "• **`/bank deposit` / `withdraw`** — Store medals safely away from wallet loss.\n"
+                "• **2.5% Daily Interest** — Your bank generates 2.5% yield every 24 hours (capped at 650 medals/day).\n"
+                "• **`/bank changepassword`** — Update your vault password anytime to stay secure."
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🦹 Bank Robberies (`/rob`)",
+            value=(
+                "• **`/rob <user> <password>`** — Attempt to guess a player's vault password!\n"
+                "• **Success:** You breach their vault and steal **100%** of their medals!\n"
+                "• **Failure:** The alarm triggers, giving you a 30m cooldown. The victim receives an encrypted biometric trace of your identity protected by a 5-layer quantum cipher!"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="💳 Loans & Strict Debt Enforcement",
+            value=(
+                "• **`/bank loan`** — Borrow up to 5,000 medals from the system (1 to 30 days).\n"
+                "• **`/loan offer <user> <amount> <interest> <days>`** — Lend medals to players.\n"
+                "• **`/loan accept <id>` / `reject <id>`** — Pending offers expire in 24h.\n"
+                "• ⚠️ **Debt Warning:** Expired loans incur a **20% late fee**, and **ALL your future earnings will be automatically seized** until repaid!"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎰 Casino, PvP Battles & Leaderboards",
+            value=(
+                "• **`/blackjack <bet>`** — Play interactive Blackjack against the dealer (1.5x on 21).\n"
+                "• **`/roulette <bet> <type>`** — Bet on Red, Black, Even, Odd, High, Low, or Green (**36x** payout!).\n"
+                "• **`/fight <user> <bet>`** — Wager medals in a 1v1 turn-based arena battle.\n"
+                "• **`/medalleaderboard`** — Server richest top 10.\n"
+                "• **`/globallb`** — Top players across all alliance servers!"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🛍️ Role Shop & Robux Conversions",
+            value=(
+                "• **`/roleshop`** / **`/buyrole`** — Buy prestigious colored roles (Wealthy up to Phantom Regiment Elite).\n"
+                "• **`/convertmedals <amount>`** — Convert **25,000 Medals into 10 Robux**! *(Blocked if you have active unpaid debt)*."
+            ),
+            inline=False
+        )
+        
+        embed.set_footer(text="developed by Phantom Regiment ( hehe")
+        await interaction.response.send_message(embed=embed)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EconomyCog(bot))
