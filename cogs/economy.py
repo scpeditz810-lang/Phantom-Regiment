@@ -539,6 +539,11 @@ class EconomyCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def cog_load(self):
+        if getattr(self.bot, "is_partner", False):
+            self.bot.tree.remove_command("buyrole")
+            self.bot.tree.remove_command("roleshop")
+
     @app_commands.command(name="daily", description="Claim your daily Medals and build a streak!")
     async def daily(self, interaction: discord.Interaction):
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
@@ -760,6 +765,8 @@ class EconomyCog(commands.Cog):
 
     @app_commands.command(name="roleshop", description="View the cosmetic roles available for purchase.")
     async def roleshop(self, interaction: discord.Interaction):
+        if getattr(self.bot, "is_partner", False):
+            return await interaction.response.send_message("❌ `/roleshop` is not available on this bot.", ephemeral=True)
         embed = discord.Embed(title="👗 Cosmetic Role Shop", description="Buy these roles using `/buyrole <role_id>`!", color=0x9B59B6)
         roles_text = []
         for role_id, details in ROLES_SHOP.items():
@@ -777,6 +784,8 @@ class EconomyCog(commands.Cog):
         app_commands.Choice(name="👻 Phantom Regiment Elite (100,000)", value="role_phantom")
     ])
     async def buyrole(self, interaction: discord.Interaction, role_id: str):
+        if getattr(self.bot, "is_partner", False):
+            return await interaction.response.send_message("❌ `/buyrole` is not available on this bot.", ephemeral=True)
         if role_id not in ROLES_SHOP:
             return await interaction.response.send_message("❌ Role not found.", ephemeral=True)
             
@@ -1141,13 +1150,14 @@ class EconomyCog(commands.Cog):
             inline=False
         )
         
-        embed.add_field(
-            name="🛍️ Role Shop",
-            value=(
-                "• **`/roleshop`** / **`/buyrole`** — Buy prestigious colored cosmetic roles (from Wealthy up to Phantom Regiment Elite) to showcase your wealth and status!"
-            ),
-            inline=False
-        )
+        if not getattr(self.bot, "is_partner", False):
+            embed.add_field(
+                name="🛍️ Role Shop",
+                value=(
+                    "• **`/roleshop`** / **`/buyrole`** — Buy prestigious colored cosmetic roles (from Wealthy up to Phantom Regiment Elite) to showcase your wealth and status!"
+                ),
+                inline=False
+            )
         
         embed.set_footer(text="Made By Phantom Regiment")
         await interaction.response.send_message(embed=embed)
