@@ -79,7 +79,8 @@ class RpsView(discord.ui.View):
             if self.p2_choice: return await interaction.response.send_message("❌ You already chose!", ephemeral=True)
             self.p2_choice = choice
             
-        await interaction.response.send_message(f"✅ You secretly chose **{choice.title()}**!", ephemeral=True)
+        rps_emojis = {"rock": "✊", "paper": "🤚", "scissors": "✌️"}
+        await interaction.response.send_message(f"✅ You secretly chose **{choice.title()}** {rps_emojis.get(choice, '')}!", ephemeral=True)
         
         if self.p1_choice and self.p2_choice:
             self.stop()
@@ -93,20 +94,21 @@ class RpsView(discord.ui.View):
 
     async def resolve_game(self, message: discord.Message):
         c1, c2 = self.p1_choice, self.p2_choice
+        rps_emojis = {"rock": "✊", "paper": "🤚", "scissors": "✌️"}
         winner = None
         if c1 == c2:
-            result = "It's a tie! Both players keep their medals."
+            result = "🤝 It's a tie! Both players keep their medals."
         elif (c1 == "rock" and c2 == "scissors") or (c1 == "paper" and c2 == "rock") or (c1 == "scissors" and c2 == "paper"):
-            winner, result = self.challenger, f"🎉 {self.challenger.mention} wins **{self.bet} Medals**!"
+            winner, result = self.challenger, f"🎉 {self.challenger.mention} wins **{self.bet:,} Medals**!"
         else:
-            winner, result = self.opponent, f"🎉 {self.opponent.mention} wins **{self.bet} Medals**!"
+            winner, result = self.opponent, f"🎉 {self.opponent.mention} wins **{self.bet:,} Medals**!"
             
         if winner:
             loser = self.opponent if winner == self.challenger else self.challenger
             await self.bot.db.add_medals(winner.id, message.guild.id, self.bet)
             await self.bot.db.add_medals(loser.id, message.guild.id, -self.bet)
             
-        embed = discord.Embed(title="✊🤚✌️ Rock Paper Scissors - RESULTS", description=f"{self.challenger.mention} chose **{c1.title()}**\n{self.opponent.mention} chose **{c2.title()}**\n\n{result}", color=discord.Colour.gold())
+        embed = discord.Embed(title="✊🤚✌️ Rock Paper Scissors - RESULTS", description=f"{self.challenger.mention} chose **{c1.title()}** {rps_emojis.get(c1, '')}\n{self.opponent.mention} chose **{c2.title()}** {rps_emojis.get(c2, '')}\n\n{result}", color=discord.Colour.gold())
         for item in self.children: item.disabled = True
         await message.edit(embed=embed, view=self)
 
@@ -385,18 +387,18 @@ class BlackjackView(discord.ui.View):
             embed.add_field(name=f"Dealer's Hand ({d_val})", value=format_hand(self.dealer_hand), inline=False)
             
             if p_val > 21:
-                res = f"Bust! You lost **{self.bet:,} Medals**."
+                res = f"💀 Bust! You lost **{self.bet:,} Medals**."
                 embed.color = 0xE74C3C
                 await self.bot.db.add_medals(self.user.id, interaction.guild_id, -self.bet)
             elif d_val > 21 or p_val > d_val:
-                res = f"You won **{self.bet:,} Medals**!"
+                res = f"🎉 You won **{self.bet:,} Medals**!"
                 embed.color = 0x2ECC71
                 await self.bot.db.add_medals(self.user.id, interaction.guild_id, self.bet)
             elif p_val == d_val:
-                res = "Push! It's a tie. Your bet was returned."
+                res = "🤝 Push! It's a tie. Your bet was returned."
                 embed.color = 0x95A5A6
             else:
-                res = f"Dealer wins! You lost **{self.bet:,} Medals**."
+                res = f"💀 Dealer wins! You lost **{self.bet:,} Medals**."
                 embed.color = 0xE74C3C
                 await self.bot.db.add_medals(self.user.id, interaction.guild_id, -self.bet)
                 
@@ -407,7 +409,7 @@ class BlackjackView(discord.ui.View):
             
         await interaction.response.edit_message(embed=embed, view=self if not final else None)
 
-    @discord.ui.button(label="Hit", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Hit", emoji="🃏", style=discord.ButtonStyle.primary)
     async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.user.id: return await interaction.response.send_message("❌ Not your game!", ephemeral=True)
         self.player_hand.append(self.deck.pop())
@@ -416,7 +418,7 @@ class BlackjackView(discord.ui.View):
         else:
             await self.update_embed(interaction)
             
-    @discord.ui.button(label="Stand", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="Stand", emoji="🛑", style=discord.ButtonStyle.danger)
     async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.user.id: return await interaction.response.send_message("❌ Not your game!", ephemeral=True)
         while calculate_hand(self.dealer_hand) < 17:
@@ -957,10 +959,10 @@ class EconomyCog(commands.Cog):
         if data.get("medals", 0) < bet: return await interaction.response.send_message("❌ Not enough Medals!", ephemeral=True)
         if random.choice([True, False]):
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, bet)
-            await interaction.response.send_message(f"**Heads**! Won **{bet:,} Medals**!")
+            await interaction.response.send_message(f"🪙 **Heads**! Won **{bet:,} Medals**!")
         else:
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -bet)
-            await interaction.response.send_message(f"**Tails**... Lost **{bet:,} Medals**.")
+            await interaction.response.send_message(f"💀 **Tails**... Lost **{bet:,} Medals**.")
 
     @app_commands.command(name="rps", description="Rock Paper Scissors for Medals!")
     async def rps(self, interaction: discord.Interaction, opponent: discord.Member, bet: int):
@@ -971,7 +973,7 @@ class EconomyCog(commands.Cog):
         if d1.get("medals", 0) < bet or d2.get("medals", 0) < bet:
             return await interaction.response.send_message("❌ Someone doesn't have enough Medals!", ephemeral=True)
             
-        embed = discord.Embed(title="Rock Paper Scissors Challenge", description=f"**{interaction.user.mention}** challenged **{opponent.mention}** for **{bet} Medals**!\nClick below to lock in secretly!", color=discord.Colour.blue())
+        embed = discord.Embed(title="✊🤚✌️ RPS Challenge", description=f"**{interaction.user.mention}** challenged **{opponent.mention}** for **{bet:,} Medals**!\nClick below to lock in secretly!", color=discord.Colour.blue())
         await interaction.response.send_message(content=opponent.mention, embed=embed, view=RpsView(interaction.user, opponent, bet, self.bot))
 
     @app_commands.command(name="shop", description="View the Armory and Banner Shop")
@@ -1049,7 +1051,7 @@ class EconomyCog(commands.Cog):
         view = BlackjackView(self.bot, interaction.user, bet, player_hand, dealer_hand, deck)
         
         p_val = calculate_hand(player_hand)
-        embed = discord.Embed(title="Blackjack", color=0x3498DB)
+        embed = discord.Embed(title="🃏 Blackjack", color=0x3498DB)
         embed.add_field(name=f"Your Hand ({p_val})", value=format_hand(player_hand), inline=False)
         embed.add_field(name="Dealer's Hand", value=f"{dealer_hand[0][0]} 🂠", inline=False)
         
@@ -1057,7 +1059,7 @@ class EconomyCog(commands.Cog):
             winnings = int(bet * 1.5)
             embed.color = 0x2ECC71
             embed.set_field_at(1, name=f"Dealer's Hand ({calculate_hand(dealer_hand)})", value=format_hand(dealer_hand), inline=False)
-            embed.description = f"**BLACKJACK!** You won **{winnings:,} Medals**!"
+            embed.description = f"🎉 **BLACKJACK!** You won **{winnings:,} Medals**!"
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, winnings)
             await interaction.response.send_message(embed=embed)
         else:
@@ -1065,13 +1067,13 @@ class EconomyCog(commands.Cog):
 
     @app_commands.command(name="roulette", description="Bet your Medals on Roulette!")
     @app_commands.choices(bet_type=[
-        app_commands.Choice(name="Red (2x)", value="red"),
-        app_commands.Choice(name="Black (2x)", value="black"),
-        app_commands.Choice(name="Green (36x)", value="green"),
-        app_commands.Choice(name="Even (2x)", value="even"),
-        app_commands.Choice(name="Odd (2x)", value="odd"),
-        app_commands.Choice(name="High 19-36 (2x)", value="high"),
-        app_commands.Choice(name="Low 1-18 (2x)", value="low")
+        app_commands.Choice(name="🔴 Red (2x)", value="red"),
+        app_commands.Choice(name="⚫ Black (2x)", value="black"),
+        app_commands.Choice(name="🟢 Green (36x)", value="green"),
+        app_commands.Choice(name="🔢 Even (2x)", value="even"),
+        app_commands.Choice(name="🔢 Odd (2x)", value="odd"),
+        app_commands.Choice(name="⬆️ High 19-36 (2x)", value="high"),
+        app_commands.Choice(name="⬇️ Low 1-18 (2x)", value="low")
     ])
     async def roulette(self, interaction: discord.Interaction, bet: int, bet_type: str):
         if bet <= 0 or bet > 50000: return await interaction.response.send_message("❌ Bet must be between 1 and 50,000 Medals!", ephemeral=True)
@@ -1103,15 +1105,15 @@ class EconomyCog(commands.Cog):
         elif bet_type == "high" and is_high: won = True
         elif bet_type == "low" and is_low: won = True
         
-        color_name = "Green" if is_green else ("Red" if is_red else "Black")
+        color_emoji = "🟢" if is_green else ("🔴" if is_red else "⚫")
         
         if won:
             payout = bet * multiplier
             profit = payout - bet
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, payout)
-            await interaction.response.send_message(f"The wheel landed on **{color_name} {result}**!\nYou won **{payout:,} Medals**! (+{profit:,} profit)")
+            await interaction.response.send_message(f"🎰 The wheel landed on {color_emoji} **{result}**!\n🎉 You won **{payout:,} Medals**! (+{profit:,} profit)")
         else:
-            await interaction.response.send_message(f"The wheel landed on **{color_name} {result}**...\nYou lost **{bet:,} Medals**.")
+            await interaction.response.send_message(f"🎰 The wheel landed on {color_emoji} **{result}**...\n💀 You lost **{bet:,} Medals**.")
 
 
     @app_commands.command(name="givemedals", description="Give Medals to a user (PR High Command Only)")
