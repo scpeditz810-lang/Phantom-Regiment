@@ -125,8 +125,8 @@ class LevelingCog(commands.Cog):
 
             rank_name, _ = self.rank_info(new_lvl)
             embed = discord.Embed(
-                title="🎉  Level Up!",
-                description=f"{message.author.mention} advanced to **Level {new_lvl}**!\nYou earned 🏅 **50 Medals**!",
+                title="Level Up!",
+                description=f"{message.author.mention} advanced to **Level {new_lvl}**!\nYou earned **50 Medals**!",
                 colour=discord.Colour.gold(),
             )
             embed.add_field(name="Rank", value=rank_name, inline=True)
@@ -193,7 +193,7 @@ class LevelingCog(commands.Cog):
             lines.append(f"{m} **{name}** — Lvl {e['level']} • {e['xp']} XP • {rn}")
 
         embed = discord.Embed(
-            title="🏆  Server Leaderboard",
+            title="Server Leaderboard",
             description="\n".join(lines),
             colour=discord.Colour.gold(),
         )
@@ -237,26 +237,26 @@ class LevelingCog(commands.Cog):
             )
 
         embed = discord.Embed(
-            title="🏆  Win Verification Request",
+            title="Win Verification Request",
             colour=discord.Colour.gold(),
             timestamp=discord.utils.utcnow(),
         )
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
         embed.add_field(
-            name="👤 Player",
+            name="Player",
             value=f"{interaction.user.mention} (`{interaction.user}`)",
             inline=True,
         )
-        embed.add_field(name="🏆 Claimed Wins", value=str(wins), inline=True)
-        embed.add_field(name="🎮 Claimed Level", value=str(in_game_level), inline=True)
+        embed.add_field(name="Claimed Wins", value=str(wins), inline=True)
+        embed.add_field(name="Claimed Level", value=str(in_game_level), inline=True)
 
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
-        embed.add_field(name="📊 Current Recorded Wins", value=str(data["wins"]), inline=False)
-        embed.add_field(name="📈 Chat XP Level", value=str(data["level"]), inline=True)
+        embed.add_field(name="Current Recorded Wins", value=str(data["wins"]), inline=False)
+        embed.add_field(name="Chat XP Level", value=str(data["level"]), inline=True)
         embed.set_image(url=screenshot.url)
         embed.set_footer(text=f"User ID: {interaction.user.id}")
 
-        embed.add_field(name="🛠️ Verification", value="Commanders: Use `/set-stats` to verify and update this user's stats!", inline=False)
+        embed.add_field(name="Verification", value="Commanders: Use `/set-stats` to verify and update this user's stats!", inline=False)
         await ch.send(embed=embed)
 
         await interaction.followup.send(
@@ -301,7 +301,7 @@ class LevelingCog(commands.Cog):
             try:
                 dm_msg = f"✅ Your stats have been verified and updated by {interaction.user.mention}! You now have **{wins} Wins** and are **Level {in_game_level}**."
                 if message and message.strip():
-                    dm_msg += f"\n\n📩 **Message from staff:** {message.strip()}"
+                    dm_msg += f"\n\nMessage from staff: {message.strip()}"
                 await member.send(dm_msg)
             except discord.Forbidden:
                 msg += "\n⚠️ Could not DM the user (their DMs are closed)."
@@ -331,7 +331,7 @@ class LevelingCog(commands.Cog):
                 break
 
         embed = discord.Embed(
-            title=f"🏆  {member.display_name}'s Stats",
+            title=f"{member.display_name}'s Stats",
             colour=discord.Colour.gold(),
         )
         embed.add_field(name="Wins",  value=str(data["wins"]),  inline=True)
