@@ -957,10 +957,10 @@ class EconomyCog(commands.Cog):
         if data.get("medals", 0) < bet: return await interaction.response.send_message("❌ Not enough Medals!", ephemeral=True)
         if random.choice([True, False]):
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, bet)
-            await interaction.response.send_message(f"**Heads**! Won **{bet} Medals**!")
+            await interaction.response.send_message(f"**Heads**! Won **{bet:,} Medals**!")
         else:
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -bet)
-            await interaction.response.send_message(f"**Tails**... Lost **{bet} Medals**.")
+            await interaction.response.send_message(f"**Tails**... Lost **{bet:,} Medals**.")
 
     @app_commands.command(name="rps", description="Rock Paper Scissors for Medals!")
     async def rps(self, interaction: discord.Interaction, opponent: discord.Member, bet: int):
@@ -1078,6 +1078,9 @@ class EconomyCog(commands.Cog):
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
         if data.get("medals", 0) < bet: return await interaction.response.send_message("❌ Not enough Medals!", ephemeral=True)
         
+        # Deduct bet upfront
+        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -bet)
+
         reds = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
         result = random.randint(0, 36)
         
@@ -1103,12 +1106,11 @@ class EconomyCog(commands.Cog):
         color_name = "Green" if is_green else ("Red" if is_red else "Black")
         
         if won:
-            winnings = bet * multiplier
-            profit = winnings - bet
-            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, profit)
-            await interaction.response.send_message(f"The wheel landed on **{color_name} {result}**!\nYou won **{winnings:,} Medals**!")
+            payout = bet * multiplier
+            profit = payout - bet
+            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, payout)
+            await interaction.response.send_message(f"The wheel landed on **{color_name} {result}**!\nYou won **{payout:,} Medals**! (+{profit:,} profit)")
         else:
-            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -bet)
             await interaction.response.send_message(f"The wheel landed on **{color_name} {result}**...\nYou lost **{bet:,} Medals**.")
 
 
