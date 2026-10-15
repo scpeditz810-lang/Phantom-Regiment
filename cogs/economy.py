@@ -505,13 +505,13 @@ class TriviaView(discord.ui.View):
         if selected_idx == self.correct_idx:
             await self.bot.db.add_medals(self.user.id, interaction.guild_id, self.reward)
             embed = discord.Embed(
-                title="🎯 CORRECT ANSWER!",
-                description=f"Outstanding tactical intelligence, soldier!\nYou were awarded **{self.reward} Medals**! 🏅",
+                title="Correct Answer!",
+                description=f"Outstanding tactical intelligence, soldier!\nYou were awarded **{self.reward} Medals**!",
                 color=0x2ECC71
             )
         else:
             embed = discord.Embed(
-                title="❌ INCORRECT!",
+                title="Incorrect",
                 description=f"Wrong answer! The correct answer was **Option {chr(65 + self.correct_idx)}**.\nReview your tactical manuals and try again later!",
                 color=0xE74C3C
             )
@@ -552,7 +552,7 @@ class EconomyCog(commands.Cog):
         
         if now - last < 86400:
             rem = int(86400 - (now - last))
-            return await interaction.response.send_message(f"⏳ Wait **{rem//3600}h {(rem%3600)//60}m**!", ephemeral=True)
+            return await interaction.response.send_message(f"You already claimed today! Come back in **{rem//3600}h {(rem%3600)//60}m**.", ephemeral=True)
             
         streak_data = await self.bot.db.get_streak(interaction.user.id, interaction.guild_id)
         current_streak = streak_data.get("streak", 0)
@@ -581,7 +581,7 @@ class EconomyCog(commands.Cog):
             amount = 100
             
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, amount)
-        await interaction.response.send_message(f"🏅 You claimed your daily **{amount} Medals**! (Current Streak: {streak} 🔥)")
+        await interaction.response.send_message(f"You claimed your daily **{amount} Medals**! (Current Streak: {streak} days)")
 
     @app_commands.command(name="work", description="Work for some medals (4h cooldown)")
     async def work(self, interaction: discord.Interaction):
@@ -590,7 +590,7 @@ class EconomyCog(commands.Cog):
         last = data.get("last_work", 0)
         if now - last < 14400:
             rem = int(14400 - (now - last))
-            return await interaction.response.send_message(f"⏳ You are too tired. Wait **{rem//3600}h {(rem%3600)//60}m**!", ephemeral=True)
+            return await interaction.response.send_message(f"You can work again in **{rem//3600}h {(rem%3600)//60}m**.", ephemeral=True)
             
         amount = random.randint(50, 200)
         await self.bot.db.set_last_work(interaction.user.id, interaction.guild_id, now)
@@ -601,7 +601,7 @@ class EconomyCog(commands.Cog):
             f"You went on a patrol and found **{amount} Medals** dropped by an enemy.",
             f"You helped the quartermaster organize supplies for **{amount} Medals**."
         ]
-        await interaction.response.send_message(f"💼 {random.choice(responses)}")
+        await interaction.response.send_message(random.choice(responses))
 
     @app_commands.command(name="weekly", description="Claim your weekly 500 Medals!")
     async def weekly(self, interaction: discord.Interaction):
@@ -610,18 +610,18 @@ class EconomyCog(commands.Cog):
         last = data.get("last_weekly", 0)
         if now - last < 604800:
             rem = int(604800 - (now - last))
-            return await interaction.response.send_message(f"⏳ Wait **{rem//86400}d {(rem%86400)//3600}h**!", ephemeral=True)
+            return await interaction.response.send_message(f"You can claim your weekly medals again in **{rem//86400}d {(rem%86400)//3600}h**.", ephemeral=True)
             
         await self.bot.db.set_last_weekly(interaction.user.id, interaction.guild_id, now)
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, 500)
-        await interaction.response.send_message("📅 You successfully claimed your weekly **500 Medals**!")
+        await interaction.response.send_message("You successfully claimed your weekly **500 Medals**!")
 
     @app_commands.command(name="crime", description="Commit a high-risk criminal operation for high rewards (2h cooldown)!")
     @app_commands.choices(operation=[
-        app_commands.Choice(name="🎒 Pickpocket a Civilian (85% win, 75-150 medals)", value="pickpocket"),
-        app_commands.Choice(name="💻 Hack an ATM Terminal (65% win, 200-450 medals)", value="hack"),
-        app_commands.Choice(name="🚛 Hijack a Supply Convoy (45% win, 600-1,200 medals)", value="convoy"),
-        app_commands.Choice(name="🏰 Infiltrate Rival Clan Base (25% win, 1,500-3,500 medals)", value="infiltrate")
+        app_commands.Choice(name="Pickpocket a Civilian (85% win, 75-150 medals)", value="pickpocket"),
+        app_commands.Choice(name="Hack an ATM Terminal (65% win, 200-450 medals)", value="hack"),
+        app_commands.Choice(name="Hijack a Supply Convoy (45% win, 600-1,200 medals)", value="convoy"),
+        app_commands.Choice(name="Infiltrate Rival Clan Base (25% win, 1,500-3,500 medals)", value="infiltrate")
     ])
     async def crime(self, interaction: discord.Interaction, operation: str):
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
@@ -630,7 +630,7 @@ class EconomyCog(commands.Cog):
         COOLDOWN = 7200  # 2 hours
         if now - last < COOLDOWN:
             rem = int(COOLDOWN - (now - last))
-            return await interaction.response.send_message(f"🚨 **Heat is too high!** The authorities are hunting you. Wait **{rem//3600}h {(rem%3600)//60}m**!", ephemeral=True)
+            return await interaction.response.send_message(f"You need to lay low! Wait **{rem//3600}h {(rem%3600)//60}m** before doing another crime.", ephemeral=True)
 
         ops = {
             "pickpocket": {"chance": 0.85, "min": 75, "max": 150, "fail_penalty": 40, "name": "Pickpocketing"},
@@ -645,26 +645,26 @@ class EconomyCog(commands.Cog):
             payout = random.randint(op["min"], op["max"])
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, payout)
             embed = discord.Embed(
-                title="💰 HEIST SUCCESSFUL!",
-                description=f"Your **{op['name']}** went off smoothly!\nYou made off with **{payout:,} Medals**! 💵",
+                title="Crime Successful",
+                description=f"Your **{op['name']}** went off smoothly!\nYou made off with **{payout:,} Medals**.",
                 color=0x2ECC71
             )
         else:
             penalty = op["fail_penalty"]
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -penalty)
             embed = discord.Embed(
-                title="🚨 BUSTED BY GUARDS!",
-                description=f"Your **{op['name']}** went wrong!\nYou got caught and fined **{penalty:,} Medals**! 🚔",
+                title="Busted!",
+                description=f"Your **{op['name']}** went wrong!\nYou got caught and fined **{penalty:,} Medals**.",
                 color=0xE74C3C
             )
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="scavenge", description="Scavenge ruins and warzones for hidden medals (45m cooldown)!")
     @app_commands.choices(location=[
-        app_commands.Choice(name="🏚️ Abandoned Military Outpost", value="outpost"),
-        app_commands.Choice(name="🌲 Dark Tactical Woods", value="woods"),
-        app_commands.Choice(name="⚔️ Ancient War Ruins", value="ruins"),
-        app_commands.Choice(name="⚓ Sunken Armory Wreck", value="wreck")
+        app_commands.Choice(name="Abandoned Military Outpost", value="outpost"),
+        app_commands.Choice(name="Dark Tactical Woods", value="woods"),
+        app_commands.Choice(name="Ancient War Ruins", value="ruins"),
+        app_commands.Choice(name="Sunken Armory Wreck", value="wreck")
     ])
     async def scavenge(self, interaction: discord.Interaction, location: str):
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
@@ -673,7 +673,7 @@ class EconomyCog(commands.Cog):
         COOLDOWN = 2700  # 45 minutes
         if now - last < COOLDOWN:
             rem = int(COOLDOWN - (now - last))
-            return await interaction.response.send_message(f"⏳ Your squad is exhausted. Wait **{rem//60}m {rem%60}s** before searching again!", ephemeral=True)
+            return await interaction.response.send_message(f"Your squad is resting. Wait **{rem//60}m {rem%60}s** before searching again.", ephemeral=True)
 
         await self.bot.db.set_last_scavenge(interaction.user.id, interaction.guild_id, now)
         roll = random.random()
@@ -690,29 +690,29 @@ class EconomyCog(commands.Cog):
             loot = 1000
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, loot)
             embed = discord.Embed(
-                title="🌟 JACKPOT! 🌟",
-                description=f"While exploring {loc}, you found a hidden supply crate!\nYou opened it and found **{loot:,} Medals**! 🏆",
+                title="Jackpot!",
+                description=f"While exploring {loc}, you found a hidden supply crate!\nYou opened it and found **{loot:,} Medals**!",
                 color=0xF1C40F
             )
         elif roll < 0.45:
             loot = random.randint(250, 500)
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, loot)
             embed = discord.Embed(
-                title="📦 Heavy Supply Cache Found",
-                description=f"You searched {loc} and recovered a locked supply crate containing **{loot:,} Medals**!",
+                title="Heavy Supply Cache Found",
+                description=f"You searched {loc} and recovered a locked supply crate containing **{loot:,} Medals**.",
                 color=0x3498DB
             )
         elif roll < 0.85:
             loot = random.randint(50, 180)
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, loot)
             embed = discord.Embed(
-                title="🔍 Battlefield Scraps Salvaged",
+                title="Battlefield Scraps Salvaged",
                 description=f"You combed through {loc} and salvaged leftover ammunition and equipment worth **{loot:,} Medals**.",
                 color=0x95A5A6
             )
         else:
             embed = discord.Embed(
-                title="⚠️ Hostile Ambush!",
+                title="Hostile Ambush",
                 description=f"Enemy scouts spotted your squad in {loc}! You were forced to retreat empty-handed before extracting any loot.",
                 color=0xE67E22
             )
@@ -726,7 +726,7 @@ class EconomyCog(commands.Cog):
         COOLDOWN = 1800  # 30 minutes
         if now - last < COOLDOWN:
             rem = int(COOLDOWN - (now - last))
-            return await interaction.response.send_message(f"⏳ Next quiz available in **{rem//60}m {rem%60}s**!", ephemeral=True)
+            return await interaction.response.send_message(f"Next quiz available in **{rem//60}m {rem%60}s**.", ephemeral=True)
 
         await self.bot.db.set_last_trivia(interaction.user.id, interaction.guild_id, now)
 
@@ -734,13 +734,13 @@ class EconomyCog(commands.Cog):
         reward = random.randint(120, 250)
 
         embed = discord.Embed(
-            title="🎖️ Tactical Combat Quiz",
+            title="Tactical Combat Quiz",
             description=f"**{q_data['q']}**\n\n" +
                         f"**A)** {q_data['options'][0]}\n" +
                         f"**B)** {q_data['options'][1]}\n" +
                         f"**C)** {q_data['options'][2]}\n" +
                         f"**D)** {q_data['options'][3]}\n\n" +
-                        f"💰 **Reward:** {reward} Medals | ⏱️ *You have 25 seconds to choose!*",
+                        f"**Reward:** {reward} Medals | *You have 25 seconds to choose!*",
             color=0x9B59B6
         )
         view = TriviaView(interaction.user, q_data["answer"], reward, self.bot)
@@ -761,27 +761,27 @@ class EconomyCog(commands.Cog):
         
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -amount)
         await self.bot.db.add_medals(recipient.id, interaction.guild_id, final_amount)
-        await interaction.response.send_message(f"💸 You transferred **{amount:,} Medals** to {recipient.mention}.\nAfter a 30% tax (**-{tax:,}**), they received **{final_amount:,} Medals**.")
+        await interaction.response.send_message(f"You transferred **{amount:,} Medals** to {recipient.mention}.\nAfter a 30% tax (**-{tax:,}**), they received **{final_amount:,} Medals**.")
 
     @app_commands.command(name="roleshop", description="View the cosmetic roles available for purchase.")
     async def roleshop(self, interaction: discord.Interaction):
         if getattr(self.bot, "is_partner", False):
             return await interaction.response.send_message("❌ `/roleshop` is not available on this bot.", ephemeral=True)
-        embed = discord.Embed(title="👗 Cosmetic Role Shop", description="Buy these roles using `/buyrole <role_id>`!", color=0x9B59B6)
+        embed = discord.Embed(title="Cosmetic Role Shop", description="Buy these roles using `/buyrole <role_id>`!", color=0x9B59B6)
         roles_text = []
         for role_id, details in ROLES_SHOP.items():
-            roles_text.append(f"**{details['name']}** — 🏅 {details['price']}\nID: `{role_id}`")
+            roles_text.append(f"**{details['name']}** — {details['price']:,} Medals\nID: `{role_id}`")
         embed.add_field(name="Available Roles", value="\n\n".join(roles_text), inline=False)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="buyrole", description="Purchase or equip a cosmetic role from the role shop.")
     @app_commands.choices(role_id=[
-        app_commands.Choice(name="💰 Wealthy (5,000)", value="role_wealthy"),
-        app_commands.Choice(name="💸 Rich (10,000)", value="role_rich"),
-        app_commands.Choice(name="📈 High Roller (15,000)", value="role_investor"),
-        app_commands.Choice(name="💎 Millionaire (25,000)", value="role_millionaire"),
-        app_commands.Choice(name="👑 Billionaire (50,000)", value="role_billionaire"),
-        app_commands.Choice(name="👻 Phantom Regiment Elite (100,000)", value="role_phantom")
+        app_commands.Choice(name="Wealthy (5,000 Medals)", value="role_wealthy"),
+        app_commands.Choice(name="Rich (10,000 Medals)", value="role_rich"),
+        app_commands.Choice(name="High Roller (15,000 Medals)", value="role_investor"),
+        app_commands.Choice(name="Millionaire (25,000 Medals)", value="role_millionaire"),
+        app_commands.Choice(name="Billionaire (50,000 Medals)", value="role_billionaire"),
+        app_commands.Choice(name="Phantom Regiment Elite (100,000 Medals)", value="role_phantom")
     ])
     async def buyrole(self, interaction: discord.Interaction, role_id: str):
         if getattr(self.bot, "is_partner", False):
@@ -832,7 +832,7 @@ class EconomyCog(commands.Cog):
         try:
             await interaction.user.add_roles(role, reason="Purchased from Role Shop")
             if not owned:
-                await interaction.response.send_message(f"🎉 You successfully purchased and equipped the **{role_info['name']}** role!")
+                await interaction.response.send_message(f"You successfully purchased and equipped the **{role_info['name']}** role!")
             else:
                 await interaction.response.send_message(f"✅ The deleted role was recreated and equipped since you already own it!")
         except discord.Forbidden:
@@ -844,14 +844,14 @@ class EconomyCog(commands.Cog):
         if not top_users:
             return await interaction.response.send_message("No data found for the leaderboard.")
             
-        embed = discord.Embed(title="🏆 Medal Leaderboard", color=discord.Colour.gold())
+        embed = discord.Embed(title="Medal Leaderboard", color=discord.Colour.gold())
         desc = []
         for i, user_data in enumerate(top_users, 1):
             user_id = user_data["user_id"]
             medals = user_data["medals"]
             user = interaction.guild.get_member(user_id)
             name = user.display_name if user else f"Unknown User ({user_id})"
-            desc.append(f"**{i}.** {name} - **{medals:,} Medals** 🏅")
+            desc.append(f"**{i}.** {name} — **{medals:,} Medals**")
             
         embed.description = "\n".join(desc)
         await interaction.response.send_message(embed=embed)
@@ -862,7 +862,7 @@ class EconomyCog(commands.Cog):
         if not top_users:
             return await interaction.response.send_message("No data found for the global leaderboard.")
             
-        embed = discord.Embed(title="🌐 Global Medal Leaderboard", color=0x3498DB)
+        embed = discord.Embed(title="Global Medal Leaderboard", color=0x3498DB)
         desc = []
         for i, user_data in enumerate(top_users, 1):
             user_id = user_data["user_id"]
@@ -874,7 +874,7 @@ class EconomyCog(commands.Cog):
                 except:
                     user = None
             name = user.display_name if user else f"User {user_id}"
-            desc.append(f"**{i}.** {name} — **{medals:,} Medals** 🏅")
+            desc.append(f"**{i}.** {name} — **{medals:,} Medals**")
             
         embed.description = "\n".join(desc)
         await interaction.response.send_message(embed=embed)
@@ -904,7 +904,7 @@ class EconomyCog(commands.Cog):
             allied = [{"id": g.id, "name": g.name, "member_count": g.member_count, "bot_type": "Phantom Regiment"} for g in self.bot.guilds]
 
         embed = discord.Embed(
-            title="🏰 Servers Using This Bot",
+            title="Servers Using This Bot",
             description=f"**Made by Phantom Regiment**\n\nThis bot is currently in **{len(allied)} server(s)**:\n\n",
             color=0x3498DB
         )
@@ -912,7 +912,7 @@ class EconomyCog(commands.Cog):
         lines = []
         for i, g in enumerate(allied, 1):
             count = f"({g['member_count']:,} members)" if g.get("member_count") else ""
-            lines.append(f"**{i}.** 🏰 **{g['name']}** {count}")
+            lines.append(f"**{i}.** **{g['name']}** {count}")
 
         embed.description += "\n".join(lines)
         embed.set_footer(text="Made By Phantom Regiment")
@@ -930,14 +930,14 @@ class EconomyCog(commands.Cog):
         inventory = await self.bot.db.get_inventory(interaction.user.id, interaction.guild_id)
 
         embed = discord.Embed(
-            title="🔄 Cross-Server Data",
+            title="Cross-Server Data",
             description=(
-                f"✅ **Your medals carry over between servers!**\n\n"
+                f"**Your medals carry over between servers!**\n\n"
                 f"Your balance and items work in both **Phantom Regiment** and **Collation of Rose**:\n\n"
-                f"• 👛 **Wallet:** **{medals:,} Medals**\n"
-                f"• 🏦 **Bank Vault:** **{bank_bal:,} Medals** (Tier {bank_tier})\n"
-                f"• 🎒 **Items Owned:** **{len(inventory)}**\n"
-                f"• 🔥 **Daily Streak:** **{streak} Days**\n\n"
+                f"• **Wallet:** **{medals:,} Medals**\n"
+                f"• **Bank Vault:** **{bank_bal:,} Medals** (Tier {bank_tier})\n"
+                f"• **Items Owned:** **{len(inventory)}**\n"
+                f"• **Daily Streak:** **{streak} Days**\n\n"
                 f"*Earn medals in either server and spend them anywhere!*"
             ),
             color=0x2ECC71
@@ -948,7 +948,7 @@ class EconomyCog(commands.Cog):
     @app_commands.command(name="balance", description="Check how many Medals you have.")
     async def balance(self, interaction: discord.Interaction):
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
-        await interaction.response.send_message(f"🏅 You currently have **{data.get('medals', 0)} Medals**.")
+        await interaction.response.send_message(f"You currently have **{data.get('medals', 0):,} Medals**.")
 
     @app_commands.command(name="coinflip", description="Gamble your Medals against the bot!")
     async def coinflip(self, interaction: discord.Interaction, bet: int):
@@ -957,10 +957,10 @@ class EconomyCog(commands.Cog):
         if data.get("medals", 0) < bet: return await interaction.response.send_message("❌ Not enough Medals!", ephemeral=True)
         if random.choice([True, False]):
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, bet)
-            await interaction.response.send_message(f"🎉 **Heads**! Won **{bet} Medals**!")
+            await interaction.response.send_message(f"**Heads**! Won **{bet} Medals**!")
         else:
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -bet)
-            await interaction.response.send_message(f"💀 **Tails**... Lost **{bet} Medals**.")
+            await interaction.response.send_message(f"**Tails**... Lost **{bet} Medals**.")
 
     @app_commands.command(name="rps", description="Rock Paper Scissors for Medals!")
     async def rps(self, interaction: discord.Interaction, opponent: discord.Member, bet: int):
@@ -971,18 +971,18 @@ class EconomyCog(commands.Cog):
         if d1.get("medals", 0) < bet or d2.get("medals", 0) < bet:
             return await interaction.response.send_message("❌ Someone doesn't have enough Medals!", ephemeral=True)
             
-        embed = discord.Embed(title="✊🤚✌️ RPS Challenge", description=f"**{interaction.user.mention}** challenged **{opponent.mention}** for **{bet} Medals**!\nClick below to lock in secretly!", color=discord.Colour.blue())
+        embed = discord.Embed(title="Rock Paper Scissors Challenge", description=f"**{interaction.user.mention}** challenged **{opponent.mention}** for **{bet} Medals**!\nClick below to lock in secretly!", color=discord.Colour.blue())
         await interaction.response.send_message(content=opponent.mention, embed=embed, view=RpsView(interaction.user, opponent, bet, self.bot))
 
     @app_commands.command(name="shop", description="View the Armory and Banner Shop")
     async def shop(self, interaction: discord.Interaction):
         shop_title = "Collation of Rose" if getattr(self.bot, "is_partner", False) else "Phantom Regiment"
-        embed = discord.Embed(title=f"🛒 {shop_title} Shop", description="Buy items using `/buy <id>`!", color=0x2ECC71)
-        for cat_name, type_id in [("🎨 Banners", "banner"), ("⚔️ Weapons", "weapon"), ("🎒 Utility", "utility")]:
+        embed = discord.Embed(title=f"{shop_title} Shop", description="Buy items using `/buy <id>`!", color=0x2ECC71)
+        for cat_name, type_id in [("Banners", "banner"), ("Weapons", "weapon"), ("Utility", "utility")]:
             items = []
             for item_id, details in SHOP_ITEMS.items():
                 if details["type"] == type_id:
-                    items.append(f"**{details['name']}** — 🏅 {details['price']}\nID: `{item_id}`\n*{details['desc']}*")
+                    items.append(f"**{details['name']}** — {details['price']:,} Medals\nID: `{item_id}`\n*{details['desc']}*")
             if items:
                 embed.add_field(name=cat_name, value="\n\n".join(items), inline=False)
         embed.set_footer(text="Made By Phantom Regiment")
@@ -1029,7 +1029,7 @@ class EconomyCog(commands.Cog):
         if u2_medals < bet:
             return await interaction.response.send_message(f"❌ {opponent.display_name} doesn't have enough medals to match the bet of {bet:,}.", ephemeral=True)
             
-        embed = discord.Embed(title="⚔️ ARENA CHALLENGE", description=f"{interaction.user.mention} has challenged {opponent.mention} to a deathmatch!\n**Wager:** 🏅 {bet:,} Medals\n\nBoth players: Click your button below to equip your Weapon and Utilities from your inventory!", color=0xE74C3C)
+        embed = discord.Embed(title="Arena Challenge", description=f"{interaction.user.mention} has challenged {opponent.mention} to a battle!\n**Wager:** {bet:,} Medals\n\nBoth players: Click your button below to equip your Weapon and Utilities from your inventory!", color=0xE74C3C)
         await interaction.response.send_message(content=opponent.mention, embed=embed, view=ChallengeView(interaction.user, opponent, self.bot, bet))
 
     @app_commands.command(name="blackjack", description="Play Blackjack against the dealer!")
@@ -1049,7 +1049,7 @@ class EconomyCog(commands.Cog):
         view = BlackjackView(self.bot, interaction.user, bet, player_hand, dealer_hand, deck)
         
         p_val = calculate_hand(player_hand)
-        embed = discord.Embed(title="🃏 Blackjack", color=0x3498DB)
+        embed = discord.Embed(title="Blackjack", color=0x3498DB)
         embed.add_field(name=f"Your Hand ({p_val})", value=format_hand(player_hand), inline=False)
         embed.add_field(name="Dealer's Hand", value=f"{dealer_hand[0][0]} 🂠", inline=False)
         
@@ -1065,13 +1065,13 @@ class EconomyCog(commands.Cog):
 
     @app_commands.command(name="roulette", description="Bet your Medals on Roulette!")
     @app_commands.choices(bet_type=[
-        app_commands.Choice(name="🔴 Red (2x)", value="red"),
-        app_commands.Choice(name="⚫ Black (2x)", value="black"),
-        app_commands.Choice(name="🟢 Green (36x)", value="green"),
-        app_commands.Choice(name="🔢 Even (2x)", value="even"),
-        app_commands.Choice(name="🔢 Odd (2x)", value="odd"),
-        app_commands.Choice(name="⬆️ High 19-36 (2x)", value="high"),
-        app_commands.Choice(name="⬇️ Low 1-18 (2x)", value="low")
+        app_commands.Choice(name="Red (2x)", value="red"),
+        app_commands.Choice(name="Black (2x)", value="black"),
+        app_commands.Choice(name="Green (36x)", value="green"),
+        app_commands.Choice(name="Even (2x)", value="even"),
+        app_commands.Choice(name="Odd (2x)", value="odd"),
+        app_commands.Choice(name="High 19-36 (2x)", value="high"),
+        app_commands.Choice(name="Low 1-18 (2x)", value="low")
     ])
     async def roulette(self, interaction: discord.Interaction, bet: int, bet_type: str):
         if bet <= 0 or bet > 50000: return await interaction.response.send_message("❌ Bet must be between 1 and 50,000 Medals!", ephemeral=True)
@@ -1100,16 +1100,16 @@ class EconomyCog(commands.Cog):
         elif bet_type == "high" and is_high: won = True
         elif bet_type == "low" and is_low: won = True
         
-        color_emoji = "🟢" if is_green else ("🔴" if is_red else "⚫")
+        color_name = "Green" if is_green else ("Red" if is_red else "Black")
         
         if won:
             winnings = bet * multiplier
             profit = winnings - bet
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, profit)
-            await interaction.response.send_message(f"🎰 The wheel landed on {color_emoji} **{result}**!\n🎉 You won **{winnings:,} Medals**!")
+            await interaction.response.send_message(f"The wheel landed on **{color_name} {result}**!\nYou won **{winnings:,} Medals**!")
         else:
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -bet)
-            await interaction.response.send_message(f"🎰 The wheel landed on {color_emoji} **{result}**...\n💀 You lost **{bet:,} Medals**.")
+            await interaction.response.send_message(f"The wheel landed on **{color_name} {result}**...\nYou lost **{bet:,} Medals**.")
 
 
     @app_commands.command(name="givemedals", description="Give Medals to a user (PR High Command Only)")
@@ -1134,13 +1134,13 @@ class EconomyCog(commands.Cog):
     async def guide(self, interaction: discord.Interaction):
         header_title = "Collation of Rose" if getattr(self.bot, "is_partner", False) else "Phantom Regiment"
         embed = discord.Embed(
-            title=f"📖 {header_title} — Economy & Medal Guide",
+            title=f"{header_title} — Economy & Medal Guide",
             description="**Made by Phantom Regiment**\n\nWelcome to the official economy guide! Here is everything you need to know about earning, storing, upgrading vaults, robbing, and protection.",
             color=0x3498DB
         )
         
         embed.add_field(
-            name="💰 Earning Medals",
+            name="Earning Medals",
             value=(
                 "• **`/trivia`** *(30m)* — Answer tactical combat questions for **120 – 250** medals.\n"
                 "• **`/scavenge`** *(45m)* — Scour warzones for loot (**50 – 500** medals, 10% chance for **1,000** jackpot!)\n"
@@ -1154,7 +1154,7 @@ class EconomyCog(commands.Cog):
         )
         
         embed.add_field(
-            name="🏦 Banking & Vault Tiers",
+            name="Banking & Vault Tiers",
             value=(
                 "• **Shared Medals:** Your wallet medals, bank vault, inventory, and streaks carry over between **Phantom Regiment** and **Collation of Rose**! Use `/datatransfer` to check your medals.\n"
                 "• **`/bank create`** — Open a bank vault for 500 medals. **Requires setting a password!**\n"
@@ -1168,11 +1168,11 @@ class EconomyCog(commands.Cog):
         )
         
         embed.add_field(
-            name="🦹 Bank Robberies (`/rob` & `/bank rob`)",
+            name="Bank Robberies (/rob)",
             value=(
                 "• **`/rob <user> <password>`** — Try to rob someone's bank vault using their password!\n"
                 "• **Successful Rob:** Crack the password and steal their medals into your wallet!\n"
-                "• **🛡️ Bank Insurance:** If someone robs your vault, you immediately get **30%** back into your bank, and the rest (**70%**) is paid back over **7 days** (**10% each day**)!\n"
+                "• **Bank Insurance:** If someone robs your vault, you immediately get **30%** back into your bank, and the rest (**70%**) is paid back over **7 days** (**10% each day**)!\n"
                 "• **Wrong Password:** Gives you a 30-minute cooldown and reveals a password hint in **`XXXHINTXX`** format to help you guess next time!\n"
                 "• **Alerts:** You get a DM whenever someone tries to guess your bank password."
             ),
@@ -1180,18 +1180,18 @@ class EconomyCog(commands.Cog):
         )
         
         embed.add_field(
-            name="💳 Loans",
+            name="Loans",
             value=(
                 "• **`/bank loan`** — Borrow up to 5,000 medals from the bank (1 to 30 days).\n"
                 "• **`/loan offer <user> <amount> <interest> <days>`** — Offer loans to other players.\n"
                 "• **`/loan accept <id>` / `reject <id>`** — Accept or decline loan offers (expires in 24h).\n"
-                "• ⚠️ **Late Fee:** If you don't pay back a loan on time, a **20% late fee** is added and any medals you earn will go toward paying it off!"
+                "• **Late Fee:** If you don't pay back a loan on time, a **20% late fee** is added and any medals you earn will go toward paying it off!"
             ),
             inline=False
         )
         
         embed.add_field(
-            name="🎰 Casino, PvP Battles & Leaderboards",
+            name="Casino, Battles & Leaderboards",
             value=(
                 "• **`/blackjack <bet>`** — Play Blackjack against the dealer (1.5x on 21).\n"
                 "• **`/roulette <bet> <type>`** — Bet on Red, Black, Even, Odd, High, Low, or Green (**36x** payout!).\n"
@@ -1205,7 +1205,7 @@ class EconomyCog(commands.Cog):
         
         if not getattr(self.bot, "is_partner", False):
             embed.add_field(
-                name="🛍️ Role Shop",
+                name="Role Shop",
                 value=(
                     "• **`/roleshop`** / **`/buyrole`** — Buy prestigious colored cosmetic roles (from Wealthy up to Phantom Regiment Elite) to showcase your wealth and status!"
                 ),
