@@ -232,12 +232,33 @@ class Database:
             except aiosqlite.OperationalError:
                 pass  # Column already exists
 
-        # Migrate existing users economy data into global_economy safely
+        # Migrate existing users economy data into global_economy — always take the higher value
         await self._db.execute("""
-            INSERT OR IGNORE INTO global_economy (user_id, medals, last_daily, last_work, last_weekly, last_crime, last_scavenge, last_trivia, active_banner)
+            INSERT INTO global_economy (user_id, medals, last_daily, last_work, last_weekly, last_crime, last_scavenge, last_trivia, active_banner)
             SELECT user_id, MAX(medals), MAX(last_daily), MAX(last_work), MAX(last_weekly), MAX(last_crime), MAX(last_scavenge), MAX(last_trivia), active_banner
             FROM users
             GROUP BY user_id
+            ON CONFLICT(user_id) DO UPDATE SET
+                medals = MAX(global_economy.medals, excluded.medals),
+                last_daily = MAX(global_economy.last_daily, excluded.last_daily),
+                last_work = MAX(global_economy.last_work, excluded.last_work),
+                last_weekly = MAX(global_economy.last_weekly, excluded.last_weekly),
+                last_crime = MAX(global_economy.last_crime, excluded.last_crime),
+                last_scavenge = MAX(global_economy.last_scavenge, excluded.last_scavenge),
+                last_trivia = MAX(global_economy.last_trivia, excluded.last_trivia)
+        """)
+
+        # Sync all per-guild users rows to match the global_economy medal count
+        # This ensures every server sees the same balance immediately
+        await self._db.execute("""
+            UPDATE users SET
+                medals = COALESCE((SELECT medals FROM global_economy WHERE global_economy.user_id = users.user_id), users.medals),
+                last_daily = COALESCE((SELECT last_daily FROM global_economy WHERE global_economy.user_id = users.user_id), users.last_daily),
+                last_work = COALESCE((SELECT last_work FROM global_economy WHERE global_economy.user_id = users.user_id), users.last_work),
+                last_weekly = COALESCE((SELECT last_weekly FROM global_economy WHERE global_economy.user_id = users.user_id), users.last_weekly),
+                last_crime = COALESCE((SELECT last_crime FROM global_economy WHERE global_economy.user_id = users.user_id), users.last_crime),
+                last_scavenge = COALESCE((SELECT last_scavenge FROM global_economy WHERE global_economy.user_id = users.user_id), users.last_scavenge),
+                last_trivia = COALESCE((SELECT last_trivia FROM global_economy WHERE global_economy.user_id = users.user_id), users.last_trivia)
         """)
 
         # Pre-seed Phantom Regiment guild into allied_guilds if not present
@@ -258,7 +279,27 @@ class Database:
             row = await cur.fetchone()
             if row:
                 return dict(row)
-        await self._db.execute("INSERT OR IGNORE INTO global_economy (user_id, medals) VALUES (?, 0)", (user_id,))
+        # Row doesn't exist yet — seed it from the highest values across all guilds in users table
+        async with self._db.execute(
+            "SELECT MAX(medals) as medals, MAX(last_daily) as last_daily, MAX(last_work) as last_work, "
+            "MAX(last_weekly) as last_weekly, MAX(last_crime) as last_crime, MAX(last_scavenge) as last_scavenge, "
+            "MAX(last_trivia) as last_trivia, active_banner FROM users WHERE user_id = ?",
+            (user_id,)
+        ) as cur:
+            seed = await cur.fetchone()
+        seed_medals = (seed[0] or 0) if seed else 0
+        seed_daily = (seed[1] or 0) if seed else 0
+        seed_work = (seed[2] or 0) if seed else 0
+        seed_weekly = (seed[3] or 0) if seed else 0
+        seed_crime = (seed[4] or 0) if seed else 0
+        seed_scavenge = (seed[5] or 0) if seed else 0
+        seed_trivia = (seed[6] or 0) if seed else 0
+        seed_banner = seed[7] if seed else None
+        await self._db.execute(
+            "INSERT OR IGNORE INTO global_economy (user_id, medals, last_daily, last_work, last_weekly, last_crime, last_scavenge, last_trivia, active_banner) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, seed_medals, seed_daily, seed_work, seed_weekly, seed_crime, seed_scavenge, seed_trivia, seed_banner)
+        )
         await self._db.commit()
         async with self._db.execute("SELECT * FROM global_economy WHERE user_id = ?", (user_id,)) as cur:
             row = await cur.fetchone()
