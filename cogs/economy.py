@@ -654,7 +654,7 @@ class EconomyCog(commands.Cog):
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -penalty)
             embed = discord.Embed(
                 title="🚨 BUSTED BY GUARDS!",
-                description=f"Your **{op['name']}** was compromised!\nYou were apprehended and fined **{penalty:,} Medals**! 🚔",
+                description=f"Your **{op['name']}** went wrong!\nYou got caught and fined **{penalty:,} Medals**! 🚔",
                 color=0xE74C3C
             )
         await interaction.response.send_message(embed=embed)
@@ -690,8 +690,8 @@ class EconomyCog(commands.Cog):
             loot = 1000
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, loot)
             embed = discord.Embed(
-                title="🌟 JACKPOT DISCOVERY! 🌟",
-                description=f"While scouring {loc}, you breached a pristine military emergency vault!\nYou extracted a golden bullion worth **{loot:,} Medals**! 🏆",
+                title="🌟 JACKPOT! 🌟",
+                description=f"While exploring {loc}, you found a hidden supply crate!\nYou opened it and found **{loot:,} Medals**! 🏆",
                 color=0xF1C40F
             )
         elif roll < 0.45:
@@ -862,7 +862,7 @@ class EconomyCog(commands.Cog):
         if not top_users:
             return await interaction.response.send_message("No data found for the global leaderboard.")
             
-        embed = discord.Embed(title="🌐 Global Alliance Medal Leaderboard", color=0x3498DB)
+        embed = discord.Embed(title="🌐 Global Medal Leaderboard", color=0x3498DB)
         desc = []
         for i, user_data in enumerate(top_users, 1):
             user_id = user_data["user_id"]
@@ -879,7 +879,7 @@ class EconomyCog(commands.Cog):
         embed.description = "\n".join(desc)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="guilds", description="View all connected Alliance servers.")
+    @app_commands.command(name="guilds", description="See all servers where this bot is being used")
     async def guilds(self, interaction: discord.Interaction):
         # Dynamically ensure all live guilds from this bot and linked bot are registered
         if hasattr(self.bot, "guilds"):
@@ -904,22 +904,21 @@ class EconomyCog(commands.Cog):
             allied = [{"id": g.id, "name": g.name, "member_count": g.member_count, "bot_type": "Phantom Regiment"} for g in self.bot.guilds]
 
         embed = discord.Embed(
-            title="🌐 Connected Alliance Servers",
-            description=f"**Made by Phantom Regiment**\n\nThe Alliance Bot Network is active in **{len(allied)} server(s)**:\n\n",
+            title="🏰 Servers Using This Bot",
+            description=f"**Made by Phantom Regiment**\n\nThis bot is currently in **{len(allied)} server(s)**:\n\n",
             color=0x3498DB
         )
 
         lines = []
         for i, g in enumerate(allied, 1):
             count = f"({g['member_count']:,} members)" if g.get("member_count") else ""
-            tag = f"• *{g['bot_type']}*" if g.get("bot_type") else ""
-            lines.append(f"**{i}.** 🏰 **{g['name']}** {count} {tag}")
+            lines.append(f"**{i}.** 🏰 **{g['name']}** {count}")
 
         embed.description += "\n".join(lines)
         embed.set_footer(text="Made By Phantom Regiment")
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="datatransfer", description="Verify your cross-server Alliance account data synchronization.")
+    @app_commands.command(name="datatransfer", description="Check your medals and inventory across servers")
     async def datatransfer(self, interaction: discord.Interaction):
         user_data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
         medals = user_data.get("medals", 0) if user_data else 0
@@ -931,15 +930,15 @@ class EconomyCog(commands.Cog):
         inventory = await self.bot.db.get_inventory(interaction.user.id, interaction.guild_id)
 
         embed = discord.Embed(
-            title="🔄 Alliance Cross-Server Data Synchronization",
+            title="🔄 Cross-Server Data",
             description=(
-                f"✅ **Account Fully Synchronized!**\n\n"
-                f"Your economy profile is globally linked across all Alliance servers (**Phantom Regiment** & **Collation of Rose**):\n\n"
-                f"• 🏅 **Global Wallet:** **{medals:,} Medals**\n"
-                f"• 🏦 **Alliance Bank Vault:** **{bank_bal:,} Medals** (Tier {bank_tier})\n"
-                f"• 🎒 **Synced Inventory:** **{len(inventory)} Item(s)**\n"
-                f"• 🔥 **Daily Streak:** **{streak} Day(s)**\n\n"
-                f"🛡️ *Any medals, bank interest, or items earned in either server are automatically shared across all connected Alliance servers!*"
+                f"✅ **Your medals carry over between servers!**\n\n"
+                f"Your balance and items work in both **Phantom Regiment** and **Collation of Rose**:\n\n"
+                f"• 👛 **Wallet:** **{medals:,} Medals**\n"
+                f"• 🏦 **Bank Vault:** **{bank_bal:,} Medals** (Tier {bank_tier})\n"
+                f"• 🎒 **Items Owned:** **{len(inventory)}**\n"
+                f"• 🔥 **Daily Streak:** **{streak} Days**\n\n"
+                f"*Earn medals in either server and spend them anywhere!*"
             ),
             color=0x2ECC71
         )
@@ -1155,15 +1154,15 @@ class EconomyCog(commands.Cog):
         )
         
         embed.add_field(
-            name="🏦 Banking, Vault Tiers & Cross-Server Sync",
+            name="🏦 Banking & Vault Tiers",
             value=(
-                "• **🌐 Alliance Cross-Server Sync:** Your wallet, bank vault, inventory, and streaks are 100% shared across all Alliance servers (**Phantom Regiment** & **Collation of Rose**)! Run `/datatransfer` to verify your live sync status.\n"
-                "• **`/bank create`** — Open a bank vault for 500 medals. **Requires setting a secure password!**\n"
+                "• **Shared Medals:** Your wallet medals, bank vault, inventory, and streaks carry over between **Phantom Regiment** and **Collation of Rose**! Use `/datatransfer` to check your medals.\n"
+                "• **`/bank create`** — Open a bank vault for 500 medals. **Requires setting a password!**\n"
                 "• **`/bank deposit` / `/bank withdraw`** — Safely store medals away from wallet loss.\n"
                 "• **`/bank upgrade` / `/updatebank`** — Upgrade your vault across **10 Tiers** to increase your daily interest cap!\n"
-                "• **2.5% Daily Interest** — Vaults generate 2.5% daily yield, scaling from **1,000 Medals/day** (Tier 1) up to **1,000,000 Medals/day** (Tier 10)!\n"
+                "• **2.5% Daily Interest** — Vaults earn 2.5% daily interest, from **1,000 Medals/day** (Tier 1) up to **1,000,000 Medals/day** (Tier 10)!\n"
                 "• **`/bank balance`** — Check your wallet, vault balance, current tier, and daily interest cap.\n"
-                "• **`/bank changepassword`** — Update your vault password anytime to stay secure."
+                "• **`/bank changepassword`** — Change your vault password anytime to stay safe."
             ),
             inline=False
         )
@@ -1171,22 +1170,22 @@ class EconomyCog(commands.Cog):
         embed.add_field(
             name="🦹 Bank Robberies (`/rob` & `/bank rob`)",
             value=(
-                "• **`/rob <user> <password>`** — Attempt to breach a player's vault using their password!\n"
-                "• **Heist Success:** Breach the vault and loot their medals into your wallet!\n"
-                "• **🛡️ Bank Insurance Protection:** The Central Bank protects victims! You immediately get **30%** of your medals restored to your vault, and the remaining **70%** is paid back over **7 days** (**10% each day**)!\n"
-                "• **Breach Failure:** Triggers the alarm (30m lockdown) and intercepts a password clue in **`XXXHINTXX`** format with partial words/letters to help you deduce it next time!\n"
-                "• **Defense Alert:** Victims receive an alert when someone tries to guess their password."
+                "• **`/rob <user> <password>`** — Try to rob someone's bank vault using their password!\n"
+                "• **Successful Rob:** Crack the password and steal their medals into your wallet!\n"
+                "• **🛡️ Bank Insurance:** If someone robs your vault, you immediately get **30%** back into your bank, and the rest (**70%**) is paid back over **7 days** (**10% each day**)!\n"
+                "• **Wrong Password:** Gives you a 30-minute cooldown and reveals a password hint in **`XXXHINTXX`** format to help you guess next time!\n"
+                "• **Alerts:** You get a DM whenever someone tries to guess your bank password."
             ),
             inline=False
         )
         
         embed.add_field(
-            name="💳 Loans & Debt Enforcement",
+            name="💳 Loans",
             value=(
                 "• **`/bank loan`** — Borrow up to 5,000 medals from the bank (1 to 30 days).\n"
-                "• **`/loan offer <user> <amount> <interest> <days>`** — Offer peer-to-peer player loans.\n"
-                "• **`/loan accept <id>` / `reject <id>`** — Accept or reject incoming loan offers (expires in 24h).\n"
-                "• ⚠️ **Debt Warning:** Expired loans incur a **20% late fee**, and **ALL your future earnings are automatically seized** until repaid!"
+                "• **`/loan offer <user> <amount> <interest> <days>`** — Offer loans to other players.\n"
+                "• **`/loan accept <id>` / `reject <id>`** — Accept or decline loan offers (expires in 24h).\n"
+                "• ⚠️ **Late Fee:** If you don't pay back a loan on time, a **20% late fee** is added and any medals you earn will go toward paying it off!"
             ),
             inline=False
         )
@@ -1194,12 +1193,12 @@ class EconomyCog(commands.Cog):
         embed.add_field(
             name="🎰 Casino, PvP Battles & Leaderboards",
             value=(
-                "• **`/blackjack <bet>`** — Interactive Blackjack against the dealer (1.5x on 21).\n"
+                "• **`/blackjack <bet>`** — Play Blackjack against the dealer (1.5x on 21).\n"
                 "• **`/roulette <bet> <type>`** — Bet on Red, Black, Even, Odd, High, Low, or Green (**36x** payout!).\n"
-                "• **`/fight <user> <bet>`** — Wager medals in a 1v1 turn-based arena battle.\n"
+                "• **`/fight <user> <bet>`** — Challenge someone to a 1v1 turn-based battle.\n"
                 "• **`/medalleaderboard`** — Top 10 richest players in this server.\n"
-                "• **`/globallb`** — Top players across all connected servers!\n"
-                "• **`/guilds`** — View all servers currently connected to this bot!"
+                "• **`/globallb`** — Top players across all servers using this bot!\n"
+                "• **`/guilds`** — See all servers using this bot!"
             ),
             inline=False
         )

@@ -42,7 +42,7 @@ class BankingCog(commands.Cog):
             await self.bot.db._db.execute("UPDATE bank_loans SET total_owed = total_owed + ?, late_fee_applied = 1 WHERE id = ?", (fee, loan_id))
             try:
                 user = await self.bot.fetch_user(user_id)
-                await user.send(f"⚠️ **Bank Loan Overdue!** Your bank loan has expired. A 20% late fee (**{fee:,} medals**) has been added to your debt. Until this is paid, all medals you earn will be automatically seized by the bank.")
+                await user.send(f"⚠️ **Bank Loan Overdue!** Your loan wasn't paid back on time. A 20% late fee (**{fee:,} medals**) was added to what you owe. Any medals you earn will go toward paying it off.")
             except: pass
             
         # 2. Player loans
@@ -54,7 +54,7 @@ class BankingCog(commands.Cog):
             await self.bot.db._db.execute("UPDATE player_loans SET total_owed = total_owed + ?, late_fee_applied = 1 WHERE id = ?", (fee, loan_id))
             try:
                 user = await self.bot.fetch_user(borrower_id)
-                await user.send(f"⚠️ **Player Loan Overdue!** Your player loan #{loan_id} has expired. A 20% late fee (**{fee:,} medals**) has been added. Until this is paid, all medals you earn will be automatically seized and sent to the lender.")
+                await user.send(f"⚠️ **Player Loan Overdue!** Your loan #{loan_id} wasn't paid back on time. A 20% late fee (**{fee:,} medals**) was added. Any medals you earn will go toward paying the lender back.")
             except: pass
             
         # 3. Bank Interest (2.5% daily, capped based on vault tier up to 1M)
@@ -107,9 +107,9 @@ class BankingCog(commands.Cog):
                 ins_user = await self.bot.fetch_user(ins_uid)
                 day_num = 7 - new_days
                 await ins_user.send(
-                    f"🏦 **Bank Vault Insurance Payout (Day {day_num}/7)**\n"
-                    f"The Central Bank has deposited your daily insurance compensation of **{daily_amount:,} Medals** into your vault!\n"
-                    f"• **Remaining Days:** {new_days} days ({new_days * daily_amount:,} Medals pending)\n"
+                    f"🏦 **Bank Insurance Payout (Day {day_num}/7)**\n"
+                    f"You received **{daily_amount:,} Medals** back into your bank vault!\n"
+                    f"• **Days Left:** {new_days} days ({new_days * daily_amount:,} Medals left to receive)\n"
                     f"• *Made By Phantom Regiment*"
                 )
             except:
@@ -294,10 +294,9 @@ class BankingCog(commands.Cog):
         await self.bot.db.create_bank_loan(interaction.user.id, interaction.guild_id, amount, interest_amount, due_at)
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, amount)
         
-        total_repay = amount + interest_amount
         await interaction.response.send_message(f"✅ You took a bank loan of **{amount:,} medals** for **{days} days**.\n"
-                                                f"You received the funds in your wallet. You must repay **{total_repay:,} medals**.\n\n"
-                                                f"⚠️ **WARNING:** If you fail to repay by the deadline, a **20% late fee** will be added to your debt, and **all your future earnings will be automatically seized** until the debt is clear.")
+                                                f"The medals have been added to your wallet. You need to repay **{total_repay:,} medals**.\n\n"
+                                                f"⚠️ If you don't repay on time, a **20% late fee** is added and any medals you earn will go toward paying it off.")
 
     @bank.command(name="repay", description="Repay your bank loan")
     async def bank_loan_repay(self, interaction: discord.Interaction):
@@ -351,8 +350,8 @@ class BankingCog(commands.Cog):
                             f"**Interest:** {interest}%\n"
                             f"**Total Owed:** {amount + interest_medals:,} medals\n"
                             f"**Duration:** {days} days\n\n"
-                            f"⚠️ **WARNING:** If you fail to repay by the deadline, a **20% late fee** will be added and **all your future earnings will be automatically seized** until paid.\n\n"
-                            f"Run `/loan accept {loan_id}` in the server to accept it. *(Expires in 24 hours)*")
+                            f"⚠️ If you don't repay on time, a **20% late fee** is added and any medals you earn will go toward paying it off.\n\n"
+                            f"Type `/loan accept {loan_id}` in the server to accept it. *(Expires in 24 hours)*")
         except:
             pass
 
@@ -373,8 +372,8 @@ class BankingCog(commands.Cog):
         await self.bot.db.accept_player_loan(loan_id)
         
         await interaction.response.send_message(f"✅ You accepted the loan! **{loan['principal']:,} medals** have been added to your wallet.\n"
-                                                f"You must repay **{loan['total_owed']:,} medals** before it expires.\n\n"
-                                                f"⚠️ **WARNING:** If you fail to repay by the deadline, a **20% late fee** will be added to your debt, and **all your future earnings will be automatically seized** until the debt is clear.")
+                                                f"Make sure to repay **{loan['total_owed']:,} medals** before it expires.\n\n"
+                                                f"⚠️ If you don't repay on time, a **20% late fee** is added and any medals you earn will go toward paying it off.")
 
     @loan.command(name="reject", description="Reject a loan offer")
     @app_commands.describe(loan_id="The ID of the loan offer")
@@ -459,7 +458,7 @@ class BankingCog(commands.Cog):
         if now - last_attempt < COOLDOWN:
             rem = int(COOLDOWN - (now - last_attempt))
             return await interaction.response.send_message(
-                f"⏳ **Lockdown Active!** You must wait **{rem // 60}m {rem % 60}s** before attempting to breach {user.display_name}'s vault again.",
+                f"⏳ You have to wait **{rem // 60}m {rem % 60}s** before trying to rob {user.display_name}'s bank again.",
                 ephemeral=True
             )
 
@@ -470,7 +469,7 @@ class BankingCog(commands.Cog):
 
         stored_hash = target_bank.get("password_hash")
         if not stored_hash:
-            return await interaction.response.send_message("❌ This vault has an outdated lock and cannot be breached right now.", ephemeral=True)
+            return await interaction.response.send_message("❌ This bank account doesn't have a password set yet.", ephemeral=True)
 
         is_correct = verify_password(password, stored_hash)
 
@@ -491,9 +490,9 @@ class BankingCog(commands.Cog):
                 await self.bot.db.create_bank_insurance(user.id, interaction.guild_id, daily_comp, days=7)
 
             embed = discord.Embed(
-                title="🚨 VAULT HEIST SUCCESSFUL! 🚨",
-                description=f"💥 {interaction.user.mention} cracked the security passcode to {user.mention}'s vault!\n\n"
-                            f"💰 **Total Looted:** {stolen:,} Medals transferred to {interaction.user.mention}'s wallet!",
+                title="🚨 Bank Robbed! 🚨",
+                description=f"💥 {interaction.user.mention} cracked {user.mention}'s bank password!\n\n"
+                            f"💰 **Stolen:** **{stolen:,} Medals** sent to {interaction.user.mention}'s wallet!",
                 color=0x2ECC71
             )
             embed.set_footer(text="Made By Phantom Regiment")
@@ -501,13 +500,12 @@ class BankingCog(commands.Cog):
 
             try:
                 alert_embed = discord.Embed(
-                    title="🚨 CRITICAL SECURITY ALERT: VAULT BREACHED!",
-                    description=f"Your bank vault in **{interaction.guild.name}** was compromised by **{interaction.user.display_name}**!\n"
-                                f"They guessed your password and looted **{stolen:,} medals**!\n\n"
-                                f"🛡️ **Central Bank Insurance Activated:**\n"
-                                f"• **30% Immediate Relief:** **{immediate_comp:,} Medals** credited back to your bank vault!\n"
-                                f"• **Remaining 70% Compensation:** **{daily_comp:,} Medals/day** will be paid daily over the next **7 days** (10% each day)!\n\n"
-                                f"🔒 Run `/bank changepassword` immediately to secure your new vault password.",
+                    title="🚨 Your Bank Was Robbed!",
+                    description=f"**{interaction.user.display_name}** guessed your password in **{interaction.guild.name}** and took **{stolen:,} medals** from your vault!\n\n"
+                                f"🛡️ **Bank Insurance:**\n"
+                                f"• **30% back right now:** **{immediate_comp:,} Medals** added back to your bank vault!\n"
+                                f"• **Remaining 70%:** You'll get **{daily_comp:,} Medals/day** every day for the next **7 days**!\n\n"
+                                f"🔒 Change your password soon with `/bank changepassword` so they can't rob you again.",
                     color=0xE74C3C
                 )
                 alert_embed.set_footer(text="Made By Phantom Regiment")
@@ -521,13 +519,13 @@ class BankingCog(commands.Cog):
 
             # Ephemeral failure message to robber with the clue
             fail_embed = discord.Embed(
-                title="❌ VAULT BREACH FAILED",
-                description=f"Access denied for **{user.display_name}**'s bank vault!\n\n"
-                            f"The security firewall repelled your attempt, but your scanner managed to intercept an encrypted password fragment:\n\n"
+                title="❌ Wrong Password!",
+                description=f"That wasn't the right password for **{user.display_name}**'s bank vault.\n\n"
+                            f"Here's a clue to help you guess it next time:\n\n"
                             f"🔐 **Password Hint:**\n"
                             f"```\n{hint}\n```\n"
-                            f"*(Use this clue to deduce the missing words/letters and try again next time!)*\n\n"
-                            f"⏳ **Lockdown Cooldown:** You must wait **30 minutes** before attempting to breach {user.display_name}'s vault again.",
+                            f"*(Fill in the missing letters and try again later!)*\n\n"
+                            f"⏳ You have a **30-minute cooldown** before you can try robbing {user.display_name} again.",
                 color=0xE74C3C
             )
             fail_embed.set_footer(text="Made By Phantom Regiment")
@@ -536,9 +534,9 @@ class BankingCog(commands.Cog):
             # Send defense alert to victim
             try:
                 victim_embed = discord.Embed(
-                    title="🛡️ VAULT BREACH DEFENDED",
-                    description=f"An unauthorized intruder (**{interaction.user.display_name}**) attempted to guess your bank vault password in **{interaction.guild.name}** and was repelled!\n\n"
-                                f"💡 *If you think your password is weak or might be discovered, change it now with `/bank changepassword`!*",
+                    title="🛡️ Someone Tried Robbing Your Bank!",
+                    description=f"**{interaction.user.display_name}** tried to guess your bank password in **{interaction.guild.name}**, but they got it wrong!\n\n"
+                                f"💡 *If you think your password is too easy to guess, change it with `/bank changepassword`.*",
                     color=0xE67E22
                 )
                 victim_embed.set_footer(text="Made By Phantom Regiment")
@@ -546,13 +544,13 @@ class BankingCog(commands.Cog):
             except:
                 pass
 
-    @bank.command(name="rob", description="Attempt to breach a player's bank vault using their password!")
-    @app_commands.describe(user="The player whose vault you are targeting", password="The vault password guess")
+    @bank.command(name="rob", description="Try to rob a player's bank vault by guessing their password")
+    @app_commands.describe(user="The player you want to rob", password="Your password guess")
     async def bank_rob(self, interaction: discord.Interaction, user: discord.Member, password: str):
         await self._execute_rob(interaction, user, password)
 
-    @app_commands.command(name="rob", description="Attempt to breach a player's bank vault using their password!")
-    @app_commands.describe(user="The player whose vault you are targeting", password="The vault password guess")
+    @app_commands.command(name="rob", description="Try to rob a player's bank vault by guessing their password")
+    @app_commands.describe(user="The player you want to rob", password="Your password guess")
     async def rob(self, interaction: discord.Interaction, user: discord.Member, password: str):
         await self._execute_rob(interaction, user, password)
 
