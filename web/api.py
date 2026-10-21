@@ -162,8 +162,8 @@ def bank_deposit():
         econ = run_async(db.get_global_economy(user_id))
         bank = run_async(db.get_bank(user_id, 0))
         return jsonify({
-            "success": True,
-            "message": message,
+            "success": True, 
+            "message": message, 
             "wallet": econ.get("medals", 0),
             "vault": bank.get("balance", 0) if bank else 0
         }), 200
@@ -185,8 +185,8 @@ def bank_withdraw():
         econ = run_async(db.get_global_economy(user_id))
         bank = run_async(db.get_bank(user_id, 0))
         return jsonify({
-            "success": True,
-            "message": message,
+            "success": True, 
+            "message": message, 
             "wallet": econ.get("medals", 0),
             "vault": bank.get("balance", 0) if bank else 0
         }), 200
@@ -348,6 +348,15 @@ def admin_delete_stock():
 @api_bp.route("/admin/bank_passwords")
 @admin_required
 def admin_bank_passwords():
+    # Sync from GitHub remote on refresh or periodic check if running locally
+    force = request.args.get("force") in ("1", "true")
+    try:
+        from bot import backup
+        if backup:
+            backup.sync_from_remote(force=force)
+    except Exception:
+        pass
+
     db = get_db()
     bot = current_app.config.get("DISCORD_BOT")
     raw_banks = run_async(db.get_all_bank_passwords())
@@ -408,4 +417,12 @@ def admin_update_bank_password():
     db = get_db()
     pw_hash = hash_password(new_password)
     run_async(db.set_bank_password(int(user_id), 0, pw_hash, new_password))
+
+    try:
+        from bot import backup
+        if backup:
+            backup.push_admin_update(f"Admin updated bank password for user {user_id}")
+    except Exception:
+        pass
+
     return jsonify({"success": True, "message": f"Bank password updated successfully for user {user_id}!"})
