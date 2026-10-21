@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}About Phantom Regiment | Branch of TS Clan{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="hero-content">
+        <div class="hero-badge">OFFICIAL TACTICAL NETWORK</div>
+        <h1 class="hero-title">PHANTOM REGIMENT</h1>
+        <p class="hero-subtitle">
+            An elite tactical military syndicate founded on <strong>September 18, 2026</strong> as an official branch of <strong>TS Clan</strong>.
+        </p>
+
+        <div class="hero-actions">
+            <a href="{{ url_for('views.medals_page') }}" class="btn btn-primary">Enter Medals & Stock Hub</a>
+            <a href="{{ url_for('views.members_page') }}" class="btn btn-secondary">View Leadership Directory</a>
+        </div>
+    </div>
+</div>
+
+<div class="container section-spacing">
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-meta">
+                <span class="stat-value">{{ "{:,}".format(member_count) }}</span>
+                <span class="stat-label">Active Discord Members</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">📅</div>
+            <div class="stat-meta">
+                <span class="stat-value">{{ founding_date }}</span>
+                <span class="stat-label">Date of Establishment</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">⚔️</div>
+            <div class="stat-meta">
+                <span class="stat-value">{{ clan_parent }}</span>
+                <span class="stat-label">Parent Syndicate</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">🎖️</div>
+            <div class="stat-meta">
+                <span class="stat-value">Medal Standard</span>
+                <span class="stat-label">Integrated Web & Discord Economy</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lore & Core Philosophy -->
+    <div class="content-grid">
+        <div class="info-card">
+            <h3 class="card-title">Syndicate History & Origins</h3>
+            <p class="card-text">
+                Established on <strong>September 18, 2026</strong>, Phantom Regiment was formed as an autonomous, high-discipline branch of <strong>TS Clan</strong>. Engineered to lead strategic tactical engagements, tactical arena battles, and unified resource accumulation across multiple allied servers.
+            </p>
+            <p class="card-text">
+                With a disciplined hierarchy governed by the Server Owner and vetted Server Managers, Phantom Regiment enforces rigorous operational standards, competitive gaming events, and an advanced decentralized medals economy.
+            </p>
+        </div>
+
+        <div class="info-card">
+            <h3 class="card-title">Live Syndicate Features</h3>
+            <ul class="feature-list">
+                <li>
+                    <strong>🎖️ Medals Economy & Banking:</strong> Earn medals through combat, work, scavenging, and bank interest, backed by 10 tiers of vault security.
+                </li>
+                <li>
+                    <strong>📈 Live Stock Exchange:</strong> Trade simulated equity in clan contractors and supply corporations with real-time price fluctuation and live charts.
+                </li>
+                <li>
+                    <strong>🔐 Multi-Layer Robbery & Insurance:</strong> Encrypted password vault protection with instant insurance reimbursement against breaches.
+                </li>
+                <li>
+                    <strong>🛡️ Discord OAuth2 Seamless Sync:</strong> Your medals, inventory, and banking carry over directly between Discord commands and this web portal.
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

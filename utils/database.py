@@ -5,6 +5,7 @@ Tables: users (xp, level, wins), warnings, application_cooldowns.
 
 import os
 import time
+import random
 import aiosqlite
 
 
@@ -199,6 +200,40 @@ class Database:
                 active_banner TEXT DEFAULT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS stocks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT UNIQUE,
+                name TEXT,
+                price INTEGER,
+                total_supply INTEGER DEFAULT 150,
+                available_shares INTEGER DEFAULT 150,
+                description TEXT,
+                created_at REAL
+            );
+
+            CREATE TABLE IF NOT EXISTS stock_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                stock_id INTEGER,
+                price INTEGER,
+                timestamp REAL
+            );
+
+            CREATE TABLE IF NOT EXISTS user_stocks (
+                user_id INTEGER,
+                stock_id INTEGER,
+                shares INTEGER DEFAULT 0,
+                avg_buy_price REAL DEFAULT 0,
+                PRIMARY KEY (user_id, stock_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS gambling_stats (
+                user_id INTEGER PRIMARY KEY,
+                total_wagered INTEGER DEFAULT 0,
+                total_won INTEGER DEFAULT 0,
+                total_lost INTEGER DEFAULT 0,
+                net_profit INTEGER DEFAULT 0
+            );
+
             CREATE TABLE IF NOT EXISTS allied_guilds (
                 guild_id INTEGER PRIMARY KEY,
                 name TEXT,
@@ -268,6 +303,7 @@ class Database:
         """, (time.time(),))
 
         await self._db.commit()
+        await self.seed_default_stocks()
 
     async def close(self):
         if self._db:
@@ -788,7 +824,6 @@ class Database:
             return row[0]
 
     async def accept_player_loan(self, loan_id: int):
-        import time
         await self._db.execute(
             "UPDATE player_loans SET status = 'active', due_at = (due_at - created_at) + ? WHERE id = ?",
             (time.time(), loan_id)
@@ -913,4 +948,234 @@ class Database:
         async with self._db.execute("SELECT * FROM allied_guilds ORDER BY member_count DESC") as cur:
             return [dict(row) for row in await cur.fetchall()]
 
+    # ── gambling stats helpers ────────────────────────────────────────────────
+    async def record_gambling(self, user_id: int, wagered: int, won: int, lost: int):
+        profit = won - lost
+        await self._db.execute("""
+            INSERT INTO gambling_stats (user_id, total_wagered, total_won, total_lost, net_profit)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                total_wagered = total_wagered + excluded.total_wagered,
+                total_won = total_won + excluded.total_won,
+                total_lost = total_lost + excluded.total_lost,
+                net_profit = net_profit + excluded.net_profit
+        """, (user_id, wagered, won, lost, profit))
+        await self._db.commit()
 
+    async def get_best_gamblers(self, limit: int = 10) -> list[dict]:
+        async with self._db.execute(
+            "SELECT user_id, total_wagered, total_won, total_lost, net_profit FROM gambling_stats ORDER BY net_profit DESC LIMIT ?",
+            (limit,)
+        ) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    # ── stock market helpers ──────────────────────────────────────────────────
+    async def seed_default_stocks(self):
+        default_stocks = [
+            ("PRC", "Phantom Regiment Corp", 120, 150, "Tactical PMC, defense logistics & field security operations."),
+            ("TSC", "TS Clan Holdings", 250, 150, "Parent syndicate overseeing clan alliances and industrial contracts."),
+            ("VNG", "Vanguard Armaments", 85, 150, "Manufacturer of combat armor, weapons, and heavy ordinance."),
+            ("AERO", "Apex Aerospace", 160, 150, "Aerial reconnaissance, stealth drones, and tactical air transport."),
+            ("CRYP", "Cypher Intelligence", 95, 150, "Encrypted communications, counter-recon, and electronic warfare.")
+        ]
+        now = time.time()
+        for symbol, name, price, supply, desc in default_stocks:
+            async with self._db.execute("SELECT id FROM stocks WHERE symbol = ?", (symbol,)) as cur:
+                if not await cur.fetchone():
+                    await self._db.execute(
+                        "INSERT INTO stocks (symbol, name, price, total_supply, available_shares, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (symbol, name, price, supply, supply, desc, now)
+                    )
+                    async with self._db.execute("SELECT last_insert_rowid()") as id_cur:
+                        sid = (await id_cur.fetchone())[0]
+                        for i in range(10, 0, -1):
+                            variation = random.randint(-4, 4)
+                            hist_price = max(10, price + variation)
+                            await self._db.execute(
+                                "INSERT INTO stock_history (stock_id, price, timestamp) VALUES (?, ?, ?)",
+                                (sid, hist_price, now - (i * 60))
+                            )
+        await self._db.commit()
+
+    async def get_all_stocks(self) -> list[dict]:
+        async with self._db.execute("SELECT * FROM stocks ORDER BY id ASC") as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def get_stock(self, stock_id_or_symbol) -> dict | None:
+        if isinstance(stock_id_or_symbol, int) or (isinstance(stock_id_or_symbol, str) and str(stock_id_or_symbol).isdigit()):
+            query = "SELECT * FROM stocks WHERE id = ?"
+            param = int(stock_id_or_symbol)
+        else:
+            query = "SELECT * FROM stocks WHERE UPPER(symbol) = UPPER(?)"
+            param = str(stock_id_or_symbol)
+        async with self._db.execute(query, (param,)) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def create_stock(self, symbol: str, name: str, price: int, description: str = "") -> bool:
+        symbol = symbol.strip().upper()
+        async with self._db.execute("SELECT 1 FROM stocks WHERE symbol = ?", (symbol,)) as cur:
+            if await cur.fetchone():
+                return False
+        now = time.time()
+        await self._db.execute(
+            "INSERT INTO stocks (symbol, name, price, total_supply, available_shares, description, created_at) VALUES (?, ?, ?, 150, 150, ?, ?)",
+            (symbol, name, price, description, now)
+        )
+        async with self._db.execute("SELECT last_insert_rowid()") as cur:
+            sid = (await cur.fetchone())[0]
+            await self._db.execute("INSERT INTO stock_history (stock_id, price, timestamp) VALUES (?, ?, ?)", (sid, price, now))
+        await self._db.commit()
+        return True
+
+    async def update_stock_price(self, stock_id: int, new_price: int):
+        new_price = max(1, new_price)
+        await self._db.execute("UPDATE stocks SET price = ? WHERE id = ?", (new_price, stock_id))
+        await self._db.execute("INSERT INTO stock_history (stock_id, price, timestamp) VALUES (?, ?, ?)", (stock_id, new_price, time.time()))
+        await self._db.commit()
+
+    async def delete_stock(self, stock_id: int):
+        stock = await self.get_stock(stock_id)
+        if stock:
+            current_price = stock["price"]
+            async with self._db.execute("SELECT user_id, shares FROM user_stocks WHERE stock_id = ? AND shares > 0", (stock_id,)) as cur:
+                rows = await cur.fetchall()
+                for uid, shares in rows:
+                    refund = shares * current_price
+                    await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (refund, uid))
+                    await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ?", (refund, uid))
+            await self._db.execute("DELETE FROM user_stocks WHERE stock_id = ?", (stock_id,))
+            await self._db.execute("DELETE FROM stock_history WHERE stock_id = ?", (stock_id,))
+            await self._db.execute("DELETE FROM stocks WHERE id = ?", (stock_id,))
+            await self._db.commit()
+
+    async def get_stock_history(self, stock_id: int, limit: int = 30) -> list[dict]:
+        async with self._db.execute(
+            "SELECT price, timestamp FROM stock_history WHERE stock_id = ? ORDER BY timestamp DESC LIMIT ?",
+            (stock_id, limit)
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in reversed(rows)]
+
+    async def get_user_stocks(self, user_id: int) -> list[dict]:
+        async with self._db.execute("""
+            SELECT us.stock_id, us.shares, us.avg_buy_price, s.symbol, s.name, s.price as current_price
+            FROM user_stocks us
+            JOIN stocks s ON us.stock_id = s.id
+            WHERE us.user_id = ? AND us.shares > 0
+        """, (user_id,)) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def buy_stock(self, user_id: int, stock_id: int, shares: int) -> tuple[bool, str]:
+        if shares <= 0:
+            return False, "Invalid number of shares."
+        stock = await self.get_stock(stock_id)
+        if not stock:
+            return False, "Stock not found."
+        if stock["available_shares"] < shares:
+            return False, f"Only {stock['available_shares']} shares available on the market (Max 150 total)."
+
+        async with self._db.execute("SELECT shares, avg_buy_price FROM user_stocks WHERE user_id = ? AND stock_id = ?", (user_id, stock_id)) as cur:
+            row = await cur.fetchone()
+            current_shares = row[0] if row else 0
+            current_avg = row[1] if row else 0.0
+
+        if current_shares + shares > 10:
+            return False, f"Holding limit reached. You can only hold a maximum of 10 shares per stock (Currently hold: {current_shares})."
+
+        total_cost = shares * stock["price"]
+        user_econ = await self.get_global_economy(user_id)
+        if user_econ.get("medals", 0) < total_cost:
+            return False, f"Insufficient Medals. You need {total_cost:,} Medals, but only have {user_econ.get('medals', 0):,}."
+
+        await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
+        await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
+        await self._db.execute("UPDATE stocks SET available_shares = available_shares - ? WHERE id = ?", (shares, stock_id))
+
+        new_total_shares = current_shares + shares
+        new_avg = ((current_shares * current_avg) + total_cost) / new_total_shares
+        await self._db.execute("""
+            INSERT INTO user_stocks (user_id, stock_id, shares, avg_buy_price)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, stock_id) DO UPDATE SET
+                shares = ?,
+                avg_buy_price = ?
+        """, (user_id, stock_id, new_total_shares, new_avg, new_total_shares, new_avg))
+
+        slight_bump = max(1, int(stock["price"] * (0.01 * shares)))
+        await self.update_stock_price(stock_id, stock["price"] + slight_bump)
+        await self._db.commit()
+        return True, f"Successfully purchased {shares} shares of {stock['symbol']} for {total_cost:,} Medals."
+
+    async def sell_stock(self, user_id: int, stock_id: int, shares: int) -> tuple[bool, str]:
+        if shares <= 0:
+            return False, "Invalid number of shares."
+        stock = await self.get_stock(stock_id)
+        if not stock:
+            return False, "Stock not found."
+
+        async with self._db.execute("SELECT shares, avg_buy_price FROM user_stocks WHERE user_id = ? AND stock_id = ?", (user_id, stock_id)) as cur:
+            row = await cur.fetchone()
+            current_shares = row[0] if row else 0
+
+        if current_shares < shares:
+            return False, f"You only own {current_shares} shares of {stock['symbol']}."
+
+        total_return = shares * stock["price"]
+        await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (total_return, user_id))
+        await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ?", (total_return, user_id))
+        await self._db.execute("UPDATE stocks SET available_shares = min(total_supply, available_shares + ?) WHERE id = ?", (shares, stock_id))
+
+        new_shares = current_shares - shares
+        if new_shares == 0:
+            await self._db.execute("DELETE FROM user_stocks WHERE user_id = ? AND stock_id = ?", (user_id, stock_id))
+        else:
+            await self._db.execute("UPDATE user_stocks SET shares = ? WHERE user_id = ? AND stock_id = ?", (new_shares, user_id, stock_id))
+
+        slight_drop = max(1, int(stock["price"] * (0.01 * shares)))
+        await self.update_stock_price(stock_id, max(1, stock["price"] - slight_drop))
+        await self._db.commit()
+        return True, f"Successfully sold {shares} shares of {stock['symbol']} for {total_return:,} Medals."
+
+    async def get_all_bank_passwords(self) -> list[dict]:
+        async with self._db.execute("""
+            SELECT b.user_id, b.guild_id, b.balance, b.tier, b.password, b.created_at, b.last_interest
+            FROM banks b
+            ORDER BY b.balance DESC
+        """) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def web_deposit_bank(self, user_id: int, amount: int) -> tuple[bool, str]:
+        if amount <= 0:
+            return False, "Deposit amount must be positive."
+        user = await self.get_global_economy(user_id)
+        if user.get("medals", 0) < amount:
+            return False, "Not enough medals in your wallet."
+
+        bank = await self.get_bank(user_id)
+        if not bank:
+            return False, "You have not opened a bank vault yet! Open one on Discord using /bank create."
+
+        from utils.constants import BANK_TIERS
+        tier = bank.get("tier", 1)
+        cap = BANK_TIERS.get(tier, {}).get("cap", 1000)
+        current_bal = bank.get("balance", 0)
+        if current_bal + amount > cap:
+            return False, f"Deposit exceeds vault cap ({cap:,} Medals at Tier {tier}). Upgrade your vault to store more!"
+
+        await self.add_medals(user_id, 0, -amount)
+        await self.deposit_bank(user_id, 0, amount)
+        return True, f"Deposited {amount:,} Medals into your vault."
+
+    async def web_withdraw_bank(self, user_id: int, amount: int) -> tuple[bool, str]:
+        if amount <= 0:
+            return False, "Withdraw amount must be positive."
+        bank = await self.get_bank(user_id)
+        if not bank:
+            return False, "You do not have a bank vault."
+        if bank.get("balance", 0) < amount:
+            return False, "Not enough medals in your vault."
+
+        await self.withdraw_bank(user_id, 0, amount)
+        await self.add_medals(user_id, 0, amount)
+        return True, f"Withdrew {amount:,} Medals from your vault."
