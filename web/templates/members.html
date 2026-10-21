@@ -1,20 +1,20 @@
 {% extends "base.html" %}
 
-{% block title %}TS_ Core Team — Leadership Roster{% endblock %}
+{% block title %}Our Members & Leadership | Phantom Regiment{% endblock %}
 
 {% block content %}
 <div class="container">
-    <!-- Top Hero Split Layout (Matching Image 2) -->
+    <!-- Top Hero Split Layout (Dark BuilderX Tone) -->
     <div class="hero-split-grid">
         <!-- Left Box -->
         <div class="surface-box">
-            <div class="eyebrow-text">TS_ CORE TEAM</div>
+            <div class="eyebrow-text">PHANTOM REGIMENT // LEADERSHIP DIRECTORY</div>
             <h1 class="hero-headline">
-                Meet the <span>TS_</span><br>
+                Meet the <span>Phantom</span><br>
                 <span>leadership</span>
             </h1>
             <p class="hero-desc">
-                A focused profile page for the current seeded leadership roster. Each card shows the member name, system role, rank level, join date, and portrait slot.
+                Automatically synchronized with the Phantom Regiment Discord server. Dynamically scans the Server Owner and vetted Server Managers in real time with live Discord avatars and roles.
             </p>
         </div>
 
@@ -22,36 +22,36 @@
         <div class="ghost-ui-box">
             <div class="ghost-header">
                 <span class="glow-dot-green"></span>
-                <span>Core Staff</span>
+                <span>PR Command Staff</span>
             </div>
 
             <div class="ghost-grid-2x2">
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Dark BuilderX Tone</div>
-                    <div class="ghost-tile-sub">Black surfaces, orange accents, and dense operational panels.</div>
+                    <div class="ghost-tile-title">Automated Sync</div>
+                    <div class="ghost-tile-sub">Live Discord member and role intent scanning.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
                     <div class="ghost-tile-title">Real-Time Ready</div>
-                    <div class="ghost-tile-sub">Designed for live sync state, staff actions, and audit-backed workflows.</div>
+                    <div class="ghost-tile-sub">Live avatar portraits and join dates fetched directly.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Roblox + Discord</div>
-                    <div class="ghost-tile-sub">Community identity, roles, bans, and ranks remain platform-aware.</div>
+                    <div class="ghost-tile-title">Staff Hierarchy</div>
+                    <div class="ghost-tile-sub">Distinguishes Server Owner and Server Managers.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Confidential Panels</div>
-                    <div class="ghost-tile-sub">Appeals, reports, and salary management stay behind staff gates.</div>
+                    <div class="ghost-tile-title">Admin Gated</div>
+                    <div class="ghost-tile-sub">Grants automatic access to the High Command panel.</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Team Leadership Cards Roster (Matching Image 2) -->
+    <!-- Team Leadership Cards Roster -->
     <div class="leadership-roster-grid">
-        <!-- Server Owner Card (TS_Zenith) -->
+        <!-- Server Owner Card -->
         {% if owner %}
         <div class="leader-card owner-card-highlight">
             <div class="leader-avatar-wrap">
@@ -60,9 +60,9 @@
             </div>
             <h3 class="leader-name">{{ owner.name }}</h3>
             <span class="leader-tag">@{{ owner.username }}</span>
-            <span class="role-pill pill-owner">SUPREME COMMANDER</span>
+            <span class="role-pill pill-owner">SERVER OWNER</span>
             <div class="leader-meta">
-                <span>Joined: {{ owner.joined_at }}</span>
+                <span>Joined Server: {{ owner.joined_at }}</span>
             </div>
         </div>
         {% endif %}
@@ -77,7 +77,7 @@
             <span class="leader-tag">@{{ m.username }}</span>
             <span class="role-pill">{{ m.role }}</span>
             <div class="leader-meta">
-                <span>Joined: {{ m.joined_at }}</span>
+                <span>Joined Server: {{ m.joined_at }}</span>
             </div>
         </div>
         {% endfor %}

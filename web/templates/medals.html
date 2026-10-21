@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}TS_ Core — Economy & Live Stock Exchange{% endblock %}
+{% block title %}Medals & Live Stock Market | Phantom Regiment{% endblock %}
 
 {% block content %}
 <div class="container">
     <!-- Top Hero Split Layout -->
     <div class="hero-split-grid">
         <div class="surface-box">
-            <div class="eyebrow-text">TS_ SYNDICATE ECONOMY</div>
+            <div class="eyebrow-text">PHANTOM REGIMENT // MEDALS & LIVE STOCK EXCHANGE</div>
             <h1 class="hero-headline">
-                Live Equity Market<br>
+                Live Equity Exchange<br>
                 <span>& Secure Vault Banking</span>
             </h1>
             <p class="hero-desc">
-                Engage in real-time corporate equity trading. Company shares are strictly fixed at 150 shares max supply, with an individual limit of 10 shares per operator.
+                Real-time syndicate banking and fluctuating equity exchange. Company equities are capped at <strong>150 total shares</strong> with a strict limit of <strong>10 shares per user</strong>.
             </p>
         </div>
 
@@ -35,13 +35,13 @@
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Live Dynamic Ticker</div>
-                    <div class="ghost-tile-sub">Prices adjust every 25 seconds based on market volatility.</div>
+                    <div class="ghost-tile-title">Live Ticker</div>
+                    <div class="ghost-tile-sub">Prices update every 25 seconds based on market volatility.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
                     <div class="ghost-tile-title">Vault Security</div>
-                    <div class="ghost-tile-sub">Store medals in encrypted bank vaults with daily interest.</div>
+                    <div class="ghost-tile-sub">Deposit medals to protected vaults with daily yield.</div>
                 </div>
             </div>
         </div>
@@ -67,9 +67,10 @@
                 <span class="metric-value">{{ "{:,}".format(bank_data.get('balance', 0) if bank_data else 0) }}</span>
                 <span class="metric-sub">Cap: {{ "{:,}".format(tier_info['cap'] if tier_info else 1000) }} Medals</span>
             </div>
-            <button class="btn btn-sm btn-pill-dark" onclick="openBankModal('deposit')" style="position: absolute; top: 1.25rem; right: 1.5rem;">
-                Vault Action
-            </button>
+            <div style="position: absolute; top: 1.15rem; right: 1.25rem; display: flex; gap: 0.4rem;">
+                <button class="btn btn-sm btn-pill-dark" onclick="openBankModal('deposit')">Deposit</button>
+                <button class="btn btn-sm btn-pill-dark" onclick="openBankModal('withdraw')">Withdraw</button>
+            </div>
         </div>
 
         <div class="metric-tile">
@@ -81,6 +82,14 @@
             </div>
             <span class="metric-status-pill">CLAIMED</span>
         </div>
+    </div>
+    {% else %}
+    <div class="surface-box" style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <div>
+            <h3 style="margin-bottom: 0.25rem;">Login with Discord to Access Your Medals & Portfolio</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">Connect your Discord account to deposit/withdraw medals from your vault, trade company shares, and track rankings.</p>
+        </div>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-orange">Login with Discord</a>
     </div>
     {% endif %}
 
@@ -125,7 +134,7 @@
         <!-- Trade Controls Box -->
         <div class="trade-form-box">
             <h3 style="margin-bottom: 0.25rem;">Trade Shares</h3>
-            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">Limit: Maximum 10 shares per operator.</p>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">Rule: Maximum 10 shares per user.</p>
 
             <div class="form-group">
                 <label class="form-label">Selected Equity</label>
@@ -133,7 +142,7 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Quantity (1 - 10)</label>
+                <label class="form-label">Shares Quantity (1 - 10)</label>
                 <div class="qty-control">
                     <button class="btn-qty" onclick="adjustQty(-1)">-</button>
                     <input type="number" id="trade-qty" class="form-input text-center" value="1" min="1" max="10" oninput="updateTradeTotal()">
@@ -142,7 +151,7 @@
             </div>
 
             <div class="trade-calc">
-                <span>Total Cost:</span>
+                <span>Estimated Total:</span>
                 <strong class="text-orange" id="trade-calc-total">-- Medals</strong>
             </div>
 
