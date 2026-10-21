@@ -426,3 +426,280 @@ def admin_update_bank_password():
         pass
 
     return jsonify({"success": True, "message": f"Bank password updated successfully for user {user_id}!"})
+
+
+# ─── E-State Virtual Real Estate & Tycoon API ─────────────────────────────────
+
+@api_bp.route("/estate/plots")
+def estate_plots():
+    db = get_db()
+    bot = current_app.config.get("DISCORD_BOT")
+    plots = run_async(db.get_estate_plots())
+
+    def resolve_user(uid):
+        if not uid:
+            return None, None
+        try:
+            int_uid = int(uid)
+        except (ValueError, TypeError):
+            int_uid = uid
+        if int_uid in _DISCORD_PROFILES:
+            return _DISCORD_PROFILES[int_uid]
+        name = f"User {uid}"
+        avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
+        if bot:
+            u = bot.get_user(int_uid)
+            if u:
+                res = (u.global_name or u.display_name or u.name, u.display_avatar.url)
+                _DISCORD_PROFILES[int_uid] = res
+                return res
+            for g in bot.guilds:
+                m = g.get_member(int_uid)
+                if m:
+                    res = (m.global_name or m.display_name or m.name, m.display_avatar.url)
+                    _DISCORD_PROFILES[int_uid] = res
+                    return res
+        return name, avatar
+
+    from utils.constants import ESTATE_BUILDINGS
+
+    enriched = []
+    for p in plots:
+        item = dict(p)
+        owner_name, owner_avatar = resolve_user(p.get("owner_id"))
+        item["owner_name"] = owner_name or "Unclaimed (State Bank)"
+        item["owner_avatar"] = owner_avatar or "https://cdn.discordapp.com/embed/avatars/0.png"
+        b_type = p.get("building_type", "empty")
+        b_info = ESTATE_BUILDINGS.get(b_type, {
+            "name": "Vacant Land",
+            "emoji": "🌱",
+            "desc": "Unimproved natural terrain. Ready for tycoon development.",
+            "daily_yield": 0.002
+        })
+        item["building_name"] = b_info["name"]
+        item["building_emoji"] = b_info["emoji"]
+        item["building_desc"] = b_info["desc"]
+        enriched.append(item)
+
+    resp = jsonify(enriched)
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    return resp
+
+@api_bp.route("/estate/stats")
+def estate_stats():
+    db = get_db()
+    plots = run_async(db.get_estate_plots())
+    total_val = sum(p["current_value"] for p in plots)
+    total_owned = sum(1 for p in plots if p.get("owner_id"))
+
+    user_stats = {
+        "plots_owned": 0,
+        "total_valuation": 0,
+        "accrued_yield": 0,
+        "daily_yield": 0,
+        "wallet": 0
+    }
+
+    user = session.get("user")
+    if user:
+        uid = user["id"]
+        u_stats = run_async(db.get_user_estate_stats(uid))
+        econ = run_async(db.get_global_economy(uid))
+        user_stats = u_stats
+        user_stats["wallet"] = econ.get("medals", 0)
+
+    from utils.constants import ESTATE_BUILDINGS
+    return jsonify({
+        "total_plots": len(plots),
+        "total_owned": total_owned,
+        "total_market_cap": total_val,
+        "user": user_stats,
+        "buildings_info": ESTATE_BUILDINGS
+    })
+
+@api_bp.route("/estate/buy", methods=["POST"])
+@login_required
+def estate_buy():
+    data = request.get_json() or {}
+    try:
+        plot_id = int(data.get("plot_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Plot ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.buy_estate_plot(user_id, plot_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success, 
+        "message": msg,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/estate/upgrade", methods=["POST"])
+@login_required
+def estate_upgrade():
+    data = request.get_json() or {}
+    try:
+        plot_id = int(data.get("plot_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Plot ID."}), 400
+
+    building_type = str(data.get("building_type", "")).strip().lower()
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.upgrade_estate_plot(user_id, plot_id, building_type))
+    econ = run_async(db.get_global_economy(user_id))
+    plot = run_async(db.get_estate_plot(plot_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "wallet": econ.get("medals", 0),
+        "new_value": plot.get("current_value") if plot else 0
+    }), 200 if success else 400
+
+@api_bp.route("/estate/sell_bank", methods=["POST"])
+@login_required
+def estate_sell_bank():
+    data = request.get_json() or {}
+    try:
+        plot_id = int(data.get("plot_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Plot ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, payout = run_async(db.sell_estate_plot_to_bank(user_id, plot_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "payout": payout,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/estate/market_listing", methods=["POST"])
+@login_required
+def estate_market_listing():
+    data = request.get_json() or {}
+    try:
+        plot_id = int(data.get("plot_id", 0))
+        price_raw = data.get("price")
+        price = int(price_raw) if price_raw is not None and str(price_raw).isdigit() else None
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.set_estate_plot_market_price(user_id, plot_id, price))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/estate/buy_market", methods=["POST"])
+@login_required
+def estate_buy_market():
+    data = request.get_json() or {}
+    try:
+        plot_id = int(data.get("plot_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Plot ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.buy_estate_plot_from_market(user_id, plot_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/estate/offer", methods=["POST"])
+@login_required
+def estate_offer():
+    data = request.get_json() or {}
+    try:
+        plot_id = int(data.get("plot_id", 0))
+        amount = int(data.get("amount", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.create_estate_offer(user_id, plot_id, amount))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/estate/offers")
+@login_required
+def estate_get_offers():
+    user_id = session["user"]["id"]
+    db = get_db()
+    bot = current_app.config.get("DISCORD_BOT")
+    offers = run_async(db.get_estate_offers(user_id=user_id))
+
+    def resolve_name(uid):
+        if not uid:
+            return f"User {uid}"
+        if uid in _DISCORD_PROFILES:
+            return _DISCORD_PROFILES[uid][0]
+        if bot:
+            u = bot.get_user(uid)
+            if u:
+                return u.global_name or u.display_name or u.name
+        return f"User {uid}"
+
+    for o in offers:
+        o["buyer_name"] = resolve_name(o.get("buyer_id"))
+        o["seller_name"] = resolve_name(o.get("seller_id"))
+        o["is_incoming"] = (o.get("seller_id") == user_id)
+        amt = o.get("offer_amount", 0)
+        o["tax_amount"] = int(round(amt * 0.30))
+        o["seller_net"] = amt - o["tax_amount"]
+
+    return jsonify(offers)
+
+@api_bp.route("/estate/offer/accept", methods=["POST"])
+@login_required
+def estate_accept_offer():
+    data = request.get_json() or {}
+    try:
+        offer_id = int(data.get("offer_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Offer ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.accept_estate_offer(user_id, offer_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/estate/offer/reject", methods=["POST"])
+@login_required
+def estate_reject_offer():
+    data = request.get_json() or {}
+    try:
+        offer_id = int(data.get("offer_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Offer ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.reject_estate_offer(user_id, offer_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/estate/collect_yield", methods=["POST"])
+@login_required
+def estate_collect_yield():
+    user_id = session["user"]["id"]
+    db = get_db()
+    total_yield, msg = run_async(db.collect_estate_yields(user_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": total_yield > 0,
+        "message": msg,
+        "total_yield": total_yield,
+        "wallet": econ.get("medals", 0)
+    }), 200 if total_yield > 0 else 400
