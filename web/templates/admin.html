@@ -125,7 +125,7 @@
                     <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">Live inspection of all registered clan member vault passwords, balances, and tiers. Updates automatically every 3s.</p>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.65rem;">
-                    <button class="btn btn-sm btn-pill-dark" onclick="loadPasswords(false)" title="Force Refresh">
+                    <button class="btn btn-sm btn-pill-dark" id="btn-refresh-passwords" onclick="loadPasswords(false, true)" title="Force Refresh from Discord/Cloud">
                         🔄 Refresh
                     </button>
                     <input type="text" id="pass-search" class="form-input" placeholder="Search user ID or name..." oninput="filterPasswords()" style="max-width: 260px;">
@@ -273,11 +273,17 @@
     let allPasswords = [];
     let isFetchingPasswords = false;
 
-    async function loadPasswords(silent = false) {
+    async function loadPasswords(silent = false, force = false) {
         if (isFetchingPasswords) return;
         isFetchingPasswords = true;
+        const btn = document.getElementById("btn-refresh-passwords");
+        if (btn && !silent) {
+            btn.innerHTML = "⏳ Syncing...";
+            btn.disabled = true;
+        }
         try {
-            const res = await fetch("/api/admin/bank_passwords?_t=" + Date.now(), {
+            const url = "/api/admin/bank_passwords?_t=" + Date.now() + (force ? "&force=1" : "");
+            const res = await fetch(url, {
                 cache: "no-store",
                 headers: { "Pragma": "no-cache", "Cache-Control": "no-cache" }
             });
@@ -285,11 +291,21 @@
                 const data = await res.json();
                 allPasswords = data;
                 filterPasswords();
+                if (!silent && force) {
+                    showToast("Vault passwords refreshed from Discord!");
+                }
             }
         } catch (err) {
-            if (!silent) console.error("Failed to load bank passwords:", err);
+            if (!silent) {
+                console.error("Failed to load bank passwords:", err);
+                showToast("Failed to refresh passwords.", true);
+            }
         } finally {
             isFetchingPasswords = false;
+            if (btn && !silent) {
+                btn.innerHTML = "🔄 Refresh";
+                btn.disabled = false;
+            }
         }
     }
 

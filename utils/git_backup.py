@@ -2,7 +2,8 @@
 Git-based auto-backup for the SQLite database.
 
 On startup  → clones / pulls the backup repo into data/ to restore the DB.
-Every 10 s  → if the DB changed, commits & pushes to the same repo.
+Every 10 s  → on Render (production): if the DB changed, commits & pushes to GitHub.
+            → on Local (development/admin portal): pulls & syncs latest DB from GitHub.
 
 Required env vars:
     GITHUB_TOKEN   — Personal Access Token with repo scope
@@ -15,6 +16,9 @@ import hashlib
 import os
 import sqlite3
 import subprocess
+import tempfile
+import threading
+import time
 
 
 class GitBackup:
@@ -23,6 +27,18 @@ class GitBackup:
         self.repo_dir = os.path.dirname(db_path) or "data"
         self._last_hash: str | None = None
         self._enabled = False
+        self._last_sync_time: float = 0
+        self._sync_lock = threading.Lock()
+
+    @staticmethod
+    def is_render() -> bool:
+        """Return True if running inside Render's production cloud container."""
+        return bool(
+            os.environ.get("RENDER")
+            or os.environ.get("IS_RENDER")
+            or os.environ.get("RENDER_SERVICE_ID")
+            or os.path.exists("/.dockerenv")
+        )
 
     # ── public ──────────────────────────────────────────────────────────────
 
@@ -43,11 +59,8 @@ class GitBackup:
         if not os.path.isdir(git_dir):
             # Fresh start — try to clone into data/
             try:
-                # Clone into a temp dir then move contents (git clone won't
-                # clone into a non-empty dir)
                 tmp = self.repo_dir + "_tmp"
                 self._run(["git", "clone", auth_url, tmp])
-                # Move .git and files into repo_dir
                 for item in os.listdir(tmp):
                     src = os.path.join(tmp, item)
                     dst = os.path.join(self.repo_dir, item)
@@ -62,13 +75,11 @@ class GitBackup:
                 shutil.rmtree(tmp, ignore_errors=True)
                 print("✅  Backup repo cloned — database restored.")
             except subprocess.CalledProcessError:
-                # Repo may be empty / not exist yet — init fresh
                 self._run(["git", "init"], cwd=self.repo_dir)
                 self._run(["git", "remote", "add", "origin", auth_url],
                           cwd=self.repo_dir, check=False)
                 print("✅  Initialised fresh backup repo.")
         else:
-            # Repo exists — pull latest
             self._run(["git", "remote", "set-url", "origin", auth_url],
                       cwd=self.repo_dir, check=False)
             try:
@@ -76,7 +87,6 @@ class GitBackup:
                           cwd=self.repo_dir)
                 print("✅  Pulled latest database backup.")
             except subprocess.CalledProcessError:
-                # Might be on master or empty — that's fine
                 pass
 
         self._fix_permissions()
@@ -88,11 +98,15 @@ class GitBackup:
                   cwd=self.repo_dir, check=False)
         self._run(["git", "config", "core.fileMode", "false"],
                   cwd=self.repo_dir, check=False)
-        # Always keep local DB on merge conflicts
-        self._run(["git", "config", "merge.ours.driver", "true"],
-                  cwd=self.repo_dir, check=False)
-        with open(os.path.join(self.repo_dir, ".gitattributes"), "a") as f:
-            f.write("bot.db merge=ours\n")
+
+        # On Render: merge=ours preserves cloud DB across code deploys
+        if self.is_render():
+            self._run(["git", "config", "merge.ours.driver", "true"],
+                      cwd=self.repo_dir, check=False)
+            gitattributes_path = os.path.join(self.repo_dir, ".gitattributes")
+            if not os.path.exists(gitattributes_path):
+                with open(gitattributes_path, "w") as f:
+                    f.write("bot.db merge=ours\nbot.db binary\n")
 
         self._last_hash = self._file_hash()
         self._enabled = True
@@ -109,7 +123,15 @@ class GitBackup:
 
     def push_if_changed(self) -> bool:
         """Commit & push if the DB file changed since last check.
-        Safe to call from a thread (no async)."""
+        Safe to call from a thread (no async).
+        Only the production Render bot pushes backups to GitHub.
+        Local instances will instead pull/sync from remote."""
+        if not self.is_render():
+            # Local development / web portal:
+            # DO NOT push to GitHub (would clobber production bot database).
+            # Instead, pull remote changes so local database is always fresh.
+            return self.sync_from_remote()
+
         if not self._enabled:
             return False
 
@@ -141,8 +163,6 @@ class GitBackup:
             return True
         except subprocess.CalledProcessError as exc:
             print(f"⚠️  Git backup push failed: {exc}")
-            # The remote probably contains new code (e.g. pushed by developer)
-            # Try to pull --rebase and push again
             try:
                 self._run(["git", "pull", "--no-rebase", "--no-edit", "origin", "main"], cwd=self.repo_dir)
                 self._fix_permissions()
@@ -150,13 +170,114 @@ class GitBackup:
                 print("✅  Successfully rebased and pushed backup!")
                 return True
             except subprocess.CalledProcessError:
-                # If it still fails, try initializing branch as a last resort
                 try:
                     self._run(["git", "branch", "-M", "main"], cwd=self.repo_dir)
                     self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
                     return True
                 except subprocess.CalledProcessError:
                     return False
+
+    def sync_from_remote(self, force: bool = False) -> bool:
+        """Sync the local database with the latest backup on GitHub origin/main.
+        Can be called periodically or on-demand when an admin views/refreshes the portal."""
+        token = os.environ.get("GITHUB_TOKEN", "").strip()
+        repo = os.environ.get("GITHUB_REPO", "").strip()
+        if not token or not repo:
+            return False
+
+        with self._sync_lock:
+            now = time.time()
+            # Rate limit git fetch to at most once every 3 seconds unless forced
+            if not force and (now - self._last_sync_time < 3.0):
+                return False
+            self._last_sync_time = now
+
+            try:
+                auth_url = repo.replace("https://", f"https://{token}@")
+                self._run(["git", "fetch", auth_url, "main"], cwd=self.repo_dir, check=True)
+
+                remote_blob = self._run(
+                    ["git", "show", "FETCH_HEAD:bot.db"],
+                    cwd=self.repo_dir, check=True, capture_binary=True
+                )
+                if not remote_blob or len(remote_blob) < 1000:
+                    return False
+
+                # Verify sqlite integrity before overwriting
+                with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                    tmp.write(remote_blob)
+                    tmp_path = tmp.name
+                try:
+                    conn = sqlite3.connect(tmp_path)
+                    cur = conn.cursor()
+                    cur.execute("PRAGMA integrity_check")
+                    row = cur.fetchone()
+                    valid = (row and row[0] == "ok")
+                    conn.close()
+                finally:
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception:
+                        pass
+
+                if not valid:
+                    print("⚠️ Remote DB from GitHub failed integrity check, skipping sync.")
+                    return False
+
+                remote_hash = hashlib.md5(remote_blob).hexdigest()
+                local_hash = self._file_hash()
+                if remote_hash == local_hash:
+                    return False  # Up to date
+
+                # Flush WAL and remove WAL/SHM before updating
+                self._checkpoint()
+                wal_path = self.db_path + "-wal"
+                shm_path = self.db_path + "-shm"
+                for p in [wal_path, shm_path]:
+                    if os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except Exception:
+                            pass
+
+                # Write the new database content
+                with open(self.db_path, "wb") as f:
+                    f.write(remote_blob)
+
+                # Also keep root bot.db in sync if it exists
+                root_db = os.path.abspath(os.path.join(self.repo_dir, "..", "bot.db"))
+                if os.path.exists(root_db) and os.path.abspath(root_db) != os.path.abspath(self.db_path):
+                    try:
+                        with open(root_db, "wb") as f:
+                            f.write(remote_blob)
+                    except Exception:
+                        pass
+
+                self._last_hash = remote_hash
+                print(f"🔄 [Sync] Successfully synced database from GitHub! ({len(remote_blob):,} bytes)")
+                return True
+            except Exception as e:
+                return False
+
+    def push_admin_update(self, commit_msg: str = "Admin update from web portal") -> bool:
+        """Explicitly commit and push an administrative change from the web portal to GitHub."""
+        token = os.environ.get("GITHUB_TOKEN", "").strip()
+        repo = os.environ.get("GITHUB_REPO", "").strip()
+        if not token or not repo:
+            return False
+
+        self._checkpoint()
+        try:
+            auth_url = repo.replace("https://", f"https://{token}@")
+            self._run(["git", "add", "bot.db"], cwd=self.repo_dir, check=False)
+            self._run(["git", "commit", "-m", commit_msg], cwd=self.repo_dir, check=False)
+            self._run(["git", "push", auth_url, "main"], cwd=self.repo_dir, check=False)
+            self._last_hash = self._file_hash()
+            print(f"✅ [Admin Push] Pushed DB change to GitHub: {commit_msg}")
+            return True
+        except Exception as e:
+            print(f"⚠️ push_admin_update failed: {e}")
+            return False
 
     # ── internals ───────────────────────────────────────────────────────────
 
@@ -181,11 +302,14 @@ class GitBackup:
             pass
 
     @staticmethod
-    def _run(cmd, *, cwd=None, check=True, capture=False):
+    def _run(cmd, *, cwd=None, check=True, capture=False, capture_binary=False):
+        if capture_binary:
+            proc = subprocess.run(cmd, cwd=cwd, check=check, capture_output=True)
+            return proc.stdout
         return subprocess.run(
             cmd,
             cwd=cwd,
             check=check,
-            capture_output=True,
+            capture_output=capture,
             text=True,
         )
