@@ -4,55 +4,54 @@
 
 {% block content %}
 <div class="container">
-    <!-- Top Hero Split Layout (Dark BuilderX Tone) -->
+    <!-- Top Hero Split Layout -->
     <div class="hero-split-grid">
-        <!-- Left: PR Command Surface Box -->
+        <!-- Left: PR About Box -->
         <div class="surface-box">
-            <div class="eyebrow-text">PHANTOM REGIMENT // OFFICIAL COMMAND SURFACE</div>
+            <div class="eyebrow-text">PHANTOM REGIMENT // ABOUT OUR CLAN</div>
             <h1 class="hero-headline">
-                Elite tactical<br>
-                syndicate for<br>
+                Welcome to<br>
                 <span>Phantom Regiment</span>
             </h1>
             <p class="hero-desc">
-                Made on <strong>18 Sept 2026</strong>, an official branch of <strong>TS Clan</strong>. Engineered for tactical military operations, high-command governance, and an integrated medals economy across Discord and the web.
+                Founded on <strong>18 Sept 2026</strong> as an official branch of <strong>TS Clan</strong>. An active gaming clan community where you can earn medals, manage your bank vault, trade on the live stock market, and chat with members.
             </p>
             <div style="display: flex; gap: 0.85rem; margin-top: 1.5rem; flex-wrap: wrap;">
-                <a href="{{ url_for('views.medals_page') }}" class="btn btn-orange">
-                    Enter Medals & Stock Hub
+                <a href="{{ url_for('views.medals_page') }}" class="btn btn-blue">
+                    Open Medals & Stocks
                 </a>
                 <a href="{{ url_for('views.members_page') }}" class="btn btn-pill-dark">
-                    View Our Members
+                    Meet Our Members
                 </a>
             </div>
         </div>
 
-        <!-- Right: Operational Specifications Panel with 2x2 Grid -->
+        <!-- Right: Clan Highlights Panel with 2x2 Grid -->
         <div class="ghost-ui-box">
             <div class="ghost-header">
-                <span class="glow-dot-green"></span>
-                <span>PR SPECIFICATIONS</span>
+                <span class="glow-dot-blue"></span>
+                <span>AT A GLANCE</span>
             </div>
 
             <div class="ghost-grid-2x2">
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">TS Clan Heritage</div>
+                    <div class="ghost-tile-title">TS Clan Branch</div>
                     <div class="ghost-tile-sub">Made on 18 Sept 2026 as an official branch of TS Clan.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Live Discord Sync</div>
-                    <div class="ghost-tile-sub">Real-time live member counters and automated staff directory.</div>
+                    <div class="ghost-tile-title">Active Community</div>
+                    <div class="ghost-tile-sub">Over 290 members chatting and playing together on Discord.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Medals Standard</div>
-                    <div class="ghost-tile-sub">Web banking, live stock market, and dual wealth leaderboards.</div>
+                    <div class="ghost-tile-title">Medals & Bank</div>
+                    <div class="ghost-tile-sub">Secure vault banking, live stock market, and leaderboards.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">High Command Panel</div>
-                    <div class="ghost-tile-sub">Exclusive controls for Server Managers and the Server Owner.</div>
+                    <div class="ghost-tile-title">Staff & Leadership</div>
+                    <div class="ghost-tile-sub">Managed by the Server Owner and verified Server Managers.</div>
                 </div>
             </div>
         </div>
@@ -64,18 +63,18 @@
         <div class="metric-tile">
             <div class="metric-initials">PR</div>
             <div class="metric-info">
-                <span class="metric-label">Live Discord Members</span>
+                <span class="metric-label">Discord Members</span>
                 <span class="metric-value">{{ member_count }}</span>
-                <span class="metric-sub">Active members on Phantom Regiment server</span>
+                <span class="metric-sub">Total members in Phantom Regiment</span>
             </div>
-            <span class="metric-status-pill">SYNCED</span>
+            <span class="metric-status-pill">LIVE</span>
         </div>
 
         <!-- Metric 2: Online Members -->
         <div class="metric-tile">
             <div class="metric-initials">ON</div>
             <div class="metric-info">
-                <span class="metric-label">Online Operators</span>
+                <span class="metric-label">Online Members</span>
                 <span class="metric-value">{{ online_count }}</span>
                 <span class="metric-sub">Currently online on Discord</span>
             </div>
@@ -86,20 +85,20 @@
         <div class="metric-tile">
             <div class="metric-initials">HQ</div>
             <div class="metric-info">
-                <span class="metric-label">Date of Establishment</span>
+                <span class="metric-label">Founded Date</span>
                 <span class="metric-value" style="font-size: 1.55rem;">18 Sept 2026</span>
-                <span class="metric-sub">Branch of TS Clan</span>
+                <span class="metric-sub">Official Branch of TS Clan</span>
             </div>
-            <span class="metric-status-pill pill-orange">ESTABLISHED</span>
+            <span class="metric-status-pill">ESTABLISHED</span>
         </div>
     </div>
 
-    <!-- Lower Operational Surface Row -->
+    <!-- Lower Info Row -->
     <div class="lower-info-grid">
         <div class="lower-box">
-            <div class="lower-box-title">Discord Authentication & Web Integration</div>
+            <div class="lower-box-title">Discord Login & Web Integration</div>
             <div class="lower-box-sub">
-                Connect your account via Discord OAuth2 to access your personal medals balance, deposit/withdraw from your encrypted bank vault, and trade company shares on the live stock exchange.
+                Connect your Discord account to see your personal medals balance, deposit or withdraw from your vault, and trade company shares on the live stock exchange.
             </div>
             <span class="lower-badge">
                 {% if session.get('user') %}AUTHORIZED{% else %}DISCORD OAUTH2{% endif %}
@@ -109,7 +108,7 @@
         <div class="lower-box">
             <div class="lower-box-title">About Phantom Regiment</div>
             <div class="lower-box-sub">
-                Phantom Regiment was founded on <strong>September 18, 2026</strong> as an elite branch of <strong>TS Clan</strong>. Governed by the Server Owner and vetted Server Managers with a focus on tactical warfare, security, and economy.
+                Phantom Regiment was created on <strong>September 18, 2026</strong> as an official branch of <strong>TS Clan</strong>. Governed by the Server Owner and Server Managers.
             </div>
             <span class="metric-status-pill" style="top: 1.5rem; right: 1.75rem;">VERIFIED</span>
         </div>
