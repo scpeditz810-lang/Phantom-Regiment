@@ -74,7 +74,7 @@ function renderStockCards() {
                         ${sign}${s.change_pct}%
                     </span>
                 </div>
-                <div class="stock-price text-gold">${s.price.toLocaleString()} Medals</div>
+                <div class="stock-price text-orange">${s.price.toLocaleString()} Medals</div>
                 <div class="stock-footer">
                     <span>Avail: ${s.available_shares} / ${s.total_supply}</span>
                     <span>Max: 10/usr</span>
@@ -333,7 +333,7 @@ async function loadPortfolio() {
                         <strong>${h.shares}</strong> / 10
                     </td>
                     <td>${h.avg_buy_price.toLocaleString()} Medals</td>
-                    <td><strong class="text-gold">${h.current_price.toLocaleString()}</strong> Medals</td>
+                    <td><strong class="text-orange">${h.current_price.toLocaleString()}</strong> Medals</td>
                     <td>${h.current_value.toLocaleString()} Medals</td>
                     <td class="${profitClass}">
                         <strong>${sign}${h.profit.toLocaleString()}</strong> (${sign}${h.profit_pct}%)
@@ -369,7 +369,7 @@ async function loadLeaderboards() {
                                 <span class="lb-name">${u.name}</span>
                             </div>
                             <div class="lb-val">
-                                <strong class="text-gold">${u.medals.toLocaleString()}</strong>
+                                <strong class="text-orange">${u.medals.toLocaleString()}</strong>
                                 <small class="text-muted">Medals</small>
                             </div>
                         </div>

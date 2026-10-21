@@ -1,76 +1,86 @@
 {% extends "base.html" %}
 
-{% block title %}Our Members & Leadership | Phantom Regiment{% endblock %}
+{% block title %}TS_ Core Team — Leadership Roster{% endblock %}
 
 {% block content %}
-<div class="container section-spacing">
-    <div class="page-header text-center">
-        <h1 class="section-title">COMMAND & LEADERSHIP DIRECTORY</h1>
-        <p class="section-sub">
-            Automatically synchronized with the <strong>{{ guild_name }}</strong> Discord server. Scans the Server Owner and vetted Server Managers in real time.
-        </p>
-    </div>
+<div class="container">
+    <!-- Top Hero Split Layout (Matching Image 2) -->
+    <div class="hero-split-grid">
+        <!-- Left Box -->
+        <div class="surface-box">
+            <div class="eyebrow-text">TS_ CORE TEAM</div>
+            <h1 class="hero-headline">
+                Meet the <span>TS_</span><br>
+                <span>leadership</span>
+            </h1>
+            <p class="hero-desc">
+                A focused profile page for the current seeded leadership roster. Each card shows the member name, system role, rank level, join date, and portrait slot.
+            </p>
+        </div>
 
-    <!-- Server Owner Section -->
-    {% if owner %}
-    <div class="owner-showcase">
-        <div class="owner-card">
-            <div class="owner-avatar-wrap">
-                <img src="{{ owner.avatar }}" alt="{{ owner.name }}" class="owner-avatar">
-                <span class="owner-crown">👑</span>
+        <!-- Right Box: Core Staff -->
+        <div class="ghost-ui-box">
+            <div class="ghost-header">
+                <span class="glow-dot-green"></span>
+                <span>Core Staff</span>
             </div>
-            <div class="owner-details">
-                <div class="badge-row">
-                    <span class="badge badge-owner">SUPREME COMMANDER / OWNER</span>
+
+            <div class="ghost-grid-2x2">
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Dark BuilderX Tone</div>
+                    <div class="ghost-tile-sub">Black surfaces, orange accents, and dense operational panels.</div>
                 </div>
-                <h2 class="owner-name">{{ owner.name }}</h2>
-                <span class="owner-tag">@{{ owner.username }}</span>
-                <p class="owner-desc">
-                    Founder and supreme authority of Phantom Regiment. Oversees cross-clan diplomacy, tactical war strategies, and high-command governance.
-                </p>
-                <div class="owner-meta">
-                    <span>🎖️ Status: Active High Command</span>
-                    <span>📅 Joined: {{ owner.joined_at }}</span>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Real-Time Ready</div>
+                    <div class="ghost-tile-sub">Designed for live sync state, staff actions, and audit-backed workflows.</div>
+                </div>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Roblox + Discord</div>
+                    <div class="ghost-tile-sub">Community identity, roles, bans, and ranks remain platform-aware.</div>
+                </div>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Confidential Panels</div>
+                    <div class="ghost-tile-sub">Appeals, reports, and salary management stay behind staff gates.</div>
                 </div>
             </div>
         </div>
     </div>
-    {% endif %}
 
-    <!-- Server Managers Section -->
-    <div class="managers-section">
-        <div class="managers-header">
-            <div>
-                <h3 class="category-title">SERVER MANAGERS & STAFF</h3>
-                <p class="category-sub">Vetted operational leaders and division managers tasked with server security and economy administration.</p>
+    <!-- Team Leadership Cards Roster (Matching Image 2) -->
+    <div class="leadership-roster-grid">
+        <!-- Server Owner Card (TS_Zenith) -->
+        {% if owner %}
+        <div class="leader-card owner-card-highlight">
+            <div class="leader-avatar-wrap">
+                <img src="{{ owner.avatar }}" alt="{{ owner.name }}" class="leader-avatar-img">
+                <span class="leader-crown-badge">👑</span>
             </div>
-            <span class="staff-count-badge">{{ managers|length }} Active Managers</span>
-        </div>
-
-        {% if managers %}
-        <div class="staff-grid">
-            {% for m in managers %}
-            <div class="staff-card">
-                <div class="staff-avatar-wrap">
-                    <img src="{{ m.avatar }}" alt="{{ m.name }}" class="staff-avatar">
-                    <span class="online-indicator"></span>
-                </div>
-                <div class="staff-info">
-                    <span class="badge badge-manager">{{ m.role }}</span>
-                    <h4 class="staff-name">{{ m.name }}</h4>
-                    <span class="staff-tag">@{{ m.username }}</span>
-                    <div class="staff-meta">
-                        <span>📅 Joined: {{ m.joined_at }}</span>
-                    </div>
-                </div>
+            <h3 class="leader-name">{{ owner.name }}</h3>
+            <span class="leader-tag">@{{ owner.username }}</span>
+            <span class="role-pill pill-owner">SUPREME COMMANDER</span>
+            <div class="leader-meta">
+                <span>Joined: {{ owner.joined_at }}</span>
             </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state-box">
-            <p>No members with the "Server Manager" role or Manage Server permissions were detected on the Discord server.</p>
         </div>
         {% endif %}
+
+        <!-- Server Managers & Staff Cards -->
+        {% for m in managers %}
+        <div class="leader-card">
+            <div class="leader-avatar-wrap">
+                <img src="{{ m.avatar }}" alt="{{ m.name }}" class="leader-avatar-img">
+            </div>
+            <h3 class="leader-name">{{ m.name }}</h3>
+            <span class="leader-tag">@{{ m.username }}</span>
+            <span class="role-pill">{{ m.role }}</span>
+            <div class="leader-meta">
+                <span>Joined: {{ m.joined_at }}</span>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}
