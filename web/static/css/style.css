@@ -1457,3 +1457,165 @@ a {
     border-color: rgba(249, 115, 22, 0.35);
     color: #fb923c;
 }
+
+
+/* ==========================================================================
+   Tactical War Dispatch Terminal (Leaderboard Hero)
+   ========================================================================== */
+.war-dispatch-terminal {
+    background: #0b1120;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 20px;
+    padding: 1.5rem;
+    position: relative;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(56, 189, 248, 0.03);
+    font-family: var(--font-sans);
+}
+
+.terminal-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    margin-bottom: 1.15rem;
+}
+
+.terminal-dots {
+    display: flex;
+    gap: 6px;
+}
+
+.terminal-dots .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+.terminal-dots .dot.red { background: #ef4444; }
+.terminal-dots .dot.yellow { background: #eab308; }
+.terminal-dots .dot.green { background: #22c55e; }
+
+.terminal-title {
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+}
+
+.terminal-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    color: #22c55e;
+    font-weight: 700;
+}
+
+.terminal-stat-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.t-stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.t-label {
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+.t-val {
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.terminal-ranks-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-bottom: 1.15rem;
+}
+
+.t-rank-item {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 0.55rem 0.85rem;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.t-rank-item:hover {
+    background: rgba(56, 189, 248, 0.05);
+    border-color: rgba(56, 189, 248, 0.25);
+    transform: translateX(3px);
+}
+
+.t-rank-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+.t-rank-badge.gold {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.t-rank-badge.silver {
+    background: rgba(56, 189, 248, 0.18);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.t-rank-badge.bronze {
+    background: rgba(249, 115, 22, 0.18);
+    color: #fb923c;
+    border: 1px solid rgba(249, 115, 22, 0.4);
+}
+
+.t-rank-info {
+    flex: 1;
+}
+
+.t-rank-info strong {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-white);
+    font-weight: 700;
+}
+
+.t-rank-info small {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.terminal-footer-note {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+    background: rgba(56, 189, 248, 0.04);
+    border: 1px dashed rgba(56, 189, 248, 0.2);
+    padding: 0.6rem 0.85rem;
+    border-radius: 10px;
+}
