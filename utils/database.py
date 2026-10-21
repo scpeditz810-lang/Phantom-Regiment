@@ -2472,7 +2472,7 @@ class Database:
         plot = await self.get_estate_plot(plot_id)
         if not plot:
             return False, "Plot not found."
-        if plot.get("owner_id") != user_id:
+        if str(plot.get("owner_id")) != str(user_id):
             return False, "You do not own this plot."
 
         current_b = plot.get("building_type", "empty")
@@ -2514,7 +2514,7 @@ class Database:
         plot = await self.get_estate_plot(plot_id)
         if not plot:
             return False, "Plot not found.", 0
-        if plot.get("owner_id") != user_id:
+        if str(plot.get("owner_id")) != str(user_id):
             return False, "You do not own this plot.", 0
 
         gross_payout = int(round(plot["current_value"] * 1.10))
@@ -2549,7 +2549,7 @@ class Database:
         plot = await self.get_estate_plot(plot_id)
         if not plot:
             return False, "Plot not found."
-        if plot.get("owner_id") != user_id:
+        if str(plot.get("owner_id")) != str(user_id):
             return False, "You do not own this plot."
 
         if price is None or price <= 0:
@@ -2576,7 +2576,7 @@ class Database:
         seller_id = plot.get("owner_id")
         if not seller_id:
             return False, "Plot has no owner."
-        if seller_id == buyer_id:
+        if str(seller_id) == str(buyer_id):
             return False, "You cannot buy your own plot."
 
         async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (buyer_id,)) as cur:
@@ -2618,7 +2618,7 @@ class Database:
         seller_id = plot.get("owner_id")
         if not seller_id:
             return False, "This plot is unowned. You can buy it directly from the map!"
-        if seller_id == buyer_id:
+        if str(seller_id) == str(buyer_id):
             return False, "You cannot make an offer on your own plot."
 
         async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (buyer_id,)) as cur:
@@ -2677,13 +2677,13 @@ class Database:
         if not row:
             return False, "Offer not found."
         offer = dict(row)
-        if offer["seller_id"] != seller_id:
+        if str(offer["seller_id"]) != str(seller_id):
             return False, "You are not authorized to accept this offer."
         if offer["status"] != "pending":
             return False, f"Offer is already {offer['status']}."
 
         plot = await self.get_estate_plot(offer["plot_id"])
-        if not plot or plot.get("owner_id") != seller_id:
+        if not plot or str(plot.get("owner_id")) != str(seller_id):
             return False, "You no longer own this plot."
 
         buyer_id = offer["buyer_id"]
@@ -2729,7 +2729,7 @@ class Database:
         if not row:
             return False, "Offer not found."
         offer = dict(row)
-        if offer["seller_id"] != seller_id:
+        if str(offer["seller_id"]) != str(seller_id):
             return False, "You are not authorized to reject this offer."
         if offer["status"] != "pending":
             return False, f"Offer is already {offer['status']}."
@@ -2743,8 +2743,12 @@ class Database:
         if self._db is None:
             await self.setup()
 
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            pass
         plots = await self.get_estate_plots()
-        user_plots = [p for p in plots if p.get("owner_id") == user_id]
+        user_plots = [p for p in plots if str(p.get("owner_id")) == str(user_id)]
         if not user_plots:
             return 0, "You do not own any land yet."
 
@@ -2764,8 +2768,12 @@ class Database:
 
     async def get_user_estate_stats(self, user_id: int) -> dict:
         """Get summary tycoon stats for user."""
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            pass
         plots = await self.get_estate_plots()
-        user_plots = [p for p in plots if p.get("owner_id") == user_id]
+        user_plots = [p for p in plots if str(p.get("owner_id")) == str(user_id)]
         total_val = sum(p["current_value"] for p in user_plots)
         accrued = sum(p.get("accrued_yield", 0) for p in user_plots)
         daily = sum(p.get("daily_yield_estimate", 0) for p in user_plots)

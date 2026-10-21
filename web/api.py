@@ -9,14 +9,9 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 def run_async(coro):
     bot = current_app.config.get("DISCORD_BOT")
-    if bot:
-        try:
-            loop = bot.loop
-            if loop and loop.is_running():
-                future = asyncio.run_coroutine_threadsafe(coro, loop)
-                return future.result(timeout=10)
-        except Exception:
-            pass
+    if bot and bot.loop and bot.loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(coro, bot.loop)
+        return future.result(timeout=10)
 
     try:
         loop = asyncio.get_running_loop()
@@ -296,7 +291,51 @@ def get_leaderboards():
             "total_lost": u.get("total_lost", 0)
         })
 
-    return jsonify({"medals": medals_lb, "gambling": gambling_lb})
+    # Command an Army Combat Champions (Top 1, Top 2, Top 3 roles)
+    ROLE_TOP_1 = 1560533558286745672
+    ROLE_TOP_2 = 1560533684141035530
+    ROLE_TOP_3 = 1560533774201266247
+
+    combat_champions = {
+        "top_1": [],
+        "top_2": [],
+        "top_3": []
+    }
+
+    if bot:
+        try:
+            from web.views import get_pr_guild
+            guild = get_pr_guild()
+            if guild:
+                r1 = guild.get_role(ROLE_TOP_1)
+                r2 = guild.get_role(ROLE_TOP_2)
+                r3 = guild.get_role(ROLE_TOP_3)
+
+                def format_member(m, rank_num):
+                    name = m.global_name or m.display_name or m.name
+                    pfp = m.display_avatar.url if hasattr(m, 'display_avatar') else (m.avatar.url if m.avatar else "https://cdn.discordapp.com/embed/avatars/0.png")
+                    return {
+                        "user_id": m.id,
+                        "name": name,
+                        "username": m.name,
+                        "avatar": pfp,
+                        "rank": rank_num
+                    }
+
+                if r1:
+                    combat_champions["top_1"] = [format_member(m, 1) for m in r1.members]
+                if r2:
+                    combat_champions["top_2"] = [format_member(m, 2) for m in r2.members]
+                if r3:
+                    combat_champions["top_3"] = [format_member(m, 3) for m in r3.members]
+        except Exception as e:
+            pass
+
+    return jsonify({
+        "medals": medals_lb, 
+        "gambling": gambling_lb,
+        "combat_champions": combat_champions
+    })
 
 # ── Admin Only Endpoints ──────────────────────────────────────────────────────
 @api_bp.route("/admin/stock/create", methods=["POST"])
@@ -506,7 +545,8 @@ def estate_stats():
 
     user = session.get("user")
     if user:
-        uid = user["id"]
+        raw_uid = user.get("id")
+        uid = int(raw_uid) if str(raw_uid).isdigit() else raw_uid
         u_stats = run_async(db.get_user_estate_stats(uid))
         econ = run_async(db.get_global_economy(uid))
         user_stats = u_stats

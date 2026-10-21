@@ -128,9 +128,9 @@ class GitBackup:
         Local instances will instead pull/sync from remote."""
         if not self.is_render():
             # Local development / web portal:
-            # DO NOT push to GitHub (would clobber production bot database).
-            # Instead, pull remote changes so local database is always fresh.
-            return self.sync_from_remote()
+            # DO NOT push to GitHub (would clobber production bot database),
+            # and DO NOT automatically overwrite local database every 10 seconds.
+            return False
 
         if not self._enabled:
             return False
