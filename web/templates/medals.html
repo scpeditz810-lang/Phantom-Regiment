@@ -218,29 +218,25 @@
     </div>
     {% endif %}
 
-    <!-- ⚔️ Command an Army: Combat Champions Hall of Fame Section -->
-    <div class="table-surface combat-hof-section">
-        <div class="combat-hof-header">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <span class="combat-icon-badge">⚔️</span>
-                <div>
-                    <div class="eyebrow-text">COMMAND AN ARMY // GUILD WAR HEROES</div>
-                    <h2 style="margin: 0; font-size: 1.45rem; font-weight: 900; letter-spacing: -0.01em;">
-                        Combat Champions Leaderboard
-                    </h2>
-                    <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0.2rem 0 0 0;">
-                        Honoring the elite soldiers who contributed the most wins & kills to the clan inside Command an Army.
-                    </p>
-                </div>
+    <!-- Dedicated Leaderboard CTA Banner -->
+    <div class="table-surface" style="padding: 1.5rem 2rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(56, 189, 248, 0.25); background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9)); margin-bottom: 2.5rem; border-radius: 18px; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(56, 189, 248, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; border: 1px solid rgba(56, 189, 248, 0.3);">
+                🏆
             </div>
-            <span class="live-pill"><span class="pulse-dot"></span> GUILD ROLES LIVE</span>
-        </div>
-
-        <div class="combat-podium-grid" id="combat-champions-podium">
-            <div style="text-align: center; color: var(--text-muted); padding: 2rem; grid-column: 1 / -1;">
-                Loading Combat Champions...
+            <div>
+                <div class="eyebrow-text">COMMAND AN ARMY // COMBAT HALL OF FAME</div>
+                <h3 style="margin: 0.1rem 0 0.2rem 0; font-size: 1.25rem; font-weight: 800; color: var(--text-white);">
+                    Combat Champions & War Heroes Leaderboard
+                </h3>
+                <p style="margin: 0; font-size: 0.8rem; color: var(--text-sub);">
+                    View the dedicated showcase for Top 1, Top 2, and Top 3 contributors with live Discord cards.
+                </p>
             </div>
         </div>
+        <a href="{{ url_for('views.leaderboard_page') }}" class="btn btn-blue" style="padding: 0.65rem 1.4rem; font-weight: 700; text-decoration: none;">
+            View Combat Hall of Fame &rarr;
+        </a>
     </div>
 
     <!-- Dual Leaderboards (Most Medals & Best Gambler) -->

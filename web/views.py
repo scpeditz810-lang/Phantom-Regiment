@@ -317,6 +317,92 @@ def estate_page():
 def admin_page():
     return render_template("admin.html")
 
+
+@views_bp.route("/leaderboard")
+@views_bp.route("/leaderboards")
+def leaderboard_page():
+    guild = get_pr_guild()
+    ROLE_TOP_1 = 1560533558286745672
+    ROLE_TOP_2 = 1560533684141035530
+    ROLE_TOP_3 = 1560533774201266247
+
+    top_1_members = []
+    top_2_members = []
+    top_3_members = []
+
+    def format_member(m, rank_num, role_title, badge_icon):
+        name = m.global_name or m.display_name or m.name
+        pfp = m.display_avatar.url if hasattr(m, 'display_avatar') else (m.avatar.url if m.avatar else "https://cdn.discordapp.com/embed/avatars/0.png")
+        joined = m.joined_at.strftime("%b %d, %Y") if hasattr(m, 'joined_at') and m.joined_at else "Sep 18, 2026"
+        return {
+            "id": m.id,
+            "name": name,
+            "username": m.name,
+            "avatar": pfp,
+            "rank": rank_num,
+            "role_title": role_title,
+            "badge": badge_icon,
+            "joined_at": joined
+        }
+
+    if guild:
+        r1 = guild.get_role(ROLE_TOP_1)
+        r2 = guild.get_role(ROLE_TOP_2)
+        r3 = guild.get_role(ROLE_TOP_3)
+
+        if r1:
+            top_1_members = [format_member(m, 1, "TOP 1 // SUPREME VICTOR", "👑") for m in r1.members]
+        if r2:
+            top_2_members = [format_member(m, 2, "TOP 2 // VANGUARD MASTER", "⭐") for m in r2.members]
+        if r3:
+            top_3_members = [format_member(m, 3, "TOP 3 // COMBAT SPECIALIST", "🛡️") for m in r3.members]
+
+    # Fallbacks if Discord is caching or offline
+    if not top_1_members:
+        top_1_members = [{
+            "id": 1500570205443588317,
+            "name": "dred",
+            "username": "dred0166_36052",
+            "avatar": "https://cdn.discordapp.com/avatars/1500570205443588317/2e4deeb9b1759d49cf72095df99055e3.png?size=1024",
+            "rank": 1,
+            "role_title": "TOP 1 // SUPREME VICTOR",
+            "badge": "👑",
+            "joined_at": "Sep 18, 2026"
+        }]
+    if not top_2_members:
+        top_2_members = [{
+            "id": 828513350883213342,
+            "name": "AkSparkz",
+            "username": "arvindkarthick",
+            "avatar": "https://cdn.discordapp.com/avatars/828513350883213342/ead6a2c4f0a8e2b3d44f46889144efa8.png?size=1024",
+            "rank": 2,
+            "role_title": "TOP 2 // VANGUARD MASTER",
+            "badge": "⭐",
+            "joined_at": "Sep 19, 2026"
+        }]
+    if not top_3_members:
+        top_3_members = [{
+            "id": 1386072706298155068,
+            "name": "Dr. Calico",
+            "username": "lostrawberrys",
+            "avatar": "https://cdn.discordapp.com/avatars/1386072706298155068/493d0db0e01161022ee94457027b9e62.png?size=1024",
+            "rank": 3,
+            "role_title": "TOP 3 // COMBAT SPECIALIST",
+            "badge": "🛡️",
+            "joined_at": "Sep 19, 2026"
+        }]
+
+    all_champions = top_1_members + top_2_members + top_3_members
+
+    return render_template(
+        "leaderboard.html",
+        top_1_members=top_1_members,
+        top_2_members=top_2_members,
+        top_3_members=top_3_members,
+        all_champions=all_champions,
+        guild_name=guild.name if guild else "Phantom Regiment"
+    )
+
 @views_bp.route("/unauthorized")
 def unauthorized():
     return render_template("unauthorized.html"), 403

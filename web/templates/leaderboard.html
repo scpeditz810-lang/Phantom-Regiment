@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Combat Champions & Leaderboards | Phantom Regiment{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Top Hero Split Layout (Dark BuilderX Tone) -->
+    <div class="hero-split-grid">
+        <!-- Left Surface Box -->
+        <div class="surface-box">
+            <div class="eyebrow-text">COMMAND AN ARMY // COMBAT LEADERBOARD</div>
+            <h1 class="hero-headline">
+                Combat <span>Champions</span><br>
+                <span>Hall of Fame</span>
+            </h1>
+            <p class="hero-desc">
+                Honoring the elite warriors of Phantom Regiment who contributed the most battle victories and kills to the clan inside Command an Army. Synchronized live with Discord roles.
+            </p>
+        </div>
+
+        <!-- Right Box: Combat Hierarchy -->
+        <div class="ghost-ui-box">
+            <div class="ghost-header">
+                <span class="glow-dot-green"></span>
+                <span>Command an Army Hierarchy</span>
+            </div>
+
+            <div class="ghost-grid-2x2">
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">🥇 Top 1 Champion</div>
+                    <div class="ghost-tile-sub">Role ID 1560533558286745672 // Supreme Victor</div>
+                </div>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">🥈 Top 2 Vanguard</div>
+                    <div class="ghost-tile-sub">Role ID 1560533684141035530 // Vanguard Master</div>
+                </div>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">🥉 Top 3 Specialist</div>
+                    <div class="ghost-tile-sub">Role ID 1560533774201266247 // Combat Specialist</div>
+                </div>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">⚡ Live Sync</div>
+                    <div class="ghost-tile-sub">Direct Discord intent scanning with real-time avatars.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section Header -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 2.5rem; margin-bottom: 0.5rem;">
+        <div>
+            <div class="eyebrow-text">PHANTOM REGIMENT // FRONTLINE VETERANS</div>
+            <h2 style="font-size: 1.6rem; font-weight: 900; margin: 0.2rem 0; color: var(--text-white);">
+                Command an Army Elite Contributors
+            </h2>
+            <p style="font-size: 0.85rem; color: var(--text-sub); margin: 0;">
+                Players holding official Command an Army Top 1, Top 2, and Top 3 combat victory roles.
+            </p>
+        </div>
+        <span class="live-pill"><span class="pulse-dot"></span> LIVE GUILD ROLES</span>
+    </div>
+
+    <!-- Cards Roster Grid (Matching Team Cards) -->
+    <div class="leadership-roster-grid">
+        {% for m in all_champions %}
+        <div class="leader-card {% if m.rank == 1 %}owner-card-highlight combat-card-rank-1{% elif m.rank == 2 %}combat-card-rank-2{% elif m.rank == 3 %}combat-card-rank-3{% endif %}">
+            <div class="leader-avatar-wrap">
+                <img src="{{ m.avatar }}" alt="{{ m.name }}" class="leader-avatar-img" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                <span class="leader-crown-badge">{{ m.badge }}</span>
+            </div>
+            <h3 class="leader-name">{{ m.name }}</h3>
+            <span class="leader-tag">@{{ m.username }}</span>
+            <span class="role-pill {% if m.rank == 1 %}pill-owner pill-rank-1{% elif m.rank == 2 %}pill-rank-2{% elif m.rank == 3 %}pill-rank-3{% endif %}">{{ m.role_title }}</span>
+            <div class="leader-meta">
+                <span>Joined Server: {{ m.joined_at }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Dual Leaderboards (Most Medals Globally & Best Gambler) -->
+    <div style="margin-top: 3.5rem; margin-bottom: 1.5rem;">
+        <div class="eyebrow-text">ECONOMY & GAMING STANDINGS</div>
+        <h2 style="font-size: 1.6rem; font-weight: 900; margin: 0.2rem 0; color: var(--text-white);">
+            Global Clan Rankings
+        </h2>
+        <p style="font-size: 0.85rem; color: var(--text-sub); margin: 0;">
+            Track high rollers, economy tycoons, and active casino leaderboard standings.
+        </p>
+    </div>
+
+    <div class="leaderboards-grid" style="margin-bottom: 4rem;">
+        <!-- Most Medals Globally -->
+        <div class="lb-card">
+            <div class="lb-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h3>🏆 MOST MEDALS GLOBALLY</h3>
+                    <span class="lb-sub">Real-time balances across all connected clans</span>
+                </div>
+                <span class="live-pill"><span class="pulse-dot"></span> LIVE</span>
+            </div>
+            <div class="lb-list" id="lb-medals-list">
+                <div class="text-center p-3 text-muted">Loading leaderboard...</div>
+            </div>
+        </div>
+
+        <!-- Best Gambler -->
+        <div class="lb-card">
+            <div class="lb-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h3>🎰 BEST GAMBLER</h3>
+                    <span class="lb-sub">Real-time net earnings from casino games</span>
+                </div>
+                <span class="live-pill"><span class="pulse-dot"></span> LIVE</span>
+            </div>
+            <div class="lb-list" id="lb-gambling-list">
+                <div class="text-center p-3 text-muted">Loading leaderboard...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/stocks.js') }}"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        if (typeof loadLeaderboards === "function") {
+            loadLeaderboards();
+            setInterval(loadLeaderboards, 10000);
+        }
+    });
+</script>
+{% endblock %}
