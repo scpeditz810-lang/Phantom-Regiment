@@ -225,6 +225,18 @@ try:
 except Exception as _e:
     pass
 
+@api_bp.route("/squads")
+def api_squads():
+    bot = current_app.config.get("DISCORD_BOT")
+    from web.views import get_pr_guild, get_squads_data
+    guild = get_pr_guild()
+    user = session.get("user")
+    squads, active = get_squads_data(guild, bot, user)
+    return jsonify({
+        "squads": squads,
+        "user_active_squad": active
+    })
+
 @api_bp.route("/leaderboards")
 def get_leaderboards():
     db = get_db()

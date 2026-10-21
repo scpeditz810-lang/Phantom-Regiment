@@ -93,6 +93,50 @@
         </div>
     </div>
 
+    <!-- Tactical Squads Spotlight Row -->
+    <div class="surface-box" style="margin-top: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+            <div>
+                <div class="eyebrow-text">PHANTOM REGIMENT // COMBAT DIVISIONS</div>
+                <h2 style="font-size: 1.6rem; color: var(--text-white); margin-top: 0.25rem;">
+                    Active <span>Tactical Squads</span>
+                </h2>
+                <p style="color: var(--text-muted); font-size: 0.88rem; max-width: 600px; margin-top: 0.35rem;">
+                    Enlist in one of the three elite combat divisions of Phantom Regiment. Master your battlefield role with dedicated commanders and private comms.
+                </p>
+            </div>
+            <a href="{{ url_for('views.squads_page') }}" class="btn btn-blue" style="padding: 0.55rem 1.25rem;">
+                Explore All Squads &rarr;
+            </a>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem;" class="squad-preview-grid">
+            <!-- Frontline -->
+            <a href="{{ url_for('views.squads_page') }}" style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; align-items: center; text-align: center; transition: all 0.2s ease;" onmouseover="this.style.borderColor='var(--border-blue)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255, 255, 255, 0.06)'; this.style.transform='none'">
+                <img src="{{ url_for('static', filename='images/frontline.png') }}" style="height: 65px; object-fit: contain; margin-bottom: 0.85rem;" alt="Frontline">
+                <span class="role-pill" style="font-size: 0.65rem; margin-bottom: 0.4rem;">VERSATILE COMBAT</span>
+                <strong style="color: var(--text-white); font-size: 1.1rem;">⚔️ Frontline</strong>
+                <span style="color: var(--text-muted); font-size: 0.78rem; margin-top: 0.35rem;">Adaptive infantry & choke point tactics</span>
+            </a>
+
+            <!-- Los Bluchigis -->
+            <a href="{{ url_for('views.squads_page') }}" style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; align-items: center; text-align: center; transition: all 0.2s ease;" onmouseover="this.style.borderColor='var(--border-blue)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255, 255, 255, 0.06)'; this.style.transform='none'">
+                <img src="{{ url_for('static', filename='images/losbluchigis.png') }}" style="height: 65px; object-fit: contain; margin-bottom: 0.85rem;" alt="Los Bluchigis">
+                <span class="role-pill" style="font-size: 0.65rem; margin-bottom: 0.4rem;">CAVALRY MASTERS</span>
+                <strong style="color: var(--text-white); font-size: 1.1rem;">🐎 Los Bluchigis</strong>
+                <span style="color: var(--text-muted); font-size: 0.78rem; margin-top: 0.35rem;">Elite cavalry charges & fast flanking</span>
+            </a>
+
+            <!-- Nocturne Pheonix -->
+            <a href="{{ url_for('views.squads_page') }}" style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; align-items: center; text-align: center; transition: all 0.2s ease;" onmouseover="this.style.borderColor='var(--border-blue)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255, 255, 255, 0.06)'; this.style.transform='none'">
+                <img src="{{ url_for('static', filename='images/nocturne.png') }}" style="height: 65px; object-fit: contain; margin-bottom: 0.85rem;" alt="Nocturne Pheonix">
+                <span class="role-pill" style="font-size: 0.65rem; margin-bottom: 0.4rem;">ARCHERY & DEFENSE</span>
+                <strong style="color: var(--text-white); font-size: 1.1rem;">🏹 Nocturne Pheonix</strong>
+                <span style="color: var(--text-muted); font-size: 0.78rem; margin-top: 0.35rem;">Long-range archery & fortress shield walls</span>
+            </a>
+        </div>
+    </div>
+
     <!-- Lower Info Row -->
     <div class="lower-info-grid">
         <div class="lower-box">
