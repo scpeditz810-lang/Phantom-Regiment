@@ -1116,23 +1116,47 @@ class EconomyCog(commands.Cog):
             await interaction.response.send_message(f"🎰 The wheel landed on {color_emoji} **{result}**...\n💀 You lost **{bet:,} Medals**.")
 
 
-    @app_commands.command(name="givemedals", description="Give Medals to a user (PR High Command Only)")
+    async def _is_owner_or_manager(self, interaction: discord.Interaction) -> bool:
+        if await self.bot.is_owner(interaction.user):
+            return True
+        if interaction.guild and interaction.guild.owner_id == interaction.user.id:
+            return True
+        perms = getattr(interaction.user, "guild_permissions", None)
+        if perms and (perms.administrator or perms.manage_guild):
+            return True
+        roles = {r.name.lower() for r in getattr(interaction.user, "roles", [])}
+        if "server manager" in roles or "manager" in roles or any("server manager" in r for r in roles):
+            return True
+        return False
+
+    @app_commands.command(name="givemedals", description="Give Medals to a user (Owner and Server Manager Only)")
     @app_commands.default_permissions(manage_guild=True)
     async def givemedals(self, interaction: discord.Interaction, member: discord.Member, amount: int):
-        if interaction.guild_id != 1550544659217125467 and not await self.bot.is_owner(interaction.user):
-            return await interaction.response.send_message("❌ Medal minting is restricted to Phantom Regiment High Command in the main server.", ephemeral=True)
+        if not await self._is_owner_or_manager(interaction):
+            return await interaction.response.send_message("❌ This command is restricted to the Server Owner and Server Managers.", ephemeral=True)
         if amount <= 0: return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
         await self.bot.db.add_medals(member.id, interaction.guild_id, amount)
-        await interaction.response.send_message(f"✅ Gave **{amount:,} Medals** to {member.mention}.")
+        user_data = await self.bot.db.ensure_user(member.id, interaction.guild_id)
+        new_balance = user_data.get("medals", 0)
+        await interaction.response.send_message(f"✅ Gave **{amount:,} Medals** to {member.mention}. (New balance: **{new_balance:,} Medals**)")
 
-    @app_commands.command(name="removemedals", description="Remove Medals from a user (PR High Command Only)")
+    @app_commands.command(name="removemedals", description="Remove Medals from a user (Owner and Server Manager Only)")
     @app_commands.default_permissions(manage_guild=True)
     async def removemedals(self, interaction: discord.Interaction, member: discord.Member, amount: int):
-        if interaction.guild_id != 1550544659217125467 and not await self.bot.is_owner(interaction.user):
-            return await interaction.response.send_message("❌ Medal management is restricted to Phantom Regiment High Command in the main server.", ephemeral=True)
+        if not await self._is_owner_or_manager(interaction):
+            return await interaction.response.send_message("❌ This command is restricted to the Server Owner and Server Managers.", ephemeral=True)
         if amount <= 0: return await interaction.response.send_message("Amount must be positive.", ephemeral=True)
-        await self.bot.db.add_medals(member.id, interaction.guild_id, -amount)
-        await interaction.response.send_message(f"✅ Removed **{amount:,} Medals** from {member.mention}.")
+
+        user_data = await self.bot.db.ensure_user(member.id, interaction.guild_id)
+        current = user_data.get("medals", 0)
+        if current <= 0:
+            return await interaction.response.send_message(f"❌ {member.mention} has no medals to remove.", ephemeral=True)
+
+        deduct = min(amount, current)
+        await self.bot.db.add_medals(member.id, interaction.guild_id, -deduct)
+        user_data = await self.bot.db.ensure_user(member.id, interaction.guild_id)
+        new_balance = user_data.get("medals", 0)
+        await interaction.response.send_message(f"✅ Removed **{deduct:,} Medals** from {member.mention}. (New balance: **{new_balance:,} Medals**)")
 
     @app_commands.command(name="guide", description="Made by Phantom Regiment")
     async def guide(self, interaction: discord.Interaction):
