@@ -375,12 +375,52 @@ a {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 18px;
-    padding: 1.25rem 1.5rem;
+    padding: 1.35rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    min-height: 145px;
+    transition: all 0.2s ease;
+}
+
+.metric-tile:hover {
+    border-color: rgba(56, 189, 248, 0.2);
+    background: var(--bg-card-hover);
+}
+
+.metric-tile-header {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
-    position: relative;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.35);
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    width: 100%;
+}
+
+.vault-btn-group {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+}
+
+.pill-claimed {
+    background: rgba(56, 189, 248, 0.1);
+    color: var(--blue-primary);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+}
+
+.pill-ready {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--green);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 .metric-initials {
@@ -883,16 +923,40 @@ a {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.65rem 0.85rem;
+    padding: 0.75rem 1rem;
     background: var(--bg-card-inner);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    transition: all 0.15s ease;
+    border-radius: 12px;
+    transition: all 0.18s ease;
+}
+
+.lb-row:hover {
+    background: var(--bg-card-hover);
+    border-color: rgba(56, 189, 248, 0.25);
+    transform: translateY(-1px);
 }
 
 .lb-row.top-1 {
-    border-color: var(--blue-primary);
-    background: rgba(56, 189, 248, 0.06);
+    border-color: rgba(234, 179, 8, 0.45);
+    background: linear-gradient(90deg, rgba(234, 179, 8, 0.09) 0%, rgba(22, 34, 56, 0.8) 100%);
+}
+
+.lb-row.top-2 {
+    border-color: rgba(148, 163, 184, 0.35);
+    background: linear-gradient(90deg, rgba(148, 163, 184, 0.07) 0%, rgba(22, 34, 56, 0.8) 100%);
+}
+
+.lb-row.top-3 {
+    border-color: rgba(217, 119, 6, 0.35);
+    background: linear-gradient(90deg, rgba(217, 119, 6, 0.07) 0%, rgba(22, 34, 56, 0.8) 100%);
+}
+
+.lb-empty-box {
+    text-align: center;
+    padding: 2.25rem 1.5rem;
+    background: var(--bg-card-inner);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
 }
 
 .lb-user {

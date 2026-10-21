@@ -52,22 +52,37 @@ def medals_page():
     user_data = None
     bank_data = None
     tier_info = None
+    streak_val = 0
+    claimed_today = False
 
     if user:
         db = current_app.config["DB"]
         uid = user["id"]
         user_data = run_async(db.get_global_economy(uid))
-        bank_data = run_async(db.get_bank(uid))
+        bank_data = run_async(db.get_bank(uid, 0))
         from utils.constants import BANK_TIERS
         tier = bank_data.get("tier", 1) if bank_data else 1
         tier_info = BANK_TIERS.get(tier, {"name": f"Tier {tier}", "cap": 1000})
+
+        import time
+        streak_record = run_async(db.get_streak(uid))
+        if streak_record:
+            streak_val = streak_record.get("streak", 0)
+            last_claim = streak_record.get("last_claim", 0)
+            if (time.time() - last_claim) < 86400:
+                claimed_today = True
+        elif user_data and user_data.get("last_daily"):
+            if (time.time() - user_data["last_daily"]) < 86400:
+                claimed_today = True
 
     return render_template(
         "medals.html",
         user=user,
         user_data=user_data,
         bank_data=bank_data,
-        tier_info=tier_info
+        tier_info=tier_info,
+        streak_val=streak_val,
+        claimed_today=claimed_today
     )
 
 @views_bp.route("/members")
