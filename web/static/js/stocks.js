@@ -74,7 +74,7 @@ function renderStockCards() {
                         ${sign}${s.change_pct}%
                     </span>
                 </div>
-                <div class="stock-price text-orange">${s.price.toLocaleString()} Medals</div>
+                <div class="stock-price text-blue">${s.price.toLocaleString()} Medals</div>
                 <div class="stock-footer">
                     <span>Avail: ${s.available_shares} / ${s.total_supply}</span>
                     <span>Max: 10/usr</span>
@@ -161,8 +161,8 @@ async function loadChart(stockId) {
         const currentStock = allStocks.find(s => s.id === stockId);
         const isUp = currentStock ? currentStock.is_up : true;
 
-        const lineColor = isUp ? "#10b981" : "#ef4444";
-        const bgColor = isUp ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)";
+        const lineColor = isUp ? "#38bdf8" : "#ef4444";
+        const bgColor = isUp ? "rgba(56, 189, 248, 0.08)" : "rgba(239, 68, 68, 0.08)";
 
         if (stockChart) {
             stockChart.data.labels = data.labels;
@@ -193,16 +193,16 @@ async function loadChart(stockId) {
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: {
-                        duration: 600
+                        duration: 400
                     },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: '#111827',
-                            borderColor: '#374151',
+                            backgroundColor: '#0f1930',
+                            borderColor: '#1e293b',
                             borderWidth: 1,
-                            titleColor: '#f3f4f6',
-                            bodyColor: '#f59e0b',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#38bdf8',
                             callbacks: {
                                 label: function(context) {
                                     return ` ${context.parsed.y.toLocaleString()} Medals`;
@@ -213,19 +213,19 @@ async function loadChart(stockId) {
                     scales: {
                         x: {
                             grid: {
-                                color: 'rgba(255, 255, 255, 0.05)'
+                                color: 'rgba(56, 189, 248, 0.04)'
                             },
                             ticks: {
-                                color: '#6b7280',
+                                color: '#64748b',
                                 font: { size: 10 }
                             }
                         },
                         y: {
                             grid: {
-                                color: 'rgba(255, 255, 255, 0.05)'
+                                color: 'rgba(56, 189, 248, 0.04)'
                             },
                             ticks: {
-                                color: '#9ca3af',
+                                color: '#94a3b8',
                                 callback: function(val) {
                                     return val.toLocaleString() + ' M';
                                 }
@@ -283,11 +283,21 @@ async function executeTrade(action) {
 
         if (data.success) {
             showToast(data.message);
-            // Refresh stock info, chart, and portfolio
-            loadStocks(true);
-            loadPortfolio();
-            // Reload page in 1.2s to refresh wallet balance display cleanly
-            setTimeout(() => { window.location.reload(); }, 1200);
+
+            // Update live wallet balance immediately if returned
+            if (data.wallet !== undefined) {
+                const walletEl = document.getElementById("user-wallet-val");
+                if (walletEl) walletEl.innerText = Number(data.wallet).toLocaleString();
+            }
+
+            // Immediately refresh stock ticker, active chart, and portfolio table
+            await loadStocks(true);
+            if (activeStockId) {
+                await loadChart(activeStockId);
+            }
+            if (document.getElementById("portfolio-body")) {
+                loadPortfolio();
+            }
         } else {
             showToast(data.message, true);
         }
@@ -311,7 +321,7 @@ async function loadPortfolio() {
             body.innerHTML = `
                 <tr>
                     <td colspan="6" class="text-center text-muted" style="padding: 1.5rem;">
-                        No active stock holdings. Select an equity above to build your portfolio.
+                        No active stock holdings. Select a stock above to start trading.
                     </td>
                 </tr>
             `;
@@ -333,7 +343,7 @@ async function loadPortfolio() {
                         <strong>${h.shares}</strong> / 10
                     </td>
                     <td>${h.avg_buy_price.toLocaleString()} Medals</td>
-                    <td><strong class="text-orange">${h.current_price.toLocaleString()}</strong> Medals</td>
+                    <td><strong class="text-blue">${h.current_price.toLocaleString()}</strong> Medals</td>
                     <td>${h.current_value.toLocaleString()} Medals</td>
                     <td class="${profitClass}">
                         <strong>${sign}${h.profit.toLocaleString()}</strong> (${sign}${h.profit_pct}%)
@@ -369,7 +379,7 @@ async function loadLeaderboards() {
                                 <span class="lb-name">${u.name}</span>
                             </div>
                             <div class="lb-val">
-                                <strong class="text-orange">${u.medals.toLocaleString()}</strong>
+                                <strong class="text-blue">${u.medals.toLocaleString()}</strong>
                                 <small class="text-muted">Medals</small>
                             </div>
                         </div>
@@ -382,7 +392,7 @@ async function loadLeaderboards() {
         const gambleContainer = document.getElementById("lb-gambling-list");
         if (gambleContainer && data.gambling) {
             if (!data.gambling.length) {
-                gambleContainer.innerHTML = '<div class="text-center text-muted p-3">No recorded casino bets yet.</div>';
+                gambleContainer.innerHTML = '<div class="text-center text-muted p-3">No recorded bets yet.</div>';
             } else {
                 gambleContainer.innerHTML = data.gambling.map(u => {
                     const rankMedal = u.rank === 1 ? '🥇' : u.rank === 2 ? '🥈' : u.rank === 3 ? '🥉' : `#${u.rank}`;
@@ -429,11 +439,11 @@ function openBankModal(action) {
 
     if (action === "deposit") {
         title.innerText = "Vault Deposit";
-        sub.innerText = "Deposit medals from your active wallet into your secure bank vault.";
+        sub.innerText = "Deposit medals from your wallet into your vault.";
         btn.innerText = "Confirm Deposit";
     } else {
         title.innerText = "Vault Withdrawal";
-        sub.innerText = "Withdraw medals from your bank vault back to your active wallet.";
+        sub.innerText = "Withdraw medals from your vault back to your wallet.";
         btn.innerText = "Confirm Withdrawal";
     }
 
@@ -466,7 +476,16 @@ async function submitBankAction() {
         if (data.success) {
             showToast(data.message);
             closeBankModal();
-            setTimeout(() => { window.location.reload(); }, 1000);
+
+            // Update live balances immediately if returned
+            if (data.wallet !== undefined) {
+                const walletEl = document.getElementById("user-wallet-val");
+                if (walletEl) walletEl.innerText = Number(data.wallet).toLocaleString();
+            }
+            if (data.vault !== undefined) {
+                const vaultEl = document.getElementById("user-vault-val");
+                if (vaultEl) vaultEl.innerText = Number(data.vault).toLocaleString();
+            }
         } else {
             showToast(data.message, true);
         }
