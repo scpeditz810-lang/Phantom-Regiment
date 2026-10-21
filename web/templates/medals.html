@@ -218,6 +218,31 @@
     </div>
     {% endif %}
 
+    <!-- ⚔️ Command an Army: Combat Champions Hall of Fame Section -->
+    <div class="table-surface combat-hof-section">
+        <div class="combat-hof-header">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <span class="combat-icon-badge">⚔️</span>
+                <div>
+                    <div class="eyebrow-text">COMMAND AN ARMY // GUILD WAR HEROES</div>
+                    <h2 style="margin: 0; font-size: 1.45rem; font-weight: 900; letter-spacing: -0.01em;">
+                        Combat Champions Leaderboard
+                    </h2>
+                    <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0.2rem 0 0 0;">
+                        Honoring the elite soldiers who contributed the most wins & kills to the clan inside Command an Army.
+                    </p>
+                </div>
+            </div>
+            <span class="live-pill"><span class="pulse-dot"></span> GUILD ROLES LIVE</span>
+        </div>
+
+        <div class="combat-podium-grid" id="combat-champions-podium">
+            <div style="text-align: center; color: var(--text-muted); padding: 2rem; grid-column: 1 / -1;">
+                Loading Combat Champions...
+            </div>
+        </div>
+    </div>
+
     <!-- Dual Leaderboards (Most Medals & Best Gambler) -->
     <div class="leaderboards-grid">
         <!-- Most Medals Globally -->
@@ -270,3 +295,146 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/stocks.js') }}"></script>
 {% endblock %}
+<style>
+.combat-hof-section {
+    padding: 1.5rem;
+    border-radius: 14px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(11, 15, 25, 0.92));
+    margin-bottom: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.combat-hof-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 1.5rem;
+}
+
+.combat-icon-badge {
+    width: 48px;
+    height: 48px;
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+}
+
+.combat-podium-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+}
+
+@media (max-width: 900px) {
+    .combat-podium-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.combat-card {
+    background: var(--bg-card-inner);
+    border-radius: 12px;
+    padding: 1.5rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.25s ease;
+}
+
+.combat-card:hover {
+    transform: translateY(-4px);
+}
+
+.combat-card.tier-1 {
+    border: 2px solid #f59e0b;
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.35);
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.1) 0%, rgba(15, 23, 42, 0.95) 100%);
+}
+
+.combat-card.tier-1 .combat-pfp-wrap {
+    border-color: #f59e0b;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+}
+
+.combat-card.tier-2 {
+    border: 2px solid #94a3b8;
+    box-shadow: 0 0 20px rgba(148, 163, 184, 0.25);
+    background: linear-gradient(180deg, rgba(148, 163, 184, 0.08) 0%, rgba(15, 23, 42, 0.95) 100%);
+}
+
+.combat-card.tier-2 .combat-pfp-wrap {
+    border-color: #94a3b8;
+    box-shadow: 0 0 16px rgba(148, 163, 184, 0.4);
+}
+
+.combat-card.tier-3 {
+    border: 2px solid #d97706;
+    box-shadow: 0 0 20px rgba(217, 119, 6, 0.25);
+    background: linear-gradient(180deg, rgba(217, 119, 6, 0.08) 0%, rgba(15, 23, 42, 0.95) 100%);
+}
+
+.combat-card.tier-3 .combat-pfp-wrap {
+    border-color: #d97706;
+    box-shadow: 0 0 16px rgba(217, 119, 6, 0.4);
+}
+
+.combat-badge-pill {
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    margin-bottom: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.tier-1 .combat-badge-pill { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); }
+.tier-2 .combat-badge-pill { background: rgba(148, 163, 184, 0.2); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.4); }
+.tier-3 .combat-badge-pill { background: rgba(217, 119, 6, 0.2); color: #fbbf24; border: 1px solid rgba(217, 119, 6, 0.4); }
+
+.combat-pfp-wrap {
+    width: 86px;
+    height: 86px;
+    border-radius: 50%;
+    border: 3px solid;
+    padding: 3px;
+    margin-bottom: 0.85rem;
+}
+
+.combat-pfp {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.combat-big-name {
+    font-size: 1.45rem;
+    font-weight: 900;
+    color: #fff;
+    margin-bottom: 0.25rem;
+    line-height: 1.2;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+
+.combat-sub-desc {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+    margin-top: 0.35rem;
+}
+</style>

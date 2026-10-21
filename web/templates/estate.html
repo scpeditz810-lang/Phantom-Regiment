@@ -1359,8 +1359,13 @@ let allPlots = [];
 let selectedPlot = null;
 let currentFilter = "all";
 let buildingsConfig = {};
-let currentUserId = {{ session['user']['id'] if session.get('user') else 'null' }};
+let currentUserId = {{ session['user']['id'] | tojson if session.get('user') else 'null' }};
 let isProcessing = false;
+
+function isUserPlotOwner(plot) {
+    if (!currentUserId || !plot || !plot.owner_id) return false;
+    return String(plot.owner_id) === String(currentUserId);
+}
 
 // 3D Scene globals
 let scene, camera, renderer, controls;
@@ -1894,14 +1899,14 @@ function render3DPlots() {
     else if (currentFilter === "river") filtered = allPlots.filter(p => p.district === "Riverside Commons");
     else if (currentFilter === "industrial") filtered = allPlots.filter(p => p.district === "Ironworks District");
     else if (currentFilter === "citadel") filtered = allPlots.filter(p => p.district === "Shadow Citadel" || p.district === "Highland Outpost");
-    else if (currentFilter === "my_plots") filtered = allPlots.filter(p => currentUserId && p.owner_id === currentUserId);
+    else if (currentFilter === "my_plots") filtered = allPlots.filter(p => isUserPlotOwner(p));
     else if (currentFilter === "for_sale") filtered = allPlots.filter(p => p.for_sale_price && p.for_sale_price > 0);
 
     const filteredIds = new Set(filtered.map(p => p.id));
 
     allPlots.forEach(p => {
         const coords = PLOT_COORDINATES[p.id] || { x: (p.x - 3.5) * 50, z: (p.y - 3.5) * 40 };
-        const isMine = currentUserId && p.owner_id === currentUserId;
+        const isMine = isUserPlotOwner(p);
         const isOther = p.owner_id && !isMine;
         const isDimmed = !filteredIds.has(p.id);
 
@@ -2317,13 +2322,13 @@ function renderMapGrid() {
     else if (currentFilter === "river") filtered = allPlots.filter(p => p.district === "Riverside Commons");
     else if (currentFilter === "industrial") filtered = allPlots.filter(p => p.district === "Ironworks District");
     else if (currentFilter === "citadel") filtered = allPlots.filter(p => p.district === "Shadow Citadel" || p.district === "Highland Outpost");
-    else if (currentFilter === "my_plots") filtered = allPlots.filter(p => currentUserId && p.owner_id === currentUserId);
+    else if (currentFilter === "my_plots") filtered = allPlots.filter(p => isUserPlotOwner(p));
     else if (currentFilter === "for_sale") filtered = allPlots.filter(p => p.for_sale_price && p.for_sale_price > 0);
 
     const filteredIds = new Set(filtered.map(p => p.id));
 
     grid.innerHTML = allPlots.map(p => {
-        const isMine = currentUserId && p.owner_id === currentUserId;
+        const isMine = isUserPlotOwner(p);
         const isOther = p.owner_id && !isMine;
         const isDimmed = !filteredIds.has(p.id);
 
@@ -2403,7 +2408,7 @@ function selectPlot(p) {
     document.getElementById("insp-daily-yield").innerText = `+${Number(p.daily_yield_estimate || 0).toLocaleString()} M/day`;
     document.getElementById("insp-building-desc").innerText = p.building_desc || "Ready for development.";
 
-    const isMine = currentUserId && p.owner_id === currentUserId;
+    const isMine = isUserPlotOwner(p);
     const isUnclaimed = !p.owner_id;
 
     // Toggle Box Visibility
@@ -2571,8 +2576,10 @@ async function executeUpgrade() {
             showToast(data.message || "Building constructed!");
             cancelUpgradeSelection();
             await loadEstateData(true);
+            const refreshed = allPlots.find(x => x.id === selectedPlot.id);
+            if (refreshed) selectPlot(refreshed);
         } else {
-            showToast("Upgrade failed: " + (data.error || "Unknown error"), "error");
+            showToast("Upgrade failed: " + (data.message || data.error || "Unknown error"), "error");
         }
     } catch (err) {
         showToast("Error processing construction.", "error");
@@ -2595,8 +2602,10 @@ async function executeBuyPlot() {
         if (res.ok && data.success) {
             showToast(data.message || "Land successfully acquired!");
             await loadEstateData(true);
+            const refreshed = allPlots.find(x => x.id === selectedPlot.id);
+            if (refreshed) selectPlot(refreshed);
         } else {
-            showToast("Purchase failed: " + (data.error || "Unknown error"), "error");
+            showToast("Purchase failed: " + (data.message || data.error || "Unknown error"), "error");
         }
     } catch (err) {
         showToast("Error acquiring land.", "error");
@@ -2620,8 +2629,10 @@ async function executeSellToBank() {
         if (res.ok && data.success) {
             showToast(data.message || "Sold to Bank!");
             await loadEstateData(true);
+            const refreshed = allPlots.find(x => x.id === selectedPlot.id);
+            if (refreshed) selectPlot(refreshed);
         } else {
-            showToast("Bank liquidation failed: " + (data.error || "Unknown error"), "error");
+            showToast("Bank liquidation failed: " + (data.message || data.error || "Unknown error"), "error");
         }
     } catch (err) {
         showToast("Bank communication error.", "error");

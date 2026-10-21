@@ -381,11 +381,61 @@ async function loadPortfolio() {
 let _lastMedalsJson = "";
 let _lastGamblingJson = "";
 
+function escapeHtml(text) {
+    if (!text) return "";
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function renderCombatChampions(champions) {
+    const container = document.getElementById("combat-champions-podium");
+    if (!container || !champions) return;
+
+    const ranks = [
+        { key: 'top_1', tier: 'tier-1', badge: '👑 🥇 RANK #1 SUPREME CHAMPION', title: 'Top 1 Contributor • Highest Wins & Kills' },
+        { key: 'top_2', tier: 'tier-2', badge: '⚔️ 🥈 RANK #2 MASTER TACTICIAN', title: 'Top 2 Contributor • Frontline Dominance' },
+        { key: 'top_3', tier: 'tier-3', badge: '🛡️ 🥉 RANK #3 VANGUARD ELITE', title: 'Top 3 Contributor • Heavy Assault' }
+    ];
+
+    container.innerHTML = ranks.map(r => {
+        const members = champions[r.key] || [];
+        if (members.length === 0) {
+            return `
+                <div class="combat-card ${r.tier}">
+                    <div class="combat-badge-pill">${r.badge}</div>
+                    <div class="combat-pfp-wrap">
+                        <img src="https://cdn.discordapp.com/embed/avatars/0.png" class="combat-pfp">
+                    </div>
+                    <div class="combat-big-name" style="color:var(--text-muted); font-size:1.2rem;">Vacant Rank</div>
+                    <div class="combat-sub-desc">${r.title}</div>
+                </div>
+            `;
+        }
+
+        return members.map(m => `
+            <div class="combat-card ${r.tier}">
+                <div class="combat-badge-pill">${r.badge}</div>
+                <div class="combat-pfp-wrap">
+                    <img src="${m.avatar}" class="combat-pfp" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                </div>
+                <div class="combat-big-name">${escapeHtml(m.name)}</div>
+                <div style="font-size: 0.75rem; color: var(--blue-primary); font-family: var(--font-mono); font-weight: 700; margin-bottom: 0.25rem;">@${escapeHtml(m.username)}</div>
+                <div class="combat-sub-desc">${r.title}</div>
+            </div>
+        `).join("");
+    }).join("");
+}
+
 async function loadLeaderboards() {
     try {
         const res = await fetch("/api/leaderboards");
         if (!res.ok) return;
         const data = await res.json();
+
+        // 0. Combat Champions Podium (Command an Army)
+        const combatContainer = document.getElementById("combat-champions-podium");
+        if (combatContainer && data.combat_champions) {
+            renderCombatChampions(data.combat_champions);
+        }
 
         // 1. Most Medals Globally (Live)
         const medalsContainer = document.getElementById("lb-medals-list");
