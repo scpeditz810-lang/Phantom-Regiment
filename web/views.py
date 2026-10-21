@@ -411,9 +411,8 @@ def unauthorized():
 def verify():
     if "user" in session:
         return redirect(url_for("views.index"))
-    next_url = request.args.get("next", "/")
-    if not next_url.startswith("/") or next_url == "/verify":
-        next_url = "/"
+    from web.auth import get_clean_next
+    next_url = get_clean_next(request.args.get("next")) or "/"
     guild = get_pr_guild()
     member_count = guild.member_count if guild else 0
     return render_template("verify.html", next_url=next_url, member_count=member_count)

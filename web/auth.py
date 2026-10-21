@@ -1,5 +1,6 @@
 import os
 import requests
+from urllib.parse import urlparse
 from functools import wraps
 from flask import Blueprint, request, redirect, session, url_for, flash, current_app
 
@@ -16,11 +17,40 @@ def get_oauth_config():
         "bot_token": os.environ.get("DISCORD_TOKEN", "")
     }
 
+def get_clean_next(target: str | None) -> str | None:
+    """Safely sanitize and extract a relative path redirect target, preventing open redirects."""
+    if not target:
+        return None
+    try:
+        parsed = urlparse(target)
+        # If absolute URL with netloc, ensure it's our own domain
+        if parsed.netloc:
+            allowed_hosts = {
+                "phantom-regiment.onrender.com",
+                "localhost:10000",
+                "localhost",
+                "127.0.0.1:10000",
+                "127.0.0.1"
+            }
+            host = parsed.netloc.lower()
+            if host not in allowed_hosts and not host.endswith(".onrender.com"):
+                return None
+
+        path = parsed.path or ""
+        if parsed.query:
+            path += f"?{parsed.query}"
+        if path.startswith("/") and not path.startswith("//") and path != "/verify":
+            return path
+    except Exception:
+        pass
+    return None
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "user" not in session:
-            return redirect(url_for("auth.login", next=request.url))
+            next_target = request.full_path.rstrip("?") if request.query_string else request.path
+            return redirect(url_for("auth.login", next=next_target))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -28,7 +58,8 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "user" not in session:
-            return redirect(url_for("auth.login", next=request.url))
+            next_target = request.full_path.rstrip("?") if request.query_string else request.path
+            return redirect(url_for("auth.login", next=next_target))
         user = session["user"]
         if not (user.get("is_owner") or user.get("is_manager")):
             return redirect(url_for("views.unauthorized"))
@@ -37,9 +68,9 @@ def admin_required(f):
 
 @auth_bp.route("/login")
 def login():
-    # Save redirect destination if provided
-    next_dest = request.args.get("next")
-    if next_dest and next_dest.startswith("/") and next_dest != "/verify":
+    # Save redirect destination if provided and safe
+    next_dest = get_clean_next(request.args.get("next"))
+    if next_dest:
         session["next_url"] = next_dest
 
     cfg = get_oauth_config()
@@ -156,9 +187,7 @@ def callback():
             "is_owner": is_owner,
             "is_manager": is_manager
         }
-        dest = session.pop("next_url", None)
-        if not dest or not dest.startswith("/") or dest == "/verify":
-            dest = url_for("views.index")
+        dest = get_clean_next(session.pop("next_url", None)) or url_for("views.index")
         return redirect(dest)
 
     except Exception as e:
