@@ -49,8 +49,8 @@
 
             <div class="stat-tile">
                 <div class="stat-tile-label">PARCELS OWNED</div>
-                <div class="stat-tile-val text-blue"><span id="user-plots-count">0</span> <span style="font-size: 0.9rem; color: var(--text-muted);">/ 36</span></div>
-                <div class="stat-tile-sub">Across 4 state districts</div>
+                <div class="stat-tile-val text-blue"><span id="user-plots-count">0</span> <span style="font-size: 0.9rem; color: var(--text-muted);">/ 4 Max</span></div>
+                <div class="stat-tile-sub">Max 4 areas per member</div>
             </div>
 
             <div class="stat-tile">
@@ -172,9 +172,31 @@
                     </div>
                 </div>
 
+                <!-- On-Screen Virtual D-Pad & Mobile Controller -->
+                <div class="mobile-controls-hud" id="mobile-controls-hud">
+                    <div class="virtual-dpad">
+                        <button type="button" class="dpad-btn dpad-up" id="btn-dpad-up" title="Forward (W)">▲</button>
+                        <div class="dpad-middle-row">
+                            <button type="button" class="dpad-btn dpad-left" id="btn-dpad-left" title="Left (A)">◄</button>
+                            <div class="dpad-center-knob">🕹️</div>
+                            <button type="button" class="dpad-btn dpad-right" id="btn-dpad-right" title="Right (D)">►</button>
+                        </div>
+                        <button type="button" class="dpad-btn dpad-down" id="btn-dpad-down" title="Backward (S)">▼</button>
+                    </div>
+
+                    <div class="mobile-hud-actions">
+                        <button type="button" class="hud-action-btn" onclick="zoomIn3D()" title="Zoom In">➕</button>
+                        <button type="button" class="hud-action-btn" onclick="zoomOut3D()" title="Zoom Out">➖</button>
+                        <button type="button" class="hud-action-btn" id="btn-touch-rot-left" title="Rotate Left">↺</button>
+                        <button type="button" class="hud-action-btn" id="btn-touch-rot-right" title="Rotate Right">↻</button>
+                        <button type="button" class="hud-action-btn" onclick="toggleCameraPerspective()" title="Tilt Perspective">📐</button>
+                        <button type="button" class="hud-action-btn" onclick="reset3DCamera()" title="Reset View">🎯</button>
+                    </div>
+                </div>
+
                 <!-- On-Screen Instructions Pill -->
                 <div class="three-controls-hint">
-                    🖱️ <strong>Left-Click Drag:</strong> Orbit 360° & Tilt &bull; <strong>Right-Click Drag:</strong> Pan Map &bull; <strong>Scroll:</strong> Zoom &bull; <strong>Click Building:</strong> Inspect & Upgrade
+                    🎮 <strong>WASD / Arrow Keys:</strong> Glide &bull; <strong>Q / E:</strong> Turn &bull; <strong>Drag:</strong> Orbit &bull; <strong>Touch / Mobile:</strong> Virtual D-Pad
                 </div>
             </div>
 
@@ -950,6 +972,127 @@
     backdrop-filter: blur(6px);
 }
 
+
+/* ── Mobile Touch Controls HUD ── */
+.mobile-controls-hud {
+    position: absolute;
+    bottom: 45px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 50;
+}
+
+.virtual-dpad {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 20px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+}
+
+.dpad-middle-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dpad-center-knob {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: var(--blue-primary);
+    background: rgba(11, 15, 25, 0.8);
+    border-radius: 50%;
+    border: 1px dashed rgba(56, 189, 248, 0.3);
+}
+
+.dpad-btn {
+    width: 44px;
+    height: 44px;
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 1.15rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.dpad-btn:active, .dpad-btn.touch-active {
+    background: var(--blue-primary);
+    color: #0b0f19;
+    transform: scale(0.92);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+}
+
+.mobile-hud-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 16px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+    pointer-events: auto;
+    touch-action: none;
+}
+
+.hud-action-btn {
+    width: 42px;
+    height: 42px;
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.hud-action-btn:active, .hud-action-btn.touch-active {
+    background: var(--blue-primary);
+    color: #0b0f19;
+    transform: scale(0.92);
+}
+
+@media (max-width: 768px) {
+    .three-viewport-container {
+        height: 520px;
+    }
+    .mobile-controls-hud {
+        bottom: 38px;
+    }
+    .three-controls-hint {
+        font-size: 0.65rem;
+        padding: 0.25rem 0.65rem;
+    }
+}
+
 /* ── 2D Tactical Grid (Alternative View) ── */
 .map-grid-wrap {
     overflow-x: auto;
@@ -1229,6 +1372,14 @@ let isNightMode = false;
 let ambientLight, dirLight, hemisphereLight;
 let viewMode = '3d'; // '3d' or 'grid'
 
+// Smooth WASD & Mobile Movement Engine
+const keysPressed = {};
+const mobileControls = { forward: false, backward: false, left: false, right: false, rotLeft: false, rotRight: false };
+const moveVelocity = new THREE.Vector3();
+let rotVelocity = 0;
+const MOVE_ACCEL = 2.2;
+const MOVE_DAMPING = 0.88; // Buttery smooth exponential decay
+
 // Geographic Map Spatial Mapping (400 x 247 units matching map texture aspect ratio)
 const MAP_WIDTH = 420;
 const MAP_HEIGHT = 260;
@@ -1284,10 +1435,46 @@ document.addEventListener("DOMContentLoaded", () => {
     init3DViewer();
     loadEstateData(true);
     setupSearchAutocomplete();
+    setupMovementListeners();
 
     // Auto-poll estate data every 10 seconds live
     setInterval(() => loadEstateData(true), 10000);
 });
+
+
+function setupMovementListeners() {
+    // Keyboard WASD & Arrow Key listeners
+    window.addEventListener("keydown", (e) => {
+        if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+        keysPressed[e.code] = true;
+    });
+
+    window.addEventListener("keyup", (e) => {
+        keysPressed[e.code] = false;
+    });
+
+    // Mobile Virtual D-Pad Touch Listeners
+    const bindTouchAction = (btnId, actionKey) => {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        const start = (e) => { e.preventDefault(); mobileControls[actionKey] = true; btn.classList.add("touch-active"); };
+        const end = (e) => { e.preventDefault(); mobileControls[actionKey] = false; btn.classList.remove("touch-active"); };
+
+        btn.addEventListener("mousedown", start);
+        btn.addEventListener("mouseup", end);
+        btn.addEventListener("mouseleave", end);
+        btn.addEventListener("touchstart", start, { passive: false });
+        btn.addEventListener("touchend", end, { passive: false });
+        btn.addEventListener("touchcancel", end, { passive: false });
+    };
+
+    bindTouchAction("btn-dpad-up", "forward");
+    bindTouchAction("btn-dpad-down", "backward");
+    bindTouchAction("btn-dpad-left", "left");
+    bindTouchAction("btn-dpad-right", "right");
+    bindTouchAction("btn-touch-rot-left", "rotLeft");
+    bindTouchAction("btn-touch-rot-right", "rotRight");
+}
 
 // ─── Three.js 3D Map Setup ──────────────────────────────────────────────────
 function init3DViewer() {
@@ -1754,6 +1941,52 @@ function animate3D(time) {
     requestAnimationFrame(animate3D);
 
     if (TWEEN) TWEEN.update();
+
+    // ── Smooth WASD & Mobile Velocity Integration ──
+    if (camera && controls) {
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+
+        const right = new THREE.Vector3();
+        right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+        if (keysPressed['KeyW'] || keysPressed['ArrowUp'] || mobileControls.forward) {
+            moveVelocity.addScaledVector(forward, MOVE_ACCEL);
+        }
+        if (keysPressed['KeyS'] || keysPressed['ArrowDown'] || mobileControls.backward) {
+            moveVelocity.addScaledVector(forward, -MOVE_ACCEL);
+        }
+        if (keysPressed['KeyA'] || keysPressed['ArrowLeft'] || mobileControls.left) {
+            moveVelocity.addScaledVector(right, -MOVE_ACCEL);
+        }
+        if (keysPressed['KeyD'] || keysPressed['ArrowRight'] || mobileControls.right) {
+            moveVelocity.addScaledVector(right, MOVE_ACCEL);
+        }
+        if (keysPressed['KeyQ'] || mobileControls.rotLeft) {
+            rotVelocity += 0.024;
+        }
+        if (keysPressed['KeyE'] || mobileControls.rotRight) {
+            rotVelocity -= 0.024;
+        }
+
+        // Apply exponential velocity damping for silky glide
+        moveVelocity.multiplyScalar(MOVE_DAMPING);
+        rotVelocity *= MOVE_DAMPING;
+
+        if (moveVelocity.lengthSq() > 0.0001) {
+            camera.position.add(moveVelocity);
+            controls.target.add(moveVelocity);
+        }
+
+        if (Math.abs(rotVelocity) > 0.0001) {
+            const offset = camera.position.clone().sub(controls.target);
+            offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotVelocity);
+            camera.position.copy(controls.target).add(offset);
+        }
+    }
+
     if (controls) controls.update();
 
     // Run item animations (smokestacks, spinning radars, cranes, floating rings)
@@ -2182,9 +2415,26 @@ function selectPlot(p) {
     const buyMarketBox = document.getElementById("box-buy-market");
     const makeOfferBox = document.getElementById("box-make-offer");
 
+    const userPlotsCount = parseInt(document.getElementById("user-plots-count").innerText) || 0;
     if (isUnclaimed) {
         buyBox.style.display = "block";
-        document.getElementById("buy-plot-price").innerText = Number(p.current_value).toLocaleString();
+        if (userPlotsCount >= 4) {
+            buyBox.innerHTML = `
+                <div style="padding: 0.85rem; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; color: #fca5a5; font-size: 0.78rem; text-align: center;">
+                    ⚠️ <strong>Maximum Land Limit Reached (4 / 4):</strong><br>
+                    You already hold 4 territory parcels. Liquidate or sell an existing plot to the State Bank before purchasing new land.
+                </div>
+            `;
+        } else {
+            buyBox.innerHTML = `
+                <button class="btn btn-green-glow" style="width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 800;" onclick="executeBuyPlot()">
+                    🛒 Purchase Land for <span>${Number(p.current_value).toLocaleString()}</span> Medals
+                </button>
+                <p style="font-size: 0.72rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem;">
+                    Direct acquisition from the clan territory authority (Max 4 parcels per member).
+                </p>
+            `;
+        }
         upgradeBox.style.display = "none";
         notOwnedHint.style.display = "none";
         sellBankBox.style.display = "none";
