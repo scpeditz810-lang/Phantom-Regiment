@@ -1,109 +1,117 @@
 {% extends "base.html" %}
 
-{% block title %}TS_ Core — Real-Time Command Surface{% endblock %}
+{% block title %}About Phantom Regiment | Branch of TS Clan{% endblock %}
 
 {% block content %}
 <div class="container">
-    <!-- Top Hero Split Layout (Matching Image 1) -->
+    <!-- Top Hero Split Layout (Dark BuilderX Tone) -->
     <div class="hero-split-grid">
-        <!-- Left: Command Surface Box -->
+        <!-- Left: PR Command Surface Box -->
         <div class="surface-box">
-            <div class="eyebrow-text">TS_ COMMUNITY COMMAND SURFACE</div>
+            <div class="eyebrow-text">PHANTOM REGIMENT // OFFICIAL COMMAND SURFACE</div>
             <h1 class="hero-headline">
-                Real-time<br>
-                control for<br>
-                <span>Discord, Roblox,<br>and Web</span>
+                Elite tactical<br>
+                syndicate for<br>
+                <span>Phantom Regiment</span>
             </h1>
             <p class="hero-desc">
-                The V16 Ghost UI represents the supreme privacy standard of the TS_ Community & Phantom Regiment. Administrative panels and founder-level metrics are automatically hidden based on hierarchy.
+                Made on <strong>18 Sept 2026</strong>, an official branch of <strong>TS Clan</strong>. Engineered for tactical military operations, high-command governance, and an integrated medals economy across Discord and the web.
             </p>
+            <div style="display: flex; gap: 0.85rem; margin-top: 1.5rem; flex-wrap: wrap;">
+                <a href="{{ url_for('views.medals_page') }}" class="btn btn-orange">
+                    Enter Medals & Stock Hub
+                </a>
+                <a href="{{ url_for('views.members_page') }}" class="btn btn-pill-dark">
+                    View Our Members
+                </a>
+            </div>
         </div>
 
-        <!-- Right: GHOST_UI V16 Panel with 2x2 Grid -->
+        <!-- Right: Operational Specifications Panel with 2x2 Grid -->
         <div class="ghost-ui-box">
             <div class="ghost-header">
                 <span class="glow-dot-green"></span>
-                <span>GHOST_UI V16</span>
+                <span>PR SPECIFICATIONS</span>
             </div>
 
             <div class="ghost-grid-2x2">
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Dark BuilderX Tone</div>
-                    <div class="ghost-tile-sub">Black surfaces, orange accents, and dense operational panels.</div>
+                    <div class="ghost-tile-title">TS Clan Heritage</div>
+                    <div class="ghost-tile-sub">Made on 18 Sept 2026 as an official branch of TS Clan.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Real-Time Ready</div>
-                    <div class="ghost-tile-sub">Designed for live sync state, staff actions, and audit-backed workflows.</div>
+                    <div class="ghost-tile-title">Live Discord Sync</div>
+                    <div class="ghost-tile-sub">Real-time live member counters and automated staff directory.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Roblox + Discord</div>
-                    <div class="ghost-tile-sub">Community identity, roles, bans, and ranks remain platform-aware.</div>
+                    <div class="ghost-tile-title">Medals Standard</div>
+                    <div class="ghost-tile-sub">Web banking, live stock market, and dual wealth leaderboards.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Confidential Panels</div>
-                    <div class="ghost-tile-sub">Appeals, reports, and salary management stay behind staff gates.</div>
+                    <div class="ghost-tile-title">High Command Panel</div>
+                    <div class="ghost-tile-sub">Exclusive controls for Server Managers and the Server Owner.</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 3 Metrics Tiles Row (Matching Image 1) -->
+    <!-- 3 Metrics Tiles Row (Live Discord Member Stats & Lore) -->
     <div class="metrics-row-3">
-        <!-- Metric 1: Live Members -->
+        <!-- Metric 1: Live Discord Members -->
         <div class="metric-tile">
-            <div class="metric-initials">TS</div>
+            <div class="metric-initials">PR</div>
             <div class="metric-info">
-                <span class="metric-label">Live Members</span>
+                <span class="metric-label">Live Discord Members</span>
                 <span class="metric-value">{{ member_count }}</span>
-                <span class="metric-sub">Canonical MongoDB member count</span>
+                <span class="metric-sub">Active members on Phantom Regiment server</span>
             </div>
             <span class="metric-status-pill">SYNCED</span>
         </div>
 
-        <!-- Metric 2: Staff Queue -->
+        <!-- Metric 2: Online Members -->
         <div class="metric-tile">
-            <div class="metric-initials">RQ</div>
+            <div class="metric-initials">ON</div>
             <div class="metric-info">
-                <span class="metric-label">Staff Queue</span>
-                <span class="metric-value">00</span>
-                <span class="metric-sub">Pending applications awaiting review</span>
+                <span class="metric-label">Online Operators</span>
+                <span class="metric-value">{{ online_count }}</span>
+                <span class="metric-sub">Currently online on Discord</span>
             </div>
-            <span class="metric-status-pill">STAFF</span>
+            <span class="metric-status-pill">ONLINE</span>
         </div>
 
-        <!-- Metric 3: Pending Appeals -->
+        <!-- Metric 3: Founding Date & Lineage -->
         <div class="metric-tile">
-            <div class="metric-initials">AP</div>
+            <div class="metric-initials">HQ</div>
             <div class="metric-info">
-                <span class="metric-label">Pending Appeals</span>
-                <span class="metric-value">00</span>
-                <span class="metric-sub">Confidential appeal pipeline</span>
+                <span class="metric-label">Date of Establishment</span>
+                <span class="metric-value" style="font-size: 1.55rem;">18 Sept 2026</span>
+                <span class="metric-sub">Branch of TS Clan</span>
             </div>
-            <span class="metric-status-pill">LOCKED</span>
+            <span class="metric-status-pill pill-orange">ESTABLISHED</span>
         </div>
     </div>
 
-    <!-- Lower Operational Surface Row (Matching Image 1) -->
+    <!-- Lower Operational Surface Row -->
     <div class="lower-info-grid">
         <div class="lower-box">
-            <div class="lower-box-title">Identity and Handshake</div>
+            <div class="lower-box-title">Discord Authentication & Web Integration</div>
             <div class="lower-box-sub">
-                TS_ onboarding requires mandatory Discord Authorization followed by a Roblox Handshake via the Verification Gateway.
+                Connect your account via Discord OAuth2 to access your personal medals balance, deposit/withdraw from your encrypted bank vault, and trade company shares on the live stock exchange.
             </div>
             <span class="lower-badge">
-                {% if session.get('user') %}AUTHORIZED{% else %}HANDSHAKE PENDING{% endif %}
+                {% if session.get('user') %}AUTHORIZED{% else %}DISCORD OAUTH2{% endif %}
             </span>
         </div>
 
         <div class="lower-box">
-            <div class="lower-box-title">Community Signals</div>
+            <div class="lower-box-title">About Phantom Regiment</div>
             <div class="lower-box-sub">
-                Live status and operational logs. Established on <strong>18 Sept 2026</strong> as an elite tactical branch of <strong>TS Clan</strong>.
+                Phantom Regiment was founded on <strong>September 18, 2026</strong> as an elite branch of <strong>TS Clan</strong>. Governed by the Server Owner and vetted Server Managers with a focus on tactical warfare, security, and economy.
             </div>
-            <span class="metric-status-pill" style="top: 1.5rem; right: 1.75rem;">ONLINE</span>
+            <span class="metric-status-pill" style="top: 1.5rem; right: 1.75rem;">VERIFIED</span>
         </div>
     </div>
 </div>

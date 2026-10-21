@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}TS_ Core — High Command Staff Panel{% endblock %}
+{% block title %}Admin Panel | Phantom Regiment High Command{% endblock %}
 
 {% block content %}
 <div class="container">
     <!-- Top Hero Split Layout -->
     <div class="hero-split-grid">
         <div class="surface-box">
-            <div class="eyebrow-text">CONFIDENTIAL // HIGH COMMAND</div>
+            <div class="eyebrow-text">EXCLUSIVE TO SERVER MANAGERS & OWNER</div>
             <h1 class="hero-headline">
-                Staff Control Surface<br>
-                <span>& Vault Inspector</span>
+                High Command<br>
+                <span>Staff Control Panel</span>
             </h1>
             <p class="hero-desc">
-                Restricted to verified Server Managers and the Server Owner. Manage live market equities, manipulate market valuations, and inspect registered bank vault passwords.
+                Restricted strictly to the Server Owner and verified Server Managers. Manage live market equities, adjust prices in real time, and audit all player bank vault passwords.
             </p>
         </div>
 
@@ -35,13 +35,13 @@
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Vault Audit</div>
-                    <div class="ghost-tile-sub">Inspection access to all user bank vault plaintext passwords.</div>
+                    <div class="ghost-tile-title">Vault Passwords</div>
+                    <div class="ghost-tile-sub">Direct access to view all player plaintext bank vault passwords.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
                     <div class="ghost-tile-title">Audit Logging</div>
-                    <div class="ghost-tile-sub">All staff actions are logged to high command databases.</div>
+                    <div class="ghost-tile-sub">All staff transactions are logged directly to the bot database.</div>
                 </div>
             </div>
         </div>
@@ -80,7 +80,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Description / Lore</label>
-                        <textarea id="new-desc" class="form-input" rows="2" placeholder="Brief military background of company..."></textarea>
+                        <textarea id="new-desc" class="form-input" rows="2" placeholder="Brief background of company..."></textarea>
                     </div>
                     <button type="submit" class="btn btn-orange" style="width: 100%;">Create & List Stock</button>
                 </form>

@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}TS_ Core | Phantom Regiment Surface{% endblock %}</title>
-    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <title>{% block title %}Phantom Regiment | Official Portal{% endblock %}</title>
+    <!-- Google Fonts: Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -14,52 +14,36 @@
     {% block head %}{% endblock %}
 </head>
 <body>
-    <!-- Top Navigation Bar (GHOST_UI V16 Style) -->
+    <!-- Top Navigation Bar -->
     <header class="navbar">
         <div class="nav-container">
             <a href="{{ url_for('views.index') }}" class="nav-brand">
-                <!-- Exact Orange Diamond Rhombus Logo -->
                 <svg class="brand-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <rect x="12" y="1" width="15" height="15" rx="3.5" transform="rotate(45 12 1)" fill="#ff7700" />
                     <rect x="12" y="6" width="8" height="8" rx="2" transform="rotate(45 12 6)" fill="#08080a" />
                 </svg>
                 <div class="brand-text">
-                    <span class="brand-title">TS_ Core</span>
-                    <span class="brand-sub">Lead, Control, Build</span>
+                    <span class="brand-title">Phantom Regiment</span>
+                    <span class="brand-sub">Branch of TS Clan</span>
                 </div>
             </a>
 
-            <!-- Center Navigation Links -->
+            <!-- The 4 Core Navigation Links -->
             <nav class="nav-links">
                 <a href="{{ url_for('views.index') }}" class="nav-link {% if request.path == '/' or request.path == '/about' %}active{% endif %}">
-                    Dashboard
+                    About PR
                 </a>
-                <a href="{{ url_for('views.index') }}#about-section" class="nav-link">
-                    About
-                </a>
-                {% if session.get('user') and (session['user'].get('is_owner') or session['user'].get('is_manager')) %}
-                <a href="{{ url_for('views.admin_page') }}" class="nav-link {% if request.path == '/admin' %}active{% endif %}">
-                    Staff Panel
-                </a>
-                {% endif %}
                 <a href="{{ url_for('views.medals_page') }}" class="nav-link {% if request.path == '/medals' %}active{% endif %}">
-                    Economy
+                    Medals & Stocks
                 </a>
                 <a href="{{ url_for('views.members_page') }}" class="nav-link {% if request.path == '/members' %}active{% endif %}">
-                    Team
+                    Our Members
                 </a>
-                <a href="{{ url_for('views.index') }}" class="nav-link">
-                    Upgrade
+                {% if session.get('user') and (session['user'].get('is_owner') or session['user'].get('is_manager')) %}
+                <a href="{{ url_for('views.admin_page') }}" class="nav-link {% if request.path == '/admin' %}active{% endif %}" style="color: var(--orange);">
+                    ⚡ Admin Panel
                 </a>
-                <a href="{{ url_for('views.index') }}" class="nav-link">
-                    Apply
-                </a>
-                <a href="{{ url_for('views.index') }}" class="nav-link">
-                    Giveaway Area
-                </a>
-                <span class="nav-link intel-link">
-                    Intel Nexux
-                </span>
+                {% endif %}
             </nav>
 
             <!-- Nav Actions (Right) -->
@@ -68,27 +52,25 @@
                 <div class="user-badge-wrap">
                     <img src="{{ session['user']['avatar'] }}" alt="PFP" class="user-pfp-sm">
                     <span class="user-name-sm">
-                        {% if session['user'].get('is_owner') %}Founder{% endif %}{{ session['user']['username'] }}
+                        {{ session['user']['global_name'] }}
                     </span>
+                    {% if session['user'].get('is_owner') %}
+                    <span style="font-size: 0.65rem; background: var(--orange); color: #000; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 800;">OWNER</span>
+                    {% elif session['user'].get('is_manager') %}
+                    <span style="font-size: 0.65rem; background: rgba(255,119,0,0.2); color: var(--orange); padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">MANAGER</span>
+                    {% endif %}
                 </div>
+                {% if session['user'].get('is_owner') or session['user'].get('is_manager') %}
+                <a href="{{ url_for('views.admin_page') }}" class="btn btn-orange">
+                    Admin Panel
+                </a>
+                {% endif %}
                 <a href="{{ url_for('auth.logout') }}" class="btn btn-pill-dark">
                     Logout
                 </a>
-                {% if session['user'].get('is_owner') or session['user'].get('is_manager') %}
-                <a href="{{ url_for('views.admin_page') }}" class="btn btn-orange">
-                    Staff Panel
-                </a>
                 {% else %}
-                <a href="{{ url_for('views.medals_page') }}" class="btn btn-orange">
-                    Wallet & Vault
-                </a>
-                {% endif %}
-                {% else %}
-                <a href="{{ url_for('auth.login') }}" class="btn btn-pill-dark">
-                    Roblox Handshake
-                </a>
                 <a href="{{ url_for('auth.login') }}" class="btn btn-orange">
-                    Staff Panel
+                    Login with Discord
                 </a>
                 {% endif %}
             </div>
@@ -104,10 +86,10 @@
     <footer class="footer">
         <div class="footer-container">
             <div>
-                <strong>TS_ Core // Phantom Regiment</strong> — V16 Ghost UI. Established Sept 18, 2026. Branch of TS Clan.
+                <strong>Phantom Regiment</strong> — Made on 18 Sept 2026. Official branch of TS Clan.
             </div>
             <div>
-                &copy; {{ current_year }} TS_ Community. All rights reserved.
+                &copy; {{ current_year }} Phantom Regiment. All operational rights reserved.
             </div>
         </div>
     </footer>
