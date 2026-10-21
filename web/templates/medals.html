@@ -209,9 +209,12 @@
     <div class="leaderboards-grid">
         <!-- Most Medals Globally -->
         <div class="lb-card">
-            <div class="lb-header">
-                <h3>🏆 MOST MEDALS GLOBALLY</h3>
-                <span class="lb-sub">Top medal holders across all servers</span>
+            <div class="lb-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h3>🏆 MOST MEDALS GLOBALLY</h3>
+                    <span class="lb-sub">Real-time balances across all connected clans</span>
+                </div>
+                <span class="live-pill"><span class="pulse-dot"></span> LIVE</span>
             </div>
             <div class="lb-list" id="lb-medals-list">
                 <div class="text-center p-3 text-muted">Loading leaderboard...</div>
@@ -220,9 +223,12 @@
 
         <!-- Best Gambler -->
         <div class="lb-card">
-            <div class="lb-header">
-                <h3>🎰 BEST GAMBLER</h3>
-                <span class="lb-sub">Players who earned the most medals gambling</span>
+            <div class="lb-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h3>🎰 BEST GAMBLER</h3>
+                    <span class="lb-sub">Real-time net earnings from casino games</span>
+                </div>
+                <span class="live-pill"><span class="pulse-dot"></span> LIVE</span>
             </div>
             <div class="lb-list" id="lb-gambling-list">
                 <div class="text-center p-3 text-muted">Loading leaderboard...</div>

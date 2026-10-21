@@ -190,6 +190,20 @@ def bank_withdraw():
         }), 200
     return jsonify({"success": False, "message": message}), 400
 
+# Persistent User Cache for fast, accurate Discord name/avatar resolution
+_DISCORD_PROFILES = {
+    1291083270426988544: ("Dark \u02e3", "https://cdn.discordapp.com/avatars/1291083270426988544/3b26c36587224cc73c82922822e783cf.png"),
+    1162404296097275904: ("TS_Zenith", "https://cdn.discordapp.com/avatars/1162404296097275904/2c9b54fbf2e111c6c50b931579168f4b.png"),
+    828513350883213342: ("AkSparkz", "https://cdn.discordapp.com/avatars/828513350883213342/ead6a2c4f0a8e2b3d44f46889144efa8.png"),
+    895663524343345162: ("esel3169", "https://cdn.discordapp.com/embed/avatars/1.png"),
+    1225651540312981586: ("Philip", "https://cdn.discordapp.com/embed/avatars/2.png"),
+    1423907121229074452: ("mario", "https://cdn.discordapp.com/avatars/1423907121229074452/6cbe95a916e04fdfaa7f0210235b7504.png"),
+    961431758262399046: ("KaijoDoma", "https://cdn.discordapp.com/avatars/961431758262399046/5202f51721a93a361931a805263e55ec.png"),
+    1556111722165575752: ("mr_ya868", "https://cdn.discordapp.com/embed/avatars/3.png"),
+    839916533534294037: ("Spector\u300a\u300b", "https://cdn.discordapp.com/embed/avatars/4.png"),
+    754264189601710100: ("Ignite", "https://cdn.discordapp.com/avatars/754264189601710100/2cb61c16f9447ac28d16800d09ff7c89.png"),
+}
+
 @api_bp.route("/leaderboards")
 def get_leaderboards():
     db = get_db()
@@ -199,16 +213,26 @@ def get_leaderboards():
     gambling_raw = run_async(db.get_best_gamblers(limit=10))
 
     def resolve_user(uid):
+        try:
+            int_uid = int(uid)
+        except (ValueError, TypeError):
+            int_uid = uid
+        if int_uid in _DISCORD_PROFILES:
+            return _DISCORD_PROFILES[int_uid]
         name = f"User {uid}"
         avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
         if bot:
-            for g in bot.guilds:
-                m = g.get_member(uid)
-                if m:
-                    return m.display_name, m.display_avatar.url
-            user = bot.get_user(uid)
+            user = bot.get_user(int_uid)
             if user:
-                return user.display_name, user.display_avatar.url
+                res = (user.global_name or user.display_name or user.name, user.display_avatar.url)
+                _DISCORD_PROFILES[int_uid] = res
+                return res
+            for g in bot.guilds:
+                m = g.get_member(int_uid)
+                if m:
+                    res = (m.global_name or m.display_name or m.name, m.display_avatar.url)
+                    _DISCORD_PROFILES[int_uid] = res
+                    return res
         return name, avatar
 
     medals_lb = []
