@@ -1,33 +1,36 @@
 {% extends "base.html" %}
 
-{% block title %}E-State Virtual Territory & Tycoon | Phantom Regiment{% endblock %}
+{% block title %}E-State 3D Territory Tycoon — Phantom Regiment{% endblock %}
 
 {% block content %}
+<!-- Three.js & Supporting 3D Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+
 <div class="estate-wrapper">
     <!-- Top Tycoon HUD Banner -->
     <div class="estate-hero table-surface">
         <div class="estate-hero-top">
             <div>
-                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                    <h2 style="margin: 0; font-size: 1.85rem; font-weight: 800; letter-spacing: -0.02em;">
-                        🏛️ Phantom E-State Tycoon
-                    </h2>
-                    <span class="estate-live-badge">
-                        <span class="pulse-dot"></span> LIVE TERRITORY MAP
-                    </span>
-                    <span class="badge-exclusive">WEBSITE EXCLUSIVE</span>
+                <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.35rem;">
+                    <span class="estate-live-badge"><span class="pulse-dot"></span> 3D METROPOLITAN VIEWER</span>
+                    <span class="badge-exclusive">🌐 WEB EXCLUSIVE</span>
                 </div>
-                <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.35rem; max-width: 680px;">
-                    Acquire virtual plots across the Phantom territory grid. Upgrade into industrial factories, hospitals, bunkers, military bases, or central banks to generate passive daily tycoon dividends. Trade with players or liquidate to the State Bank.
+                <h1 style="font-size: 1.85rem; font-weight: 900; letter-spacing: -0.02em; margin: 0;">
+                    E-State 3D Territory Tycoon
+                </h1>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.35rem; max-width: 650px;">
+                    Claim sovereign territory across the virtual metropolis map. Construct high-yield 3D factories, banks, hospitals, and tactical bunkers to compound hourly passive dividends.
                 </p>
             </div>
-            
-            <!-- Quick Claim Bar -->
+
+            <!-- Dividends Harvest Quick Box -->
             <div class="estate-claim-box">
-                <div class="claim-info">
-                    <span class="claim-label">ACCUMULATED TYCOON DIVIDENDS</span>
+                <div>
+                    <span class="claim-label">UNCOLLECTED DIVIDENDS</span>
                     <div class="claim-amount">
-                        <span id="stat-accrued-yield">0</span> <span style="font-size: 0.9rem; color: var(--blue-primary); font-weight: 700;">M</span>
+                        <span id="stat-accrued-yield">0</span> <span style="font-size: 0.9rem; color: #22c55e;">M</span>
                     </div>
                 </div>
                 <button class="btn btn-green-glow" id="btn-collect-all" onclick="collectAllYields()">
@@ -36,46 +39,36 @@
             </div>
         </div>
 
-        <!-- Metric Stat Cards -->
+        <!-- Real-time Portfolio HUD Metrics -->
         <div class="estate-stats-grid">
             <div class="stat-tile">
-                <div class="stat-tile-label">YOUR WALLET MEDALS</div>
-                <div class="stat-tile-val text-blue">
-                    <span id="user-wallet-bal">{{ user_data.medals if user_data else 0 }}</span> <span style="font-size: 0.85rem; color: var(--text-muted);">M</span>
-                </div>
-                <div class="stat-tile-sub">Ready for land investment</div>
+                <div class="stat-tile-label">WALLET BALANCE</div>
+                <div class="stat-tile-val text-gold"><span id="user-wallet-bal">{{ user_data.medals | default(0) }}</span> M</div>
+                <div class="stat-tile-sub">Available capital to invest</div>
             </div>
 
             <div class="stat-tile">
-                <div class="stat-tile-label">YOUR PLOTS OWNED</div>
-                <div class="stat-tile-val text-green">
-                    <span id="user-plots-count">0</span> <span style="font-size: 0.85rem; color: var(--text-muted);">/ 36 Plots</span>
-                </div>
-                <div class="stat-tile-sub">Personal territory share</div>
+                <div class="stat-tile-label">PARCELS OWNED</div>
+                <div class="stat-tile-val text-blue"><span id="user-plots-count">0</span> <span style="font-size: 0.9rem; color: var(--text-muted);">/ 36</span></div>
+                <div class="stat-tile-sub">Across 4 state districts</div>
             </div>
 
             <div class="stat-tile">
-                <div class="stat-tile-label">YOUR ESTATE NET WORTH</div>
-                <div class="stat-tile-val text-gold">
-                    <span id="user-estate-worth">0</span> <span style="font-size: 0.85rem; color: var(--text-muted);">M</span>
-                </div>
-                <div class="stat-tile-sub">Combined plot valuation</div>
+                <div class="stat-tile-label">ESTATE NET WORTH</div>
+                <div class="stat-tile-val text-purple"><span id="user-estate-worth">0</span> M</div>
+                <div class="stat-tile-sub">Compounding territory valuation</div>
             </div>
 
             <div class="stat-tile">
                 <div class="stat-tile-label">DAILY PASSIVE YIELD</div>
-                <div class="stat-tile-val" style="color: #38bdf8;">
-                    +<span id="user-daily-yield">0</span> <span style="font-size: 0.85rem; color: var(--text-muted);">M/day</span>
-                </div>
-                <div class="stat-tile-sub">Generated from your buildings</div>
+                <div class="stat-tile-val" style="color: #22c55e;">+<span id="user-daily-yield">0</span> M/d</div>
+                <div class="stat-tile-sub">Accruing hourly dividends</div>
             </div>
 
             <div class="stat-tile">
-                <div class="stat-tile-label">TOTAL CLAN MARKET CAP</div>
-                <div class="stat-tile-val text-purple">
-                    <span id="clan-market-cap">...</span> <span style="font-size: 0.85rem; color: var(--text-muted);">M</span>
-                </div>
-                <div class="stat-tile-sub">36 territorial parcels</div>
+                <div class="stat-tile-label">CLAN MAP MARKET CAP</div>
+                <div class="stat-tile-val"><span id="clan-market-cap">...</span> M</div>
+                <div class="stat-tile-sub">All 36 state parcels</div>
             </div>
         </div>
     </div>
@@ -92,7 +85,16 @@
             <button class="filter-pill" onclick="setFilter('for_sale', this)">🏷️ Listed for Sale</button>
         </div>
 
-        <div style="display: flex; gap: 0.65rem; align-items: center;">
+        <div style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap;">
+            <div class="view-mode-toggle">
+                <button class="btn btn-sm btn-pill-dark active" id="btn-toggle-3d" onclick="switchViewMode('3d')">
+                    🌐 3D Map View
+                </button>
+                <button class="btn btn-sm btn-pill-dark" id="btn-toggle-grid" onclick="switchViewMode('grid')">
+                    ▦ Tactical Grid
+                </button>
+            </div>
+
             <button class="btn btn-sm btn-pill-dark" onclick="openOffersModal()">
                 📩 Offers Hub <span id="offers-count-badge" class="badge-mini" style="display:none;">0</span>
             </button>
@@ -102,10 +104,44 @@
         </div>
     </div>
 
-    <!-- Main Workspace: Map Canvas + Inspector Drawer -->
+    <!-- Main Workspace: 3D Map Viewer Canvas + Inspector Drawer -->
     <div class="estate-layout">
-        <!-- The Virtual Visual Map -->
+        <!-- The Virtual Visual Map Container -->
         <div class="estate-map-container table-surface">
+            <!-- Modern 3D Map Viewer Overlay Controls (Matching Map Viewers) -->
+            <div class="map-3d-toolbar">
+                <div class="map-3d-toolbar-left">
+                    <div class="district-indicator">
+                        <span class="live-dot-green"></span>
+                        <span id="camera-focus-district">Tactical Metropolitan Overview</span>
+                    </div>
+                </div>
+
+                <!-- Search Bar & Perspective Controls -->
+                <div class="map-3d-toolbar-right">
+                    <!-- Search Input with Auto-complete -->
+                    <div class="map-search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="map-search-input" placeholder="Search parcel, district, or owner..." autocomplete="off">
+                        <div class="search-autocomplete-dropdown" id="search-dropdown" style="display: none;"></div>
+                    </div>
+
+                    <button class="map-tool-btn" id="btn-perspective" onclick="toggleCameraPerspective()" title="Toggle 2D / 3D Perspective">
+                        📐 <span id="label-perspective">3D Tilt</span>
+                    </button>
+                    <button class="map-tool-btn" id="btn-lighting" onclick="toggleLightingMode()" title="Toggle Day / Night Lighting">
+                        🌙 <span id="label-lighting">Night Mode</span>
+                    </button>
+                    <button class="map-tool-btn" onclick="reset3DCamera()" title="Reset Camera to Overview">
+                        🎯 Reset View
+                    </button>
+                    <div class="zoom-controls">
+                        <button class="zoom-btn" onclick="zoomIn3D()" title="Zoom In">+</button>
+                        <button class="zoom-btn" onclick="zoomOut3D()" title="Zoom Out">-</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- District Legend -->
             <div class="map-legend">
                 <div class="legend-item"><span class="legend-dot dot-greenery"></span> Greenery Outskirts</div>
@@ -118,15 +154,39 @@
                 <div class="legend-item"><span class="legend-box border-unowned"></span> Unclaimed Land</div>
             </div>
 
-            <!-- The Grid Map Canvas -->
-            <div class="map-grid-wrap">
+            <!-- 1. The Interactive 3D WebGL Map Viewport -->
+            <div id="three-map-viewport" class="three-viewport-container">
+                <canvas id="three-canvas"></canvas>
+
+                <!-- Floating 3D Hover Tooltip -->
+                <div id="three-hover-tooltip" class="three-tooltip" style="display: none;">
+                    <div class="tt-header">
+                        <span id="tt-district" class="tt-district">District</span>
+                        <span id="tt-coords" class="tt-coords">(0,0)</span>
+                    </div>
+                    <div class="tt-name" id="tt-name">Plot Name</div>
+                    <div class="tt-building" id="tt-building">🌱 Vacant Land</div>
+                    <div class="tt-footer">
+                        <span class="tt-price" id="tt-price">10,000 M</span>
+                        <span class="tt-owner" id="tt-owner">Unclaimed</span>
+                    </div>
+                </div>
+
+                <!-- On-Screen Instructions Pill -->
+                <div class="three-controls-hint">
+                    🖱️ <strong>Left-Click Drag:</strong> Orbit 360° & Tilt &bull; <strong>Right-Click Drag:</strong> Pan Map &bull; <strong>Scroll:</strong> Zoom &bull; <strong>Click Building:</strong> Inspect & Upgrade
+                </div>
+            </div>
+
+            <!-- 2. The Optional 2D Grid Canvas (Toggled via button) -->
+            <div class="map-grid-wrap" id="map-grid-wrap" style="display: none;">
                 <div class="map-grid" id="map-grid">
-                    <!-- 36 Interactive Tiles Generated via JavaScript -->
+                    <!-- Interactive Tiles Generated via JavaScript -->
                 </div>
             </div>
             
             <div class="map-footer-hint">
-                💡 <em>Click any parcel on the map to inspect ownership, construct tycoon buildings, collect yields, or trade.</em>
+                💡 <em>Click any parcel in the 3D viewer to inspect ownership, construct buildings, collect passive yield, or liquidate to the Bank.</em>
             </div>
         </div>
 
@@ -135,9 +195,9 @@
             <div class="inspector-empty" id="inspector-empty">
                 <div class="empty-icon">🗺️</div>
                 <h3>Select a Parcel</h3>
-                <p>Click any land plot on the territory grid to inspect its valuation, tycoon upgrades, and trading options.</p>
+                <p>Click any 3D land plot or building on the territory map to inspect its valuation, tycoon upgrades, and trading options.</p>
                 <div class="tycoon-tips">
-                    <strong>Tycoon Tip:</strong> Upgrading plots to <em>Factories</em> or <em>Banks</em> yields compounding passive medals every hour!
+                    <strong>Tycoon Tip:</strong> Constructing <em>Factories</em> or <em>Banks</em> yields compounding passive medals every hour!
                 </div>
             </div>
 
@@ -158,60 +218,68 @@
                     <div style="display: flex; align-items: center; gap: 0.65rem;">
                         <img id="insp-owner-avatar" src="" class="user-pfp-sm" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
                         <div>
-                            <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">PROPRIETOR</div>
-                            <strong id="insp-owner-name" style="font-size: 0.9rem;">Unclaimed</strong>
+                            <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">OWNER</div>
+                            <div id="insp-owner-name" style="font-weight: 800; font-size: 0.95rem;">Unclaimed</div>
                         </div>
                     </div>
+
                     <div style="text-align: right;">
-                        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">CURRENT VALUATION</div>
-                        <strong class="text-gold" style="font-size: 1.15rem;" id="insp-val">0</strong> <span style="font-size: 0.75rem; color: var(--text-muted);">M</span>
+                        <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">CURRENT VALUATION</div>
+                        <div style="font-size: 1.15rem; font-weight: 800; color: #f59e0b; font-family: var(--font-mono);">
+                            <span id="insp-val">0</span> M
+                        </div>
                     </div>
                 </div>
 
-                <!-- Building Tycoon Status -->
+                <!-- Building & Production Status Card -->
                 <div class="building-status-box">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <span style="font-size: 1.6rem;" id="insp-building-emoji">🌱</span>
+                            <span id="insp-building-emoji" style="font-size: 1.6rem;">🌱</span>
                             <div>
-                                <strong id="insp-building-name" style="font-size: 0.95rem;">Vacant Land</strong>
-                                <div style="font-size: 0.75rem; color: var(--text-muted);" id="insp-building-level">Level 0 (Unimproved)</div>
+                                <h4 id="insp-building-name" style="margin: 0; font-size: 0.95rem;">Vacant Land</h4>
+                                <div id="insp-building-level" style="font-size: 0.75rem; color: var(--text-sub);">Level 0</div>
                             </div>
                         </div>
                         <div style="text-align: right;">
-                            <div style="font-size: 0.72rem; color: var(--text-muted);">DAILY YIELD</div>
-                            <span class="badge-yield" id="insp-daily-yield">+0 M/day</span>
+                            <div style="font-size: 0.7rem; color: var(--text-muted);">PASSIVE YIELD</div>
+                            <div class="badge-yield" id="insp-daily-yield">+0 M/day</div>
                         </div>
                     </div>
-                    <p style="font-size: 0.78rem; color: var(--text-sub); margin-top: 0.45rem; line-height: 1.4;" id="insp-building-desc">
-                        Unimproved natural terrain. Ready for tycoon development.
-                    </p>
+                    <div id="insp-building-desc" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; line-height: 1.4;">
+                        Undeveloped land. Construct a tycoon facility to start generating medals.
+                    </div>
                 </div>
 
                 <!-- Inspector Action Tabs -->
-                <div class="inspector-tabs" id="inspector-tabs">
-                    <button class="insp-tab active" id="tab-btn-actions" onclick="switchInspectorTab('tab-actions')">Overview & Upgrades</button>
-                    <button class="insp-tab" id="tab-btn-sell" onclick="switchInspectorTab('tab-sell')">Sell / Bank</button>
-                    <button class="insp-tab" id="tab-btn-offers" onclick="switchInspectorTab('tab-offers')">Offers & Market</button>
+                <div class="inspector-tabs">
+                    <button class="insp-tab active" id="tab-btn-upgrade" onclick="switchInspectorTab('upgrade')">
+                        🔨 Build & Upgrade
+                    </button>
+                    <button class="insp-tab" id="tab-btn-sell" onclick="switchInspectorTab('sell')">
+                        🏦 Liquidate to Bank
+                    </button>
+                    <button class="insp-tab" id="tab-btn-offers" onclick="switchInspectorTab('offers')">
+                        🤝 Trade & Offers
+                    </button>
                 </div>
 
-                <!-- Tab 1: Overview & Upgrades -->
-                <div class="insp-tab-pane" id="tab-actions">
-                    <!-- Buy Plot Button (If Unclaimed) -->
+                <!-- Tab 1: Build & Upgrade Facilities -->
+                <div class="insp-tab-pane" id="tab-upgrade">
+                    <!-- Buy Plot Button (If unowned) -->
                     <div id="box-buy-plot" style="display:none; margin-top: 1rem;">
-                        <button class="btn btn-blue" style="width: 100%; padding: 0.85rem; font-weight: 800; font-size: 1rem;" id="btn-buy-plot" onclick="executeBuyPlot()">
-                            🛒 Buy Land for <span id="btn-buy-price">10,000</span> Medals
+                        <button class="btn btn-green-glow" style="width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 800;" onclick="executeBuyPlot()">
+                            🛒 Purchase Land for <span id="buy-plot-price">0</span> Medals
                         </button>
-                        <p style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.4rem;">
-                            Ownership grants title rights, passive yield accumulation, and full upgrade capabilities.
+                        <p style="font-size: 0.72rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem;">
+                            Direct acquisition from the clan territory authority.
                         </p>
                     </div>
 
-                    <!-- Tycoon Upgrades Selection (If Owned by You) -->
-                    <div id="box-upgrades" style="display:none; margin-top: 1rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <h4 style="margin: 0; font-size: 0.9rem;">Construct Tycoon Building</h4>
-                            <span style="font-size: 0.72rem; color: var(--blue-primary); font-weight: 700;">Max Level 3</span>
+                    <!-- Construction Menu (If owned by user) -->
+                    <div id="box-upgrade-options" style="display:none; margin-top: 0.75rem;">
+                        <div style="font-size: 0.8rem; font-weight: 800; color: var(--text-muted); margin-bottom: 0.6rem; letter-spacing: 0.04em;">
+                            CONSTRUCT / UPGRADE FACILITY (MAX LVL 3):
                         </div>
 
                         <div class="upgrades-list">
@@ -221,7 +289,7 @@
                                     <span>🏭 Factory</span>
                                     <span class="upgrade-cost" id="cost-factory">... M</span>
                                 </div>
-                                <div class="upgrade-card-desc">Heavy manufacturing. Generates +2.0% daily medals yield & +25% plot value boost.</div>
+                                <div class="upgrade-card-desc">Industrial medals production. Generates +2.0%/day yield & +25% plot valuation surge.</div>
                             </div>
 
                             <!-- Hospital -->
@@ -230,22 +298,22 @@
                                     <span>🏥 Hospital</span>
                                     <span class="upgrade-cost" id="cost-hospital">... M</span>
                                 </div>
-                                <div class="upgrade-card-desc">Public health sanctuary. High community dividend (+2.2%/day) & +30% plot value boost.</div>
+                                <div class="upgrade-card-desc">Public health & clan safety infrastructure. +1.8%/day yield & +20% valuation growth.</div>
                             </div>
 
                             <!-- Construction -->
                             <div class="upgrade-card" onclick="selectUpgrade('construction')">
                                 <div class="upgrade-card-head">
-                                    <span>🏗️ Construction Site</span>
+                                    <span>🏗️ Construction Hub</span>
                                     <span class="upgrade-cost" id="cost-construction">... M</span>
                                 </div>
-                                <div class="upgrade-card-desc">Rapid infrastructure. Boosts organic land value growth rate by 2.5x multiplier!</div>
+                                <div class="upgrade-card-desc">Urban expansion centre. Accelerates organic land valuation growth rate by <strong>2.5×</strong>!</div>
                             </div>
 
                             <!-- Bunker -->
                             <div class="upgrade-card" onclick="selectUpgrade('bunker')">
                                 <div class="upgrade-card-head">
-                                    <span>🛡️ Bunker</span>
+                                    <span>🛡️ Fortified Bunker</span>
                                     <span class="upgrade-cost" id="cost-bunker">... M</span>
                                 </div>
                                 <div class="upgrade-card-desc">Underground tactical vault. Fortifies land value (+35%) & +1.5% daily defense yield.</div>
@@ -388,9 +456,9 @@
 </div>
 
 <style>
-/* ─── E-State Styles ───────────────────────────────────────────────────────── */
+/* ─── E-State 3D Map Viewer Styles ─────────────────────────────────────────── */
 .estate-wrapper {
-    max-width: 1440px;
+    max-width: 1560px;
     margin: 0 auto;
     padding: 1.5rem 1rem 3rem 1rem;
     display: flex;
@@ -528,25 +596,25 @@
 
 .filter-pills {
     display: flex;
-    gap: 0.45rem;
+    gap: 0.4rem;
     flex-wrap: wrap;
 }
 
 .filter-pill {
-    background: var(--bg-card);
+    background: var(--bg-card-inner);
     color: var(--text-muted);
     border: 1px solid var(--border);
-    padding: 0.35rem 0.85rem;
+    padding: 0.45rem 0.85rem;
     border-radius: 999px;
     font-size: 0.78rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .filter-pill:hover {
+    background: var(--border);
     color: #fff;
-    border-color: var(--border-hover);
 }
 
 .filter-pill.active {
@@ -556,74 +624,333 @@
     font-weight: 800;
 }
 
+.view-mode-toggle {
+    display: inline-flex;
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.view-mode-toggle button {
+    border: none;
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: transparent;
+    cursor: pointer;
+}
+
+.view-mode-toggle button.active {
+    background: var(--blue-primary);
+    color: #0b0f19;
+    font-weight: 800;
+}
+
 /* Layout */
 .estate-layout {
     display: grid;
-    grid-template-columns: 1fr 380px;
+    grid-template-columns: 1fr 400px;
     gap: 1.25rem;
     align-items: start;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1140px) {
     .estate-layout {
         grid-template-columns: 1fr;
     }
 }
 
-/* Territory Map */
+/* Territory Map Container */
 .estate-map-container {
     padding: 1.25rem;
     border-radius: 14px;
     border: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.85rem;
     background: #0d1322;
 }
 
+/* Map Viewer Toolbar */
+.map-3d-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+    background: rgba(15, 23, 42, 0.75);
+    padding: 0.65rem 0.85rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+}
+
+.map-3d-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.district-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.live-dot-green {
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #22c55e;
+}
+
+.map-3d-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.map-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-icon {
+    position: absolute;
+    left: 10px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.map-search-box input {
+    background: rgba(11, 15, 25, 0.85);
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 0.4rem 0.75rem 0.4rem 2.1rem;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    width: 220px;
+    transition: all 0.2s ease;
+}
+
+.map-search-box input:focus {
+    outline: none;
+    border-color: var(--blue-primary);
+    width: 260px;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+}
+
+.search-autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: #0f172a;
+    border: 1px solid var(--border-blue);
+    border-radius: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 999;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+}
+
+.search-item {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.search-item:hover {
+    background: rgba(56, 189, 248, 0.15);
+    color: #fff;
+}
+
+.map-tool-btn {
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border);
+    color: #e2e8f0;
+    padding: 0.4rem 0.65rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: all 0.2s ease;
+}
+
+.map-tool-btn:hover {
+    border-color: var(--blue-primary);
+    background: rgba(56, 189, 248, 0.12);
+}
+
+.zoom-controls {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.zoom-btn {
+    background: var(--bg-card-inner);
+    border: none;
+    color: #fff;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.85rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.zoom-btn:hover {
+    background: var(--border);
+}
+
+/* Legend */
 .map-legend {
     display: flex;
-    gap: 1rem;
+    gap: 0.85rem;
     align-items: center;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--text-muted);
     flex-wrap: wrap;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border);
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
-.legend-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-}
+.legend-item { display: flex; align-items: center; gap: 0.35rem; }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; }
 .dot-greenery { background: #15803d; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
 .dot-river { background: #0284c7; box-shadow: 0 0 6px rgba(56,189,248,0.4); }
 .dot-industrial { background: #d97706; box-shadow: 0 0 6px rgba(245,158,11,0.4); }
 .dot-citadel { background: #9333ea; box-shadow: 0 0 6px rgba(168,85,247,0.4); }
 
-.legend-box {
-    width: 14px;
-    height: 14px;
-    border-radius: 4px;
-}
-.border-mine { border: 2px solid #22c55e; background: rgba(34,197,94,0.2); }
-.border-other { border: 2px solid #38bdf8; background: rgba(56,189,248,0.15); }
-.border-unowned { border: 1px dashed rgba(255,255,255,0.25); background: transparent; }
+.legend-box { width: 12px; height: 12px; border-radius: 3px; }
+.border-mine { border: 2px solid #22c55e; background: rgba(34,197,94,0.25); }
+.border-other { border: 2px solid #38bdf8; background: rgba(56,189,248,0.2); }
+.border-unowned { border: 1px dashed rgba(255,255,255,0.35); background: transparent; }
+.legend-divider { width: 1px; height: 14px; background: var(--border); }
 
-.legend-divider {
-    width: 1px;
-    height: 16px;
-    background: var(--border);
+/* ── Three.js 3D Viewport ── */
+.three-viewport-container {
+    position: relative;
+    width: 100%;
+    height: 640px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #090e1a;
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
 }
 
-/* Map Grid */
+#three-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+    cursor: grab;
+}
+
+#three-canvas:active {
+    cursor: grabbing;
+}
+
+/* 3D Hover Tooltip */
+.three-tooltip {
+    position: absolute;
+    pointer-events: none;
+    z-index: 100;
+    background: rgba(15, 23, 42, 0.94);
+    border: 1px solid var(--blue-primary);
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.8);
+    transform: translate(-50%, -115%);
+    min-width: 170px;
+    backdrop-filter: blur(8px);
+}
+
+.tt-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+    margin-bottom: 0.25rem;
+}
+
+.tt-district {
+    color: var(--blue-primary);
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.tt-coords {
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.tt-name {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 0.2rem;
+}
+
+.tt-building {
+    font-size: 0.72rem;
+    color: #a3e635;
+    margin-bottom: 0.45rem;
+    font-weight: 700;
+}
+
+.tt-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 0.35rem;
+}
+
+.tt-price {
+    font-family: var(--font-mono);
+    color: #f59e0b;
+    font-weight: 800;
+}
+
+.tt-owner {
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.three-controls-hint {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(11, 15, 25, 0.85);
+    border: 1px solid var(--border);
+    color: #94a3b8;
+    font-size: 0.72rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    pointer-events: none;
+    white-space: nowrap;
+    backdrop-filter: blur(6px);
+}
+
+/* ── 2D Tactical Grid (Alternative View) ── */
 .map-grid-wrap {
     overflow-x: auto;
     padding: 0.5rem 0;
@@ -636,7 +963,6 @@
     min-width: 680px;
 }
 
-/* Individual Plot Tile */
 .map-tile {
     aspect-ratio: 1 / 1;
     border-radius: 10px;
@@ -663,117 +989,25 @@
     z-index: 10;
 }
 
-/* Terrains */
-.terrain-plains {
-    background: radial-gradient(circle at top left, #166534, #14532d 65%, #0f3d20);
-    border-color: rgba(34, 197, 94, 0.3);
-}
+.terrain-plains { background: radial-gradient(circle at top left, #166534, #14532d 65%, #0f3d20); }
+.terrain-forest { background: radial-gradient(circle at top left, #14532d, #052e16 75%, #021a0d); }
+.terrain-riverfront { background: radial-gradient(circle at center, #0284c7 0%, #0369a1 40%, #075985 80%, #082f49); }
+.terrain-industrial { background: radial-gradient(circle at top right, #78350f 0%, #451a03 50%, #291203 90%); }
+.terrain-citadel { background: radial-gradient(circle at center, #581c87 0%, #3b0764 50%, #1e0338 90%); }
+.terrain-highlands { background: radial-gradient(circle at top left, #334155, #1e293b 60%, #0f172a); }
 
-.terrain-forest {
-    background: radial-gradient(circle at top left, #14532d, #052e16 75%, #021a0d);
-    border-color: rgba(22, 101, 52, 0.4);
-}
+.map-tile.tile-mine { border-color: #22c55e !important; box-shadow: inset 0 0 12px rgba(34, 197, 94, 0.3); }
+.map-tile.tile-other { border-color: #38bdf8 !important; }
+.map-tile.tile-unowned { border-style: dashed; }
 
-.terrain-riverfront {
-    background: radial-gradient(circle at center, #0284c7 0%, #0369a1 40%, #075985 80%, #082f49);
-    border-color: rgba(56, 189, 248, 0.4);
-}
-
-.terrain-industrial {
-    background: radial-gradient(circle at top right, #78350f 0%, #451a03 50%, #291203 90%);
-    border-color: rgba(245, 158, 11, 0.35);
-}
-
-.terrain-citadel {
-    background: radial-gradient(circle at center, #581c87 0%, #3b0764 50%, #1e0338 90%);
-    border-color: rgba(168, 85, 247, 0.45);
-}
-
-.terrain-highlands {
-    background: radial-gradient(circle at top left, #334155, #1e293b 60%, #0f172a);
-    border-color: rgba(148, 163, 184, 0.35);
-}
-
-/* Ownership Borders */
-.map-tile.tile-mine {
-    border-color: #22c55e !important;
-    box-shadow: inset 0 0 12px rgba(34, 197, 94, 0.3);
-}
-
-.map-tile.tile-other {
-    border-color: #38bdf8 !important;
-}
-
-.map-tile.tile-unowned {
-    border-style: dashed;
-}
-
-/* Tile Components */
-.tile-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.68rem;
-    font-weight: 700;
-}
-
-.tile-coord {
-    color: rgba(255, 255, 255, 0.85);
-    background: rgba(0, 0, 0, 0.4);
-    padding: 0.1rem 0.35rem;
-    border-radius: 4px;
-    font-family: var(--font-mono);
-}
-
-.tile-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: 0.2rem;
-}
-
-.tile-emoji {
-    font-size: 1.85rem;
-    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
-    line-height: 1;
-}
-
-.tile-name-label {
-    font-size: 0.68rem;
-    font-weight: 700;
-    color: #fff;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-    max-width: 90%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.tile-bottom {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.68rem;
-    font-weight: 800;
-}
-
-.tile-price-pill {
-    background: rgba(0, 0, 0, 0.6);
-    color: #f59e0b;
-    padding: 0.15rem 0.45rem;
-    border-radius: 4px;
-    font-family: var(--font-mono);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.tile-owner-tag {
-    font-size: 0.62rem;
-    font-weight: 700;
-    padding: 0.1rem 0.35rem;
-    border-radius: 4px;
-}
+.tile-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.68rem; font-weight: 700; }
+.tile-coord { color: rgba(255, 255, 255, 0.85); background: rgba(0, 0, 0, 0.4); padding: 0.1rem 0.35rem; border-radius: 4px; font-family: var(--font-mono); }
+.tile-center { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 0.2rem; }
+.tile-emoji { font-size: 1.85rem; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6)); line-height: 1; }
+.tile-name-label { font-size: 0.72rem; font-weight: 800; color: #fff; max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 0.68rem; font-weight: 800; }
+.tile-price-pill { background: rgba(0, 0, 0, 0.6); color: #f59e0b; padding: 0.15rem 0.45rem; border-radius: 4px; font-family: var(--font-mono); border: 1px solid rgba(245, 158, 11, 0.3); }
+.tile-owner-tag { font-size: 0.62rem; font-weight: 700; padding: 0.1rem 0.35rem; border-radius: 4px; }
 .tag-mine { background: rgba(34, 197, 94, 0.25); color: #4ade80; }
 .tag-other { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; }
 .tag-open { background: rgba(255, 255, 255, 0.15); color: #e2e8f0; }
@@ -792,13 +1026,9 @@
     letter-spacing: 0.05em;
 }
 
-.map-footer-hint {
-    font-size: 0.78rem;
-    color: var(--text-sub);
-    text-align: center;
-}
+.map-footer-hint { font-size: 0.78rem; color: var(--text-sub); text-align: center; }
 
-/* Inspector Drawer */
+/* ── Inspector Drawer ── */
 .estate-inspector {
     padding: 1.25rem;
     border-radius: 14px;
@@ -808,11 +1038,7 @@
     top: 80px;
 }
 
-.inspector-empty {
-    text-align: center;
-    padding: 3rem 1.5rem;
-    color: var(--text-muted);
-}
+.inspector-empty { text-align: center; padding: 3rem 1.5rem; color: var(--text-muted); }
 .empty-icon { font-size: 3rem; margin-bottom: 0.75rem; }
 .tycoon-tips {
     margin-top: 1.5rem;
@@ -824,7 +1050,6 @@
     border: 1px dashed var(--border);
 }
 
-/* Hero card */
 .plot-hero-card {
     padding: 1rem;
     border-radius: 10px;
@@ -870,7 +1095,6 @@
     font-family: var(--font-mono);
 }
 
-/* Inspector Tabs */
 .inspector-tabs {
     display: flex;
     border-bottom: 1px solid var(--border);
@@ -896,7 +1120,6 @@
     border-bottom-color: var(--blue-primary);
 }
 
-/* Upgrades List */
 .upgrades-list {
     display: flex;
     flex-direction: column;
@@ -940,7 +1163,6 @@
     line-height: 1.35;
 }
 
-/* Bank calc */
 .bank-calc-card {
     padding: 0.85rem;
     background: var(--bg-card-inner);
@@ -956,7 +1178,6 @@
     color: var(--text-muted);
 }
 
-/* Modal */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -990,7 +1211,7 @@
 </style>
 
 <script>
-// ─── E-State Tycoon Client Engine ────────────────────────────────────────────
+// ─── E-State 3D Territory Tycoon Engine ──────────────────────────────────────
 let allPlots = [];
 let selectedPlot = null;
 let currentFilter = "all";
@@ -998,12 +1219,811 @@ let buildingsConfig = {};
 let currentUserId = {{ session['user']['id'] if session.get('user') else 'null' }};
 let isProcessing = false;
 
+// 3D Scene globals
+let scene, camera, renderer, controls;
+let raycaster, mouse;
+let plotMeshes = {}; // id -> Group
+let animatedItems = []; // smokestacks, rotating radars, cranes
+let is3DMode = true;
+let isNightMode = false;
+let ambientLight, dirLight, hemisphereLight;
+let viewMode = '3d'; // '3d' or 'grid'
+
+// Geographic Map Spatial Mapping (400 x 247 units matching map texture aspect ratio)
+const MAP_WIDTH = 420;
+const MAP_HEIGHT = 260;
+
+// Coordinates distribution across metropolitan sectors
+const PLOT_COORDINATES = {
+    // 🌲 Greenery Outskirts (Plots 1 - 12): Lush parks, North & Northwest ridges
+    1:  { x: -150, z: -85 },
+    2:  { x: -125, z: -95 },
+    3:  { x: -100, z: -80 },
+    4:  { x: -75,  z: -95 },
+    5:  { x: -140, z: -60 },
+    6:  { x: -110, z: -65 },
+    7:  { x:  60,  z: -90 },
+    8:  { x:  95,  z: -85 },
+    9:  { x:  130, z: -75 },
+    10: { x:  160, z: -85 },
+    11: { x:  80,  z: -55 },
+    12: { x:  120, z: -50 },
+
+    // 💧 Riverside Commons (Plots 13 - 22): Hudson & East River shorelines
+    13: { x: -45,  z: -55 },
+    14: { x: -35,  z: -30 },
+    15: { x: -45,  z: -10 },
+    16: { x: -40,  z:  15 },
+    17: { x: -50,  z:  40 },
+    18: { x:  15,  z: -50 },
+    19: { x:  25,  z: -25 },
+    20: { x:  20,  z:   5 },
+    21: { x:  30,  z:  30 },
+    22: { x:  45,  z:  55 },
+
+    // 🏗️ Industrial Zone (Plots 23 - 30): Shipping docks, refinery corridors
+    23: { x: -140, z:  10 },
+    24: { x: -115, z:  25 },
+    25: { x: -90,  z:  45 },
+    26: { x: -125, z:  65 },
+    27: { x:  70,  z:  20 },
+    28: { x:  95,  z:  45 },
+    29: { x:  125, z:  35 },
+    30: { x:  150, z:  60 },
+
+    // 👑 Shadow Citadel (Plots 31 - 36): Downtown Manhattan Spire
+    31: { x: -10,  z: -35 },
+    32: { x:   5,  z: -30 },
+    33: { x: -15,  z: -10 },
+    34: { x:   0,  z:  -5 },
+    35: { x: -10,  z:  15 },
+    36: { x:   5,  z:  20 }
+};
+
 document.addEventListener("DOMContentLoaded", () => {
+    init3DViewer();
     loadEstateData(true);
+    setupSearchAutocomplete();
+
     // Auto-poll estate data every 10 seconds live
     setInterval(() => loadEstateData(true), 10000);
 });
 
+// ─── Three.js 3D Map Setup ──────────────────────────────────────────────────
+function init3DViewer() {
+    const container = document.getElementById("three-map-viewport");
+    const canvas = document.getElementById("three-canvas");
+    if (!container || !canvas) return;
+
+    // Scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a101d);
+    scene.fog = new THREE.FogExp2(0x0a101d, 0.0018);
+
+    // Camera
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    camera = new THREE.PerspectiveCamera(45, width / height, 1, 1500);
+    camera.position.set(0, 180, 210);
+
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Controls
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.maxPolarAngle = Math.PI / 2.05; // Do not go below ground
+    controls.minDistance = 25;
+    controls.maxDistance = 480;
+    controls.target.set(0, 0, 0);
+
+    // Lighting
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+    scene.add(ambientLight);
+
+    dirLight = new THREE.DirectionalLight(0xfffaed, 1.1);
+    dirLight.position.set(120, 220, 100);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 10;
+    dirLight.shadow.camera.far = 600;
+    const d = 220;
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+    scene.add(dirLight);
+
+    hemisphereLight = new THREE.HemisphereLight(0x7dd3fc, 0x14532d, 0.35);
+    scene.add(hemisphereLight);
+
+    // Build Ground & Styled Map Base Plane
+    buildGroundMapPlane();
+
+    // Raycasting for Mouse Interaction
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+
+    container.addEventListener("mousemove", on3DMouseMove);
+    container.addEventListener("click", on3DMouseClick);
+    window.addEventListener("resize", onWindowResize);
+
+    // Start Render Loop
+    animate3D();
+}
+
+function buildGroundMapPlane() {
+    const textureLoader = new THREE.TextureLoader();
+    // Load local map image as ground texture
+    textureLoader.load(
+        "/static/img/map_basemap.png",
+        (texture) => {
+            texture.generateMipmaps = true;
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+
+            const planeGeo = new THREE.PlaneGeometry(MAP_WIDTH, MAP_HEIGHT);
+            const planeMat = new THREE.MeshStandardMaterial({
+                map: texture,
+                roughness: 0.65,
+                metalness: 0.1
+            });
+
+            const groundMesh = new THREE.Mesh(planeGeo, planeMat);
+            groundMesh.rotation.x = -Math.PI / 2;
+            groundMesh.position.y = 0;
+            groundMesh.receiveShadow = true;
+            scene.add(groundMesh);
+
+            // Water reflection plane beneath
+            const waterGeo = new THREE.PlaneGeometry(MAP_WIDTH * 1.5, MAP_HEIGHT * 1.5);
+            const waterMat = new THREE.MeshStandardMaterial({
+                color: 0x4a7eb8,
+                roughness: 0.25,
+                metalness: 0.4
+            });
+            const water = new THREE.Mesh(waterGeo, waterMat);
+            water.rotation.x = -Math.PI / 2;
+            water.position.y = -0.5;
+            scene.add(water);
+        },
+        undefined,
+        () => {
+            // Fallback ground plane if texture loading delays
+            const planeGeo = new THREE.PlaneGeometry(MAP_WIDTH, MAP_HEIGHT);
+            const planeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+            const ground = new THREE.Mesh(planeGeo, planeMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+        }
+    );
+}
+
+// ─── 3D Procedural Architectural Builders ────────────────────────────────────
+function createBuilding3D(type, level = 0, isMine = false, isOther = false) {
+    const group = new THREE.Group();
+
+    // Color palettes
+    const palette = {
+        concrete: 0xe2e8f0,
+        darkSlate: 0x1e293b,
+        brickRed: 0xb91c1c,
+        glassBlue: 0x38bdf8,
+        gold: 0xf59e0b,
+        militaryGreen: 0x365314,
+        bunkerArmor: 0x334155,
+        hazardYellow: 0xeab308,
+        steel: 0x64748b,
+        hospitalWhite: 0xf8fafc,
+        glowRed: 0xef4444
+    };
+
+    // Plot Base Pedestal
+    let borderColor = 0xffffff;
+    let baseOpacity = 0.25;
+    if (isMine) { borderColor = 0x22c55e; baseOpacity = 0.45; }
+    else if (isOther) { borderColor = 0x38bdf8; baseOpacity = 0.35; }
+
+    const baseGeo = new THREE.BoxGeometry(16, 0.6, 16);
+    const baseMat = new THREE.MeshStandardMaterial({
+        color: borderColor,
+        roughness: 0.3,
+        metalness: 0.2,
+        transparent: true,
+        opacity: baseOpacity
+    });
+    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+    baseMesh.position.y = 0.3;
+    baseMesh.receiveShadow = true;
+    group.add(baseMesh);
+
+    // Glowing border frame
+    const edges = new THREE.EdgesGeometry(baseGeo);
+    const lineMat = new THREE.LineBasicMaterial({ color: borderColor, linewidth: 2 });
+    const wireframe = new THREE.LineSegments(edges, lineMat);
+    wireframe.position.y = 0.3;
+    group.add(wireframe);
+
+    // Construct specific building structure
+    if (!type || type === "empty" || level === 0) {
+        // ── Unclaimed / Vacant Land Plot ──
+        // Surveyor corner wooden stakes
+        const stakeGeo = new THREE.CylinderGeometry(0.2, 0.2, 2.5, 6);
+        const stakeMat = new THREE.MeshStandardMaterial({ color: 0x78350f });
+        const corners = [[-7,-7], [7,-7], [7,7], [-7,7]];
+        corners.forEach(([cx, cz]) => {
+            const stake = new THREE.Mesh(stakeGeo, stakeMat);
+            stake.position.set(cx, 1.25, cz);
+            group.add(stake);
+        });
+
+        // Floating holographic marker ring
+        const ringGeo = new THREE.TorusGeometry(3.5, 0.15, 8, 24);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.7 });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 3;
+        group.add(ring);
+        animatedItems.push({ mesh: ring, type: 'bob_rotate', baseY: 3 });
+
+    } else if (type === "factory") {
+        // ── 🏭 Factory ──
+        const bodyH = 5 + (level * 1.5);
+        const bodyGeo = new THREE.BoxGeometry(11, bodyH, 8);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: palette.brickRed, roughness: 0.7 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = bodyH / 2 + 0.6;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+
+        // Corrugated Sawtooth Roof
+        const roofGeo = new THREE.ConeGeometry(6.5, 2.8, 4);
+        const roofMat = new THREE.MeshStandardMaterial({ color: palette.darkSlate, roughness: 0.6 });
+        const roof = new THREE.Mesh(roofGeo, roofMat);
+        roof.rotation.y = Math.PI / 4;
+        roof.position.y = bodyH + 2;
+        roof.castShadow = true;
+        group.add(roof);
+
+        // Smokestacks with animated smoke
+        const stackGeo = new THREE.CylinderGeometry(0.7, 0.9, 8 + level * 2, 12);
+        const stackMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5 });
+        const s1 = new THREE.Mesh(stackGeo, stackMat);
+        s1.position.set(-3, bodyH + 4, -2);
+        s1.castShadow = true;
+        group.add(s1);
+
+        const s2 = new THREE.Mesh(stackGeo, stackMat);
+        s2.position.set(3, bodyH + 3.5, -2);
+        s2.castShadow = true;
+        group.add(s2);
+
+        // Animated rising smoke particles
+        for (let i = 0; i < 4; i++) {
+            const smokeGeo = new THREE.SphereGeometry(0.7 + i * 0.25, 8, 8);
+            const smokeMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.45 });
+            const p1 = new THREE.Mesh(smokeGeo, smokeMat);
+            p1.position.set(-3, bodyH + 8 + i * 1.8, -2);
+            group.add(p1);
+            animatedItems.push({ mesh: p1, type: 'smoke', minY: bodyH + 8, maxY: bodyH + 18, speed: 0.06 });
+        }
+
+    } else if (type === "bank") {
+        // ── 🏦 Bank ──
+        // Marble foundation
+        const plinthGeo = new THREE.BoxGeometry(13, 1.2, 11);
+        const marbleMat = new THREE.MeshStandardMaterial({ color: palette.concrete, roughness: 0.25 });
+        const plinth = new THREE.Mesh(plinthGeo, marbleMat);
+        plinth.position.y = 1.2;
+        plinth.receiveShadow = true;
+        group.add(plinth);
+
+        // Classical columns
+        const colGeo = new THREE.CylinderGeometry(0.5, 0.6, 7 + level, 12);
+        const colMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+        const colPositions = [[-4.5, 3.5], [-1.5, 3.5], [1.5, 3.5], [4.5, 3.5], [-4.5, -3.5], [4.5, -3.5]];
+        colPositions.forEach(([cx, cz]) => {
+            const col = new THREE.Mesh(colGeo, colMat);
+            col.position.set(cx, 4.5 + level * 0.5, cz);
+            col.castShadow = true;
+            group.add(col);
+        });
+
+        // Entablature & Pediment (Triangle)
+        const pedGeo = new THREE.ConeGeometry(7.5, 3.2, 4);
+        const pedMat = new THREE.MeshStandardMaterial({ color: palette.concrete });
+        const ped = new THREE.Mesh(pedGeo, pedMat);
+        ped.rotation.y = Math.PI / 4;
+        ped.position.y = 9 + level;
+        ped.castShadow = true;
+        group.add(ped);
+
+        // Golden Dome
+        const domeGeo = new THREE.SphereGeometry(3, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+        const goldMat = new THREE.MeshStandardMaterial({ color: palette.gold, metalness: 0.85, roughness: 0.2 });
+        const dome = new THREE.Mesh(domeGeo, goldMat);
+        dome.position.y = 9.8 + level;
+        dome.castShadow = true;
+        group.add(dome);
+
+    } else if (type === "hospital") {
+        // ── 🏥 Hospital ──
+        const hHeight = 11 + (level * 3);
+        const mainGeo = new THREE.BoxGeometry(10, hHeight, 9);
+        const hospMat = new THREE.MeshStandardMaterial({ color: palette.hospitalWhite, roughness: 0.4 });
+        const main = new THREE.Mesh(mainGeo, hospMat);
+        main.position.y = hHeight / 2 + 0.6;
+        main.castShadow = true;
+        main.receiveShadow = true;
+        group.add(main);
+
+        // Glass window stripes
+        const glassGeo = new THREE.BoxGeometry(10.2, 1.2, 9.2);
+        const glassMat = new THREE.MeshStandardMaterial({ color: palette.glassBlue, metalness: 0.4, roughness: 0.1 });
+        for (let y = 3; y < hHeight; y += 3) {
+            const glass = new THREE.Mesh(glassGeo, glassMat);
+            glass.position.y = y;
+            group.add(glass);
+        }
+
+        // Rooftop Helipad
+        const padGeo = new THREE.CylinderGeometry(3.6, 3.6, 0.4, 24);
+        const padMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+        const pad = new THREE.Mesh(padGeo, padMat);
+        pad.position.y = hHeight + 0.8;
+        group.add(pad);
+
+        // Glowing 3D Red Cross on Facade
+        const crossMat = new THREE.MeshBasicMaterial({ color: palette.glowRed });
+        const cV = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.8, 0.3), crossMat);
+        cV.position.set(0, hHeight - 2, 4.6);
+        group.add(cV);
+        const cH = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.8, 0.3), crossMat);
+        cH.position.set(0, hHeight - 2, 4.6);
+        group.add(cH);
+
+    } else if (type === "construction") {
+        // ── 🏗️ Construction Hub ──
+        // Steel frame skeleton
+        const frameGeo = new THREE.BoxGeometry(10, 8 + level * 2, 8);
+        const frameMat = new THREE.MeshStandardMaterial({ color: palette.steel, wireframe: true });
+        const frame = new THREE.Mesh(frameGeo, frameMat);
+        frame.position.y = 5 + level;
+        group.add(frame);
+
+        // Yellow Tower Crane
+        const mastGeo = new THREE.CylinderGeometry(0.6, 0.6, 16 + level * 3, 6);
+        const craneMat = new THREE.MeshStandardMaterial({ color: palette.hazardYellow });
+        const mast = new THREE.Mesh(mastGeo, craneMat);
+        mast.position.set(-3, 8.5 + level * 1.5, -2);
+        mast.castShadow = true;
+        group.add(mast);
+
+        // Crane horizontal boom (Jib)
+        const jibGroup = new THREE.Group();
+        jibGroup.position.set(-3, 16 + level * 3, -2);
+
+        const jibGeo = new THREE.BoxGeometry(13, 0.8, 0.8);
+        const jib = new THREE.Mesh(jibGeo, craneMat);
+        jib.position.x = 3.5;
+        jibGroup.add(jib);
+
+        // Counterweight
+        const cwGeo = new THREE.BoxGeometry(2.5, 1.5, 1.2);
+        const cwMat = new THREE.MeshStandardMaterial({ color: 0x1f2937 });
+        const cw = new THREE.Mesh(cwGeo, cwMat);
+        cw.position.x = -2.8;
+        jibGroup.add(cw);
+
+        group.add(jibGroup);
+        animatedItems.push({ mesh: jibGroup, type: 'crane_swing', baseAngle: 0 });
+
+    } else if (type === "bunker") {
+        // ── 🛡️ Fortified Bunker ──
+        // Reinforced concrete dome
+        const domeGeo = new THREE.SphereGeometry(6 + level * 0.8, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+        const domeMat = new THREE.MeshStandardMaterial({ color: palette.bunkerArmor, roughness: 0.5, metalness: 0.3 });
+        const dome = new THREE.Mesh(domeGeo, domeMat);
+        dome.position.y = 0.6;
+        dome.castShadow = true;
+        group.add(dome);
+
+        // Heavy blast entrance
+        const vaultGeo = new THREE.BoxGeometry(3.5, 3, 2.5);
+        const vaultMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.7 });
+        const vault = new THREE.Mesh(vaultGeo, vaultMat);
+        vault.position.set(0, 1.6, 5.5 + level * 0.5);
+        vault.castShadow = true;
+        group.add(vault);
+
+        // Warning blast beacons
+        const beaconMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+        const b1 = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), beaconMat);
+        b1.position.set(-1.4, 3.2, 5.5 + level * 0.5);
+        group.add(b1);
+        const b2 = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), beaconMat);
+        b2.position.set(1.4, 3.2, 5.5 + level * 0.5);
+        group.add(b2);
+
+    } else if (type === "military") {
+        // ── 🪖 Military Base ──
+        // Camouflage HQ Bunker
+        const hqGeo = new THREE.BoxGeometry(9, 4.5, 7);
+        const hqMat = new THREE.MeshStandardMaterial({ color: palette.militaryGreen, roughness: 0.7 });
+        const hq = new THREE.Mesh(hqGeo, hqMat);
+        hq.position.y = 2.8;
+        hq.castShadow = true;
+        group.add(hq);
+
+        // Perimeter guard watchtowers
+        const twGeo = new THREE.CylinderGeometry(0.8, 1.1, 7, 8);
+        const twMat = new THREE.MeshStandardMaterial({ color: palette.bunkerArmor });
+        const tw1 = new THREE.Mesh(twGeo, twMat);
+        tw1.position.set(-6, 3.8, -5.5);
+        group.add(tw1);
+        const tw2 = new THREE.Mesh(twGeo, twMat);
+        tw2.position.set(6, 3.8, 5.5);
+        group.add(tw2);
+
+        // Rotating 3D Radar Tower
+        const radMast = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 7 + level, 8), new THREE.MeshStandardMaterial({ color: palette.steel }));
+        radMast.position.set(0, 7.5 + level * 0.5, 0);
+        group.add(radMast);
+
+        const dishGroup = new THREE.Group();
+        dishGroup.position.set(0, 11 + level, 0);
+
+        const dishGeo = new THREE.SphereGeometry(2.2, 16, 8, 0, Math.PI, 0, Math.PI / 2);
+        const dishMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+        const dish = new THREE.Mesh(dishGeo, dishMat);
+        dish.rotation.x = Math.PI / 3;
+        dishGroup.add(dish);
+
+        group.add(dishGroup);
+        animatedItems.push({ mesh: dishGroup, type: 'radar_spin', speed: 0.045 });
+    }
+
+    return group;
+}
+
+// ─── Render 3D Plots onto Scene ─────────────────────────────────────────────
+function render3DPlots() {
+    if (!scene) return;
+
+    // Remove old plot meshes
+    Object.values(plotMeshes).forEach(mesh => scene.remove(mesh));
+    plotMeshes = {};
+    animatedItems = [];
+
+    let filtered = allPlots;
+    if (currentFilter === "outskirts") filtered = allPlots.filter(p => p.district === "The Outskirts");
+    else if (currentFilter === "river") filtered = allPlots.filter(p => p.district === "Riverside Commons");
+    else if (currentFilter === "industrial") filtered = allPlots.filter(p => p.district === "Ironworks District");
+    else if (currentFilter === "citadel") filtered = allPlots.filter(p => p.district === "Shadow Citadel" || p.district === "Highland Outpost");
+    else if (currentFilter === "my_plots") filtered = allPlots.filter(p => currentUserId && p.owner_id === currentUserId);
+    else if (currentFilter === "for_sale") filtered = allPlots.filter(p => p.for_sale_price && p.for_sale_price > 0);
+
+    const filteredIds = new Set(filtered.map(p => p.id));
+
+    allPlots.forEach(p => {
+        const coords = PLOT_COORDINATES[p.id] || { x: (p.x - 3.5) * 50, z: (p.y - 3.5) * 40 };
+        const isMine = currentUserId && p.owner_id === currentUserId;
+        const isOther = p.owner_id && !isMine;
+        const isDimmed = !filteredIds.has(p.id);
+
+        const buildingGroup = createBuilding3D(p.building_type, p.building_level, isMine, isOther);
+        buildingGroup.position.set(coords.x, 0, coords.z);
+        buildingGroup.userData = { plot: p, id: p.id };
+
+        // Dim if not in current filter
+        if (isDimmed) {
+            buildingGroup.traverse(child => {
+                if (child.isMesh && child.material) {
+                    child.material = child.material.clone();
+                    child.material.transparent = true;
+                    child.material.opacity = 0.18;
+                }
+            });
+        }
+
+        // Highlight selection
+        if (selectedPlot && selectedPlot.id === p.id) {
+            const selectRing = new THREE.Mesh(
+                new THREE.TorusGeometry(10, 0.35, 12, 32),
+                new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+            );
+            selectRing.rotation.x = Math.PI / 2;
+            selectRing.position.y = 0.8;
+            buildingGroup.add(selectRing);
+        }
+
+        scene.add(buildingGroup);
+        plotMeshes[p.id] = buildingGroup;
+    });
+}
+
+// ─── 3D Animation & Rendering Loop ──────────────────────────────────────────
+function animate3D(time) {
+    requestAnimationFrame(animate3D);
+
+    if (TWEEN) TWEEN.update();
+    if (controls) controls.update();
+
+    // Run item animations (smokestacks, spinning radars, cranes, floating rings)
+    animatedItems.forEach(item => {
+        if (!item.mesh) return;
+
+        if (item.type === 'radar_spin') {
+            item.mesh.rotation.y += item.speed;
+        } else if (item.type === 'crane_swing') {
+            item.mesh.rotation.y = Math.sin((time || 0) * 0.0008) * 0.55;
+        } else if (item.type === 'bob_rotate') {
+            item.mesh.rotation.z += 0.015;
+            item.mesh.position.y = item.baseY + Math.sin((time || 0) * 0.003) * 0.5;
+        } else if (item.type === 'smoke') {
+            item.mesh.position.y += item.speed;
+            item.mesh.scale.addScalar(0.003);
+            if (item.mesh.position.y > item.maxY) {
+                item.mesh.position.y = item.minY;
+                item.mesh.scale.set(1, 1, 1);
+            }
+        }
+    });
+
+    if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+    }
+}
+
+// ─── Mouse Raycasting & Interaction ─────────────────────────────────────────
+function on3DMouseMove(event) {
+    const container = document.getElementById("three-map-viewport");
+    const tooltip = document.getElementById("three-hover-tooltip");
+    if (!container || !tooltip || !raycaster || !camera) return;
+
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / container.clientWidth) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / container.clientHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(Object.values(plotMeshes), true);
+
+    if (intersects.length > 0) {
+        let rootGroup = intersects[0].object;
+        while (rootGroup.parent && rootGroup.parent !== scene) {
+            rootGroup = rootGroup.parent;
+        }
+
+        const plot = rootGroup.userData ? rootGroup.userData.plot : null;
+        if (plot) {
+            tooltip.style.display = "block";
+            tooltip.style.left = (event.clientX - rect.left) + "px";
+            tooltip.style.top = (event.clientY - rect.top) + "px";
+
+            document.getElementById("tt-district").innerText = plot.district;
+            document.getElementById("tt-coords").innerText = `(${plot.x}, ${plot.y})`;
+            document.getElementById("tt-name").innerText = plot.name;
+            document.getElementById("tt-building").innerText = `${plot.building_emoji || '🌱'} ${plot.building_name || 'Vacant Land'}`;
+            document.getElementById("tt-price").innerText = `${formatK(plot.current_value)} M`;
+            document.getElementById("tt-owner").innerText = plot.owner_name || 'Unclaimed';
+            return;
+        }
+    }
+    tooltip.style.display = "none";
+}
+
+function on3DMouseClick(event) {
+    const container = document.getElementById("three-map-viewport");
+    if (!container || !raycaster || !camera) return;
+
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / container.clientWidth) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / container.clientHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(Object.values(plotMeshes), true);
+
+    if (intersects.length > 0) {
+        let rootGroup = intersects[0].object;
+        while (rootGroup.parent && rootGroup.parent !== scene) {
+            rootGroup = rootGroup.parent;
+        }
+
+        const plot = rootGroup.userData ? rootGroup.userData.plot : null;
+        if (plot) {
+            selectPlot(plot);
+            flyCameraToPlot(plot);
+        }
+    }
+}
+
+function flyCameraToPlot(plot) {
+    const coords = PLOT_COORDINATES[plot.id];
+    if (!coords || !camera || !controls) return;
+
+    document.getElementById("camera-focus-district").innerText = `${plot.name} • ${plot.district}`;
+
+    new TWEEN.Tween(controls.target)
+        .to({ x: coords.x, y: 0, z: coords.z }, 800)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+
+    const targetCamX = coords.x + 35;
+    const targetCamY = is3DMode ? 45 : 120;
+    const targetCamZ = coords.z + 45;
+
+    new TWEEN.Tween(camera.position)
+        .to({ x: targetCamX, y: targetCamY, z: targetCamZ }, 800)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+}
+
+function reset3DCamera() {
+    if (!camera || !controls) return;
+    document.getElementById("camera-focus-district").innerText = "Tactical Metropolitan Overview";
+
+    new TWEEN.Tween(controls.target)
+        .to({ x: 0, y: 0, z: 0 }, 900)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+
+    new TWEEN.Tween(camera.position)
+        .to({ x: 0, y: is3DMode ? 180 : 250, z: is3DMode ? 210 : 0.01 }, 900)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+}
+
+function toggleCameraPerspective() {
+    is3DMode = !is3DMode;
+    const label = document.getElementById("label-perspective");
+    if (label) label.innerText = is3DMode ? "3D Tilt" : "2D Top-Down";
+
+    if (!is3DMode) {
+        // Straight top-down 2D
+        new TWEEN.Tween(camera.position)
+            .to({ x: controls.target.x, y: 250, z: controls.target.z + 0.01 }, 800)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .start();
+    } else {
+        // 3D Isometric Tilt
+        new TWEEN.Tween(camera.position)
+            .to({ x: controls.target.x, y: 160, z: controls.target.z + 180 }, 800)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .start();
+    }
+}
+
+function toggleLightingMode() {
+    isNightMode = !isNightMode;
+    const label = document.getElementById("label-lighting");
+    if (label) label.innerText = isNightMode ? "Day Mode" : "Night Mode";
+
+    if (isNightMode) {
+        scene.background = new THREE.Color(0x030712);
+        scene.fog.color = new THREE.Color(0x030712);
+        ambientLight.intensity = 0.25;
+        dirLight.intensity = 0.45;
+        dirLight.color.setHex(0x38bdf8);
+    } else {
+        scene.background = new THREE.Color(0x0a101d);
+        scene.fog.color = new THREE.Color(0x0a101d);
+        ambientLight.intensity = 0.65;
+        dirLight.intensity = 1.1;
+        dirLight.color.setHex(0xfffaed);
+    }
+}
+
+function zoomIn3D() {
+    if (!camera || !controls) return;
+    const dir = new THREE.Vector3().subVectors(controls.target, camera.position).normalize();
+    camera.position.addScaledVector(dir, 35);
+}
+
+function zoomOut3D() {
+    if (!camera || !controls) return;
+    const dir = new THREE.Vector3().subVectors(controls.target, camera.position).normalize();
+    camera.position.addScaledVector(dir, -35);
+}
+
+function switchViewMode(mode) {
+    viewMode = mode;
+    const vp = document.getElementById("three-map-viewport");
+    const grid = document.getElementById("map-grid-wrap");
+    const btn3D = document.getElementById("btn-toggle-3d");
+    const btnGrid = document.getElementById("btn-toggle-grid");
+
+    if (mode === '3d') {
+        vp.style.display = "block";
+        grid.style.display = "none";
+        btn3D.classList.add("active");
+        btnGrid.classList.remove("active");
+        onWindowResize();
+    } else {
+        vp.style.display = "none";
+        grid.style.display = "block";
+        btn3D.classList.remove("active");
+        btnGrid.classList.add("active");
+        renderMapGrid();
+    }
+}
+
+function onWindowResize() {
+    const container = document.getElementById("three-map-viewport");
+    if (!container || !camera || !renderer) return;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+}
+
+// ─── Search Auto-Complete Engine ────────────────────────────────────────────
+function setupSearchAutocomplete() {
+    const input = document.getElementById("map-search-input");
+    const dropdown = document.getElementById("search-dropdown");
+    if (!input || !dropdown) return;
+
+    input.addEventListener("input", (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (!query) {
+            dropdown.style.display = "none";
+            return;
+        }
+
+        const matches = allPlots.filter(p =>
+            p.name.toLowerCase().includes(query) ||
+            p.district.toLowerCase().includes(query) ||
+            (p.owner_name && p.owner_name.toLowerCase().includes(query)) ||
+            (p.building_name && p.building_name.toLowerCase().includes(query)) ||
+            `(${p.x},${p.y})`.includes(query)
+        ).slice(0, 8);
+
+        if (matches.length === 0) {
+            dropdown.innerHTML = `<div class="search-item" style="color:var(--text-muted);">No parcels found</div>`;
+            dropdown.style.display = "block";
+            return;
+        }
+
+        dropdown.innerHTML = matches.map(p => `
+            <div class="search-item" onclick="onSearchSelect(${p.id})">
+                <div>
+                    <strong style="color:#fff;">${escapeHtml(p.name)}</strong>
+                    <div style="font-size:0.68rem; color:var(--text-muted);">${p.district} (${p.x}, ${p.y})</div>
+                </div>
+                <div style="text-align:right;">
+                    <span style="color:#f59e0b; font-family:var(--font-mono);">${formatK(p.current_value)} M</span>
+                    <div style="font-size:0.65rem; color:#a3e635;">${p.building_emoji || '🌱'} ${p.building_name}</div>
+                </div>
+            </div>
+        `).join("");
+        dropdown.style.display = "block";
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = "none";
+        }
+    });
+}
+
+function onSearchSelect(plotId) {
+    const dropdown = document.getElementById("search-dropdown");
+    if (dropdown) dropdown.style.display = "none";
+    const p = allPlots.find(x => x.id === plotId);
+    if (p) {
+        selectPlot(p);
+        flyCameraToPlot(p);
+    }
+}
+
+// ─── Data Sync & Tycoon Logic ───────────────────────────────────────────────
 async function loadEstateData(silent = false) {
     try {
         const [plotsRes, statsRes] = await Promise.all([
@@ -1017,6 +2037,7 @@ async function loadEstateData(silent = false) {
             buildingsConfig = stats.buildings_info || {};
 
             renderHUD(stats);
+            render3DPlots();
             renderMapGrid();
 
             // Re-render inspector if a plot is selected
@@ -1114,14 +2135,17 @@ function renderMapGrid() {
 
 function selectPlotById(id) {
     const p = allPlots.find(x => x.id === id);
-    if (p) selectPlot(p);
+    if (p) {
+        selectPlot(p);
+        flyCameraToPlot(p);
+    }
 }
 
 function selectPlot(p) {
     selectedPlot = p;
 
-    // Update tile selected state
-    document.querySelectorAll(".map-tile").forEach(t => t.classList.remove("selected"));
+    // Update 3D selection ring and grid
+    render3DPlots();
     renderMapGrid();
 
     // Reveal inspector
@@ -1149,117 +2173,159 @@ function selectPlot(p) {
     const isMine = currentUserId && p.owner_id === currentUserId;
     const isUnclaimed = !p.owner_id;
 
-    // Actions tab setup
+    // Toggle Box Visibility
     const buyBox = document.getElementById("box-buy-plot");
-    const upgradesBox = document.getElementById("box-upgrades");
+    const upgradeBox = document.getElementById("box-upgrade-options");
     const notOwnedHint = document.getElementById("box-not-owned-hint");
-
-    if (isUnclaimed) {
-        buyBox.style.display = "block";
-        document.getElementById("btn-buy-price").innerText = Number(p.current_value).toLocaleString();
-        upgradesBox.style.display = "none";
-        notOwnedHint.style.display = "none";
-    } else if (isMine) {
-        buyBox.style.display = "none";
-        upgradesBox.style.display = "block";
-        notOwnedHint.style.display = "none";
-        renderUpgradeCosts(p);
-    } else {
-        buyBox.style.display = "none";
-        upgradesBox.style.display = "none";
-        notOwnedHint.style.display = "block";
-    }
-
-    // Bank Payout Card Setup (+10% price, 20% tax)
-    const gross = p.bank_payout_gross || Math.round(p.current_value * 1.10);
-    const tax = p.bank_tax || Math.round(gross * 0.20);
-    const net = p.bank_payout_net || (gross - tax);
-
-    document.getElementById("calc-val").innerText = `${Number(p.current_value).toLocaleString()} M`;
-    document.getElementById("calc-gross").innerText = `${Number(gross).toLocaleString()} M`;
-    document.getElementById("calc-tax").innerText = `${Number(tax).toLocaleString()} M`;
-    document.getElementById("calc-net").innerText = `${Number(net).toLocaleString()} M`;
-
-    // Marketplace / Offers Tab Setup
+    const sellBankBox = document.getElementById("box-sell-bank-section");
     const marketListingBox = document.getElementById("box-market-listing");
     const buyMarketBox = document.getElementById("box-buy-market");
     const makeOfferBox = document.getElementById("box-make-offer");
 
-    if (isMine) {
+    if (isUnclaimed) {
+        buyBox.style.display = "block";
+        document.getElementById("buy-plot-price").innerText = Number(p.current_value).toLocaleString();
+        upgradeBox.style.display = "none";
+        notOwnedHint.style.display = "none";
+        sellBankBox.style.display = "none";
+        marketListingBox.style.display = "none";
+        buyMarketBox.style.display = "none";
+        makeOfferBox.style.display = "none";
+    } else if (isMine) {
+        buyBox.style.display = "none";
+        upgradeBox.style.display = "block";
+        notOwnedHint.style.display = "none";
+        sellBankBox.style.display = "block";
         marketListingBox.style.display = "block";
         buyMarketBox.style.display = "none";
         makeOfferBox.style.display = "none";
 
-        const statusEl = document.getElementById("current-listing-status");
+        // Fill Upgrade Costs based on plot base price
+        const b = p.base_price;
+        document.getElementById("cost-factory").innerText = formatK(Math.round(b * 0.25)) + " M";
+        document.getElementById("cost-hospital").innerText = formatK(Math.round(b * 0.20)) + " M";
+        document.getElementById("cost-construction").innerText = formatK(Math.round(b * 0.30)) + " M";
+        document.getElementById("cost-bunker").innerText = formatK(Math.round(b * 0.35)) + " M";
+        document.getElementById("cost-military").innerText = formatK(Math.round(b * 0.45)) + " M";
+        document.getElementById("cost-bank").innerText = formatK(Math.round(b * 0.60)) + " M";
+
+        // Fill Bank Liquidation Numbers (+10% price, 20% tax)
+        const gross = Math.round(p.current_value * 1.10);
+        const tax = Math.round(gross * 0.20);
+        const net = gross - tax;
+        document.getElementById("calc-val").innerText = Number(p.current_value).toLocaleString() + " M";
+        document.getElementById("calc-gross").innerText = Number(gross).toLocaleString() + " M";
+        document.getElementById("calc-tax").innerText = Number(tax).toLocaleString() + " M";
+        document.getElementById("calc-net").innerText = Number(net).toLocaleString() + " M";
+
+        // Marketplace Status
+        const listingStatus = document.getElementById("current-listing-status");
         if (p.for_sale_price) {
-            statusEl.innerText = `Currently listed for ${Number(p.for_sale_price).toLocaleString()} Medals.`;
+            listingStatus.innerText = `Currently listed for ${Number(p.for_sale_price).toLocaleString()} Medals`;
             document.getElementById("input-listing-price").value = p.for_sale_price;
         } else {
-            statusEl.innerText = "Not currently listed for public sale.";
+            listingStatus.innerText = "Not currently listed for sale.";
             document.getElementById("input-listing-price").value = "";
         }
     } else {
+        // Owned by someone else
+        buyBox.style.display = "none";
+        upgradeBox.style.display = "none";
+        notOwnedHint.style.display = "block";
+        sellBankBox.style.display = "none";
         marketListingBox.style.display = "none";
-        if (p.for_sale_price) {
+
+        if (p.for_sale_price && p.for_sale_price > 0) {
             buyMarketBox.style.display = "block";
             document.getElementById("market-asking-price").innerText = Number(p.for_sale_price).toLocaleString();
         } else {
             buyMarketBox.style.display = "none";
         }
-        makeOfferBox.style.display = isUnclaimed ? "none" : "block";
+        makeOfferBox.style.display = "block";
     }
 }
 
-function renderUpgradeCosts(p) {
-    for (const [key, b] of Object.entries(buildingsConfig)) {
-        const el = document.getElementById("cost-" + key);
-        if (el) {
-            const nextLvl = (p.building_type === key) ? (p.building_level + 1) : 1;
-            const cost = Math.round(p.base_price * b.cost_pct * nextLvl);
-            el.innerText = `${Number(cost).toLocaleString()} M`;
-        }
+function setFilter(filterType, btn) {
+    currentFilter = filterType;
+    document.querySelectorAll(".filter-pill").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+
+    render3DPlots();
+    renderMapGrid();
+
+    // Smoothly fly camera to district center
+    if (filterType === "outskirts") {
+        new TWEEN.Tween(controls.target).to({ x: -110, y: 0, z: -70 }, 900).start();
+        new TWEEN.Tween(camera.position).to({ x: -70, y: 120, z: 20 }, 900).start();
+        document.getElementById("camera-focus-district").innerText = "Greenery Outskirts Ridge";
+    } else if (filterType === "river") {
+        new TWEEN.Tween(controls.target).to({ x: -10, y: 0, z: 0 }, 900).start();
+        new TWEEN.Tween(camera.position).to({ x: 30, y: 110, z: 90 }, 900).start();
+        document.getElementById("camera-focus-district").innerText = "Hudson & East River Commons";
+    } else if (filterType === "industrial") {
+        new TWEEN.Tween(controls.target).to({ x: -100, y: 0, z: 40 }, 900).start();
+        new TWEEN.Tween(camera.position).to({ x: -50, y: 120, z: 120 }, 900).start();
+        document.getElementById("camera-focus-district").innerText = "Industrial Shipping Corridors";
+    } else if (filterType === "citadel") {
+        new TWEEN.Tween(controls.target).to({ x: 0, y: 0, z: -10 }, 900).start();
+        new TWEEN.Tween(camera.position).to({ x: 25, y: 80, z: 50 }, 900).start();
+        document.getElementById("camera-focus-district").innerText = "Shadow Citadel Spire";
+    } else if (filterType === "all") {
+        reset3DCamera();
     }
 }
 
-let selectedUpgradeKey = null;
-function selectUpgrade(key) {
+function switchInspectorTab(tab) {
+    document.querySelectorAll(".insp-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".insp-tab-pane").forEach(p => p.style.display = "none");
+
+    const tabBtn = document.getElementById("tab-btn-" + tab);
+    const pane = document.getElementById("tab-" + tab);
+    if (tabBtn) tabBtn.classList.add("active");
+    if (pane) pane.style.display = "block";
+}
+
+// ─── Actions & API Mutations ────────────────────────────────────────────────
+let selectedUpgradeType = null;
+
+function selectUpgrade(type) {
     if (!selectedPlot) return;
-    selectedUpgradeKey = key;
-    const b = buildingsConfig[key];
-    if (!b) return;
+    selectedUpgradeType = type;
 
-    const nextLvl = (selectedPlot.building_type === key) ? (selectedPlot.building_level + 1) : 1;
-    const cost = Math.round(selectedPlot.base_price * b.cost_pct * nextLvl);
+    const b = selectedPlot.base_price;
+    const rates = { factory: 0.25, hospital: 0.20, construction: 0.30, bunker: 0.35, military: 0.45, bank: 0.60 };
+    const cost = Math.round(b * (rates[type] || 0.25) * (selectedPlot.building_type === type ? selectedPlot.building_level + 1 : 1));
 
-    document.getElementById("selected-upgrade-title").innerText = `${b.name} (Lv. ${nextLvl})`;
+    document.getElementById("selected-upgrade-title").innerText = type.toUpperCase();
     document.getElementById("selected-upgrade-cost").innerText = Number(cost).toLocaleString();
     document.getElementById("upgrade-confirm-box").style.display = "block";
 }
 
 function cancelUpgradeSelection() {
-    selectedUpgradeKey = null;
+    selectedUpgradeType = null;
     document.getElementById("upgrade-confirm-box").style.display = "none";
 }
 
 async function executeUpgrade() {
-    if (!selectedPlot || !selectedUpgradeKey || isProcessing) return;
+    if (!selectedPlot || !selectedUpgradeType || isProcessing) return;
     isProcessing = true;
+
     try {
         const res = await fetch("/api/estate/upgrade", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({plot_id: selectedPlot.id, building_type: selectedUpgradeKey})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plot_id: selectedPlot.id, building_type: selectedUpgradeType })
         });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
+        if (res.ok && data.success) {
+            showToast(data.message || "Building constructed!");
             cancelUpgradeSelection();
-            loadEstateData(true);
+            await loadEstateData(true);
         } else {
-            showToast(data.message, true);
+            showToast("Upgrade failed: " + (data.error || "Unknown error"), "error");
         }
-    } catch (e) {
-        showToast("Failed to upgrade plot.", true);
+    } catch (err) {
+        showToast("Error processing construction.", "error");
     } finally {
         isProcessing = false;
     }
@@ -1267,26 +2333,23 @@ async function executeUpgrade() {
 
 async function executeBuyPlot() {
     if (!selectedPlot || isProcessing) return;
-    if (!currentUserId) {
-        window.location.href = "/login";
-        return;
-    }
     isProcessing = true;
+
     try {
         const res = await fetch("/api/estate/buy", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({plot_id: selectedPlot.id})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plot_id: selectedPlot.id })
         });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
-            loadEstateData(true);
+        if (res.ok && data.success) {
+            showToast(data.message || "Land successfully acquired!");
+            await loadEstateData(true);
         } else {
-            showToast(data.message, true);
+            showToast("Purchase failed: " + (data.error || "Unknown error"), "error");
         }
-    } catch (e) {
-        showToast("Transaction failed.", true);
+    } catch (err) {
+        showToast("Error acquiring land.", "error");
     } finally {
         isProcessing = false;
     }
@@ -1294,271 +2357,286 @@ async function executeBuyPlot() {
 
 async function executeSellToBank() {
     if (!selectedPlot || isProcessing) return;
-    const gross = selectedPlot.bank_payout_gross || Math.round(selectedPlot.current_value * 1.10);
-    const tax = selectedPlot.bank_tax || Math.round(gross * 0.20);
-    const net = selectedPlot.bank_payout_net || (gross - tax);
-
-    const conf = confirm(`Are you sure you want to sell ${selectedPlot.name} to the Bank for ${Number(net).toLocaleString()} Medals (+10% Bonus with 20% Bank Tax)?`);
-    if (!conf) return;
-
+    if (!confirm(`Liquidate ${selectedPlot.name} to the Bank? 20% Bank Liquidation Tax will be deducted.`)) return;
     isProcessing = true;
+
     try {
         const res = await fetch("/api/estate/sell_bank", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({plot_id: selectedPlot.id})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plot_id: selectedPlot.id })
         });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
-            loadEstateData(true);
+        if (res.ok && data.success) {
+            showToast(data.message || "Sold to Bank!");
+            await loadEstateData(true);
         } else {
-            showToast(data.message, true);
+            showToast("Bank liquidation failed: " + (data.error || "Unknown error"), "error");
         }
-    } catch (e) {
-        showToast("Liquidation failed.", true);
+    } catch (err) {
+        showToast("Bank communication error.", "error");
     } finally {
         isProcessing = false;
     }
 }
 
 async function setMarketListing() {
-    if (!selectedPlot) return;
-    const val = parseInt(document.getElementById("input-listing-price").value);
-    if (!val || val <= 0) {
-        showToast("Enter a positive asking price.", true);
-        return;
-    }
+    if (!selectedPlot || isProcessing) return;
+    const price = parseInt(document.getElementById("input-listing-price").value);
+    if (!price || price <= 0) return alert("Please enter a valid asking price.");
+    isProcessing = true;
+
     try {
         const res = await fetch("/api/estate/market_listing", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({plot_id: selectedPlot.id, price: val})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plot_id: selectedPlot.id, price: price })
         });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
-            loadEstateData(true);
+        if (res.ok && data.success) {
+            showToast(data.message || "Marketplace listing updated!");
+            await loadEstateData(true);
         } else {
-            showToast(data.message, true);
+            showToast("Listing error: " + (data.error || "Unknown error"), "error");
         }
-    } catch (e) {
-        showToast("Failed to set asking price.", true);
+    } catch (err) {
+        showToast("Error updating listing.", "error");
+    } finally {
+        isProcessing = false;
     }
 }
 
 async function delistMarketListing() {
-    if (!selectedPlot) return;
+    if (!selectedPlot || isProcessing) return;
+    isProcessing = true;
+
     try {
         const res = await fetch("/api/estate/market_listing", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({plot_id: selectedPlot.id, price: null})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plot_id: selectedPlot.id, price: null })
         });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
-            document.getElementById("input-listing-price").value = "";
-            loadEstateData(true);
+        if (res.ok && data.success) {
+            showToast("Plot delisted from marketplace.");
+            await loadEstateData(true);
         } else {
-            showToast(data.message, true);
+            showToast("Delisting failed: " + (data.error || "Unknown error"), "error");
         }
-    } catch (e) {
-        showToast("Failed to delist.", true);
+    } catch (err) {
+        showToast("Delist error.", "error");
+    } finally {
+        isProcessing = false;
     }
 }
 
 async function executeBuyMarket() {
     if (!selectedPlot || isProcessing) return;
+    if (!confirm(`Buy ${selectedPlot.name} from market for ${Number(selectedPlot.for_sale_price).toLocaleString()} Medals?`)) return;
     isProcessing = true;
+
     try {
         const res = await fetch("/api/estate/buy_market", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({plot_id: selectedPlot.id})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plot_id: selectedPlot.id })
         });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
-            loadEstateData(true);
+        if (res.ok && data.success) {
+            showToast(data.message || "Purchased from market!");
+            await loadEstateData(true);
         } else {
-            showToast(data.message, true);
+            showToast("Purchase error: " + (data.error || "Unknown error"), "error");
         }
-    } catch (e) {
-        showToast("Market purchase failed.", true);
+    } catch (err) {
+        showToast("Transaction error.", "error");
     } finally {
         isProcessing = false;
     }
 }
 
 async function submitCustomOffer() {
-    if (!selectedPlot) return;
-    const amt = parseInt(document.getElementById("input-offer-amount").value);
-    if (!amt || amt < 1000) {
-        showToast("Minimum offer is 1,000 Medals.", true);
-        return;
-    }
+    if (!selectedPlot || isProcessing) return;
+    const amount = parseInt(document.getElementById("input-offer-amount").value);
+    if (!amount || amount < 1000) return alert("Minimum offer is 1,000 Medals.");
+    isProcessing = true;
+
     try {
         const res = await fetch("/api/estate/offer", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({plot_id: selectedPlot.id, amount: amt})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plot_id: selectedPlot.id, offer_amount: amount })
         });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
+        if (res.ok && data.success) {
+            showToast(data.message || "Offer submitted to owner!");
             document.getElementById("input-offer-amount").value = "";
         } else {
-            showToast(data.message, true);
+            showToast("Offer failed: " + (data.error || "Unknown error"), "error");
         }
-    } catch (e) {
-        showToast("Failed to submit offer.", true);
+    } catch (err) {
+        showToast("Communication error.", "error");
+    } finally {
+        isProcessing = false;
     }
 }
 
 async function collectAllYields() {
-    if (!currentUserId) {
-        window.location.href = "/login";
-        return;
-    }
-    const btn = document.getElementById("btn-collect-all");
-    if (btn) btn.disabled = true;
+    if (isProcessing) return;
+    isProcessing = true;
+
     try {
-        const res = await fetch("/api/estate/collect_yield", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"}
-        });
+        const res = await fetch("/api/estate/collect_yield", { method: "POST" });
         const data = await res.json();
-        if (data.success) {
-            showToast(`⚡ ${data.message}`);
-            loadEstateData(true);
+        if (res.ok && data.success) {
+            showToast(data.message || "Dividends collected!");
+            await loadEstateData(true);
         } else {
-            showToast(data.message, true);
+            showToast(data.error || "No dividends to collect.", "info");
         }
-    } catch (e) {
-        showToast("Failed to collect yields.", true);
+    } catch (err) {
+        showToast("Failed to collect dividends.", "error");
     } finally {
-        if (btn) btn.disabled = false;
+        isProcessing = false;
     }
 }
 
-function switchInspectorTab(tabId) {
-    document.querySelectorAll(".insp-tab").forEach(t => t.classList.remove("active"));
-    document.querySelectorAll(".insp-tab-pane").forEach(p => p.style.display = "none");
-
-    const targetTab = document.getElementById(tabId);
-    if (targetTab) targetTab.style.display = "block";
-
-    if (tabId === "tab-actions") document.getElementById("tab-btn-actions").classList.add("active");
-    else if (tabId === "tab-sell") document.getElementById("tab-btn-sell").classList.add("active");
-    else if (tabId === "tab-offers") document.getElementById("tab-btn-offers").classList.add("active");
-}
-
-function setFilter(filter, el) {
-    currentFilter = filter;
-    document.querySelectorAll(".filter-pill").forEach(p => p.classList.remove("active"));
-    if (el) el.classList.add("active");
-    renderMapGrid();
-}
-
+// ─── Offers Hub Modal ───────────────────────────────────────────────────────
 async function openOffersModal() {
-    document.getElementById("offers-modal").style.display = "flex";
+    const modal = document.getElementById("offers-modal");
     const container = document.getElementById("offers-list-container");
-    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading offers...</div>';
+    if (!modal || !container) return;
+
+    modal.style.display = "flex";
+    container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading proposals...</div>`;
 
     try {
-        const res = await fetch("/api/estate/offers?_t=" + Date.now());
+        const res = await fetch("/api/estate/offers");
         if (res.ok) {
             const offers = await res.json();
-            if (!offers.length) {
-                container.innerHTML = '<div style="text-align:center; color: var(--text-muted); padding: 2.5rem;">No active buy offers found.</div>';
+            if (offers.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No active offers at this time.</div>`;
                 return;
             }
 
-            container.innerHTML = offers.map(o => `
-                <div style="padding: 0.85rem; background: var(--bg-card-inner); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 0.65rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                        <strong>${escapeHtml(o.plot_name)} (${escapeHtml(o.district)})</strong>
-                        <span style="font-size: 0.7rem; font-weight: 800; padding: 0.15rem 0.45rem; border-radius: 4px; background: ${o.status === 'pending' ? 'rgba(245,158,11,0.2)' : 'rgba(56,189,248,0.2)'}; color: ${o.status === 'pending' ? '#f59e0b' : '#38bdf8'};">
-                            ${o.status.toUpperCase()}
-                        </span>
-                    </div>
+            container.innerHTML = offers.map(o => {
+                const isIncoming = currentUserId && o.seller_id === currentUserId;
+                const statusBadge = o.status === 'pending'
+                    ? `<span style="color: #f59e0b; font-weight:800;">PENDING</span>`
+                    : `<span style="color: var(--text-muted);">${o.status.toUpperCase()}</span>`;
 
-                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-                        ${o.is_incoming ? `From: <strong>${escapeHtml(o.buyer_name)}</strong>` : `Offered to: <strong>${escapeHtml(o.seller_name)}</strong>`}
-                        • Offered: <strong class="text-gold">${Number(o.offer_amount).toLocaleString()} M</strong>
-                    </div>
+                const netPayout = Math.round(o.offer_amount * 0.70);
 
-                    ${o.is_incoming && o.status === 'pending' ? `
-                        <div style="font-size: 0.75rem; color: var(--text-sub); margin-bottom: 0.65rem; background: rgba(0,0,0,0.25); padding: 0.4rem 0.6rem; border-radius: 4px;">
-                            30% State Tax: <strong>${Number(o.tax_amount).toLocaleString()} M</strong> | Net Payout: <strong class="text-green">${Number(o.seller_net).toLocaleString()} M</strong>
+                let actionBtns = "";
+                if (isIncoming && o.status === 'pending') {
+                    actionBtns = `
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                            <button class="btn btn-sm btn-green" onclick="acceptOffer(${o.id})">Accept Offer (Receive ${Number(netPayout).toLocaleString()} M)</button>
+                            <button class="btn btn-sm btn-crimson" onclick="rejectOffer(${o.id})">Reject</button>
                         </div>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-sm btn-green" onclick="acceptOffer(${o.id})">✅ Accept (${Number(o.seller_net).toLocaleString()} M)</button>
-                            <button class="btn btn-sm btn-pill-dark" onclick="rejectOffer(${o.id})">❌ Reject</button>
+                    `;
+                }
+
+                return `
+                    <div style="background: var(--bg-card-inner); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem; margin-bottom: 0.65rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                            <strong style="color: #fff; font-size: 0.95rem;">${escapeHtml(o.plot_name)} (${o.district})</strong>
+                            ${statusBadge}
                         </div>
-                    ` : ''}
-                </div>
-            `).join("");
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">
+                            ${isIncoming ? 'Incoming bid from' : 'Your bid to'} <strong>${escapeHtml(isIncoming ? o.buyer_name : o.seller_name)}</strong>
+                        </div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #f59e0b; margin: 0.35rem 0; font-family: var(--font-mono);">
+                            ${Number(o.offer_amount).toLocaleString()} Medals
+                            <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 400;">(30% State Tax: -${Number(Math.round(o.offer_amount * 0.30)).toLocaleString()} M)</span>
+                        </div>
+                        ${actionBtns}
+                    </div>
+                `;
+            }).join("");
         }
-    } catch (e) {
-        container.innerHTML = '<div style="text-align: center; color: #ef4444; padding: 2rem;">Failed to load offers.</div>';
+    } catch (err) {
+        container.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 1.5rem;">Error loading offers.</div>`;
     }
 }
 
 function closeOffersModal(e) {
-    document.getElementById("offers-modal").style.display = "none";
+    const modal = document.getElementById("offers-modal");
+    if (modal) modal.style.display = "none";
 }
 
 async function acceptOffer(offerId) {
+    if (isProcessing) return;
+    isProcessing = true;
+
     try {
         const res = await fetch("/api/estate/offer/accept", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({offer_id: offerId})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ offer_id: offerId })
         });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
+        if (res.ok && data.success) {
+            showToast(data.message || "Offer accepted!");
             closeOffersModal();
-            loadEstateData(true);
+            await loadEstateData(true);
         } else {
-            showToast(data.message, true);
+            showToast("Failed to accept offer: " + (data.error || "Unknown error"), "error");
         }
-    } catch (e) {
-        showToast("Failed to accept offer.", true);
+    } catch (err) {
+        showToast("Communication error.", "error");
+    } finally {
+        isProcessing = false;
     }
 }
 
 async function rejectOffer(offerId) {
+    if (isProcessing) return;
+    isProcessing = true;
+
     try {
         const res = await fetch("/api/estate/offer/reject", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({offer_id: offerId})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ offer_id: offerId })
         });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
+        if (res.ok && data.success) {
+            showToast("Offer rejected.");
             openOffersModal();
         } else {
-            showToast(data.message, true);
+            showToast("Failed to reject offer: " + (data.error || "Unknown error"), "error");
         }
-    } catch (e) {
-        showToast("Failed to reject offer.", true);
+    } catch (err) {
+        showToast("Communication error.", "error");
+    } finally {
+        isProcessing = false;
     }
 }
 
-function formatK(n) {
-    if (!n) return "0";
-    if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
-    if (n >= 1000) return (n / 1000).toFixed(0) + "k";
-    return n.toString();
+// ─── Helpers ────────────────────────────────────────────────────────────────
+function formatK(num) {
+    if (!num) return "0";
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+    if (num >= 1000) return (num / 1000).toFixed(0) + "k";
+    return num.toString();
 }
 
-function escapeHtml(str) {
-    if (!str) return "";
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+function escapeHtml(text) {
+    if (!text) return "";
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function showToast(msg, type = "success") {
+    const toast = document.createElement("div");
+    toast.className = "toast-pill " + (type === "error" ? "toast-error" : "toast-success");
+    toast.innerText = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add("visible"), 50);
+    setTimeout(() => {
+        toast.classList.remove("visible");
+        setTimeout(() => toast.remove(), 300);
+    }, 3200);
 }
 </script>
 {% endblock %}
