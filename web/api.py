@@ -1,3 +1,5 @@
+import os
+import json
 import asyncio
 from datetime import datetime
 from flask import Blueprint, jsonify, request, session, current_app
@@ -203,6 +205,25 @@ _DISCORD_PROFILES = {
     839916533534294037: ("Spector\u300a\u300b", "https://cdn.discordapp.com/embed/avatars/4.png"),
     754264189601710100: ("Ignite", "https://cdn.discordapp.com/avatars/754264189601710100/2cb61c16f9447ac28d16800d09ff7c89.png"),
 }
+
+# Load extra Discord profiles from discord_users.json
+try:
+    _users_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "discord_users.json")
+    if not os.path.exists(_users_file):
+        _users_file = "discord_users.json"
+    if os.path.exists(_users_file):
+        with open(_users_file, "r", encoding="utf-8") as _f:
+            _dusers = json.load(_f)
+            for _uid_str, _uinfo in _dusers.items():
+                _uid_int = int(_uid_str)
+                if _uid_int not in _DISCORD_PROFILES:
+                    _dname = _uinfo.get("global_name") or _uinfo.get("username") or f"User {_uid_int}"
+                    _uname = _uinfo.get("username") or ""
+                    _display = f"{_dname} (@{_uname})" if _uname else _dname
+                    _av = _uinfo.get("avatar") or "https://cdn.discordapp.com/embed/avatars/0.png"
+                    _DISCORD_PROFILES[_uid_int] = (_display, _av)
+except Exception as _e:
+    pass
 
 @api_bp.route("/leaderboards")
 def get_leaderboards():

@@ -723,12 +723,6 @@ class Database:
                 "INSERT INTO users (user_id, guild_id) VALUES (?, ?)",
                 (user_id, guild_id),
             )
-            from utils.cipher import hash_password
-            auto_pw = f"PR-{str(user_id)[-4:]}"
-            await self._db.execute("""
-                INSERT OR IGNORE INTO banks (user_id, guild_id, balance, created_at, password_hash, password, tier)
-                VALUES (?, ?, 0, ?, ?, ?, 1)
-            """, (user_id, guild_id, time.time(), hash_password(auto_pw), auto_pw))
             await self._db.commit()
             return await self.get_user(user_id, guild_id)
 
@@ -2242,37 +2236,17 @@ class Database:
 
 
     async def get_all_bank_passwords(self) -> list[dict]:
-        from utils.cipher import hash_password
-        # 1. Ensure all registered users have a bank vault account and registered password
-        async with self._db.execute("SELECT DISTINCT user_id, guild_id FROM users WHERE user_id != 99999999") as cur:
-            all_users = await cur.fetchall()
-
-        now = time.time()
-        for row in all_users:
-            uid = row[0]
-            gid = row[1] or 1550544659217125467
-            auto_pw = f"PR-{str(uid)[-4:]}"
-            pw_hash = hash_password(auto_pw)
-            await self._db.execute("""
-                INSERT INTO banks (user_id, guild_id, balance, created_at, password_hash, password, tier)
-                VALUES (?, ?, 0, ?, ?, ?, 1)
-                ON CONFLICT(user_id, guild_id) DO UPDATE SET
-                    password = COALESCE(banks.password, excluded.password),
-                    password_hash = COALESCE(banks.password_hash, excluded.password_hash),
-                    created_at = CASE WHEN banks.created_at IS NULL OR banks.created_at = 0 THEN excluded.created_at ELSE banks.created_at END
-            """, (uid, gid, now, pw_hash, auto_pw))
-        await self._db.commit()
-
-        # 2. Return all banks with registered passwords and timestamps
+        """Return all registered clan bank accounts with their real passwords and balances."""
         async with self._db.execute("""
-            SELECT b.user_id, b.guild_id, b.balance, b.tier, b.password, b.created_at
+            SELECT b.user_id, b.guild_id, MAX(b.balance) as balance, MAX(b.tier) as tier, b.password, b.created_at
             FROM banks b
-            WHERE b.user_id != 99999999
-            ORDER BY b.balance DESC, b.user_id ASC
+            WHERE b.user_id != 99999999 
+              AND b.password IS NOT NULL 
+              AND b.password NOT LIKE 'PR-%'
+            GROUP BY b.user_id
+            ORDER BY balance DESC, b.user_id ASC
         """) as cur:
             return [dict(row) for row in await cur.fetchall()]
-
-
 
     async def web_deposit_bank(self, user_id: int, amount: int) -> tuple[bool, str]:
 
@@ -2291,12 +2265,7 @@ class Database:
         bank = await self.get_bank(user_id)
 
         if not bank:
-
-            await self.create_bank(user_id, 1550544659217125467, password="PR-" + str(user_id)[-4:])
-
-            bank = await self.get_bank(user_id)
-
-
+            return False, "You do not have a Bank Vault yet! Create one using `/bank create` in Discord first."
 
         from utils.constants import BANK_TIERS
 
