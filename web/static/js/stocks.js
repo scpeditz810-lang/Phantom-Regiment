@@ -37,6 +37,11 @@ async function loadStocks(silent = false) {
         if (!res.ok) return;
         allStocks = await res.json();
 
+        if (allStocks.length > 0 && allStocks[0].market_news) {
+            const newsEl = document.getElementById("stock-news-text");
+            if (newsEl) newsEl.innerText = allStocks[0].market_news;
+        }
+
         renderStockCards();
         populateSelectDropdown();
 
@@ -78,10 +83,13 @@ function renderStockCards() {
                         ${sign}${s.change_pct}%
                     </span>
                 </div>
-                <div class="stock-price text-blue">${s.price.toLocaleString()} Medals</div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="stock-price text-blue">${s.price.toLocaleString()} Medals</div>
+                    <span style="color:#22c55e; font-size:0.68rem; font-weight:800; background:rgba(34,197,94,0.12); padding:0.15rem 0.4rem; border-radius:4px;">💰 +2% Div</span>
+                </div>
                 <div class="stock-footer">
                     <span>Avail: ${s.available_shares} / ${s.total_supply}</span>
-                    <span>Max: 10/usr</span>
+                    <span>Max: 100/usr</span>
                 </div>
             </div>
         `;
@@ -245,11 +253,18 @@ async function loadChart(stockId) {
 }
 
 // ── Trade Controls ──────────────────────────────────────────────────────────
+function setQty(val) {
+    const input = document.getElementById("trade-qty");
+    if (!input) return;
+    input.value = Math.max(1, Math.min(100, parseInt(val) || 1));
+    updateTradeTotal();
+}
+
 function adjustQty(delta) {
     const input = document.getElementById("trade-qty");
     if (!input) return;
     let val = parseInt(input.value) || 1;
-    val = Math.max(1, Math.min(10, val + delta));
+    val = Math.max(1, Math.min(100, val + delta));
     input.value = val;
     updateTradeTotal();
 }
@@ -260,12 +275,13 @@ function updateTradeTotal() {
     if (!input || !totalEl) return;
 
     let qty = parseInt(input.value) || 1;
-    qty = Math.max(1, Math.min(10, qty));
+    qty = Math.max(1, Math.min(100, qty));
 
     const currentStock = allStocks.find(s => s.id === activeStockId);
     if (currentStock) {
         const total = qty * currentStock.price;
-        totalEl.innerText = `${total.toLocaleString()} Medals`;
+        const estDiv = Math.max(1, Math.round(total * 0.02));
+        totalEl.innerHTML = `${total.toLocaleString()} Medals <span style="font-size:0.75rem; color:#22c55e; margin-left:6px; font-weight:600;">(💰 +${estDiv.toLocaleString()} M / Div Cycle)</span>`;
     } else {
         totalEl.innerText = "-- Medals";
     }
@@ -345,7 +361,7 @@ async function loadPortfolio() {
                         <small class="text-muted">${h.name}</small>
                     </td>
                     <td>
-                        <strong>${h.shares}</strong> / 10
+                        <strong>${h.shares}</strong> / 100
                     </td>
                     <td>${h.avg_buy_price.toLocaleString()} Medals</td>
                     <td><strong class="text-blue">${h.current_price.toLocaleString()}</strong> Medals</td>

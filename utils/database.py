@@ -637,6 +637,10 @@ class Database:
 
         await self._db.commit()
 
+        try:
+            await self._db.execute("UPDATE stocks SET total_supply = 2500, available_shares = max(available_shares, 2000) WHERE total_supply < 2500")
+        except Exception:
+            pass
         await self.seed_default_stocks()
         await self.seed_default_estate_plots()
 
@@ -1931,15 +1935,15 @@ class Database:
 
         default_stocks = [
 
-            ("PRC", "Phantom Regiment Corp", 120, 150, "Tactical PMC, defense logistics & field security operations."),
+            ("PRC", "Phantom Regiment Corp", 120, 2500, "Tactical PMC, defense logistics & field security operations."),
 
-            ("TSC", "TS Clan Holdings", 250, 150, "Parent syndicate overseeing clan alliances and industrial contracts."),
+            ("TSC", "TS Clan Holdings", 250, 2500, "Parent syndicate overseeing clan alliances and industrial contracts."),
 
-            ("VNG", "Vanguard Armaments", 85, 150, "Manufacturer of combat armor, weapons, and heavy ordinance."),
+            ("VNG", "Vanguard Armaments", 85, 2500, "Manufacturer of combat armor, weapons, and heavy ordinance."),
 
-            ("AERO", "Apex Aerospace", 160, 150, "Aerial reconnaissance, stealth drones, and tactical air transport."),
+            ("AERO", "Apex Aerospace", 160, 2500, "Aerial reconnaissance, stealth drones, and tactical air transport."),
 
-            ("CRYP", "Cypher Intelligence", 95, 150, "Encrypted communications, counter-recon, and electronic warfare.")
+            ("CRYP", "Cypher Intelligence", 95, 2500, "Encrypted communications, counter-recon, and electronic warfare.")
 
         ]
 
@@ -2147,9 +2151,9 @@ class Database:
 
 
 
-        if current_shares + shares > 10:
+        if current_shares + shares > 100:
 
-            return False, f"Holding limit reached. You can only hold a maximum of 10 shares per stock (Currently hold: {current_shares})."
+            return False, f"Holding limit reached. You can only hold a maximum of 100 shares per stock (Currently hold: {current_shares})."
 
 
 
@@ -2191,7 +2195,7 @@ class Database:
 
 
 
-        price_bump = max(1, int(round(stock["price"] * (0.02 * shares))))
+        price_bump = max(1, int(round(stock["price"] * (0.003 * shares))))
 
         new_price = stock["price"] + price_bump
 
@@ -2253,7 +2257,7 @@ class Database:
 
 
 
-        price_drop = max(1, int(round(stock["price"] * (0.02 * shares))))
+        price_drop = max(1, int(round(stock["price"] * (0.003 * shares))))
 
         new_price = max(5, stock["price"] - price_drop)
 
@@ -2434,6 +2438,11 @@ class Database:
         if plot.get("owner_id"):
             return False, "This plot is already owned by another player."
 
+        async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (user_id,)) as cur:
+            owned_count = (await cur.fetchone())[0]
+        if owned_count >= 4:
+            return False, "Land cap reached! Each player can only hold a maximum of 4 territory parcels."
+
         cost = plot["current_value"]
         econ = await self.get_global_economy(user_id)
         wallet = econ.get("medals", 0)
@@ -2570,6 +2579,11 @@ class Database:
         if seller_id == buyer_id:
             return False, "You cannot buy your own plot."
 
+        async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (buyer_id,)) as cur:
+            buyer_count = (await cur.fetchone())[0]
+        if buyer_count >= 4:
+            return False, "Land cap reached! You already own 4 territory parcels (the maximum allowed)."
+
         econ = await self.get_global_economy(buyer_id)
         if econ.get("medals", 0) < price:
             return False, f"Insufficient Medals. Price is {price:,} M."
@@ -2606,6 +2620,11 @@ class Database:
             return False, "This plot is unowned. You can buy it directly from the map!"
         if seller_id == buyer_id:
             return False, "You cannot make an offer on your own plot."
+
+        async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (buyer_id,)) as cur:
+            buyer_count = (await cur.fetchone())[0]
+        if buyer_count >= 4:
+            return False, "Land cap reached! You already hold 4 territory parcels and cannot bid on additional land."
 
         if offer_amount < 1000:
             return False, "Minimum offer is 1,000 Medals."
@@ -2668,6 +2687,11 @@ class Database:
             return False, "You no longer own this plot."
 
         buyer_id = offer["buyer_id"]
+        async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (buyer_id,)) as cur:
+            buyer_count = (await cur.fetchone())[0]
+        if buyer_count >= 4:
+            return False, "Cannot complete transaction: Buyer already holds the maximum limit of 4 territory parcels."
+
         buyer_econ = await self.get_global_economy(buyer_id)
         offer_amount = offer["offer_amount"]
         if buyer_econ.get("medals", 0) < offer_amount:

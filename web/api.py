@@ -48,6 +48,10 @@ def get_stocks():
         item["change_pct"] = pct
         item["change_diff"] = diff
         item["is_up"] = diff >= 0
+        item["dividend_yield_pct"] = 2.0
+        item["dividend_per_share"] = max(1, int(round(s["price"] * 0.02)))
+        engine = current_app.config.get("STOCK_ENGINE")
+        item["market_news"] = engine.latest_news if engine and hasattr(engine, "latest_news") else "Market operating at normal liquidity."
         result.append(item)
     return jsonify(result)
 
