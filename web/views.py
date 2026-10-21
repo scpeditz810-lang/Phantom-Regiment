@@ -1,5 +1,5 @@
 import asyncio
-from flask import Blueprint, render_template, session, current_app
+from flask import Blueprint, render_template, session, current_app, request, redirect, url_for
 from web.auth import login_required, admin_required
 
 views_bp = Blueprint("views", __name__)
@@ -406,3 +406,15 @@ def leaderboard_page():
 @views_bp.route("/unauthorized")
 def unauthorized():
     return render_template("unauthorized.html"), 403
+
+@views_bp.route("/verify")
+def verify():
+    if "user" in session:
+        return redirect(url_for("views.index"))
+    next_url = request.args.get("next", "/")
+    if not next_url.startswith("/") or next_url == "/verify":
+        next_url = "/"
+    guild = get_pr_guild()
+    member_count = guild.member_count if guild else 0
+    return render_template("verify.html", next_url=next_url, member_count=member_count)
+

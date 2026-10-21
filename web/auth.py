@@ -37,6 +37,11 @@ def admin_required(f):
 
 @auth_bp.route("/login")
 def login():
+    # Save redirect destination if provided
+    next_dest = request.args.get("next")
+    if next_dest and next_dest.startswith("/") and next_dest != "/verify":
+        session["next_url"] = next_dest
+
     cfg = get_oauth_config()
     if not cfg["client_id"]:
         # Fallback for dev mode when credentials aren't configured yet
@@ -48,7 +53,8 @@ def login():
             "is_owner": True,
             "is_manager": True
         }
-        return redirect(url_for("views.medals_page"))
+        dest = session.pop("next_url", None) or url_for("views.index")
+        return redirect(dest)
 
     scope = "identify guilds guilds.join"
     discord_auth_url = (
@@ -62,7 +68,7 @@ def login():
 def callback():
     code = request.args.get("code")
     if not code:
-        return redirect(url_for("views.index"))
+        return redirect(url_for("views.verify"))
 
     cfg = get_oauth_config()
     token_data = {
@@ -79,7 +85,7 @@ def callback():
         token_json = token_res.json()
         access_token = token_json.get("access_token")
         if not access_token:
-            return redirect(url_for("views.index"))
+            return redirect(url_for("views.verify"))
 
         # Fetch user info
         user_headers = {"Authorization": f"Bearer {access_token}"}
@@ -150,13 +156,16 @@ def callback():
             "is_owner": is_owner,
             "is_manager": is_manager
         }
-        return redirect(url_for("views.medals_page"))
+        dest = session.pop("next_url", None)
+        if not dest or not dest.startswith("/") or dest == "/verify":
+            dest = url_for("views.index")
+        return redirect(dest)
 
     except Exception as e:
         print(f"[OAuth2 Error] {e}")
-        return redirect(url_for("views.index"))
+        return redirect(url_for("views.verify"))
 
 @auth_bp.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("views.index"))
+    return redirect(url_for("views.verify"))

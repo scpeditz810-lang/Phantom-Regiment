@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Identity | Phantom Regiment{% endblock %}
+
+{% block head %}
+<style>
+.verify-gate-container {
+    max-width: 760px;
+    margin: 3rem auto 5rem;
+    padding: 0 1.25rem;
+}
+
+.verify-terminal-card {
+    background: linear-gradient(180deg, rgba(17, 24, 39, 0.95) 0%, rgba(11, 15, 25, 0.98) 100%);
+    border: 1px solid var(--border-blue);
+    border-radius: 20px;
+    padding: 2.75rem 2.25rem;
+    text-align: center;
+    box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.7), 0 0 30px rgba(56, 189, 248, 0.12);
+    position: relative;
+    overflow: hidden;
+}
+
+.verify-terminal-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--blue-primary), #5865F2, transparent);
+}
+
+.verify-logo-wrap {
+    margin-bottom: 1.5rem;
+    display: inline-block;
+    position: relative;
+}
+
+.verify-logo-img {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: 2px solid var(--blue-primary);
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.4);
+    background: #0b0f19;
+    padding: 4px;
+}
+
+.verify-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--blue-primary);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 0.4rem 1rem;
+    border-radius: 50px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 1.25rem;
+}
+
+.verify-badge-pulse {
+    width: 8px;
+    height: 8px;
+    background: var(--blue-primary);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--blue-primary);
+    animation: pulseGlow 1.8s infinite;
+}
+
+@keyframes pulseGlow {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.verify-title {
+    font-size: 2.1rem;
+    font-weight: 800;
+    color: var(--text-white);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 0.85rem;
+}
+
+.verify-subtitle {
+    font-size: 0.98rem;
+    color: var(--text-muted);
+    max-width: 580px;
+    margin: 0 auto 2rem;
+    line-height: 1.6;
+}
+
+.verify-features-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-bottom: 2.25rem;
+    text-align: left;
+}
+
+@media (max-width: 640px) {
+    .verify-features-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.verify-feat-card {
+    background: rgba(22, 34, 56, 0.5);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.15rem;
+    transition: all 0.2s ease;
+}
+
+.verify-feat-card:hover {
+    border-color: var(--border-blue);
+    background: rgba(22, 34, 56, 0.8);
+    transform: translateY(-2px);
+}
+
+.verify-feat-header {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 0.35rem;
+}
+
+.verify-feat-icon {
+    font-size: 1.25rem;
+}
+
+.verify-feat-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-white);
+}
+
+.verify-feat-desc {
+    font-size: 0.78rem;
+    color: var(--text-sub);
+    line-height: 1.45;
+}
+
+.verify-cta-box {
+    margin-bottom: 1.75rem;
+}
+
+.btn-verify-discord {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    background: linear-gradient(135deg, #5865F2 0%, #4752C4 100%);
+    color: #ffffff !important;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 1.1rem 2.5rem;
+    border-radius: 14px;
+    text-decoration: none;
+    box-shadow: 0 10px 25px -5px rgba(88, 101, 242, 0.5), 0 0 20px rgba(56, 189, 248, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    width: 100%;
+    max-width: 440px;
+}
+
+.btn-verify-discord:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px -5px rgba(88, 101, 242, 0.7), 0 0 25px rgba(56, 189, 248, 0.4);
+    background: linear-gradient(135deg, #6774f4 0%, #5865F2 100%);
+}
+
+.verify-security-notes {
+    background: rgba(11, 15, 25, 0.65);
+    border: 1px dashed rgba(56, 189, 248, 0.25);
+    border-radius: 12px;
+    padding: 0.9rem 1.25rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-top: 1.5rem;
+}
+
+.verify-meta-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5rem;
+    font-size: 0.75rem;
+    color: var(--text-sub);
+    margin-top: 1.75rem;
+    flex-wrap: wrap;
+}
+
+.verify-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="verify-gate-container">
+    <div class="verify-terminal-card">
+        
+        <!-- Logo Header -->
+        <div class="verify-logo-wrap">
+            <img src="{{ url_for('static', filename='images/pr_logo.png') }}" alt="Phantom Regiment Crest" class="verify-logo-img">
+        </div>
+
+        <!-- Security Badge -->
+        <div>
+            <span class="verify-badge">
+                <span class="verify-badge-pulse"></span>
+                Security Clearance // Level 1 Required
+            </span>
+        </div>
+
+        <!-- Title & Guidance -->
+        <h1 class="verify-title">VERIFY WITH DISCORD TO ACCESS WEB</h1>
+        <p class="verify-subtitle">
+            Access to the <strong>Phantom Regiment</strong> command network, squads, 3D metropolis, and financial markets is restricted to verified members. Please authenticate your Discord identity below to proceed.
+        </p>
+
+        <!-- Feature Permissions Grid -->
+        <div class="verify-features-grid">
+            <div class="verify-feat-card">
+                <div class="verify-feat-header">
+                    <span class="verify-feat-icon">⚔️</span>
+                    <span class="verify-feat-name">Command an Army Squads</span>
+                </div>
+                <p class="verify-feat-desc">Access tactical rosters for Frontline, Los Bluchigis, and Nocturne Pheonix.</p>
+            </div>
+
+            <div class="verify-feat-card">
+                <div class="verify-feat-header">
+                    <span class="verify-feat-icon">🏛️</span>
+                    <span class="verify-feat-name">3D E-State Tycoon</span>
+                </div>
+                <p class="verify-feat-desc">Explore the 36-parcel metropolis, acquire land, and collect state bank dividends.</p>
+            </div>
+
+            <div class="verify-feat-card">
+                <div class="verify-feat-header">
+                    <span class="verify-feat-icon">📈</span>
+                    <span class="verify-feat-name">Phantom Equities & Medals</span>
+                </div>
+                <p class="verify-feat-desc">Trade corporate shares, store medals in tiered vaults, and earn interest.</p>
+            </div>
+
+            <div class="verify-feat-card">
+                <div class="verify-feat-header">
+                    <span class="verify-feat-icon">🛡️</span>
+                    <span class="verify-feat-name">Anti-Raid Safe Vault</span>
+                </div>
+                <p class="verify-feat-desc">Safeguards your server member standing with automated recovery backup.</p>
+            </div>
+        </div>
+
+        <!-- Primary Action Button -->
+        <div class="verify-cta-box">
+            <a href="{{ url_for('auth.login', next=next_url) }}" class="btn-verify-discord">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                </svg>
+                <span>VERIFY WITH DISCORD OAUTH</span>
+            </a>
+        </div>
+
+        <!-- Security Note -->
+        <div class="verify-security-notes">
+            🔒 <strong>Secure Official Discord OAuth2 Authorization:</strong> Authenticating links your Discord membership with Phantom Regiment. We will never ask for your password, email, or direct account credentials.
+        </div>
+
+        <!-- Metadata Bar -->
+        <div class="verify-meta-bar">
+            <span class="verify-meta-item">🏛️ Branch of TS Clan</span>
+            <span class="verify-meta-item">•</span>
+            <span class="verify-meta-item">📅 Est. Sept 18, 2026</span>
+            {% if member_count %}
+            <span class="verify-meta-item">•</span>
+            <span class="verify-meta-item">👥 {{ member_count }} Members</span>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}

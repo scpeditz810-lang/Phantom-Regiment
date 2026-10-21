@@ -1,5 +1,5 @@
 import os
-from flask import Flask
+from flask import Flask, request, redirect, session, url_for
 from web.auth import auth_bp
 from web.views import views_bp
 from web.api import api_bp
@@ -32,6 +32,32 @@ def create_app(bot=None, db=None, loop=None):
     @app.route("/ping")
     def ping():
         return "OK", 200
+
+    @app.before_request
+    def enforce_discord_verification():
+        path = request.path
+        # Allow static files, ping, and favicon without authentication
+        if path.startswith("/static/") or path == "/ping" or path == "/favicon.ico":
+            return None
+
+        exempt_endpoints = {
+            "ping",
+            "auth.login",
+            "auth.callback",
+            "auth.logout",
+            "views.verify",
+            "static"
+        }
+        if request.endpoint in exempt_endpoints or path in ["/login", "/callback", "/logout", "/verify"]:
+            return None
+
+        # If not verified via Discord OAuth, block access
+        if "user" not in session:
+            if path.startswith("/api/"):
+                return {"error": "Discord OAuth verification required to access Phantom Regiment network", "status": 401, "verify_url": "/verify"}, 401
+
+            next_target = request.full_path.rstrip("?") if request.query_string else request.path
+            return redirect(url_for("views.verify", next=next_target))
 
     # Start stock market simulation engine
     if db:

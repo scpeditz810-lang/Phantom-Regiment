@@ -101,10 +101,10 @@
     {% else %}
     <div class="surface-box" style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
         <div>
-            <h3 style="margin-bottom: 0.25rem;">Login with Discord to Access Your Medals & Portfolio</h3>
+            <h3 style="margin-bottom: 0.25rem;">Verify with Discord to Access Your Medals & Portfolio</h3>
             <p style="font-size: 0.82rem; color: var(--text-muted);">Connect your Discord account to deposit/withdraw medals from your vault, trade stocks, and track rankings.</p>
         </div>
-        <a href="{{ url_for('auth.login') }}" class="btn btn-blue">Login with Discord</a>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-blue">Verify with Discord</a>
     </div>
     {% endif %}
 
@@ -189,7 +189,7 @@
                 <button class="btn btn-sell" onclick="executeTrade('sell')">Sell Shares</button>
             </div>
             {% else %}
-            <a href="{{ url_for('auth.login') }}" class="btn btn-blue" style="width: 100%;">Login with Discord to Trade</a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-blue" style="width: 100%;">Verify with Discord to Trade</a>
             {% endif %}
         </div>
     </div>
