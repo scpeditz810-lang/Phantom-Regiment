@@ -33,6 +33,9 @@
                 <a href="{{ url_for('views.squads_page') }}" class="nav-link {% if request.path == '/squads' %}active{% endif %}">
                     ⚔️ Squads
                 </a>
+                <a href="{{ url_for('views.leaderboard_page') }}" class="nav-link {% if request.path == '/leaderboard' or request.path == '/leaderboards' %}active{% endif %}">
+                    🏆 Leaderboard
+                </a>
                 <a href="{{ url_for('views.medals_page') }}" class="nav-link {% if request.path == '/medals' %}active{% endif %}">
                     Medals & Stocks
                 </a>

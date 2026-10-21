@@ -1404,3 +1404,56 @@ a {
     background: #15803d;
     box-shadow: 0 0 14px rgba(22, 163, 74, 0.4);
 }
+
+
+/* ==========================================================================
+   Combat Champions Leaderboard Cards (Match Team Leadership Cards)
+   ========================================================================== */
+.leader-card.combat-card-rank-1 {
+    border-color: #38bdf8;
+    box-shadow: 0 0 32px rgba(56, 189, 248, 0.28);
+}
+
+.leader-card.combat-card-rank-1 .leader-avatar-img {
+    border-color: #38bdf8;
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.35);
+}
+
+.leader-card.combat-card-rank-2 {
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+.leader-card.combat-card-rank-2:hover {
+    border-color: #38bdf8;
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.2);
+    transform: translateY(-3px);
+}
+
+.leader-card.combat-card-rank-3 {
+    border-color: rgba(249, 115, 22, 0.35);
+}
+
+.leader-card.combat-card-rank-3:hover {
+    border-color: #f97316;
+    box-shadow: 0 0 25px rgba(249, 115, 22, 0.22);
+    transform: translateY(-3px);
+}
+
+.role-pill.pill-rank-1 {
+    background: rgba(56, 189, 248, 0.18);
+    border-color: #38bdf8;
+    color: #ffffff;
+    font-weight: 800;
+}
+
+.role-pill.pill-rank-2 {
+    background: rgba(148, 163, 184, 0.14);
+    border-color: rgba(148, 163, 184, 0.35);
+    color: #cbd5e1;
+}
+
+.role-pill.pill-rank-3 {
+    background: rgba(249, 115, 22, 0.14);
+    border-color: rgba(249, 115, 22, 0.35);
+    color: #fb923c;
+}
