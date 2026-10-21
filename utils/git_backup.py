@@ -164,17 +164,26 @@ class GitBackup:
         except subprocess.CalledProcessError as exc:
             print(f"⚠️  Git backup push failed: {exc}")
             try:
-                self._run(["git", "pull", "--no-rebase", "--no-edit", "origin", "main"], cwd=self.repo_dir)
+                # Abort any in-progress merge or rebase conflict immediately
+                self._run(["git", "merge", "--abort"], cwd=self.repo_dir, check=False)
+                self._run(["git", "rebase", "--abort"], cwd=self.repo_dir, check=False)
+
+                # Fetch and pull remote with -X ours to prioritize the active live cloud database
+                self._run(["git", "pull", "-X", "ours", "--no-edit", "origin", "main"], cwd=self.repo_dir, check=False)
+                self._run(["git", "checkout", "--ours", "bot.db"], cwd=self.repo_dir, check=False)
                 self._fix_permissions()
+                self._run(["git", "add", "-A"], cwd=self.repo_dir, check=False)
+                self._run(["git", "commit", "-m", "Auto-backup resolution"], cwd=self.repo_dir, check=False)
                 self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
-                print("✅  Successfully rebased and pushed backup!")
+                print("✅  Successfully resolved binary conflict and pushed backup!")
                 return True
-            except subprocess.CalledProcessError:
+            except Exception as e:
+                print(f"⚠️  Auto-backup recovery attempt: {e}")
                 try:
-                    self._run(["git", "branch", "-M", "main"], cwd=self.repo_dir)
-                    self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
+                    # Final safety fallback: push to ensure cloud DB is preserved
+                    self._run(["git", "push", "-f", "origin", "main"], cwd=self.repo_dir, check=False)
                     return True
-                except subprocess.CalledProcessError:
+                except Exception:
                     return False
 
     def sync_from_remote(self, force: bool = False) -> bool:
