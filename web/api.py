@@ -388,4 +388,24 @@ def admin_bank_passwords():
             "password": b.get("password") or "(Password Not Set)",
             "created_at": date_str
         })
-    return jsonify(result)
+    resp = jsonify(result)
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
+@api_bp.route("/admin/bank_password/update", methods=["POST"])
+@admin_required
+def admin_update_bank_password():
+    data = request.get_json() or {}
+    user_id = data.get("user_id")
+    new_password = str(data.get("password", "")).strip()
+
+    if not user_id or not new_password:
+        return jsonify({"success": False, "message": "User ID and new password are required."}), 400
+
+    from utils.cipher import hash_password
+    db = get_db()
+    pw_hash = hash_password(new_password)
+    run_async(db.set_bank_password(int(user_id), 0, pw_hash, new_password))
+    return jsonify({"success": True, "message": f"Bank password updated successfully for user {user_id}!"})

@@ -116,10 +116,20 @@
         <div class="table-surface">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; gap: 1rem; flex-wrap: wrap;">
                 <div>
-                    <h3 style="margin-bottom: 0.25rem;">Registered Bank Vault Passwords</h3>
-                    <p style="font-size: 0.78rem; color: var(--text-muted);">List of all registered users, their vault passwords, tier, and balances.</p>
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <h3 style="margin-bottom: 0;">Registered Bank Vault Passwords</h3>
+                        <span style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.18rem 0.6rem; border-radius: 999px;">
+                            <span class="pulse-dot"></span> LIVE AUTO-SYNC (3s)
+                        </span>
+                    </div>
+                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">Live inspection of all registered clan member vault passwords, balances, and tiers. Updates automatically every 3s.</p>
                 </div>
-                <input type="text" id="pass-search" class="form-input" placeholder="Search user ID or name..." oninput="filterPasswords()" style="max-width: 280px;">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <button class="btn btn-sm btn-pill-dark" onclick="loadPasswords(false)" title="Force Refresh">
+                        🔄 Refresh
+                    </button>
+                    <input type="text" id="pass-search" class="form-input" placeholder="Search user ID or name..." oninput="filterPasswords()" style="max-width: 260px;">
+                </div>
             </div>
 
             <table class="table" id="passwords-table">
@@ -131,10 +141,11 @@
                         <th>Vault Balance</th>
                         <th>Plaintext Password</th>
                         <th>Created Date</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody id="passwords-body">
-                    <tr><td colspan="6" class="text-center text-muted">Loading vault registry...</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted">Loading vault registry...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -260,20 +271,33 @@
     }
 
     let allPasswords = [];
-    async function loadPasswords() {
+    let isFetchingPasswords = false;
+
+    async function loadPasswords(silent = false) {
+        if (isFetchingPasswords) return;
+        isFetchingPasswords = true;
         try {
-            const res = await fetch("/api/admin/bank_passwords");
-            allPasswords = await res.json();
-            renderPasswords(allPasswords);
+            const res = await fetch("/api/admin/bank_passwords?_t=" + Date.now(), {
+                cache: "no-store",
+                headers: { "Pragma": "no-cache", "Cache-Control": "no-cache" }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                allPasswords = data;
+                filterPasswords();
+            }
         } catch (err) {
-            console.error(err);
+            if (!silent) console.error("Failed to load bank passwords:", err);
+        } finally {
+            isFetchingPasswords = false;
         }
     }
 
     function renderPasswords(list) {
         const body = document.getElementById("passwords-body");
-        if (!list.length) {
-            body.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No registered users found.</td></tr>';
+        if (!body) return;
+        if (!list || !list.length) {
+            body.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding: 2.5rem;">No registered bank vaults found.</td></tr>';
             return;
         }
 
@@ -281,31 +305,82 @@
             <tr>
                 <td>
                     <div style="display: flex; align-items: center; gap: 0.65rem;">
-                        <img src="${b.avatar}" style="width: 28px; height: 28px; border-radius: 50%;">
+                        <img src="${b.avatar}" style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover;" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
                         <strong>${b.username}</strong>
                     </div>
                 </td>
                 <td><code style="color: var(--text-muted); font-size: 0.78rem;">${b.user_id}</code></td>
                 <td><span class="role-pill">${b.tier_name}</span></td>
-                <td><strong class="text-blue">${b.balance.toLocaleString()}</strong> M</td>
-                <td><code style="background: var(--bg-card-inner); padding: 0.2rem 0.6rem; border-radius: 6px; color: var(--blue-primary); font-weight: 700; border: 1px solid rgba(56, 189, 248, 0.2);">${b.password}</code></td>
-                <td style="color: var(--text-sub);">${b.created_at}</td>
+                <td><strong class="text-blue">${Number(b.balance || 0).toLocaleString()}</strong> M</td>
+                <td><code style="background: var(--bg-card-inner); padding: 0.25rem 0.65rem; border-radius: 6px; color: var(--blue-primary); font-weight: 700; border: 1px solid rgba(56, 189, 248, 0.25); letter-spacing: 0.03em;">${b.password}</code></td>
+                <td style="color: var(--text-sub); font-size: 0.8rem;">${b.created_at}</td>
+                <td>
+                    <button class="btn btn-sm btn-pill-dark" onclick="promptUpdatePassword(${b.user_id}, '${(b.username || "").replace(/'/g, "\\'")}')" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
+                        Edit
+                    </button>
+                </td>
             </tr>
         `).join("");
     }
 
     function filterPasswords() {
-        const q = document.getElementById("pass-search").value.toLowerCase();
+        const input = document.getElementById("pass-search");
+        const q = input ? input.value.toLowerCase().trim() : "";
+        if (!q) {
+            renderPasswords(allPasswords);
+            return;
+        }
         const filtered = allPasswords.filter(b => 
-            b.username.toLowerCase().includes(q) || 
-            b.user_id.toString().includes(q) ||
-            b.password.toLowerCase().includes(q)
+            (b.username && b.username.toLowerCase().includes(q)) || 
+            (b.user_id && b.user_id.toString().includes(q)) ||
+            (b.password && b.password.toLowerCase().includes(q))
         );
         renderPasswords(filtered);
     }
 
+    async function promptUpdatePassword(userId, username) {
+        const newPw = prompt(`Enter new bank vault password for ${username} (User ID: ${userId}):`);
+        if (!newPw || !newPw.trim()) return;
+        try {
+            const res = await fetch("/api/admin/bank_password/update", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({user_id: userId, password: newPw.trim()})
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message);
+                loadPasswords(false);
+            } else {
+                showToast(data.message, true);
+            }
+        } catch (e) {
+            showToast("Failed to update password.", true);
+        }
+    }
+
+    // Auto-update polling: every 3 seconds live
+    setInterval(() => {
+        const passwordsTab = document.getElementById("passwords-tab");
+        if (passwordsTab && passwordsTab.style.display !== "none") {
+            loadPasswords(true);
+        }
+    }, 3000);
+
+    // Auto-update stocks polling: every 4 seconds live
+    setInterval(() => {
+        const stocksTab = document.getElementById("stocks-tab");
+        if (stocksTab && stocksTab.style.display !== "none") {
+            const activeEl = document.activeElement;
+            if (!activeEl || !activeEl.id.startsWith("price-input-")) {
+                loadAdminStocks();
+            }
+        }
+    }, 4000);
+
     document.addEventListener("DOMContentLoaded", () => {
         loadAdminStocks();
+        loadPasswords(true);
     });
 </script>
 {% endblock %}
