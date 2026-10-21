@@ -371,8 +371,9 @@ async function loadLeaderboards() {
             } else {
                 medalsContainer.innerHTML = data.medals.map(u => {
                     const rankMedal = u.rank === 1 ? '🥇' : u.rank === 2 ? '🥈' : u.rank === 3 ? '🥉' : `#${u.rank}`;
+                    const rowClass = u.rank === 1 ? 'top-1' : u.rank === 2 ? 'top-2' : u.rank === 3 ? 'top-3' : '';
                     return `
-                        <div class="lb-row ${u.rank === 1 ? 'top-1' : ''}">
+                        <div class="lb-row ${rowClass}">
                             <div class="lb-user">
                                 <span class="lb-rank">${rankMedal}</span>
                                 <img src="${u.avatar}" class="lb-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
@@ -392,16 +393,25 @@ async function loadLeaderboards() {
         const gambleContainer = document.getElementById("lb-gambling-list");
         if (gambleContainer && data.gambling) {
             if (!data.gambling.length) {
-                gambleContainer.innerHTML = '<div class="text-center text-muted p-3">No recorded bets yet.</div>';
+                gambleContainer.innerHTML = `
+                    <div class="lb-empty-box">
+                        <div style="font-size: 1.8rem; margin-bottom: 0.35rem;">🎰</div>
+                        <div style="font-weight: 700; color: var(--text-white); margin-bottom: 0.25rem;">Season 1 Casino Open!</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.45;">
+                            Challenge the bot with <code>/coinflip</code>, play <code>/blackjack</code>, or spin <code>/roulette</code> in Discord to claim #1!
+                        </div>
+                    </div>
+                `;
             } else {
                 gambleContainer.innerHTML = data.gambling.map(u => {
                     const rankMedal = u.rank === 1 ? '🥇' : u.rank === 2 ? '🥈' : u.rank === 3 ? '🥉' : `#${u.rank}`;
+                    const rowClass = u.rank === 1 ? 'top-1' : u.rank === 2 ? 'top-2' : u.rank === 3 ? 'top-3' : '';
                     const isProfit = u.net_profit >= 0;
                     const sign = isProfit ? "+" : "";
                     const profitClass = isProfit ? "text-emerald" : "text-crimson";
 
                     return `
-                        <div class="lb-row ${u.rank === 1 ? 'top-1' : ''}">
+                        <div class="lb-row ${rowClass}">
                             <div class="lb-user">
                                 <span class="lb-rank">${rankMedal}</span>
                                 <img src="${u.avatar}" class="lb-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">

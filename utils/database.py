@@ -1847,87 +1847,17 @@ class Database:
 
 
     async def get_global_leaderboard(self, limit: int = 10) -> list[dict]:
-
-        """Get top users across ALL guilds by medals."""
-
+        """Get top users across ALL guilds by medals, including all server members."""
         async with self._db.execute("""
-            SELECT user_id, MAX(medals) as total_medals FROM (
-                SELECT user_id, medals FROM global_economy
-                UNION ALL
-                SELECT user_id, medals FROM users
-            ) WHERE user_id != 99999999 AND medals > 0
-            GROUP BY user_id
-            ORDER BY total_medals DESC
+            SELECT u.user_id, MAX(COALESCE(g.medals, u.medals, 0)) as total_medals, u.xp, u.level
+            FROM users u
+            LEFT JOIN global_economy g ON u.user_id = g.user_id
+            WHERE u.user_id != 99999999
+            GROUP BY u.user_id
+            ORDER BY total_medals DESC, u.xp DESC, u.level DESC
             LIMIT ?
         """, (limit,)) as cur:
-
             return [dict(row) for row in await cur.fetchall()]
-
-
-
-    # ── allied guilds helpers ────────────────────────────────────────────────
-
-    async def register_guild(self, guild_id: int, name: str, member_count: int, bot_type: str = "Phantom Regiment"):
-
-        await self._db.execute(
-
-            """INSERT INTO allied_guilds (guild_id, name, member_count, bot_type, last_seen)
-
-               VALUES (?, ?, ?, ?, ?)
-
-               ON CONFLICT(guild_id) DO UPDATE SET
-
-                   name = excluded.name,
-
-                   member_count = excluded.member_count,
-
-                   bot_type = excluded.bot_type,
-
-                   last_seen = excluded.last_seen""",
-
-            (guild_id, name, member_count, bot_type, time.time())
-
-        )
-
-        await self._db.commit()
-
-
-
-    async def get_allied_guilds(self) -> list[dict]:
-
-        async with self._db.execute("SELECT * FROM allied_guilds ORDER BY member_count DESC") as cur:
-
-            return [dict(row) for row in await cur.fetchall()]
-
-
-
-    # ── gambling stats helpers ────────────────────────────────────────────────
-
-    async def record_gambling(self, user_id: int, wagered: int, won: int, lost: int):
-
-        profit = won - lost
-
-        await self._db.execute("""
-
-            INSERT INTO gambling_stats (user_id, total_wagered, total_won, total_lost, net_profit)
-
-            VALUES (?, ?, ?, ?, ?)
-
-            ON CONFLICT(user_id) DO UPDATE SET
-
-                total_wagered = total_wagered + excluded.total_wagered,
-
-                total_won = total_won + excluded.total_won,
-
-                total_lost = total_lost + excluded.total_lost,
-
-                net_profit = net_profit + excluded.net_profit
-
-        """, (user_id, wagered, won, lost, profit))
-
-        await self._db.commit()
-
-
 
     async def get_best_gamblers(self, limit: int = 10) -> list[dict]:
 
