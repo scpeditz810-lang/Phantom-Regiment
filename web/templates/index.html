@@ -1,87 +1,109 @@
 {% extends "base.html" %}
 
-{% block title %}About Phantom Regiment | Branch of TS Clan{% endblock %}
+{% block title %}TS_ Core — Real-Time Command Surface{% endblock %}
 
 {% block content %}
-<div class="hero-section">
-    <div class="hero-content">
-        <div class="hero-badge">OFFICIAL TACTICAL NETWORK</div>
-        <h1 class="hero-title">PHANTOM REGIMENT</h1>
-        <p class="hero-subtitle">
-            An elite tactical military syndicate founded on <strong>September 18, 2026</strong> as an official branch of <strong>TS Clan</strong>.
-        </p>
-
-        <div class="hero-actions">
-            <a href="{{ url_for('views.medals_page') }}" class="btn btn-primary">Enter Medals & Stock Hub</a>
-            <a href="{{ url_for('views.members_page') }}" class="btn btn-secondary">View Leadership Directory</a>
+<div class="container">
+    <!-- Top Hero Split Layout (Matching Image 1) -->
+    <div class="hero-split-grid">
+        <!-- Left: Command Surface Box -->
+        <div class="surface-box">
+            <div class="eyebrow-text">TS_ COMMUNITY COMMAND SURFACE</div>
+            <h1 class="hero-headline">
+                Real-time<br>
+                control for<br>
+                <span>Discord, Roblox,<br>and Web</span>
+            </h1>
+            <p class="hero-desc">
+                The V16 Ghost UI represents the supreme privacy standard of the TS_ Community & Phantom Regiment. Administrative panels and founder-level metrics are automatically hidden based on hierarchy.
+            </p>
         </div>
-    </div>
-</div>
 
-<div class="container section-spacing">
-    <!-- Stats Grid -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon">👥</div>
-            <div class="stat-meta">
-                <span class="stat-value">{{ "{:,}".format(member_count) }}</span>
-                <span class="stat-label">Active Discord Members</span>
+        <!-- Right: GHOST_UI V16 Panel with 2x2 Grid -->
+        <div class="ghost-ui-box">
+            <div class="ghost-header">
+                <span class="glow-dot-green"></span>
+                <span>GHOST_UI V16</span>
             </div>
-        </div>
 
-        <div class="stat-card">
-            <div class="stat-icon">📅</div>
-            <div class="stat-meta">
-                <span class="stat-value">{{ founding_date }}</span>
-                <span class="stat-label">Date of Establishment</span>
-            </div>
-        </div>
+            <div class="ghost-grid-2x2">
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Dark BuilderX Tone</div>
+                    <div class="ghost-tile-sub">Black surfaces, orange accents, and dense operational panels.</div>
+                </div>
 
-        <div class="stat-card">
-            <div class="stat-icon">⚔️</div>
-            <div class="stat-meta">
-                <span class="stat-value">{{ clan_parent }}</span>
-                <span class="stat-label">Parent Syndicate</span>
-            </div>
-        </div>
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Real-Time Ready</div>
+                    <div class="ghost-tile-sub">Designed for live sync state, staff actions, and audit-backed workflows.</div>
+                </div>
 
-        <div class="stat-card">
-            <div class="stat-icon">🎖️</div>
-            <div class="stat-meta">
-                <span class="stat-value">Medal Standard</span>
-                <span class="stat-label">Integrated Web & Discord Economy</span>
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Roblox + Discord</div>
+                    <div class="ghost-tile-sub">Community identity, roles, bans, and ranks remain platform-aware.</div>
+                </div>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Confidential Panels</div>
+                    <div class="ghost-tile-sub">Appeals, reports, and salary management stay behind staff gates.</div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Lore & Core Philosophy -->
-    <div class="content-grid">
-        <div class="info-card">
-            <h3 class="card-title">Syndicate History & Origins</h3>
-            <p class="card-text">
-                Established on <strong>September 18, 2026</strong>, Phantom Regiment was formed as an autonomous, high-discipline branch of <strong>TS Clan</strong>. Engineered to lead strategic tactical engagements, tactical arena battles, and unified resource accumulation across multiple allied servers.
-            </p>
-            <p class="card-text">
-                With a disciplined hierarchy governed by the Server Owner and vetted Server Managers, Phantom Regiment enforces rigorous operational standards, competitive gaming events, and an advanced decentralized medals economy.
-            </p>
+    <!-- 3 Metrics Tiles Row (Matching Image 1) -->
+    <div class="metrics-row-3">
+        <!-- Metric 1: Live Members -->
+        <div class="metric-tile">
+            <div class="metric-initials">TS</div>
+            <div class="metric-info">
+                <span class="metric-label">Live Members</span>
+                <span class="metric-value">{{ member_count }}</span>
+                <span class="metric-sub">Canonical MongoDB member count</span>
+            </div>
+            <span class="metric-status-pill">SYNCED</span>
         </div>
 
-        <div class="info-card">
-            <h3 class="card-title">Live Syndicate Features</h3>
-            <ul class="feature-list">
-                <li>
-                    <strong>🎖️ Medals Economy & Banking:</strong> Earn medals through combat, work, scavenging, and bank interest, backed by 10 tiers of vault security.
-                </li>
-                <li>
-                    <strong>📈 Live Stock Exchange:</strong> Trade simulated equity in clan contractors and supply corporations with real-time price fluctuation and live charts.
-                </li>
-                <li>
-                    <strong>🔐 Multi-Layer Robbery & Insurance:</strong> Encrypted password vault protection with instant insurance reimbursement against breaches.
-                </li>
-                <li>
-                    <strong>🛡️ Discord OAuth2 Seamless Sync:</strong> Your medals, inventory, and banking carry over directly between Discord commands and this web portal.
-                </li>
-            </ul>
+        <!-- Metric 2: Staff Queue -->
+        <div class="metric-tile">
+            <div class="metric-initials">RQ</div>
+            <div class="metric-info">
+                <span class="metric-label">Staff Queue</span>
+                <span class="metric-value">00</span>
+                <span class="metric-sub">Pending applications awaiting review</span>
+            </div>
+            <span class="metric-status-pill">STAFF</span>
+        </div>
+
+        <!-- Metric 3: Pending Appeals -->
+        <div class="metric-tile">
+            <div class="metric-initials">AP</div>
+            <div class="metric-info">
+                <span class="metric-label">Pending Appeals</span>
+                <span class="metric-value">00</span>
+                <span class="metric-sub">Confidential appeal pipeline</span>
+            </div>
+            <span class="metric-status-pill">LOCKED</span>
+        </div>
+    </div>
+
+    <!-- Lower Operational Surface Row (Matching Image 1) -->
+    <div class="lower-info-grid">
+        <div class="lower-box">
+            <div class="lower-box-title">Identity and Handshake</div>
+            <div class="lower-box-sub">
+                TS_ onboarding requires mandatory Discord Authorization followed by a Roblox Handshake via the Verification Gateway.
+            </div>
+            <span class="lower-badge">
+                {% if session.get('user') %}AUTHORIZED{% else %}HANDSHAKE PENDING{% endif %}
+            </span>
+        </div>
+
+        <div class="lower-box">
+            <div class="lower-box-title">Community Signals</div>
+            <div class="lower-box-sub">
+                Live status and operational logs. Established on <strong>18 Sept 2026</strong> as an elite tactical branch of <strong>TS Clan</strong>.
+            </div>
+            <span class="metric-status-pill" style="top: 1.5rem; right: 1.75rem;">ONLINE</span>
         </div>
     </div>
 </div>

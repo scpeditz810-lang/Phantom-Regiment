@@ -1,150 +1,187 @@
 {% extends "base.html" %}
 
-{% block title %}Medals & Stock Market | Phantom Regiment{% endblock %}
+{% block title %}TS_ Core — Economy & Live Stock Exchange{% endblock %}
 
 {% block content %}
-<div class="container section-spacing">
-    <!-- User Account & Banking Bar -->
-    {% if session.get('user') %}
-    <div class="account-card">
-        <div class="account-profile">
-            <img src="{{ session['user']['avatar'] }}" alt="PFP" class="account-pfp">
-            <div>
-                <h2 class="account-name">{{ session['user']['global_name'] }}</h2>
-                <span class="account-tag">@{{ session['user']['username'] }}</span>
-            </div>
+<div class="container">
+    <!-- Top Hero Split Layout -->
+    <div class="hero-split-grid">
+        <div class="surface-box">
+            <div class="eyebrow-text">TS_ SYNDICATE ECONOMY</div>
+            <h1 class="hero-headline">
+                Live Equity Market<br>
+                <span>& Secure Vault Banking</span>
+            </h1>
+            <p class="hero-desc">
+                Engage in real-time corporate equity trading. Company shares are strictly fixed at 150 shares max supply, with an individual limit of 10 shares per operator.
+            </p>
         </div>
 
-        <div class="account-balances">
-            <div class="balance-item">
-                <span class="balance-label">WALLET MEDALS</span>
-                <span class="balance-val text-gold" id="user-wallet-val">{{ "{:,}".format(user_data.get('medals', 0) if user_data else 0) }}</span>
+        <div class="ghost-ui-box">
+            <div class="ghost-header">
+                <span class="glow-dot-green"></span>
+                <span>MARKET PROTOCOLS</span>
             </div>
-            <div class="balance-item">
-                <span class="balance-label">VAULT ({{ tier_info['name'] }})</span>
-                <span class="balance-val text-blue" id="user-vault-val">{{ "{:,}".format(bank_data.get('balance', 0) if bank_data else 0) }} / {{ "{:,}".format(tier_info['cap']) }}</span>
-            </div>
-            <div class="balance-item">
-                <span class="balance-label">DAILY STREAK</span>
-                <span class="balance-val text-emerald">🔥 {{ user_data.get('streak', 0) if user_data else 0 }} Days</span>
-            </div>
-        </div>
 
-        <div class="account-actions">
-            <button class="btn btn-sm btn-primary" onclick="openBankModal('deposit')">Deposit to Vault</button>
-            <button class="btn btn-sm btn-secondary" onclick="openBankModal('withdraw')">Withdraw from Vault</button>
+            <div class="ghost-grid-2x2">
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Fixed Supply</div>
+                    <div class="ghost-tile-sub">150 shares maximum per company equity.</div>
+                </div>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Anti-Monopoly</div>
+                    <div class="ghost-tile-sub">Max 10 shares per user per company.</div>
+                </div>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Live Dynamic Ticker</div>
+                    <div class="ghost-tile-sub">Prices adjust every 25 seconds based on market volatility.</div>
+                </div>
+
+                <div class="ghost-feature-tile">
+                    <div class="ghost-tile-title">Vault Security</div>
+                    <div class="ghost-tile-sub">Store medals in encrypted bank vaults with daily interest.</div>
+                </div>
+            </div>
         </div>
     </div>
-    {% else %}
-    <div class="login-prompt-banner">
-        <div>
-            <h3>Login with Discord to Access Your Medals & Portfolio</h3>
-            <p>Connect your account to buy stocks, deposit/withdraw medals from your vault, and track your ranking.</p>
+
+    <!-- Account Overview Metric Tiles (If Logged In) -->
+    {% if session.get('user') %}
+    <div class="metrics-row-3">
+        <div class="metric-tile">
+            <div class="metric-initials">WL</div>
+            <div class="metric-info">
+                <span class="metric-label">Wallet Medals</span>
+                <span class="metric-value text-orange">{{ "{:,}".format(user_data.get('medals', 0) if user_data else 0) }}</span>
+                <span class="metric-sub">Liquid balance available for trading</span>
+            </div>
+            <span class="metric-status-pill">ACTIVE</span>
         </div>
-        <a href="{{ url_for('auth.login') }}" class="btn btn-discord">Login with Discord</a>
+
+        <div class="metric-tile">
+            <div class="metric-initials">VT</div>
+            <div class="metric-info">
+                <span class="metric-label">Vault ({{ tier_info['name'] if tier_info else 'Basic Vault' }})</span>
+                <span class="metric-value">{{ "{:,}".format(bank_data.get('balance', 0) if bank_data else 0) }}</span>
+                <span class="metric-sub">Cap: {{ "{:,}".format(tier_info['cap'] if tier_info else 1000) }} Medals</span>
+            </div>
+            <button class="btn btn-sm btn-pill-dark" onclick="openBankModal('deposit')" style="position: absolute; top: 1.25rem; right: 1.5rem;">
+                Vault Action
+            </button>
+        </div>
+
+        <div class="metric-tile">
+            <div class="metric-initials">ST</div>
+            <div class="metric-info">
+                <span class="metric-label">Daily Streak</span>
+                <span class="metric-value text-green">🔥 {{ user_data.get('streak', 0) if user_data else 0 }}</span>
+                <span class="metric-sub">Consecutive daily claims logged</span>
+            </div>
+            <span class="metric-status-pill">CLAIMED</span>
+        </div>
     </div>
     {% endif %}
 
-    <!-- Stock Market Section -->
-    <div class="market-header">
+    <!-- Market Section Header -->
+    <div class="stock-market-header">
         <div>
-            <h2 class="section-title">LIVE SYNDICATE STOCK EXCHANGE</h2>
-            <p class="section-sub">Real-time fluctuating equity market • Max 150 company shares • Max 10 shares per user</p>
+            <div class="eyebrow-text">LIVE SYNDICATE STOCK EXCHANGE</div>
+            <h2>Corporate Equities & Securities</h2>
         </div>
-        <div class="market-live-indicator">
-            <span class="pulse-dot"></span> LIVE TICKER (25s)
+        <div>
+            <span class="glow-dot-green"></span>
+            <span style="font-size: 0.75rem; font-weight: 800; color: var(--green); letter-spacing: 0.05em; margin-left: 0.35rem;">
+                LIVE ENGINE (25s TICKS)
+            </span>
         </div>
     </div>
 
     <!-- Stock Cards Grid -->
     <div class="stock-cards-grid" id="stocks-container">
-        <!-- Injected via JavaScript -->
-        <div class="loading-spinner">Loading Market Tickers...</div>
+        <div class="text-muted p-4">Loading market tickers...</div>
     </div>
 
     <!-- Chart & Trade Hub -->
-    <div class="trade-grid">
+    <div class="trade-hub-grid">
         <!-- Interactive Chart.js Canvas -->
-        <div class="chart-box">
+        <div class="chart-surface">
             <div class="chart-header">
                 <div>
                     <span class="chart-ticker" id="chart-active-symbol">PRC</span>
                     <span class="chart-name" id="chart-active-name">Phantom Regiment Corp</span>
                 </div>
-                <div class="chart-price-box">
+                <div class="chart-price-wrap">
                     <span class="chart-price" id="chart-active-price">-- Medals</span>
-                    <span class="chart-pct" id="chart-active-pct">--%</span>
+                    <div><span class="tag-up" id="chart-active-pct">--%</span></div>
                 </div>
             </div>
-            <div class="chart-canvas-container">
+            <div class="chart-canvas-wrap">
                 <canvas id="stockChart"></canvas>
             </div>
         </div>
 
         <!-- Trade Controls Box -->
-        <div class="trade-box">
-            <h3 class="box-title">TRADE SHARES</h3>
-            <p class="box-sub">Rule: Maximum 10 shares per user per stock.</p>
+        <div class="trade-form-box">
+            <h3 style="margin-bottom: 0.25rem;">Trade Shares</h3>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">Limit: Maximum 10 shares per operator.</p>
 
-            <div class="trade-form">
-                <div class="form-group">
-                    <label class="form-label">Selected Stock</label>
-                    <select id="trade-stock-select" class="form-select" onchange="onStockSelectChange()">
-                        <!-- Options injected via JS -->
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Shares Quantity (1 - 10)</label>
-                    <div class="qty-control">
-                        <button class="btn-qty" onclick="adjustQty(-1)">-</button>
-                        <input type="number" id="trade-qty" class="qty-input" value="1" min="1" max="10" oninput="updateTradeTotal()">
-                        <button class="btn-qty" onclick="adjustQty(1)">+</button>
-                    </div>
-                </div>
-
-                <div class="trade-calc">
-                    <span>Estimated Total:</span>
-                    <strong class="text-gold" id="trade-calc-total">-- Medals</strong>
-                </div>
-
-                {% if session.get('user') %}
-                <div class="trade-buttons">
-                    <button class="btn btn-buy" onclick="executeTrade('buy')">Buy Shares</button>
-                    <button class="btn btn-sell" onclick="executeTrade('sell')">Sell Shares</button>
-                </div>
-                {% else %}
-                <a href="{{ url_for('auth.login') }}" class="btn btn-discord btn-block">Login to Trade</a>
-                {% endif %}
+            <div class="form-group">
+                <label class="form-label">Selected Equity</label>
+                <select id="trade-stock-select" class="form-select" onchange="onStockSelectChange()"></select>
             </div>
+
+            <div class="form-group">
+                <label class="form-label">Quantity (1 - 10)</label>
+                <div class="qty-control">
+                    <button class="btn-qty" onclick="adjustQty(-1)">-</button>
+                    <input type="number" id="trade-qty" class="form-input text-center" value="1" min="1" max="10" oninput="updateTradeTotal()">
+                    <button class="btn-qty" onclick="adjustQty(1)">+</button>
+                </div>
+            </div>
+
+            <div class="trade-calc">
+                <span>Total Cost:</span>
+                <strong class="text-orange" id="trade-calc-total">-- Medals</strong>
+            </div>
+
+            {% if session.get('user') %}
+            <div class="trade-actions">
+                <button class="btn btn-buy" onclick="executeTrade('buy')">Buy Shares</button>
+                <button class="btn btn-sell" onclick="executeTrade('sell')">Sell Shares</button>
+            </div>
+            {% else %}
+            <a href="{{ url_for('auth.login') }}" class="btn btn-orange" style="width: 100%;">Login with Discord to Trade</a>
+            {% endif %}
         </div>
     </div>
 
-    <!-- User Portfolio (Only if logged in) -->
+    <!-- User Portfolio Table (Only if Logged In) -->
     {% if session.get('user') %}
-    <div class="portfolio-section">
-        <h3 class="section-title">YOUR ACTIVE HOLDINGS</h3>
-        <div class="table-container">
-            <table class="table" id="portfolio-table">
-                <thead>
-                    <tr>
-                        <th>Asset</th>
-                        <th>Shares Held (Max 10)</th>
-                        <th>Avg Buy Price</th>
-                        <th>Current Price</th>
-                        <th>Current Value</th>
-                        <th>Unrealized Profit</th>
-                    </tr>
-                </thead>
-                <tbody id="portfolio-body">
-                    <tr><td colspan="6" class="text-center">Loading portfolio...</td></tr>
-                </tbody>
-            </table>
-        </div>
+    <div class="table-surface">
+        <h3 style="margin-bottom: 0.35rem;">Your Portfolio Holdings</h3>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">Active equities held in your syndicate trading account.</p>
+
+        <table class="table" id="portfolio-table">
+            <thead>
+                <tr>
+                    <th>Asset</th>
+                    <th>Shares Held (Max 10)</th>
+                    <th>Avg Buy Price</th>
+                    <th>Current Price</th>
+                    <th>Total Value</th>
+                    <th>Profit / Loss</th>
+                </tr>
+            </thead>
+            <tbody id="portfolio-body">
+                <tr><td colspan="6" class="text-center text-muted">Loading portfolio...</td></tr>
+            </tbody>
+        </table>
     </div>
     {% endif %}
 
-    <!-- Dual Leaderboards -->
+    <!-- Dual Leaderboards (Most Medals & Best Gambler) -->
     <div class="leaderboards-grid">
         <!-- Most Medals Globally -->
         <div class="lb-card">
@@ -153,7 +190,7 @@
                 <span class="lb-sub">Top wealth rankings across the syndicate</span>
             </div>
             <div class="lb-list" id="lb-medals-list">
-                <div class="text-center p-3 text-muted">Loading Leaderboard...</div>
+                <div class="text-center p-3 text-muted">Loading leaderboard...</div>
             </div>
         </div>
 
@@ -164,7 +201,7 @@
                 <span class="lb-sub">Ranked by net medals won in casino & arena</span>
             </div>
             <div class="lb-list" id="lb-gambling-list">
-                <div class="text-center p-3 text-muted">Loading Leaderboard...</div>
+                <div class="text-center p-3 text-muted">Loading leaderboard...</div>
             </div>
         </div>
     </div>
@@ -173,15 +210,15 @@
 <!-- Web Banking Modal -->
 <div id="bank-modal" class="modal-overlay" style="display:none;">
     <div class="modal-card">
-        <h3 id="bank-modal-title">Vault Deposit</h3>
-        <p class="modal-sub" id="bank-modal-sub">Transfer medals safely between wallet and vault.</p>
+        <h3 id="bank-modal-title" style="margin-bottom: 0.35rem;">Vault Deposit</h3>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;" id="bank-modal-sub">Transfer medals safely between wallet and vault.</p>
         <div class="form-group">
             <label class="form-label">Medals Amount</label>
-            <input type="number" id="bank-modal-amount" class="qty-input w-full" placeholder="e.g. 500" min="1">
+            <input type="number" id="bank-modal-amount" class="form-input" placeholder="e.g. 500" min="1">
         </div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="closeBankModal()">Cancel</button>
-            <button class="btn btn-primary" id="bank-modal-submit-btn" onclick="submitBankAction()">Confirm</button>
+            <button class="btn btn-orange" id="bank-modal-submit-btn" onclick="submitBankAction()">Confirm</button>
         </div>
     </div>
 </div>
