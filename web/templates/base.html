@@ -25,10 +25,13 @@
                 </div>
             </a>
 
-            <!-- The 4 Core Navigation Links -->
+            <!-- Core Navigation Links -->
             <nav class="nav-links">
                 <a href="{{ url_for('views.index') }}" class="nav-link {% if request.path == '/' or request.path == '/about' %}active{% endif %}">
                     About PR
+                </a>
+                <a href="{{ url_for('views.squads_page') }}" class="nav-link {% if request.path == '/squads' %}active{% endif %}">
+                    ⚔️ Squads
                 </a>
                 <a href="{{ url_for('views.medals_page') }}" class="nav-link {% if request.path == '/medals' %}active{% endif %}">
                     Medals & Stocks

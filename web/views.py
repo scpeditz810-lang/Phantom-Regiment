@@ -46,6 +46,148 @@ def index():
         clan_parent="TS Clan"
     )
 
+
+SQUADS_METADATA = [
+    {
+        "id": 0,
+        "name": "Frontline",
+        "tagline": "Tactical Combat & Fluid Engagements",
+        "commander_id": 1319203870681071679,
+        "invite_link": "https://discord.gg/7FjWBvJ4hS",
+        "emoji": "⚔️",
+        "badge": "VERSATILE COMBAT",
+        "specialty": "Highly Adaptable Combat",
+        "image": "images/frontline.png",
+        "role_name": "Frontline",
+        "role_id": 1553644926959624273,
+        "description": "The Frontline squad is tactically fluid and plays strictly according to the situation. Whether the battle requires an aggressive push, a tactical retreat, or holding a choke point, they are the versatile backbone of the regiment that constantly adapts to overcome any adversary on the battlefield.",
+        "strengths": [
+            "Choke point fortification & defense",
+            "Aggressive shock counter-attacks",
+            "Adaptive frontline tactical flexibility",
+            "Synergized unit coordination"
+        ]
+    },
+    {
+        "id": 1,
+        "name": "Los Bluchigis",
+        "tagline": "Elite Cavalry & Rapid Flanking",
+        "commander_id": 1431779664140959836,
+        "invite_link": "https://discord.gg/9Hv5rAaUkz",
+        "emoji": "🐎",
+        "badge": "CAVALRY MASTERS",
+        "specialty": "Elite Cavalry Masters",
+        "image": "images/losbluchigis.png",
+        "role_name": "Los Bluchigis",
+        "role_id": 1553441301863866457,
+        "description": "Los Bluchigis consists of elite riders who have mastered every single horse unit in the game. They specialize in devastating cavalry charges, lightning-fast flanking maneuvers, and dominating wide-open battlefields with unmatched velocity and aggressive mobility.",
+        "strengths": [
+            "High-speed flanking maneuvers",
+            "Crushing heavy cavalry shock charges",
+            "Rapid harassment & skirmish breakaways",
+            "Mastery of all mounted units"
+        ]
+    },
+    {
+        "id": 2,
+        "name": "Nocturne Pheonix",
+        "tagline": "Long-Range Archery & Shield Formations",
+        "commander_id": 754264189601710100,
+        "invite_link": "https://discord.gg/NrgbGCDEwU",
+        "emoji": "🏹",
+        "badge": "ARCHERY & DEFENSE",
+        "specialty": "Archery & Shield Formations",
+        "image": "images/nocturne.png",
+        "role_name": "Nocturne Pheonix",
+        "role_id": 1553325301784780870,
+        "description": "Nocturne Pheonix are the undisputed masters of ranged combat and fortress defensive lines. They specialize in raining down relentless arrow fire from afar, all while protected behind an impenetrable wall of elite shield-holders that no enemy can penetrate.",
+        "strengths": [
+            "Sustained long-range arrow barrages",
+            "Impenetrable heavy shield formations",
+            "Strategic defensive zone control",
+            "Anti-charge tactical denial"
+        ]
+    }
+]
+
+def get_squads_data(guild, bot, user):
+    user_member = None
+    if user and guild:
+        user_member = guild.get_member(user["id"])
+
+    from web.api import _DISCORD_PROFILES
+    squads_list = []
+    user_active_squad = None
+
+    for sq in SQUADS_METADATA:
+        s = dict(sq)
+        member_count = 0
+        if guild:
+            role = guild.get_role(s["role_id"])
+            if not role:
+                for r in guild.roles:
+                    if r.name.lower() == s["role_name"].lower():
+                        role = r
+                        break
+            if role:
+                member_count = len(role.members)
+
+            if user_member and role and role in user_member.roles:
+                s["is_user_squad"] = True
+                user_active_squad = s["name"]
+            else:
+                s["is_user_squad"] = False
+        else:
+            s["is_user_squad"] = False
+
+        s["member_count"] = member_count
+
+        cid = s["commander_id"]
+        commander_name = f"Commander {cid}"
+        commander_username = f"commander_{str(cid)[-4:]}"
+        commander_avatar = f"https://cdn.discordapp.com/embed/avatars/{(cid >> 22) % 6}.png"
+
+        cm = guild.get_member(cid) if guild else None
+        if not cm and bot:
+            cm = bot.get_user(cid)
+        if cm:
+            commander_name = cm.global_name or cm.display_name or cm.name
+            commander_username = cm.name
+            commander_avatar = cm.display_avatar.url
+        elif cid in _DISCORD_PROFILES:
+            pname, pav = _DISCORD_PROFILES[cid]
+            commander_avatar = pav
+            if "(@" in pname and pname.endswith(")"):
+                parts = pname.rsplit(" (@", 1)
+                commander_name = parts[0]
+                commander_username = parts[1][:-1]
+            else:
+                commander_name = pname
+
+        s["commander"] = {
+            "id": cid,
+            "name": commander_name,
+            "username": commander_username,
+            "avatar": commander_avatar
+        }
+        squads_list.append(s)
+
+    return squads_list, user_active_squad
+
+@views_bp.route("/squads")
+def squads_page():
+    guild = get_pr_guild()
+    bot = current_app.config.get("DISCORD_BOT")
+    user = session.get("user")
+    squads, user_active_squad = get_squads_data(guild, bot, user)
+
+    return render_template(
+        "squads.html",
+        squads=squads,
+        user_active_squad=user_active_squad,
+        guild_name=guild.name if guild else "Phantom Regiment"
+    )
+
 @views_bp.route("/medals")
 def medals_page():
     user = session.get("user")
