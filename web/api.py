@@ -324,11 +324,20 @@ def admin_bank_passwords():
         uid = b["user_id"]
         name = f"User {uid}"
         avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
-        if bot:
+        if uid in _DISCORD_PROFILES:
+            name, avatar = _DISCORD_PROFILES[uid]
+        elif bot:
             u = bot.get_user(uid)
             if u:
                 name = f"{u.display_name} (@{u.name})"
                 avatar = u.display_avatar.url
+            else:
+                for g in bot.guilds:
+                    m = g.get_member(uid)
+                    if m:
+                        name = f"{m.display_name} (@{m.name})"
+                        avatar = m.display_avatar.url
+                        break
 
         from utils.constants import BANK_TIERS
         tier_info = BANK_TIERS.get(b.get("tier", 1), {})

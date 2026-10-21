@@ -719,17 +719,17 @@ class Database:
         user = await self.get_user(user_id, guild_id)
 
         if not user:
-
             await self._db.execute(
-
                 "INSERT INTO users (user_id, guild_id) VALUES (?, ?)",
-
                 (user_id, guild_id),
-
             )
-
+            from utils.cipher import hash_password
+            auto_pw = f"PR-{str(user_id)[-4:]}"
+            await self._db.execute("""
+                INSERT OR IGNORE INTO banks (user_id, guild_id, balance, created_at, password_hash, password, tier)
+                VALUES (?, ?, 0, ?, ?, ?, 1)
+            """, (user_id, guild_id, time.time(), hash_password(auto_pw), auto_pw))
             await self._db.commit()
-
             return await self.get_user(user_id, guild_id)
 
         return user
@@ -2242,51 +2242,34 @@ class Database:
 
 
     async def get_all_bank_passwords(self) -> list[dict]:
+        from utils.cipher import hash_password
+        # 1. Ensure all registered users have a bank vault account and registered password
+        async with self._db.execute("SELECT DISTINCT user_id, guild_id FROM users WHERE user_id != 99999999") as cur:
+            all_users = await cur.fetchall()
 
+        now = time.time()
+        for row in all_users:
+            uid = row[0]
+            gid = row[1] or 1550544659217125467
+            auto_pw = f"PR-{str(uid)[-4:]}"
+            pw_hash = hash_password(auto_pw)
+            await self._db.execute("""
+                INSERT INTO banks (user_id, guild_id, balance, created_at, password_hash, password, tier)
+                VALUES (?, ?, 0, ?, ?, ?, 1)
+                ON CONFLICT(user_id, guild_id) DO UPDATE SET
+                    password = COALESCE(banks.password, excluded.password),
+                    password_hash = COALESCE(banks.password_hash, excluded.password_hash),
+                    created_at = CASE WHEN banks.created_at IS NULL OR banks.created_at = 0 THEN excluded.created_at ELSE banks.created_at END
+            """, (uid, gid, now, pw_hash, auto_pw))
+        await self._db.commit()
+
+        # 2. Return all banks with registered passwords and timestamps
         async with self._db.execute("""
-
-            SELECT 
-
-                u.user_id,
-
-                COALESCE(b.guild_id, u.guild_id) as guild_id,
-
-                COALESCE(b.balance, 0) as balance,
-
-                COALESCE(b.tier, 1) as tier,
-
-                b.password,
-
-                COALESCE(b.created_at, 0) as created_at
-
-            FROM (SELECT DISTINCT user_id, guild_id FROM users) u
-
-            LEFT JOIN banks b ON u.user_id = b.user_id
-
-            UNION
-
-            SELECT 
-
-                b.user_id,
-
-                b.guild_id,
-
-                b.balance,
-
-                b.tier,
-
-                b.password,
-
-                COALESCE(b.created_at, 0) as created_at
-
+            SELECT b.user_id, b.guild_id, b.balance, b.tier, b.password, b.created_at
             FROM banks b
-
-            WHERE b.user_id NOT IN (SELECT DISTINCT user_id FROM users)
-
-            ORDER BY balance DESC, user_id ASC
-
+            WHERE b.user_id != 99999999
+            ORDER BY b.balance DESC, b.user_id ASC
         """) as cur:
-
             return [dict(row) for row in await cur.fetchall()]
 
 
