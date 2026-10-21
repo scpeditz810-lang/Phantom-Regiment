@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Our Members & Leadership | Phantom Regiment{% endblock %}
+
+{% block content %}
+<div class="container section-spacing">
+    <div class="page-header text-center">
+        <h1 class="section-title">COMMAND & LEADERSHIP DIRECTORY</h1>
+        <p class="section-sub">
+            Automatically synchronized with the <strong>{{ guild_name }}</strong> Discord server. Scans the Server Owner and vetted Server Managers in real time.
+        </p>
+    </div>
+
+    <!-- Server Owner Section -->
+    {% if owner %}
+    <div class="owner-showcase">
+        <div class="owner-card">
+            <div class="owner-avatar-wrap">
+                <img src="{{ owner.avatar }}" alt="{{ owner.name }}" class="owner-avatar">
+                <span class="owner-crown">👑</span>
+            </div>
+            <div class="owner-details">
+                <div class="badge-row">
+                    <span class="badge badge-owner">SUPREME COMMANDER / OWNER</span>
+                </div>
+                <h2 class="owner-name">{{ owner.name }}</h2>
+                <span class="owner-tag">@{{ owner.username }}</span>
+                <p class="owner-desc">
+                    Founder and supreme authority of Phantom Regiment. Oversees cross-clan diplomacy, tactical war strategies, and high-command governance.
+                </p>
+                <div class="owner-meta">
+                    <span>🎖️ Status: Active High Command</span>
+                    <span>📅 Joined: {{ owner.joined_at }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Server Managers Section -->
+    <div class="managers-section">
+        <div class="managers-header">
+            <div>
+                <h3 class="category-title">SERVER MANAGERS & STAFF</h3>
+                <p class="category-sub">Vetted operational leaders and division managers tasked with server security and economy administration.</p>
+            </div>
+            <span class="staff-count-badge">{{ managers|length }} Active Managers</span>
+        </div>
+
+        {% if managers %}
+        <div class="staff-grid">
+            {% for m in managers %}
+            <div class="staff-card">
+                <div class="staff-avatar-wrap">
+                    <img src="{{ m.avatar }}" alt="{{ m.name }}" class="staff-avatar">
+                    <span class="online-indicator"></span>
+                </div>
+                <div class="staff-info">
+                    <span class="badge badge-manager">{{ m.role }}</span>
+                    <h4 class="staff-name">{{ m.name }}</h4>
+                    <span class="staff-tag">@{{ m.username }}</span>
+                    <div class="staff-meta">
+                        <span>📅 Joined: {{ m.joined_at }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state-box">
+            <p>No members with the "Server Manager" role or Manage Server permissions were detected on the Discord server.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

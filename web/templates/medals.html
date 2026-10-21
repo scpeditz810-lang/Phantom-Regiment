@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Medals & Stock Market | Phantom Regiment{% endblock %}
+
+{% block content %}
+<div class="container section-spacing">
+    <!-- User Account & Banking Bar -->
+    {% if session.get('user') %}
+    <div class="account-card">
+        <div class="account-profile">
+            <img src="{{ session['user']['avatar'] }}" alt="PFP" class="account-pfp">
+            <div>
+                <h2 class="account-name">{{ session['user']['global_name'] }}</h2>
+                <span class="account-tag">@{{ session['user']['username'] }}</span>
+            </div>
+        </div>
+
+        <div class="account-balances">
+            <div class="balance-item">
+                <span class="balance-label">WALLET MEDALS</span>
+                <span class="balance-val text-gold" id="user-wallet-val">{{ "{:,}".format(user_data.get('medals', 0) if user_data else 0) }}</span>
+            </div>
+            <div class="balance-item">
+                <span class="balance-label">VAULT ({{ tier_info['name'] }})</span>
+                <span class="balance-val text-blue" id="user-vault-val">{{ "{:,}".format(bank_data.get('balance', 0) if bank_data else 0) }} / {{ "{:,}".format(tier_info['cap']) }}</span>
+            </div>
+            <div class="balance-item">
+                <span class="balance-label">DAILY STREAK</span>
+                <span class="balance-val text-emerald">🔥 {{ user_data.get('streak', 0) if user_data else 0 }} Days</span>
+            </div>
+        </div>
+
+        <div class="account-actions">
+            <button class="btn btn-sm btn-primary" onclick="openBankModal('deposit')">Deposit to Vault</button>
+            <button class="btn btn-sm btn-secondary" onclick="openBankModal('withdraw')">Withdraw from Vault</button>
+        </div>
+    </div>
+    {% else %}
+    <div class="login-prompt-banner">
+        <div>
+            <h3>Login with Discord to Access Your Medals & Portfolio</h3>
+            <p>Connect your account to buy stocks, deposit/withdraw medals from your vault, and track your ranking.</p>
+        </div>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-discord">Login with Discord</a>
+    </div>
+    {% endif %}
+
+    <!-- Stock Market Section -->
+    <div class="market-header">
+        <div>
+            <h2 class="section-title">LIVE SYNDICATE STOCK EXCHANGE</h2>
+            <p class="section-sub">Real-time fluctuating equity market • Max 150 company shares • Max 10 shares per user</p>
+        </div>
+        <div class="market-live-indicator">
+            <span class="pulse-dot"></span> LIVE TICKER (25s)
+        </div>
+    </div>
+
+    <!-- Stock Cards Grid -->
+    <div class="stock-cards-grid" id="stocks-container">
+        <!-- Injected via JavaScript -->
+        <div class="loading-spinner">Loading Market Tickers...</div>
+    </div>
+
+    <!-- Chart & Trade Hub -->
+    <div class="trade-grid">
+        <!-- Interactive Chart.js Canvas -->
+        <div class="chart-box">
+            <div class="chart-header">
+                <div>
+                    <span class="chart-ticker" id="chart-active-symbol">PRC</span>
+                    <span class="chart-name" id="chart-active-name">Phantom Regiment Corp</span>
+                </div>
+                <div class="chart-price-box">
+                    <span class="chart-price" id="chart-active-price">-- Medals</span>
+                    <span class="chart-pct" id="chart-active-pct">--%</span>
+                </div>
+            </div>
+            <div class="chart-canvas-container">
+                <canvas id="stockChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Trade Controls Box -->
+        <div class="trade-box">
+            <h3 class="box-title">TRADE SHARES</h3>
+            <p class="box-sub">Rule: Maximum 10 shares per user per stock.</p>
+
+            <div class="trade-form">
+                <div class="form-group">
+                    <label class="form-label">Selected Stock</label>
+                    <select id="trade-stock-select" class="form-select" onchange="onStockSelectChange()">
+                        <!-- Options injected via JS -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Shares Quantity (1 - 10)</label>
+                    <div class="qty-control">
+                        <button class="btn-qty" onclick="adjustQty(-1)">-</button>
+                        <input type="number" id="trade-qty" class="qty-input" value="1" min="1" max="10" oninput="updateTradeTotal()">
+                        <button class="btn-qty" onclick="adjustQty(1)">+</button>
+                    </div>
+                </div>
+
+                <div class="trade-calc">
+                    <span>Estimated Total:</span>
+                    <strong class="text-gold" id="trade-calc-total">-- Medals</strong>
+                </div>
+
+                {% if session.get('user') %}
+                <div class="trade-buttons">
+                    <button class="btn btn-buy" onclick="executeTrade('buy')">Buy Shares</button>
+                    <button class="btn btn-sell" onclick="executeTrade('sell')">Sell Shares</button>
+                </div>
+                {% else %}
+                <a href="{{ url_for('auth.login') }}" class="btn btn-discord btn-block">Login to Trade</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- User Portfolio (Only if logged in) -->
+    {% if session.get('user') %}
+    <div class="portfolio-section">
+        <h3 class="section-title">YOUR ACTIVE HOLDINGS</h3>
+        <div class="table-container">
+            <table class="table" id="portfolio-table">
+                <thead>
+                    <tr>
+                        <th>Asset</th>
+                        <th>Shares Held (Max 10)</th>
+                        <th>Avg Buy Price</th>
+                        <th>Current Price</th>
+                        <th>Current Value</th>
+                        <th>Unrealized Profit</th>
+                    </tr>
+                </thead>
+                <tbody id="portfolio-body">
+                    <tr><td colspan="6" class="text-center">Loading portfolio...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Dual Leaderboards -->
+    <div class="leaderboards-grid">
+        <!-- Most Medals Globally -->
+        <div class="lb-card">
+            <div class="lb-header">
+                <h3>🏆 MOST MEDALS GLOBALLY</h3>
+                <span class="lb-sub">Top wealth rankings across the syndicate</span>
+            </div>
+            <div class="lb-list" id="lb-medals-list">
+                <div class="text-center p-3 text-muted">Loading Leaderboard...</div>
+            </div>
+        </div>
+
+        <!-- Best Gambler -->
+        <div class="lb-card">
+            <div class="lb-header">
+                <h3>🎰 BEST GAMBLER</h3>
+                <span class="lb-sub">Ranked by net medals won in casino & arena</span>
+            </div>
+            <div class="lb-list" id="lb-gambling-list">
+                <div class="text-center p-3 text-muted">Loading Leaderboard...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Web Banking Modal -->
+<div id="bank-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+        <h3 id="bank-modal-title">Vault Deposit</h3>
+        <p class="modal-sub" id="bank-modal-sub">Transfer medals safely between wallet and vault.</p>
+        <div class="form-group">
+            <label class="form-label">Medals Amount</label>
+            <input type="number" id="bank-modal-amount" class="qty-input w-full" placeholder="e.g. 500" min="1">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeBankModal()">Cancel</button>
+            <button class="btn btn-primary" id="bank-modal-submit-btn" onclick="submitBankAction()">Confirm</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/stocks.js') }}"></script>
+{% endblock %}

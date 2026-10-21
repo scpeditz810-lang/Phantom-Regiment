@@ -192,4 +192,18 @@ ROLES_SHOP = {
     "role_millionaire": {"name": "💎 Millionaire", "color": 0x9B59B6, "price": 25000},
     "role_billionaire": {"name": "👑 Billionaire", "color": 0xE74C3C, "price": 50000},
     "role_phantom": {"name": "👻 Phantom Regiment Elite", "color": 0x111111, "price": 100000},
-}
+}
+
+# ─── Bank Vault Tiers ─────────────────────────────────────────────────────────
+BANK_TIERS = {
+    1: {"name": "Basic Vault", "cap": 1000, "upgrade_cost": 0},
+    2: {"name": "Iron Vault", "cap": 2500, "upgrade_cost": 2500},
+    3: {"name": "Steel Vault", "cap": 7500, "upgrade_cost": 7500},
+    4: {"name": "Reinforced Vault", "cap": 20000, "upgrade_cost": 20000},
+    5: {"name": "Titanium Vault", "cap": 50000, "upgrade_cost": 50000},
+    6: {"name": "Obsidian Vault", "cap": 100000, "upgrade_cost": 120000},
+    7: {"name": "Quantum Vault", "cap": 250000, "upgrade_cost": 250000},
+    8: {"name": "Cybernetic Vault", "cap": 500000, "upgrade_cost": 500000},
+    9: {"name": "Apex Vault", "cap": 750000, "upgrade_cost": 1000000},
+    10: {"name": "Phantom Sovereign Vault", "cap": 1000000, "upgrade_cost": 2000000},
+}

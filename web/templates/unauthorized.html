@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Access Denied | Phantom Regiment{% endblock %}
+
+{% block content %}
+<div class="container section-spacing text-center">
+    <div class="unauth-box">
+        <div class="unauth-icon">🛑</div>
+        <h1 class="section-title">CLEARANCE DENIED</h1>
+        <p class="unauth-desc">
+            This area is restricted strictly to the <strong>Server Owner</strong> and verified <strong>Server Managers</strong> of Phantom Regiment.
+        </p>
+        <div class="hero-actions">
+            <a href="{{ url_for('views.index') }}" class="btn btn-primary">Return to Base</a>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-outline">Switch Discord Account</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel | High Command Exclusive{% endblock %}
+
+{% block content %}
+<div class="container section-spacing">
+    <div class="admin-header">
+        <div class="admin-badge">⚡ HIGH COMMAND EXCLUSIVE</div>
+        <h1 class="section-title">SERVER MANAGER & OWNER CONTROL PANEL</h1>
+        <p class="section-sub">
+            Restricted to verified Phantom Regiment Server Managers and the Server Owner. Manage live market assets and inspect vault passwords.
+        </p>
+    </div>
+
+    <!-- Admin Navigation Tabs -->
+    <div class="admin-tabs">
+        <button class="tab-btn active" onclick="switchAdminTab('stocks-tab', this)">📈 Stock Market Controls</button>
+        <button class="tab-btn" onclick="switchAdminTab('passwords-tab', this)">🔐 Bank Vault Passwords Inspector</button>
+    </div>
+
+    <!-- Tab 1: Stock Market Controls -->
+    <div id="stocks-tab" class="tab-content active">
+        <div class="admin-grid">
+            <!-- Create Stock Form -->
+            <div class="info-card">
+                <h3 class="card-title">Add New Stock to Market</h3>
+                <p class="card-sub">Create a new company equity for members to trade (Max supply is fixed at 150 shares).</p>
+
+                <form id="create-stock-form" onsubmit="handleCreateStock(event)" class="admin-form">
+                    <div class="form-group">
+                        <label class="form-label">Stock Symbol (Ticker)</label>
+                        <input type="text" id="new-symbol" class="qty-input w-full" placeholder="e.g. TACT" maxlength="6" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Company Name</label>
+                        <input type="text" id="new-name" class="qty-input w-full" placeholder="e.g. Tactical Logistics Corp" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Initial Price (Medals)</label>
+                        <input type="number" id="new-price" class="qty-input w-full" placeholder="e.g. 150" min="10" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description / Lore</label>
+                        <textarea id="new-desc" class="qty-input w-full" rows="2" placeholder="Brief military background of company..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full">Create & List Stock</button>
+                </form>
+            </div>
+
+            <!-- Existing Stocks Table -->
+            <div class="info-card">
+                <h3 class="card-title">Manage Listed Stocks</h3>
+                <p class="card-sub">Increase or adjust price in real time, or delist stock (refunds shareholders automatically).</p>
+
+                <div class="table-container">
+                    <table class="table" id="admin-stocks-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Current Price</th>
+                                <th>Available / Max</th>
+                                <th>Modify Price</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-stocks-body">
+                            <tr><td colspan="5" class="text-center">Loading market listings...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Bank Vault Passwords Inspector -->
+    <div id="passwords-tab" class="tab-content" style="display:none;">
+        <div class="info-card">
+            <div class="table-header-row">
+                <div>
+                    <h3 class="card-title">Registered Bank Vault Passwords</h3>
+                    <p class="card-sub">Live registry of all player vault credentials, current tiers, and balances.</p>
+                </div>
+                <input type="text" id="pass-search" class="qty-input" placeholder="Search user..." oninput="filterPasswords()">
+            </div>
+
+            <div class="table-container">
+                <table class="table" id="passwords-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>User ID</th>
+                            <th>Vault Tier</th>
+                            <th>Vault Balance</th>
+                            <th>Plaintext Password</th>
+                            <th>Created Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="passwords-body">
+                        <tr><td colspan="6" class="text-center">Loading vault registry...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchAdminTab(tabId, btn) {
+        document.querySelectorAll(".tab-content").forEach(el => el.style.display = "none");
+        document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
+        document.getElementById(tabId).style.display = "block";
+        btn.classList.add("active");
+        if (tabId === "passwords-tab") {
+            loadPasswords();
+        }
+    }
+
+    async function loadAdminStocks() {
+        try {
+            const res = await fetch("/api/stocks");
+            const stocks = await res.json();
+            const body = document.getElementById("admin-stocks-body");
+            if (!stocks.length) {
+                body.innerHTML = '<tr><td colspan="5" class="text-center">No stocks listed.</td></tr>';
+                return;
+            }
+
+            body.innerHTML = stocks.map(s => `
+                <tr>
+                    <td><strong>${s.symbol}</strong><br><small class="text-muted">${s.name}</small></td>
+                    <td><strong class="text-gold">${s.price.toLocaleString()}</strong> Medals</td>
+                    <td>${s.available_shares} / ${s.total_supply}</td>
+                    <td>
+                        <div class="inline-flex-gap">
+                            <input type="number" id="price-input-${s.id}" class="qty-input-sm" value="${s.price}" min="1">
+                            <button class="btn btn-sm btn-primary" onclick="updatePrice(${s.id})">Set</button>
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="deleteStock(${s.id}, '${s.symbol}')">Delist</button>
+                    </td>
+                </tr>
+            `).join("");
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function handleCreateStock(e) {
+        e.preventDefault();
+        const symbol = document.getElementById("new-symbol").value;
+        const name = document.getElementById("new-name").value;
+        const price = document.getElementById("new-price").value;
+        const description = document.getElementById("new-desc").value;
+
+        try {
+            const res = await fetch("/api/admin/stock/create", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({symbol, name, price, description})
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message);
+                document.getElementById("create-stock-form").reset();
+                loadAdminStocks();
+            } else {
+                showToast(data.message, true);
+            }
+        } catch (err) {
+            showToast("Failed to create stock.", true);
+        }
+    }
+
+    async function updatePrice(stockId) {
+        const input = document.getElementById(`price-input-${stockId}`);
+        const new_price = parseInt(input.value);
+        if (!new_price || new_price <= 0) return showToast("Enter a valid price.", true);
+
+        try {
+            const res = await fetch("/api/admin/stock/update_price", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({stock_id: stockId, new_price})
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message);
+                loadAdminStocks();
+            } else {
+                showToast(data.message, true);
+            }
+        } catch (err) {
+            showToast("Failed to update price.", true);
+        }
+    }
+
+    async function deleteStock(stockId, symbol) {
+        if (!confirm(`Are you sure you want to delist ${symbol}? Active shareholders will be refunded at market price.`)) return;
+
+        try {
+            const res = await fetch("/api/admin/stock/delete", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({stock_id: stockId})
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message);
+                loadAdminStocks();
+            } else {
+                showToast(data.message, true);
+            }
+        } catch (err) {
+            showToast("Failed to delete stock.", true);
+        }
+    }
+
+    let allPasswords = [];
+    async function loadPasswords() {
+        try {
+            const res = await fetch("/api/admin/bank_passwords");
+            allPasswords = await res.json();
+            renderPasswords(allPasswords);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function renderPasswords(list) {
+        const body = document.getElementById("passwords-body");
+        if (!list.length) {
+            body.innerHTML = '<tr><td colspan="6" class="text-center">No bank accounts found.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = list.map(b => `
+            <tr>
+                <td>
+                    <div class="user-row-cell">
+                        <img src="${b.avatar}" class="avatar-sm">
+                        <span>${b.username}</span>
+                    </div>
+                </td>
+                <td><code>${b.user_id}</code></td>
+                <td><span class="badge badge-manager">${b.tier_name}</span></td>
+                <td><strong class="text-gold">${b.balance.toLocaleString()}</strong> Medals</td>
+                <td><code class="pass-code">${b.password}</code></td>
+                <td class="text-muted">${b.created_at}</td>
+            </tr>
+        `).join("");
+    }
+
+    function filterPasswords() {
+        const q = document.getElementById("pass-search").value.toLowerCase();
+        const filtered = allPasswords.filter(b => 
+            b.username.toLowerCase().includes(q) || 
+            b.user_id.toString().includes(q) ||
+            b.password.toLowerCase().includes(q)
+        );
+        renderPasswords(filtered);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        loadAdminStocks();
+    });
+</script>
+{% endblock %}

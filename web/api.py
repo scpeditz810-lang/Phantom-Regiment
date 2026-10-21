@@ -1,0 +1,280 @@
+import asyncio
+from datetime import datetime
+from flask import Blueprint, jsonify, request, session, current_app
+from web.auth import login_required, admin_required
+
+api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+def run_async(coro):
+    bot = current_app.config.get("DISCORD_BOT")
+    if bot and bot.loop and bot.loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(coro, bot.loop)
+        return future.result(timeout=10)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(lambda: asyncio.run(coro)).result(timeout=10)
+    return asyncio.run(coro)
+
+def get_db():
+    return current_app.config["DB"]
+
+@api_bp.route("/stocks")
+def get_stocks():
+    db = get_db()
+    stocks = run_async(db.get_all_stocks())
+    result = []
+    for s in stocks:
+        history = run_async(db.get_stock_history(s["id"], limit=15))
+        first_price = history[0]["price"] if history else s["price"]
+        current_price = s["price"]
+        diff = current_price - first_price
+        pct = round((diff / first_price) * 100, 2) if first_price > 0 else 0.0
+
+        item = dict(s)
+        item["change_pct"] = pct
+        item["change_diff"] = diff
+        item["is_up"] = diff >= 0
+        result.append(item)
+    return jsonify(result)
+
+@api_bp.route("/stocks/<int:stock_id>/history")
+def get_stock_history(stock_id):
+    db = get_db()
+    history = run_async(db.get_stock_history(stock_id, limit=30))
+    labels = []
+    prices = []
+    for h in history:
+        t = datetime.fromtimestamp(h["timestamp"]).strftime("%H:%M:%S")
+        labels.append(t)
+        prices.append(h["price"])
+    return jsonify({"labels": labels, "prices": prices})
+
+@api_bp.route("/portfolio")
+@login_required
+def get_portfolio():
+    user_id = session["user"]["id"]
+    db = get_db()
+    holdings = run_async(db.get_user_stocks(user_id))
+    total_invested = 0
+    total_value = 0
+
+    enriched = []
+    for h in holdings:
+        inv = round(h["shares"] * h["avg_buy_price"])
+        val = h["shares"] * h["current_price"]
+        total_invested += inv
+        total_value += val
+        item = dict(h)
+        item["total_invested"] = inv
+        item["current_value"] = val
+        item["profit"] = val - inv
+        item["profit_pct"] = round(((val - inv) / inv) * 100, 2) if inv > 0 else 0.0
+        enriched.append(item)
+
+    return jsonify({
+        "holdings": enriched,
+        "total_invested": total_invested,
+        "total_value": total_value,
+        "net_profit": total_value - total_invested
+    })
+
+@api_bp.route("/buy", methods=["POST"])
+@login_required
+def buy_stock():
+    data = request.get_json() or {}
+    stock_id = data.get("stock_id")
+    try:
+        shares = int(data.get("shares", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Shares must be a valid integer."}), 400
+
+    if not stock_id or shares <= 0:
+        return jsonify({"success": False, "message": "Invalid stock ID or share amount."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, message = run_async(db.buy_stock(user_id, stock_id, shares))
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+@api_bp.route("/sell", methods=["POST"])
+@login_required
+def sell_stock():
+    data = request.get_json() or {}
+    stock_id = data.get("stock_id")
+    try:
+        shares = int(data.get("shares", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Shares must be a valid integer."}), 400
+
+    if not stock_id or shares <= 0:
+        return jsonify({"success": False, "message": "Invalid stock ID or share amount."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, message = run_async(db.sell_stock(user_id, stock_id, shares))
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+@api_bp.route("/bank/deposit", methods=["POST"])
+@login_required
+def bank_deposit():
+    data = request.get_json() or {}
+    try:
+        amount = int(data.get("amount", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Amount must be a valid number."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, message = run_async(db.web_deposit_bank(user_id, amount))
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+@api_bp.route("/bank/withdraw", methods=["POST"])
+@login_required
+def bank_withdraw():
+    data = request.get_json() or {}
+    try:
+        amount = int(data.get("amount", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Amount must be a valid number."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, message = run_async(db.web_withdraw_bank(user_id, amount))
+    return jsonify({"success": success, "message": message}), (200 if success else 400)
+
+@api_bp.route("/leaderboards")
+def get_leaderboards():
+    db = get_db()
+    bot = current_app.config.get("DISCORD_BOT")
+
+    medals_raw = run_async(db.get_global_leaderboard(limit=10))
+    gambling_raw = run_async(db.get_best_gamblers(limit=10))
+
+    def resolve_user(uid):
+        name = f"User {uid}"
+        avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
+        if bot:
+            user = bot.get_user(uid)
+            if user:
+                name = user.display_name
+                avatar = user.display_avatar.url
+        return name, avatar
+
+    medals_lb = []
+    for i, u in enumerate(medals_raw, 1):
+        name, avatar = resolve_user(u["user_id"])
+        medals_lb.append({
+            "rank": i,
+            "user_id": u["user_id"],
+            "name": name,
+            "avatar": avatar,
+            "medals": u.get("total_medals", 0)
+        })
+
+    gambling_lb = []
+    for i, u in enumerate(gambling_raw, 1):
+        name, avatar = resolve_user(u["user_id"])
+        gambling_lb.append({
+            "rank": i,
+            "user_id": u["user_id"],
+            "name": name,
+            "avatar": avatar,
+            "net_profit": u.get("net_profit", 0),
+            "total_won": u.get("total_won", 0),
+            "total_lost": u.get("total_lost", 0)
+        })
+
+    return jsonify({"medals": medals_lb, "gambling": gambling_lb})
+
+# ── Admin Only Endpoints ──────────────────────────────────────────────────────
+@api_bp.route("/admin/stock/create", methods=["POST"])
+@admin_required
+def admin_create_stock():
+    data = request.get_json() or {}
+    symbol = data.get("symbol", "").strip()
+    name = data.get("name", "").strip()
+    try:
+        price = int(data.get("price", 100))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Price must be a valid integer."}), 400
+
+    description = data.get("description", "").strip()
+    if not symbol or not name or price <= 0:
+        return jsonify({"success": False, "message": "Symbol, name, and positive price required."}), 400
+
+    db = get_db()
+    created = run_async(db.create_stock(symbol, name, price, description))
+    if created:
+        return jsonify({"success": True, "message": f"Created stock {symbol.upper()} at {price:,} Medals!"})
+    return jsonify({"success": False, "message": f"Stock with symbol {symbol.upper()} already exists."}), 400
+
+@api_bp.route("/admin/stock/update_price", methods=["POST"])
+@admin_required
+def admin_update_stock_price():
+    data = request.get_json() or {}
+    stock_id = data.get("stock_id")
+    try:
+        new_price = int(data.get("new_price", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Price must be a valid number."}), 400
+
+    if not stock_id or new_price <= 0:
+        return jsonify({"success": False, "message": "Stock ID and positive price required."}), 400
+
+    db = get_db()
+    run_async(db.update_stock_price(stock_id, new_price))
+    return jsonify({"success": True, "message": f"Updated stock price to {new_price:,} Medals!"})
+
+@api_bp.route("/admin/stock/delete", methods=["POST"])
+@admin_required
+def admin_delete_stock():
+    data = request.get_json() or {}
+    stock_id = data.get("stock_id")
+    if not stock_id:
+        return jsonify({"success": False, "message": "Stock ID required."}), 400
+
+    db = get_db()
+    run_async(db.delete_stock(stock_id))
+    return jsonify({"success": True, "message": "Stock delisted and active shareholders refunded."})
+
+@api_bp.route("/admin/bank_passwords")
+@admin_required
+def admin_bank_passwords():
+    db = get_db()
+    bot = current_app.config.get("DISCORD_BOT")
+    raw_banks = run_async(db.get_all_bank_passwords())
+
+    result = []
+    for b in raw_banks:
+        uid = b["user_id"]
+        name = f"User {uid}"
+        avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
+        if bot:
+            u = bot.get_user(uid)
+            if u:
+                name = f"{u.display_name} (@{u.name})"
+                avatar = u.display_avatar.url
+
+        from utils.constants import BANK_TIERS
+        tier_info = BANK_TIERS.get(b.get("tier", 1), {})
+        tier_name = tier_info.get("name", f"Tier {b.get('tier', 1)}")
+
+        date_str = datetime.fromtimestamp(b["created_at"]).strftime("%Y-%m-%d %H:%M") if b.get("created_at") else "N/A"
+
+        result.append({
+            "user_id": uid,
+            "username": name,
+            "avatar": avatar,
+            "balance": b.get("balance", 0),
+            "tier": b.get("tier", 1),
+            "tier_name": tier_name,
+            "password": b.get("password") or "(Password Not Set)",
+            "created_at": date_str
+        })
+    return jsonify(result)
