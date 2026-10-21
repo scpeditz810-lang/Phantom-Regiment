@@ -50,37 +50,52 @@
     <!-- Account Overview Metric Tiles (If Logged In) -->
     {% if session.get('user') %}
     <div class="metrics-row-3">
+        <!-- 1. Wallet Medals -->
         <div class="metric-tile">
-            <div class="metric-initials">WL</div>
+            <div class="metric-tile-header">
+                <div class="metric-initials">WL</div>
+                <span class="metric-status-pill">ACTIVE</span>
+            </div>
             <div class="metric-info">
                 <span class="metric-label">Wallet Medals</span>
                 <span class="metric-value text-blue" id="user-wallet-val">{{ "{:,}".format(user_data.get('medals', 0) if user_data else 0) }}</span>
                 <span class="metric-sub">Liquid balance available for trading</span>
             </div>
-            <span class="metric-status-pill">ACTIVE</span>
         </div>
 
+        <!-- 2. Bank Vault -->
         <div class="metric-tile">
-            <div class="metric-initials">VT</div>
+            <div class="metric-tile-header">
+                <div class="metric-initials">VT</div>
+                <div class="vault-btn-group">
+                    <button class="btn btn-sm btn-blue" onclick="openBankModal('deposit')">Deposit</button>
+                    <button class="btn btn-sm btn-pill-dark" onclick="openBankModal('withdraw')">Withdraw</button>
+                </div>
+            </div>
             <div class="metric-info">
                 <span class="metric-label">Vault ({{ tier_info['name'] if tier_info else 'Basic Vault' }})</span>
                 <span class="metric-value" id="user-vault-val">{{ "{:,}".format(bank_data.get('balance', 0) if bank_data else 0) }}</span>
                 <span class="metric-sub">Cap: {{ "{:,}".format(tier_info['cap'] if tier_info else 1000) }} Medals</span>
             </div>
-            <div style="position: absolute; top: 1.15rem; right: 1.25rem; display: flex; gap: 0.4rem;">
-                <button class="btn btn-sm btn-pill-dark" onclick="openBankModal('deposit')">Deposit</button>
-                <button class="btn btn-sm btn-pill-dark" onclick="openBankModal('withdraw')">Withdraw</button>
-            </div>
         </div>
 
+        <!-- 3. Daily Streak -->
         <div class="metric-tile">
-            <div class="metric-initials">ST</div>
+            <div class="metric-tile-header">
+                <div class="metric-initials">ST</div>
+                {% if claimed_today %}
+                <span class="metric-status-pill pill-claimed">CLAIMED TODAY</span>
+                {% else %}
+                <span class="metric-status-pill pill-ready"><span class="glow-dot-green"></span> READY</span>
+                {% endif %}
+            </div>
             <div class="metric-info">
                 <span class="metric-label">Daily Streak</span>
-                <span class="metric-value text-green">🔥 {{ user_data.get('streak', 0) if user_data else 0 }}</span>
-                <span class="metric-sub">Consecutive daily claims</span>
+                <span class="metric-value text-green">🔥 {{ streak_val }} {% if streak_val == 1 %}Day{% else %}Days{% endif %}</span>
+                <span class="metric-sub">
+                    {% if claimed_today %}Claimed today! Come back tomorrow.{% else %}Use <code>/daily</code> in Discord to claim!{% endif %}
+                </span>
             </div>
-            <span class="metric-status-pill">CLAIMED</span>
         </div>
     </div>
     {% else %}

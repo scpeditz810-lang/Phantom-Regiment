@@ -202,10 +202,13 @@ def get_leaderboards():
         name = f"User {uid}"
         avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
         if bot:
+            for g in bot.guilds:
+                m = g.get_member(uid)
+                if m:
+                    return m.display_name, m.display_avatar.url
             user = bot.get_user(uid)
             if user:
-                name = user.display_name
-                avatar = user.display_avatar.url
+                return user.display_name, user.display_avatar.url
         return name, avatar
 
     medals_lb = []
