@@ -52,16 +52,11 @@
                         {{ session['user']['global_name'] }}
                     </span>
                     {% if session['user'].get('is_owner') %}
-                    <span style="font-size: 0.65rem; background: var(--blue-primary); color: #040812; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 800;">OWNER</span>
+                    <span style="font-size: 0.65rem; background: rgba(56,189,248,0.15); color: var(--blue-primary); padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800; border: 1px solid rgba(56,189,248,0.3);">OWNER</span>
                     {% elif session['user'].get('is_manager') %}
-                    <span style="font-size: 0.65rem; background: rgba(56,189,248,0.2); color: var(--blue-primary); padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">MANAGER</span>
+                    <span style="font-size: 0.65rem; background: rgba(56,189,248,0.12); color: var(--blue-primary); padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 700; border: 1px solid rgba(56,189,248,0.25);">MANAGER</span>
                     {% endif %}
                 </div>
-                {% if session['user'].get('is_owner') or session['user'].get('is_manager') %}
-                <a href="{{ url_for('views.admin_page') }}" class="btn btn-blue">
-                    Admin Panel
-                </a>
-                {% endif %}
                 <a href="{{ url_for('auth.logout') }}" class="btn btn-pill-dark">
                     Logout
                 </a>
