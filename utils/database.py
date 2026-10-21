@@ -484,6 +484,35 @@ class Database:
 
             );
 
+            CREATE TABLE IF NOT EXISTS estate_plots (
+                id INTEGER PRIMARY KEY,
+                x INTEGER NOT NULL,
+                y INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                district TEXT NOT NULL,
+                terrain TEXT DEFAULT 'plains',
+                base_price INTEGER NOT NULL,
+                current_value INTEGER NOT NULL,
+                owner_id INTEGER DEFAULT NULL,
+                building_type TEXT DEFAULT 'empty',
+                building_level INTEGER DEFAULT 0,
+                last_yield_claim REAL DEFAULT 0,
+                last_value_update REAL DEFAULT 0,
+                for_sale_price INTEGER DEFAULT NULL,
+                created_at REAL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS estate_offers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plot_id INTEGER NOT NULL,
+                buyer_id INTEGER NOT NULL,
+                seller_id INTEGER NOT NULL,
+                offer_amount INTEGER NOT NULL,
+                status TEXT DEFAULT 'pending',
+                created_at REAL DEFAULT 0,
+                FOREIGN KEY(plot_id) REFERENCES estate_plots(id)
+            );
+
         """)
 
 
@@ -609,6 +638,7 @@ class Database:
         await self._db.commit()
 
         await self.seed_default_stocks()
+        await self.seed_default_estate_plots()
 
 
 
@@ -2315,3 +2345,409 @@ class Database:
 
         return True, f"Withdrew {amount:,} Medals from your vault."
 
+
+
+    # ─── E-State Virtual Real Estate & Tycoon ───────────────────────────────
+
+    async def seed_default_estate_plots(self):
+        """Seed initial 36 virtual map plots if table is empty."""
+        from utils.constants import DEFAULT_ESTATE_PLOTS
+        async with self._db.execute("SELECT COUNT(*) FROM estate_plots") as cur:
+            count = (await cur.fetchone())[0]
+        if count > 0:
+            return
+
+        now = time.time()
+        for p in DEFAULT_ESTATE_PLOTS:
+            await self._db.execute("""
+                INSERT OR IGNORE INTO estate_plots (
+                    id, x, y, name, district, terrain, base_price, current_value, 
+                    owner_id, building_type, building_level, last_yield_claim, 
+                    last_value_update, for_sale_price, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'empty', 0, ?, ?, NULL, ?)
+            """, (
+                p["id"], p["x"], p["y"], p["name"], p["district"], p["terrain"],
+                p["price"], p["price"], now, now, now
+            ))
+        await self._db.commit()
+        print("[E-State] Seeded 36 virtual map plots across 4 districts.")
+
+    async def get_estate_plots(self) -> list[dict]:
+        """Fetch all map plots with live calculated tycoon yields and valuation."""
+        if self._db is None:
+            await self.setup()
+
+        try:
+            async with self._db.execute("SELECT * FROM estate_plots ORDER BY id ASC") as cur:
+                rows = [dict(r) for r in await cur.fetchall()]
+        except Exception:
+            await self.setup()
+            async with self._db.execute("SELECT * FROM estate_plots ORDER BY id ASC") as cur:
+                rows = [dict(r) for r in await cur.fetchall()]
+
+        if not rows:
+            await self.seed_default_estate_plots()
+            async with self._db.execute("SELECT * FROM estate_plots ORDER BY id ASC") as cur:
+                rows = [dict(r) for r in await cur.fetchall()]
+
+        from utils.constants import ESTATE_BUILDINGS
+        now = time.time()
+        for r in rows:
+            b_type = r.get("building_type", "empty")
+            b_info = ESTATE_BUILDINGS.get(b_type)
+            if b_info:
+                daily_rate = b_info["daily_yield"] * (1.0 + (r.get("building_level", 1) - 1) * 0.35)
+            else:
+                daily_rate = 0.002
+
+            r["daily_rate"] = daily_rate
+            r["daily_yield_estimate"] = int(round(r["current_value"] * daily_rate))
+
+            last_claim = r.get("last_yield_claim") or r.get("created_at") or now
+            elapsed_days = min(7.0, max(0.0, (now - last_claim) / 86400.0))
+            r["accrued_yield"] = int(round(r["current_value"] * daily_rate * elapsed_days)) if r.get("owner_id") else 0
+
+            gross_bank = int(round(r["current_value"] * 1.10))
+            bank_tax = int(round(gross_bank * 0.20))
+            r["bank_payout_net"] = gross_bank - bank_tax
+            r["bank_payout_gross"] = gross_bank
+            r["bank_tax"] = bank_tax
+
+        return rows
+
+    async def get_estate_plot(self, plot_id: int) -> dict | None:
+        """Get single plot details."""
+        plots = await self.get_estate_plots()
+        for p in plots:
+            if p["id"] == plot_id:
+                return p
+        return None
+
+    async def buy_estate_plot(self, user_id: int, plot_id: int) -> tuple[bool, str]:
+        """Buy an unowned plot from the state map."""
+        if self._db is None:
+            await self.setup()
+
+        plot = await self.get_estate_plot(plot_id)
+        if not plot:
+            return False, "Plot not found."
+        if plot.get("owner_id"):
+            return False, "This plot is already owned by another player."
+
+        cost = plot["current_value"]
+        econ = await self.get_global_economy(user_id)
+        wallet = econ.get("medals", 0)
+        if wallet < cost:
+            return False, f"Insufficient Medals. You have {wallet:,} M, but this land costs {cost:,} M."
+
+        now = time.time()
+        await self.add_medals(user_id, 0, -cost)
+        await self._db.execute("""
+            UPDATE estate_plots 
+            SET owner_id = ?, building_type = 'empty', building_level = 0, 
+                last_yield_claim = ?, last_value_update = ?, for_sale_price = NULL
+            WHERE id = ?
+        """, (user_id, now, now, plot_id))
+        await self._db.commit()
+        return True, f"Successfully purchased {plot['name']} ({plot['district']}) for {cost:,} Medals!"
+
+    async def upgrade_estate_plot(self, user_id: int, plot_id: int, building_type: str) -> tuple[bool, str]:
+        """Upgrade a plot with a tycoon building (factory, hospital, construction, bunker, military, bank)."""
+        if self._db is None:
+            await self.setup()
+
+        from utils.constants import ESTATE_BUILDINGS
+        if building_type not in ESTATE_BUILDINGS:
+            return False, "Invalid building type."
+
+        plot = await self.get_estate_plot(plot_id)
+        if not plot:
+            return False, "Plot not found."
+        if plot.get("owner_id") != user_id:
+            return False, "You do not own this plot."
+
+        current_b = plot.get("building_type", "empty")
+        current_lvl = plot.get("building_level", 0)
+        b_info = ESTATE_BUILDINGS[building_type]
+
+        base_price = plot["base_price"]
+        if current_b == building_type:
+            if current_lvl >= 3:
+                return False, "This building is already at maximum level (Level 3)."
+            upgrade_level = current_lvl + 1
+            cost = int(round(base_price * b_info["cost_pct"] * upgrade_level))
+        else:
+            upgrade_level = 1
+            cost = int(round(base_price * b_info["cost_pct"]))
+
+        econ = await self.get_global_economy(user_id)
+        if econ.get("medals", 0) < cost:
+            return False, f"Insufficient Medals. Upgrade requires {cost:,} M."
+
+        val_increase = int(round(plot["current_value"] * b_info["val_boost"]))
+        new_val = min(25000000, plot["current_value"] + val_increase)
+
+        await self.add_medals(user_id, 0, -cost)
+        await self._db.execute("""
+            UPDATE estate_plots 
+            SET building_type = ?, building_level = ?, current_value = ?, last_yield_claim = ?
+            WHERE id = ?
+        """, (building_type, upgrade_level, new_val, time.time(), plot_id))
+        await self._db.commit()
+
+        return True, f"Successfully built {b_info['name']} (Level {upgrade_level})! Plot value boosted to {new_val:,} M."
+
+    async def sell_estate_plot_to_bank(self, user_id: int, plot_id: int) -> tuple[bool, str, int]:
+        """Sell land to the bank for 10% more price, with 20% tax applied."""
+        if self._db is None:
+            await self.setup()
+
+        plot = await self.get_estate_plot(plot_id)
+        if not plot:
+            return False, "Plot not found.", 0
+        if plot.get("owner_id") != user_id:
+            return False, "You do not own this plot.", 0
+
+        gross_payout = int(round(plot["current_value"] * 1.10))
+        tax = int(round(gross_payout * 0.20))
+        net_payout = gross_payout - tax
+
+        if plot.get("accrued_yield", 0) > 0:
+            net_payout += plot["accrued_yield"]
+
+        await self.add_medals(user_id, 0, net_payout)
+
+        now = time.time()
+        await self._db.execute("""
+            UPDATE estate_plots 
+            SET owner_id = NULL, building_type = 'empty', building_level = 0, 
+                for_sale_price = NULL, current_value = base_price, last_yield_claim = ?,
+                last_value_update = ?
+            WHERE id = ?
+        """, (now, now, plot_id))
+
+        await self._db.execute("UPDATE estate_offers SET status = 'cancelled' WHERE plot_id = ? AND status = 'pending'", (plot_id,))
+        await self._db.commit()
+
+        msg = f"Sold {plot['name']} to the Bank for {net_payout:,} Medals! (Gross: {gross_payout:,} M, 20% Bank Tax: {tax:,} M)"
+        return True, msg, net_payout
+
+    async def set_estate_plot_market_price(self, user_id: int, plot_id: int, price: int | None) -> tuple[bool, str]:
+        """List or unlist plot on public marketplace."""
+        if self._db is None:
+            await self.setup()
+
+        plot = await self.get_estate_plot(plot_id)
+        if not plot:
+            return False, "Plot not found."
+        if plot.get("owner_id") != user_id:
+            return False, "You do not own this plot."
+
+        if price is None or price <= 0:
+            await self._db.execute("UPDATE estate_plots SET for_sale_price = NULL WHERE id = ?", (plot_id,))
+            await self._db.commit()
+            return True, f"Delisted {plot['name']} from marketplace."
+
+        await self._db.execute("UPDATE estate_plots SET for_sale_price = ? WHERE id = ?", (price, plot_id))
+        await self._db.commit()
+        return True, f"Listed {plot['name']} for sale at {price:,} Medals!"
+
+    async def buy_estate_plot_from_market(self, buyer_id: int, plot_id: int) -> tuple[bool, str]:
+        """Buy a player-listed plot from the marketplace (30% tax applied)."""
+        if self._db is None:
+            await self.setup()
+
+        plot = await self.get_estate_plot(plot_id)
+        if not plot:
+            return False, "Plot not found."
+        price = plot.get("for_sale_price")
+        if not price or price <= 0:
+            return False, "This plot is not listed for public sale."
+
+        seller_id = plot.get("owner_id")
+        if not seller_id:
+            return False, "Plot has no owner."
+        if seller_id == buyer_id:
+            return False, "You cannot buy your own plot."
+
+        econ = await self.get_global_economy(buyer_id)
+        if econ.get("medals", 0) < price:
+            return False, f"Insufficient Medals. Price is {price:,} M."
+
+        tax = int(round(price * 0.30))
+        seller_payout = price - tax
+
+        await self.add_medals(buyer_id, 0, -price)
+        await self.add_medals(seller_id, 0, seller_payout)
+
+        now = time.time()
+        await self._db.execute("""
+            UPDATE estate_plots 
+            SET owner_id = ?, for_sale_price = NULL, current_value = max(current_value, ?),
+                last_yield_claim = ?
+            WHERE id = ?
+        """, (buyer_id, price, now, plot_id))
+
+        await self._db.execute("UPDATE estate_offers SET status = 'cancelled' WHERE plot_id = ? AND status = 'pending'", (plot_id,))
+        await self._db.commit()
+
+        return True, f"Successfully purchased {plot['name']} from market for {price:,} Medals! (Seller received {seller_payout:,} M after 30% tax)."
+
+    async def create_estate_offer(self, buyer_id: int, plot_id: int, offer_amount: int) -> tuple[bool, str]:
+        """Submit custom buy offer on another player's plot."""
+        if self._db is None:
+            await self.setup()
+
+        plot = await self.get_estate_plot(plot_id)
+        if not plot:
+            return False, "Plot not found."
+        seller_id = plot.get("owner_id")
+        if not seller_id:
+            return False, "This plot is unowned. You can buy it directly from the map!"
+        if seller_id == buyer_id:
+            return False, "You cannot make an offer on your own plot."
+
+        if offer_amount < 1000:
+            return False, "Minimum offer is 1,000 Medals."
+
+        econ = await self.get_global_economy(buyer_id)
+        if econ.get("medals", 0) < offer_amount:
+            return False, f"You don't have enough Medals to back this offer. (Balance: {econ.get('medals', 0):,} M)."
+
+        await self._db.execute("""
+            INSERT INTO estate_offers (plot_id, buyer_id, seller_id, offer_amount, status, created_at)
+            VALUES (?, ?, ?, ?, 'pending', ?)
+        """, (plot_id, buyer_id, seller_id, offer_amount, time.time()))
+        await self._db.commit()
+
+        return True, f"Submitted custom buy offer of {offer_amount:,} Medals for {plot['name']}!"
+
+    async def get_estate_offers(self, user_id: int | None = None, plot_id: int | None = None) -> list[dict]:
+        """Get pending or history of offers."""
+        if self._db is None:
+            await self.setup()
+
+        query = """
+            SELECT o.*, p.name as plot_name, p.district, p.current_value, p.building_type
+            FROM estate_offers o
+            JOIN estate_plots p ON o.plot_id = p.id
+        """
+        params = []
+        conds = []
+        if user_id:
+            conds.append("(o.buyer_id = ? OR o.seller_id = ?)")
+            params.extend([user_id, user_id])
+        if plot_id:
+            conds.append("o.plot_id = ?")
+            params.append(plot_id)
+
+        if conds:
+            query += " WHERE " + " AND ".join(conds)
+        query += " ORDER BY o.id DESC LIMIT 50"
+
+        async with self._db.execute(query, tuple(params)) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def accept_estate_offer(self, seller_id: int, offer_id: int) -> tuple[bool, str]:
+        """Accept an offer: 30% tax applied to sale price."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT * FROM estate_offers WHERE id = ?", (offer_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, "Offer not found."
+        offer = dict(row)
+        if offer["seller_id"] != seller_id:
+            return False, "You are not authorized to accept this offer."
+        if offer["status"] != "pending":
+            return False, f"Offer is already {offer['status']}."
+
+        plot = await self.get_estate_plot(offer["plot_id"])
+        if not plot or plot.get("owner_id") != seller_id:
+            return False, "You no longer own this plot."
+
+        buyer_id = offer["buyer_id"]
+        buyer_econ = await self.get_global_economy(buyer_id)
+        offer_amount = offer["offer_amount"]
+        if buyer_econ.get("medals", 0) < offer_amount:
+            await self._db.execute("UPDATE estate_offers SET status = 'cancelled' WHERE id = ?", (offer_id,))
+            await self._db.commit()
+            return False, "Buyer no longer has enough Medals. Offer cancelled."
+
+        tax = int(round(offer_amount * 0.30))
+        seller_payout = offer_amount - tax
+
+        await self.add_medals(buyer_id, 0, -offer_amount)
+        await self.add_medals(seller_id, 0, seller_payout)
+
+        now = time.time()
+        await self._db.execute("""
+            UPDATE estate_plots 
+            SET owner_id = ?, for_sale_price = NULL, current_value = max(current_value, ?),
+                last_yield_claim = ?
+            WHERE id = ?
+        """, (buyer_id, offer_amount, now, offer["plot_id"]))
+
+        await self._db.execute("UPDATE estate_offers SET status = 'accepted' WHERE id = ?", (offer_id,))
+        await self._db.execute("UPDATE estate_offers SET status = 'cancelled' WHERE plot_id = ? AND id != ? AND status = 'pending'", (offer["plot_id"], offer_id))
+        await self._db.commit()
+
+        return True, f"Offer accepted! Sold {plot['name']} for {offer_amount:,} M. Received {seller_payout:,} M (30% State Tax: {tax:,} M)."
+
+    async def reject_estate_offer(self, seller_id: int, offer_id: int) -> tuple[bool, str]:
+        """Reject an offer."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT * FROM estate_offers WHERE id = ?", (offer_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, "Offer not found."
+        offer = dict(row)
+        if offer["seller_id"] != seller_id:
+            return False, "You are not authorized to reject this offer."
+        if offer["status"] != "pending":
+            return False, f"Offer is already {offer['status']}."
+
+        await self._db.execute("UPDATE estate_offers SET status = 'rejected' WHERE id = ?", (offer_id,))
+        await self._db.commit()
+        return True, "Offer rejected."
+
+    async def collect_estate_yields(self, user_id: int) -> tuple[int, str]:
+        """Collect accrued tycoon passive income across all owned plots."""
+        if self._db is None:
+            await self.setup()
+
+        plots = await self.get_estate_plots()
+        user_plots = [p for p in plots if p.get("owner_id") == user_id]
+        if not user_plots:
+            return 0, "You do not own any land yet."
+
+        total_yield = sum(p.get("accrued_yield", 0) for p in user_plots)
+        if total_yield <= 0:
+            return 0, "No accrued yields ready for collection yet. Buildings generate yields over time!"
+
+        now = time.time()
+        plot_ids = [p["id"] for p in user_plots if p.get("accrued_yield", 0) > 0]
+        for pid in plot_ids:
+            await self._db.execute("UPDATE estate_plots SET last_yield_claim = ? WHERE id = ?", (now, pid))
+
+        await self.add_medals(user_id, 0, total_yield)
+        await self._db.commit()
+
+        return total_yield, f"Collected {total_yield:,} Medals in tycoon passive dividends across {len(plot_ids)} plots!"
+
+    async def get_user_estate_stats(self, user_id: int) -> dict:
+        """Get summary tycoon stats for user."""
+        plots = await self.get_estate_plots()
+        user_plots = [p for p in plots if p.get("owner_id") == user_id]
+        total_val = sum(p["current_value"] for p in user_plots)
+        accrued = sum(p.get("accrued_yield", 0) for p in user_plots)
+        daily = sum(p.get("daily_yield_estimate", 0) for p in user_plots)
+        return {
+            "plots_owned": len(user_plots),
+            "total_valuation": total_val,
+            "accrued_yield": accrued,
+            "daily_yield": daily
+        }

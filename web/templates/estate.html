@@ -1,0 +1,1564 @@
+{% extends "base.html" %}
+
+{% block title %}E-State Virtual Territory & Tycoon | Phantom Regiment{% endblock %}
+
+{% block content %}
+<div class="estate-wrapper">
+    <!-- Top Tycoon HUD Banner -->
+    <div class="estate-hero table-surface">
+        <div class="estate-hero-top">
+            <div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                    <h2 style="margin: 0; font-size: 1.85rem; font-weight: 800; letter-spacing: -0.02em;">
+                        🏛️ Phantom E-State Tycoon
+                    </h2>
+                    <span class="estate-live-badge">
+                        <span class="pulse-dot"></span> LIVE TERRITORY MAP
+                    </span>
+                    <span class="badge-exclusive">WEBSITE EXCLUSIVE</span>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.35rem; max-width: 680px;">
+                    Acquire virtual plots across the Phantom territory grid. Upgrade into industrial factories, hospitals, bunkers, military bases, or central banks to generate passive daily tycoon dividends. Trade with players or liquidate to the State Bank.
+                </p>
+            </div>
+            
+            <!-- Quick Claim Bar -->
+            <div class="estate-claim-box">
+                <div class="claim-info">
+                    <span class="claim-label">ACCUMULATED TYCOON DIVIDENDS</span>
+                    <div class="claim-amount">
+                        <span id="stat-accrued-yield">0</span> <span style="font-size: 0.9rem; color: var(--blue-primary); font-weight: 700;">M</span>
+                    </div>
+                </div>
+                <button class="btn btn-green-glow" id="btn-collect-all" onclick="collectAllYields()">
+                    ⚡ Collect Dividends
+                </button>
+            </div>
+        </div>
+
+        <!-- Metric Stat Cards -->
+        <div class="estate-stats-grid">
+            <div class="stat-tile">
+                <div class="stat-tile-label">YOUR WALLET MEDALS</div>
+                <div class="stat-tile-val text-blue">
+                    <span id="user-wallet-bal">{{ user_data.medals if user_data else 0 }}</span> <span style="font-size: 0.85rem; color: var(--text-muted);">M</span>
+                </div>
+                <div class="stat-tile-sub">Ready for land investment</div>
+            </div>
+
+            <div class="stat-tile">
+                <div class="stat-tile-label">YOUR PLOTS OWNED</div>
+                <div class="stat-tile-val text-green">
+                    <span id="user-plots-count">0</span> <span style="font-size: 0.85rem; color: var(--text-muted);">/ 36 Plots</span>
+                </div>
+                <div class="stat-tile-sub">Personal territory share</div>
+            </div>
+
+            <div class="stat-tile">
+                <div class="stat-tile-label">YOUR ESTATE NET WORTH</div>
+                <div class="stat-tile-val text-gold">
+                    <span id="user-estate-worth">0</span> <span style="font-size: 0.85rem; color: var(--text-muted);">M</span>
+                </div>
+                <div class="stat-tile-sub">Combined plot valuation</div>
+            </div>
+
+            <div class="stat-tile">
+                <div class="stat-tile-label">DAILY PASSIVE YIELD</div>
+                <div class="stat-tile-val" style="color: #38bdf8;">
+                    +<span id="user-daily-yield">0</span> <span style="font-size: 0.85rem; color: var(--text-muted);">M/day</span>
+                </div>
+                <div class="stat-tile-sub">Generated from your buildings</div>
+            </div>
+
+            <div class="stat-tile">
+                <div class="stat-tile-label">TOTAL CLAN MARKET CAP</div>
+                <div class="stat-tile-val text-purple">
+                    <span id="clan-market-cap">...</span> <span style="font-size: 0.85rem; color: var(--text-muted);">M</span>
+                </div>
+                <div class="stat-tile-sub">36 territorial parcels</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar & View Controls -->
+    <div class="estate-controls-bar">
+        <div class="filter-pills" id="filter-pills">
+            <button class="filter-pill active" onclick="setFilter('all', this)">🌐 All Territory (36)</button>
+            <button class="filter-pill" onclick="setFilter('outskirts', this)">🌲 Greenery Outskirts (10k - 50k)</button>
+            <button class="filter-pill" onclick="setFilter('river', this)">💧 Riverside Commons (75k - 250k)</button>
+            <button class="filter-pill" onclick="setFilter('industrial', this)">🏗️ Industrial Zone (350k - 1M)</button>
+            <button class="filter-pill" onclick="setFilter('citadel', this)">👑 Citadel Spire (2M - 10M)</button>
+            <button class="filter-pill" onclick="setFilter('my_plots', this)">⭐ My Land</button>
+            <button class="filter-pill" onclick="setFilter('for_sale', this)">🏷️ Listed for Sale</button>
+        </div>
+
+        <div style="display: flex; gap: 0.65rem; align-items: center;">
+            <button class="btn btn-sm btn-pill-dark" onclick="openOffersModal()">
+                📩 Offers Hub <span id="offers-count-badge" class="badge-mini" style="display:none;">0</span>
+            </button>
+            <button class="btn btn-sm btn-pill-dark" onclick="loadEstateData(false)" title="Refresh Map">
+                🔄 Sync Map
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Workspace: Map Canvas + Inspector Drawer -->
+    <div class="estate-layout">
+        <!-- The Virtual Visual Map -->
+        <div class="estate-map-container table-surface">
+            <!-- District Legend -->
+            <div class="map-legend">
+                <div class="legend-item"><span class="legend-dot dot-greenery"></span> Greenery Outskirts</div>
+                <div class="legend-item"><span class="legend-dot dot-river"></span> Riverfront Commons</div>
+                <div class="legend-item"><span class="legend-dot dot-industrial"></span> Industrial District</div>
+                <div class="legend-item"><span class="legend-dot dot-citadel"></span> Shadow Citadel (High-Yield)</div>
+                <div class="legend-divider"></div>
+                <div class="legend-item"><span class="legend-box border-mine"></span> Your Plot</div>
+                <div class="legend-item"><span class="legend-box border-other"></span> Player Owned</div>
+                <div class="legend-item"><span class="legend-box border-unowned"></span> Unclaimed Land</div>
+            </div>
+
+            <!-- The Grid Map Canvas -->
+            <div class="map-grid-wrap">
+                <div class="map-grid" id="map-grid">
+                    <!-- 36 Interactive Tiles Generated via JavaScript -->
+                </div>
+            </div>
+            
+            <div class="map-footer-hint">
+                💡 <em>Click any parcel on the map to inspect ownership, construct tycoon buildings, collect yields, or trade.</em>
+            </div>
+        </div>
+
+        <!-- Right Side: Plot Details & Tycoon Action Inspector -->
+        <div class="estate-inspector table-surface" id="estate-inspector">
+            <div class="inspector-empty" id="inspector-empty">
+                <div class="empty-icon">🗺️</div>
+                <h3>Select a Parcel</h3>
+                <p>Click any land plot on the territory grid to inspect its valuation, tycoon upgrades, and trading options.</p>
+                <div class="tycoon-tips">
+                    <strong>Tycoon Tip:</strong> Upgrading plots to <em>Factories</em> or <em>Banks</em> yields compounding passive medals every hour!
+                </div>
+            </div>
+
+            <div class="inspector-content" id="inspector-content" style="display: none;">
+                <!-- Header Card with Visual Terrain Theme -->
+                <div class="plot-hero-card" id="inspector-hero-card">
+                    <div class="plot-hero-badge" id="insp-district-badge">District</div>
+                    <h3 id="insp-title" style="margin: 0.2rem 0; font-size: 1.35rem; font-weight: 800;">Plot Name</h3>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; font-size: 0.8rem; color: var(--text-muted);">
+                        <span>Sector <strong id="insp-coords" style="color: var(--blue-primary);">(1, 1)</strong></span>
+                        <span>•</span>
+                        <span id="insp-terrain-text">Plains Grassland</span>
+                    </div>
+                </div>
+
+                <!-- Owner & Pricing Summary -->
+                <div class="inspector-row-owner">
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <img id="insp-owner-avatar" src="" class="user-pfp-sm" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                        <div>
+                            <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">PROPRIETOR</div>
+                            <strong id="insp-owner-name" style="font-size: 0.9rem;">Unclaimed</strong>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">CURRENT VALUATION</div>
+                        <strong class="text-gold" style="font-size: 1.15rem;" id="insp-val">0</strong> <span style="font-size: 0.75rem; color: var(--text-muted);">M</span>
+                    </div>
+                </div>
+
+                <!-- Building Tycoon Status -->
+                <div class="building-status-box">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.6rem;" id="insp-building-emoji">🌱</span>
+                            <div>
+                                <strong id="insp-building-name" style="font-size: 0.95rem;">Vacant Land</strong>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);" id="insp-building-level">Level 0 (Unimproved)</div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.72rem; color: var(--text-muted);">DAILY YIELD</div>
+                            <span class="badge-yield" id="insp-daily-yield">+0 M/day</span>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.78rem; color: var(--text-sub); margin-top: 0.45rem; line-height: 1.4;" id="insp-building-desc">
+                        Unimproved natural terrain. Ready for tycoon development.
+                    </p>
+                </div>
+
+                <!-- Inspector Action Tabs -->
+                <div class="inspector-tabs" id="inspector-tabs">
+                    <button class="insp-tab active" id="tab-btn-actions" onclick="switchInspectorTab('tab-actions')">Overview & Upgrades</button>
+                    <button class="insp-tab" id="tab-btn-sell" onclick="switchInspectorTab('tab-sell')">Sell / Bank</button>
+                    <button class="insp-tab" id="tab-btn-offers" onclick="switchInspectorTab('tab-offers')">Offers & Market</button>
+                </div>
+
+                <!-- Tab 1: Overview & Upgrades -->
+                <div class="insp-tab-pane" id="tab-actions">
+                    <!-- Buy Plot Button (If Unclaimed) -->
+                    <div id="box-buy-plot" style="display:none; margin-top: 1rem;">
+                        <button class="btn btn-blue" style="width: 100%; padding: 0.85rem; font-weight: 800; font-size: 1rem;" id="btn-buy-plot" onclick="executeBuyPlot()">
+                            🛒 Buy Land for <span id="btn-buy-price">10,000</span> Medals
+                        </button>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.4rem;">
+                            Ownership grants title rights, passive yield accumulation, and full upgrade capabilities.
+                        </p>
+                    </div>
+
+                    <!-- Tycoon Upgrades Selection (If Owned by You) -->
+                    <div id="box-upgrades" style="display:none; margin-top: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <h4 style="margin: 0; font-size: 0.9rem;">Construct Tycoon Building</h4>
+                            <span style="font-size: 0.72rem; color: var(--blue-primary); font-weight: 700;">Max Level 3</span>
+                        </div>
+
+                        <div class="upgrades-list">
+                            <!-- Factory -->
+                            <div class="upgrade-card" onclick="selectUpgrade('factory')">
+                                <div class="upgrade-card-head">
+                                    <span>🏭 Factory</span>
+                                    <span class="upgrade-cost" id="cost-factory">... M</span>
+                                </div>
+                                <div class="upgrade-card-desc">Heavy manufacturing. Generates +2.0% daily medals yield & +25% plot value boost.</div>
+                            </div>
+
+                            <!-- Hospital -->
+                            <div class="upgrade-card" onclick="selectUpgrade('hospital')">
+                                <div class="upgrade-card-head">
+                                    <span>🏥 Hospital</span>
+                                    <span class="upgrade-cost" id="cost-hospital">... M</span>
+                                </div>
+                                <div class="upgrade-card-desc">Public health sanctuary. High community dividend (+2.2%/day) & +30% plot value boost.</div>
+                            </div>
+
+                            <!-- Construction -->
+                            <div class="upgrade-card" onclick="selectUpgrade('construction')">
+                                <div class="upgrade-card-head">
+                                    <span>🏗️ Construction Site</span>
+                                    <span class="upgrade-cost" id="cost-construction">... M</span>
+                                </div>
+                                <div class="upgrade-card-desc">Rapid infrastructure. Boosts organic land value growth rate by 2.5x multiplier!</div>
+                            </div>
+
+                            <!-- Bunker -->
+                            <div class="upgrade-card" onclick="selectUpgrade('bunker')">
+                                <div class="upgrade-card-head">
+                                    <span>🛡️ Bunker</span>
+                                    <span class="upgrade-cost" id="cost-bunker">... M</span>
+                                </div>
+                                <div class="upgrade-card-desc">Underground tactical vault. Fortifies land value (+35%) & +1.5% daily defense yield.</div>
+                            </div>
+
+                            <!-- Military Base -->
+                            <div class="upgrade-card" onclick="selectUpgrade('military')">
+                                <div class="upgrade-card-head">
+                                    <span>🪖 Military Base</span>
+                                    <span class="upgrade-cost" id="cost-military">... M</span>
+                                </div>
+                                <div class="upgrade-card-desc">Regiment command post. High authority stipend (+2.8%/day) & +45% plot valuation.</div>
+                            </div>
+
+                            <!-- Bank -->
+                            <div class="upgrade-card" onclick="selectUpgrade('bank')">
+                                <div class="upgrade-card-head">
+                                    <span>🏦 Bank</span>
+                                    <span class="upgrade-cost" id="cost-bank">... M</span>
+                                </div>
+                                <div class="upgrade-card-desc">Financial center. Premium dividends (+3.5%/day) & massive +60% valuation surge!</div>
+                            </div>
+                        </div>
+
+                        <div id="upgrade-confirm-box" style="display:none; margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-card-inner); border-radius: 8px; border: 1px solid var(--border-blue);">
+                            <div style="font-size: 0.82rem; margin-bottom: 0.5rem;">
+                                Confirm Construction: <strong id="selected-upgrade-title" style="color: var(--blue-primary);">Factory</strong> for <strong id="selected-upgrade-cost">...</strong> Medals?
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-sm btn-blue" style="flex: 1;" onclick="executeUpgrade()">Confirm Upgrade</button>
+                                <button class="btn btn-sm btn-pill-dark" onclick="cancelUpgradeSelection()">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Not Owned Hint -->
+                    <div id="box-not-owned-hint" style="display:none; margin-top: 1rem; text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1rem; background: var(--bg-card-inner); border-radius: 8px;">
+                        This plot is privately owned. You can submit a custom buy offer or check if it's listed on the marketplace.
+                    </div>
+                </div>
+
+                <!-- Tab 2: Sell to State Bank -->
+                <div class="insp-tab-pane" id="tab-sell" style="display: none;">
+                    <div id="box-sell-bank-section" style="margin-top: 1rem;">
+                        <div class="bank-calc-card">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem;">
+                                <span style="font-size: 1.4rem;">🏦</span>
+                                <h4 style="margin: 0; font-size: 0.95rem;">State Bank Buyback Program</h4>
+                            </div>
+                            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                                Liquidate your land immediately to the Clan Bank. The Bank pays <strong>+10% bonus valuation</strong>, and a standard <strong>20% Bank Liquidation Tax</strong> is applied.
+                            </p>
+
+                            <div class="calc-row">
+                                <span>Current Valuation:</span>
+                                <strong id="calc-val">0 M</strong>
+                            </div>
+                            <div class="calc-row">
+                                <span style="color: #22c55e;">+ 10% Bank Premium Price:</span>
+                                <strong style="color: #22c55e;" id="calc-gross">0 M</strong>
+                            </div>
+                            <div class="calc-row">
+                                <span style="color: #ef4444;">- 20% Bank Liquidation Tax:</span>
+                                <strong style="color: #ef4444;" id="calc-tax">0 M</strong>
+                            </div>
+                            <div class="calc-row" style="border-top: 1px dashed var(--border); padding-top: 0.5rem; margin-top: 0.4rem;">
+                                <span style="font-weight: 700;">Net Payout to Wallet:</span>
+                                <strong class="text-blue" style="font-size: 1.15rem;" id="calc-net">0 M</strong>
+                            </div>
+
+                            <button class="btn btn-crimson" style="width: 100%; margin-top: 0.85rem; font-weight: 700;" onclick="executeSellToBank()">
+                                🏦 Liquidate to Bank (+10% Price / 20% Tax)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Offers & Player Marketplace -->
+                <div class="insp-tab-pane" id="tab-offers" style="display: none;">
+                    <!-- Market Listing (For Owner) -->
+                    <div id="box-market-listing" style="margin-top: 1rem; padding: 0.85rem; background: var(--bg-card-inner); border-radius: 8px; border: 1px solid var(--border);">
+                        <h4 style="margin: 0 0 0.4rem 0; font-size: 0.9rem;">Marketplace Listing</h4>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.6rem;">
+                            List this plot for direct public purchase. <strong>30% State Tax</strong> is deducted when purchased by another player.
+                        </p>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="number" id="input-listing-price" class="form-input" placeholder="Asking price in Medals..." style="flex:1;">
+                            <button class="btn btn-sm btn-blue" onclick="setMarketListing()">Set Price</button>
+                            <button class="btn btn-sm btn-pill-dark" onclick="delistMarketListing()">Delist</button>
+                        </div>
+                        <div id="current-listing-status" style="font-size: 0.75rem; color: var(--blue-primary); margin-top: 0.4rem;"></div>
+                    </div>
+
+                    <!-- Buy from Market (For non-owner if listed) -->
+                    <div id="box-buy-market" style="display:none; margin-top: 1rem; padding: 0.85rem; background: rgba(56,189,248,0.08); border-radius: 8px; border: 1px solid var(--border-blue);">
+                        <div style="font-size: 0.85rem; font-weight: 700; color: var(--blue-primary); margin-bottom: 0.35rem;">Listed on Public Market</div>
+                        <div style="font-size: 1.15rem; font-weight: 800; color: #fff; margin-bottom: 0.5rem;">
+                            <span id="market-asking-price">...</span> Medals
+                        </div>
+                        <button class="btn btn-blue" style="width: 100%; font-weight: 700;" onclick="executeBuyMarket()">
+                            ⚡ Buy from Market (Instant Transfer)
+                        </button>
+                    </div>
+
+                    <!-- Custom Player Offer Form (For non-owner) -->
+                    <div id="box-make-offer" style="margin-top: 1rem; padding: 0.85rem; background: var(--bg-card-inner); border-radius: 8px; border: 1px solid var(--border);">
+                        <h4 style="margin: 0 0 0.35rem 0; font-size: 0.9rem;">Make a Custom Buy Offer</h4>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.65rem;">
+                            Offer the owner a custom amount of Medals. If accepted by the owner, <strong>30% State Tax</strong> is deducted from the payout.
+                        </p>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="number" id="input-offer-amount" class="form-input" placeholder="Offer amount in Medals..." style="flex: 1;">
+                            <button class="btn btn-sm btn-blue" onclick="submitCustomOffer()">Submit Offer</button>
+                        </div>
+                        <div style="font-size: 0.72rem; color: var(--text-sub); margin-top: 0.4rem;">
+                            * Tax calculation: If you offer 100,000 M, 30,000 M goes to tax and owner receives 70,000 M.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Offers Hub Modal -->
+<div class="modal-overlay" id="offers-modal" style="display: none;" onclick="closeOffersModal(event)">
+    <div class="modal-content table-surface" onclick="event.stopPropagation()" style="max-width: 650px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 1.25rem;">📩 Territory Offers Hub</h3>
+            <button class="btn btn-sm btn-pill-dark" onclick="closeOffersModal()">✕</button>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Incoming and outgoing buy proposals. <strong>30% State Tax</strong> is applied on all accepted peer-to-peer offers.
+        </p>
+
+        <div id="offers-list-container" style="max-height: 400px; overflow-y: auto;">
+            <div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading offers...</div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ─── E-State Styles ───────────────────────────────────────────────────────── */
+.estate-wrapper {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.estate-hero {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.9));
+    border-radius: 14px;
+    border: 1px solid var(--border);
+}
+
+.estate-hero-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.estate-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    letter-spacing: 0.05em;
+}
+
+.badge-exclusive {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--blue-primary);
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    letter-spacing: 0.04em;
+}
+
+.estate-claim-box {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    background: rgba(11, 15, 25, 0.75);
+    padding: 0.85rem 1.25rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-blue);
+}
+
+.claim-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    display: block;
+}
+
+.claim-amount {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #22c55e;
+    font-family: var(--font-mono);
+}
+
+.btn-green-glow {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    color: #fff;
+    border: none;
+    padding: 0.65rem 1.15rem;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.35);
+    transition: all 0.2s ease;
+}
+
+.btn-green-glow:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 24px rgba(34, 197, 94, 0.5);
+}
+
+.estate-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.stat-tile {
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+}
+
+.stat-tile-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+}
+
+.stat-tile-val {
+    font-size: 1.35rem;
+    font-weight: 800;
+    margin: 0.2rem 0;
+    font-family: var(--font-mono);
+}
+
+.stat-tile-sub {
+    font-size: 0.72rem;
+    color: var(--text-sub);
+}
+
+.text-gold { color: #f59e0b; }
+.text-purple { color: #a855f7; }
+
+/* Filter Controls */
+.estate-controls-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.filter-pills {
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.filter-pill {
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-pill:hover {
+    color: #fff;
+    border-color: var(--border-hover);
+}
+
+.filter-pill.active {
+    background: var(--blue-primary);
+    color: #0b0f19;
+    border-color: var(--blue-primary);
+    font-weight: 800;
+}
+
+/* Layout */
+.estate-layout {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 1.25rem;
+    align-items: start;
+}
+
+@media (max-width: 1080px) {
+    .estate-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Territory Map */
+.estate-map-container {
+    padding: 1.25rem;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background: #0d1322;
+}
+
+.map-legend {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+.dot-greenery { background: #15803d; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+.dot-river { background: #0284c7; box-shadow: 0 0 6px rgba(56,189,248,0.4); }
+.dot-industrial { background: #d97706; box-shadow: 0 0 6px rgba(245,158,11,0.4); }
+.dot-citadel { background: #9333ea; box-shadow: 0 0 6px rgba(168,85,247,0.4); }
+
+.legend-box {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+}
+.border-mine { border: 2px solid #22c55e; background: rgba(34,197,94,0.2); }
+.border-other { border: 2px solid #38bdf8; background: rgba(56,189,248,0.15); }
+.border-unowned { border: 1px dashed rgba(255,255,255,0.25); background: transparent; }
+
+.legend-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--border);
+}
+
+/* Map Grid */
+.map-grid-wrap {
+    overflow-x: auto;
+    padding: 0.5rem 0;
+}
+
+.map-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    min-width: 680px;
+}
+
+/* Individual Plot Tile */
+.map-tile {
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    position: relative;
+    padding: 0.55rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    user-select: none;
+    overflow: hidden;
+}
+
+.map-tile:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    z-index: 5;
+}
+
+.map-tile.selected {
+    box-shadow: 0 0 0 3px #fff, 0 8px 25px rgba(56,189,248,0.5) !important;
+    z-index: 10;
+}
+
+/* Terrains */
+.terrain-plains {
+    background: radial-gradient(circle at top left, #166534, #14532d 65%, #0f3d20);
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+.terrain-forest {
+    background: radial-gradient(circle at top left, #14532d, #052e16 75%, #021a0d);
+    border-color: rgba(22, 101, 52, 0.4);
+}
+
+.terrain-riverfront {
+    background: radial-gradient(circle at center, #0284c7 0%, #0369a1 40%, #075985 80%, #082f49);
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.terrain-industrial {
+    background: radial-gradient(circle at top right, #78350f 0%, #451a03 50%, #291203 90%);
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.terrain-citadel {
+    background: radial-gradient(circle at center, #581c87 0%, #3b0764 50%, #1e0338 90%);
+    border-color: rgba(168, 85, 247, 0.45);
+}
+
+.terrain-highlands {
+    background: radial-gradient(circle at top left, #334155, #1e293b 60%, #0f172a);
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+/* Ownership Borders */
+.map-tile.tile-mine {
+    border-color: #22c55e !important;
+    box-shadow: inset 0 0 12px rgba(34, 197, 94, 0.3);
+}
+
+.map-tile.tile-other {
+    border-color: #38bdf8 !important;
+}
+
+.map-tile.tile-unowned {
+    border-style: dashed;
+}
+
+/* Tile Components */
+.tile-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.tile-coord {
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(0, 0, 0, 0.4);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+}
+
+.tile-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0.2rem;
+}
+
+.tile-emoji {
+    font-size: 1.85rem;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+    line-height: 1;
+}
+
+.tile-name-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    max-width: 90%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tile-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
+.tile-price-pill {
+    background: rgba(0, 0, 0, 0.6);
+    color: #f59e0b;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.tile-owner-tag {
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+}
+.tag-mine { background: rgba(34, 197, 94, 0.25); color: #4ade80; }
+.tag-other { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; }
+.tag-open { background: rgba(255, 255, 255, 0.15); color: #e2e8f0; }
+
+.for-sale-ribbon {
+    position: absolute;
+    top: 6px;
+    right: -24px;
+    background: #f59e0b;
+    color: #000;
+    font-size: 0.55rem;
+    font-weight: 900;
+    padding: 0.15rem 1.6rem;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    letter-spacing: 0.05em;
+}
+
+.map-footer-hint {
+    font-size: 0.78rem;
+    color: var(--text-sub);
+    text-align: center;
+}
+
+/* Inspector Drawer */
+.estate-inspector {
+    padding: 1.25rem;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    position: sticky;
+    top: 80px;
+}
+
+.inspector-empty {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--text-muted);
+}
+.empty-icon { font-size: 3rem; margin-bottom: 0.75rem; }
+.tycoon-tips {
+    margin-top: 1.5rem;
+    padding: 0.85rem;
+    background: var(--bg-card-inner);
+    border-radius: 8px;
+    font-size: 0.78rem;
+    color: var(--text-sub);
+    border: 1px dashed var(--border);
+}
+
+/* Hero card */
+.plot-hero-card {
+    padding: 1rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(15,23,42,0.8));
+    border: 1px solid var(--border-blue);
+    margin-bottom: 1rem;
+}
+.plot-hero-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--blue-primary);
+    background: rgba(56,189,248,0.15);
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.inspector-row-owner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--bg-card-inner);
+    border-radius: 8px;
+    margin-bottom: 0.85rem;
+    border: 1px solid var(--border);
+}
+
+.building-status-box {
+    padding: 0.85rem;
+    background: var(--bg-card-inner);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 1rem;
+}
+
+.badge-yield {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #22c55e;
+    font-family: var(--font-mono);
+}
+
+/* Inspector Tabs */
+.inspector-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+}
+
+.insp-tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0.55rem 0.35rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.insp-tab.active {
+    color: var(--blue-primary);
+    border-bottom-color: var(--blue-primary);
+}
+
+/* Upgrades List */
+.upgrades-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 270px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.upgrade-card {
+    padding: 0.65rem 0.75rem;
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.upgrade-card:hover {
+    border-color: var(--blue-primary);
+    background: rgba(56, 189, 248, 0.08);
+}
+
+.upgrade-card-head {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.upgrade-cost {
+    color: #f59e0b;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+.upgrade-card-desc {
+    font-size: 0.72rem;
+    color: var(--text-sub);
+    margin-top: 0.25rem;
+    line-height: 1.35;
+}
+
+/* Bank calc */
+.bank-calc-card {
+    padding: 0.85rem;
+    background: var(--bg-card-inner);
+    border-radius: 8px;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.calc-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 0.35rem;
+    color: var(--text-muted);
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 1rem;
+}
+
+.modal-content {
+    width: 100%;
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-blue);
+    background: var(--bg-card);
+}
+
+.badge-mini {
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-weight: 800;
+}
+</style>
+
+<script>
+// ─── E-State Tycoon Client Engine ────────────────────────────────────────────
+let allPlots = [];
+let selectedPlot = null;
+let currentFilter = "all";
+let buildingsConfig = {};
+let currentUserId = {{ session['user']['id'] if session.get('user') else 'null' }};
+let isProcessing = false;
+
+document.addEventListener("DOMContentLoaded", () => {
+    loadEstateData(true);
+    // Auto-poll estate data every 10 seconds live
+    setInterval(() => loadEstateData(true), 10000);
+});
+
+async function loadEstateData(silent = false) {
+    try {
+        const [plotsRes, statsRes] = await Promise.all([
+            fetch("/api/estate/plots?_t=" + Date.now()),
+            fetch("/api/estate/stats?_t=" + Date.now())
+        ]);
+
+        if (plotsRes.ok && statsRes.ok) {
+            allPlots = await plotsRes.json();
+            const stats = await statsRes.json();
+            buildingsConfig = stats.buildings_info || {};
+
+            renderHUD(stats);
+            renderMapGrid();
+
+            // Re-render inspector if a plot is selected
+            if (selectedPlot) {
+                const refreshed = allPlots.find(p => p.id === selectedPlot.id);
+                if (refreshed) selectPlot(refreshed);
+            }
+
+            if (!silent) showToast("Territory map synced!");
+        }
+    } catch (err) {
+        if (!silent) console.error("Failed to sync estate data:", err);
+    }
+}
+
+function renderHUD(stats) {
+    const user = stats.user || {};
+    const walletEl = document.getElementById("user-wallet-bal");
+    if (walletEl) walletEl.innerText = Number(user.wallet || 0).toLocaleString();
+
+    document.getElementById("user-plots-count").innerText = user.plots_owned || 0;
+    document.getElementById("user-estate-worth").innerText = Number(user.total_valuation || 0).toLocaleString();
+    document.getElementById("user-daily-yield").innerText = Number(user.daily_yield || 0).toLocaleString();
+    document.getElementById("stat-accrued-yield").innerText = Number(user.accrued_yield || 0).toLocaleString();
+    document.getElementById("clan-market-cap").innerText = Number(stats.total_market_cap || 0).toLocaleString();
+
+    // Pulse collect button if yield > 0
+    const collectBtn = document.getElementById("btn-collect-all");
+    if (collectBtn) {
+        if ((user.accrued_yield || 0) > 0) {
+            collectBtn.style.animation = "pulse 1.5s infinite";
+        } else {
+            collectBtn.style.animation = "none";
+        }
+    }
+}
+
+function renderMapGrid() {
+    const grid = document.getElementById("map-grid");
+    if (!grid) return;
+
+    let filtered = allPlots;
+    if (currentFilter === "outskirts") filtered = allPlots.filter(p => p.district === "The Outskirts");
+    else if (currentFilter === "river") filtered = allPlots.filter(p => p.district === "Riverside Commons");
+    else if (currentFilter === "industrial") filtered = allPlots.filter(p => p.district === "Ironworks District");
+    else if (currentFilter === "citadel") filtered = allPlots.filter(p => p.district === "Shadow Citadel" || p.district === "Highland Outpost");
+    else if (currentFilter === "my_plots") filtered = allPlots.filter(p => currentUserId && p.owner_id === currentUserId);
+    else if (currentFilter === "for_sale") filtered = allPlots.filter(p => p.for_sale_price && p.for_sale_price > 0);
+
+    const filteredIds = new Set(filtered.map(p => p.id));
+
+    grid.innerHTML = allPlots.map(p => {
+        const isMine = currentUserId && p.owner_id === currentUserId;
+        const isOther = p.owner_id && !isMine;
+        const isDimmed = !filteredIds.has(p.id);
+
+        let ownerClass = "tile-unowned";
+        let ownerLabel = `<span class="tile-owner-tag tag-open">UNCLAIMED</span>`;
+        if (isMine) {
+            ownerClass = "tile-mine";
+            ownerLabel = `<span class="tile-owner-tag tag-mine">YOU</span>`;
+        } else if (isOther) {
+            ownerClass = "tile-other";
+            ownerLabel = `<span class="tile-owner-tag tag-other">${escapeHtml(p.owner_name.substring(0, 10))}</span>`;
+        }
+
+        const isSelected = selectedPlot && selectedPlot.id === p.id;
+        const forSaleRibbon = p.for_sale_price ? `<div class="for-sale-ribbon">SALE</div>` : "";
+
+        return `
+            <div class="map-tile terrain-${p.terrain} ${ownerClass} ${isSelected ? 'selected' : ''}" 
+                 style="${isDimmed ? 'opacity: 0.22; filter: grayscale(70%);' : ''}"
+                 onclick="selectPlotById(${p.id})">
+                ${forSaleRibbon}
+                <div class="tile-head">
+                    <span class="tile-coord">(${p.x}, ${p.y})</span>
+                    ${ownerLabel}
+                </div>
+
+                <div class="tile-center">
+                    <div class="tile-emoji">${p.building_emoji || '🌱'}</div>
+                    <div class="tile-name-label">${escapeHtml(p.name)}</div>
+                </div>
+
+                <div class="tile-bottom">
+                    <span class="tile-price-pill">${formatK(p.current_value)} M</span>
+                    <span style="font-size: 0.65rem; color: #a3e635; font-family: var(--font-mono); font-weight:700;">
+                        ${p.building_level > 0 ? 'Lv.' + p.building_level : ''}
+                    </span>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function selectPlotById(id) {
+    const p = allPlots.find(x => x.id === id);
+    if (p) selectPlot(p);
+}
+
+function selectPlot(p) {
+    selectedPlot = p;
+
+    // Update tile selected state
+    document.querySelectorAll(".map-tile").forEach(t => t.classList.remove("selected"));
+    renderMapGrid();
+
+    // Reveal inspector
+    document.getElementById("inspector-empty").style.display = "none";
+    document.getElementById("inspector-content").style.display = "block";
+
+    // Fill Hero Card
+    document.getElementById("insp-district-badge").innerText = p.district;
+    document.getElementById("insp-title").innerText = p.name;
+    document.getElementById("insp-coords").innerText = `(${p.x}, ${p.y})`;
+    document.getElementById("insp-terrain-text").innerText = p.terrain.toUpperCase() + " TERRAIN";
+
+    // Owner & Value
+    document.getElementById("insp-owner-avatar").src = p.owner_avatar || "https://cdn.discordapp.com/embed/avatars/0.png";
+    document.getElementById("insp-owner-name").innerText = p.owner_name || "Unclaimed";
+    document.getElementById("insp-val").innerText = Number(p.current_value).toLocaleString();
+
+    // Building
+    document.getElementById("insp-building-emoji").innerText = p.building_emoji || "🌱";
+    document.getElementById("insp-building-name").innerText = p.building_name || "Vacant Land";
+    document.getElementById("insp-building-level").innerText = p.building_level > 0 ? `Level ${p.building_level}` : "Unimproved Natural Plot";
+    document.getElementById("insp-daily-yield").innerText = `+${Number(p.daily_yield_estimate || 0).toLocaleString()} M/day`;
+    document.getElementById("insp-building-desc").innerText = p.building_desc || "Ready for development.";
+
+    const isMine = currentUserId && p.owner_id === currentUserId;
+    const isUnclaimed = !p.owner_id;
+
+    // Actions tab setup
+    const buyBox = document.getElementById("box-buy-plot");
+    const upgradesBox = document.getElementById("box-upgrades");
+    const notOwnedHint = document.getElementById("box-not-owned-hint");
+
+    if (isUnclaimed) {
+        buyBox.style.display = "block";
+        document.getElementById("btn-buy-price").innerText = Number(p.current_value).toLocaleString();
+        upgradesBox.style.display = "none";
+        notOwnedHint.style.display = "none";
+    } else if (isMine) {
+        buyBox.style.display = "none";
+        upgradesBox.style.display = "block";
+        notOwnedHint.style.display = "none";
+        renderUpgradeCosts(p);
+    } else {
+        buyBox.style.display = "none";
+        upgradesBox.style.display = "none";
+        notOwnedHint.style.display = "block";
+    }
+
+    // Bank Payout Card Setup (+10% price, 20% tax)
+    const gross = p.bank_payout_gross || Math.round(p.current_value * 1.10);
+    const tax = p.bank_tax || Math.round(gross * 0.20);
+    const net = p.bank_payout_net || (gross - tax);
+
+    document.getElementById("calc-val").innerText = `${Number(p.current_value).toLocaleString()} M`;
+    document.getElementById("calc-gross").innerText = `${Number(gross).toLocaleString()} M`;
+    document.getElementById("calc-tax").innerText = `${Number(tax).toLocaleString()} M`;
+    document.getElementById("calc-net").innerText = `${Number(net).toLocaleString()} M`;
+
+    // Marketplace / Offers Tab Setup
+    const marketListingBox = document.getElementById("box-market-listing");
+    const buyMarketBox = document.getElementById("box-buy-market");
+    const makeOfferBox = document.getElementById("box-make-offer");
+
+    if (isMine) {
+        marketListingBox.style.display = "block";
+        buyMarketBox.style.display = "none";
+        makeOfferBox.style.display = "none";
+
+        const statusEl = document.getElementById("current-listing-status");
+        if (p.for_sale_price) {
+            statusEl.innerText = `Currently listed for ${Number(p.for_sale_price).toLocaleString()} Medals.`;
+            document.getElementById("input-listing-price").value = p.for_sale_price;
+        } else {
+            statusEl.innerText = "Not currently listed for public sale.";
+            document.getElementById("input-listing-price").value = "";
+        }
+    } else {
+        marketListingBox.style.display = "none";
+        if (p.for_sale_price) {
+            buyMarketBox.style.display = "block";
+            document.getElementById("market-asking-price").innerText = Number(p.for_sale_price).toLocaleString();
+        } else {
+            buyMarketBox.style.display = "none";
+        }
+        makeOfferBox.style.display = isUnclaimed ? "none" : "block";
+    }
+}
+
+function renderUpgradeCosts(p) {
+    for (const [key, b] of Object.entries(buildingsConfig)) {
+        const el = document.getElementById("cost-" + key);
+        if (el) {
+            const nextLvl = (p.building_type === key) ? (p.building_level + 1) : 1;
+            const cost = Math.round(p.base_price * b.cost_pct * nextLvl);
+            el.innerText = `${Number(cost).toLocaleString()} M`;
+        }
+    }
+}
+
+let selectedUpgradeKey = null;
+function selectUpgrade(key) {
+    if (!selectedPlot) return;
+    selectedUpgradeKey = key;
+    const b = buildingsConfig[key];
+    if (!b) return;
+
+    const nextLvl = (selectedPlot.building_type === key) ? (selectedPlot.building_level + 1) : 1;
+    const cost = Math.round(selectedPlot.base_price * b.cost_pct * nextLvl);
+
+    document.getElementById("selected-upgrade-title").innerText = `${b.name} (Lv. ${nextLvl})`;
+    document.getElementById("selected-upgrade-cost").innerText = Number(cost).toLocaleString();
+    document.getElementById("upgrade-confirm-box").style.display = "block";
+}
+
+function cancelUpgradeSelection() {
+    selectedUpgradeKey = null;
+    document.getElementById("upgrade-confirm-box").style.display = "none";
+}
+
+async function executeUpgrade() {
+    if (!selectedPlot || !selectedUpgradeKey || isProcessing) return;
+    isProcessing = true;
+    try {
+        const res = await fetch("/api/estate/upgrade", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({plot_id: selectedPlot.id, building_type: selectedUpgradeKey})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            cancelUpgradeSelection();
+            loadEstateData(true);
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Failed to upgrade plot.", true);
+    } finally {
+        isProcessing = false;
+    }
+}
+
+async function executeBuyPlot() {
+    if (!selectedPlot || isProcessing) return;
+    if (!currentUserId) {
+        window.location.href = "/login";
+        return;
+    }
+    isProcessing = true;
+    try {
+        const res = await fetch("/api/estate/buy", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({plot_id: selectedPlot.id})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            loadEstateData(true);
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Transaction failed.", true);
+    } finally {
+        isProcessing = false;
+    }
+}
+
+async function executeSellToBank() {
+    if (!selectedPlot || isProcessing) return;
+    const gross = selectedPlot.bank_payout_gross || Math.round(selectedPlot.current_value * 1.10);
+    const tax = selectedPlot.bank_tax || Math.round(gross * 0.20);
+    const net = selectedPlot.bank_payout_net || (gross - tax);
+
+    const conf = confirm(`Are you sure you want to sell ${selectedPlot.name} to the Bank for ${Number(net).toLocaleString()} Medals (+10% Bonus with 20% Bank Tax)?`);
+    if (!conf) return;
+
+    isProcessing = true;
+    try {
+        const res = await fetch("/api/estate/sell_bank", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({plot_id: selectedPlot.id})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            loadEstateData(true);
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Liquidation failed.", true);
+    } finally {
+        isProcessing = false;
+    }
+}
+
+async function setMarketListing() {
+    if (!selectedPlot) return;
+    const val = parseInt(document.getElementById("input-listing-price").value);
+    if (!val || val <= 0) {
+        showToast("Enter a positive asking price.", true);
+        return;
+    }
+    try {
+        const res = await fetch("/api/estate/market_listing", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({plot_id: selectedPlot.id, price: val})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            loadEstateData(true);
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Failed to set asking price.", true);
+    }
+}
+
+async function delistMarketListing() {
+    if (!selectedPlot) return;
+    try {
+        const res = await fetch("/api/estate/market_listing", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({plot_id: selectedPlot.id, price: null})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            document.getElementById("input-listing-price").value = "";
+            loadEstateData(true);
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Failed to delist.", true);
+    }
+}
+
+async function executeBuyMarket() {
+    if (!selectedPlot || isProcessing) return;
+    isProcessing = true;
+    try {
+        const res = await fetch("/api/estate/buy_market", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({plot_id: selectedPlot.id})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            loadEstateData(true);
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Market purchase failed.", true);
+    } finally {
+        isProcessing = false;
+    }
+}
+
+async function submitCustomOffer() {
+    if (!selectedPlot) return;
+    const amt = parseInt(document.getElementById("input-offer-amount").value);
+    if (!amt || amt < 1000) {
+        showToast("Minimum offer is 1,000 Medals.", true);
+        return;
+    }
+    try {
+        const res = await fetch("/api/estate/offer", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({plot_id: selectedPlot.id, amount: amt})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            document.getElementById("input-offer-amount").value = "";
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Failed to submit offer.", true);
+    }
+}
+
+async function collectAllYields() {
+    if (!currentUserId) {
+        window.location.href = "/login";
+        return;
+    }
+    const btn = document.getElementById("btn-collect-all");
+    if (btn) btn.disabled = true;
+    try {
+        const res = await fetch("/api/estate/collect_yield", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"}
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`⚡ ${data.message}`);
+            loadEstateData(true);
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Failed to collect yields.", true);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function switchInspectorTab(tabId) {
+    document.querySelectorAll(".insp-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".insp-tab-pane").forEach(p => p.style.display = "none");
+
+    const targetTab = document.getElementById(tabId);
+    if (targetTab) targetTab.style.display = "block";
+
+    if (tabId === "tab-actions") document.getElementById("tab-btn-actions").classList.add("active");
+    else if (tabId === "tab-sell") document.getElementById("tab-btn-sell").classList.add("active");
+    else if (tabId === "tab-offers") document.getElementById("tab-btn-offers").classList.add("active");
+}
+
+function setFilter(filter, el) {
+    currentFilter = filter;
+    document.querySelectorAll(".filter-pill").forEach(p => p.classList.remove("active"));
+    if (el) el.classList.add("active");
+    renderMapGrid();
+}
+
+async function openOffersModal() {
+    document.getElementById("offers-modal").style.display = "flex";
+    const container = document.getElementById("offers-list-container");
+    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading offers...</div>';
+
+    try {
+        const res = await fetch("/api/estate/offers?_t=" + Date.now());
+        if (res.ok) {
+            const offers = await res.json();
+            if (!offers.length) {
+                container.innerHTML = '<div style="text-align:center; color: var(--text-muted); padding: 2.5rem;">No active buy offers found.</div>';
+                return;
+            }
+
+            container.innerHTML = offers.map(o => `
+                <div style="padding: 0.85rem; background: var(--bg-card-inner); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 0.65rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <strong>${escapeHtml(o.plot_name)} (${escapeHtml(o.district)})</strong>
+                        <span style="font-size: 0.7rem; font-weight: 800; padding: 0.15rem 0.45rem; border-radius: 4px; background: ${o.status === 'pending' ? 'rgba(245,158,11,0.2)' : 'rgba(56,189,248,0.2)'}; color: ${o.status === 'pending' ? '#f59e0b' : '#38bdf8'};">
+                            ${o.status.toUpperCase()}
+                        </span>
+                    </div>
+
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                        ${o.is_incoming ? `From: <strong>${escapeHtml(o.buyer_name)}</strong>` : `Offered to: <strong>${escapeHtml(o.seller_name)}</strong>`}
+                        • Offered: <strong class="text-gold">${Number(o.offer_amount).toLocaleString()} M</strong>
+                    </div>
+
+                    ${o.is_incoming && o.status === 'pending' ? `
+                        <div style="font-size: 0.75rem; color: var(--text-sub); margin-bottom: 0.65rem; background: rgba(0,0,0,0.25); padding: 0.4rem 0.6rem; border-radius: 4px;">
+                            30% State Tax: <strong>${Number(o.tax_amount).toLocaleString()} M</strong> | Net Payout: <strong class="text-green">${Number(o.seller_net).toLocaleString()} M</strong>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm btn-green" onclick="acceptOffer(${o.id})">✅ Accept (${Number(o.seller_net).toLocaleString()} M)</button>
+                            <button class="btn btn-sm btn-pill-dark" onclick="rejectOffer(${o.id})">❌ Reject</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join("");
+        }
+    } catch (e) {
+        container.innerHTML = '<div style="text-align: center; color: #ef4444; padding: 2rem;">Failed to load offers.</div>';
+    }
+}
+
+function closeOffersModal(e) {
+    document.getElementById("offers-modal").style.display = "none";
+}
+
+async function acceptOffer(offerId) {
+    try {
+        const res = await fetch("/api/estate/offer/accept", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({offer_id: offerId})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            closeOffersModal();
+            loadEstateData(true);
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Failed to accept offer.", true);
+    }
+}
+
+async function rejectOffer(offerId) {
+    try {
+        const res = await fetch("/api/estate/offer/reject", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({offer_id: offerId})
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message);
+            openOffersModal();
+        } else {
+            showToast(data.message, true);
+        }
+    } catch (e) {
+        showToast("Failed to reject offer.", true);
+    }
+}
+
+function formatK(n) {
+    if (!n) return "0";
+    if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+    if (n >= 1000) return (n / 1000).toFixed(0) + "k";
+    return n.toString();
+}
+
+function escapeHtml(str) {
+    if (!str) return "";
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+</script>
+{% endblock %}

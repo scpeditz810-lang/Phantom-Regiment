@@ -297,6 +297,21 @@ def members_page():
         guild_name=guild.name if guild else "Phantom Regiment"
     )
 
+@views_bp.route("/estate")
+def estate_page():
+    user = session.get("user")
+    user_data = None
+    if user:
+        db = current_app.config["DB"]
+        uid = user["id"]
+        user_data = run_async(db.get_global_economy(uid))
+
+    return render_template(
+        "estate.html",
+        user=user,
+        user_data=user_data
+    )
+
 @views_bp.route("/admin")
 @admin_required
 def admin_page():

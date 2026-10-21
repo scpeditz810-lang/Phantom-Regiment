@@ -207,3 +207,113 @@ BANK_TIERS = {
     9: {"name": "Apex Vault", "cap": 750000, "upgrade_cost": 1000000},
     10: {"name": "Phantom Sovereign Vault", "cap": 1000000, "upgrade_cost": 2000000},
 }
+
+
+# ─── E-State Virtual Real Estate & Tycoon ──────────────────────────────────────
+ESTATE_BUILDINGS = {
+    "factory": {
+        "key": "factory",
+        "name": "Factory",
+        "emoji": "🏭",
+        "desc": "Heavy industrial manufacturing producing consistent medal revenue.",
+        "cost_pct": 0.25,     # 25% of base price
+        "val_boost": 0.25,    # +25% valuation boost
+        "daily_yield": 0.020, # 2.0% daily passive yield in medals
+        "growth_mult": 1.2,   # +20% faster land value appreciation
+    },
+    "hospital": {
+        "key": "hospital",
+        "name": "Hospital",
+        "emoji": "🏥",
+        "desc": "Public health sanctuary generating stable community dividends and safety.",
+        "cost_pct": 0.30,     # 30% of base price
+        "val_boost": 0.30,    # +30% valuation boost
+        "daily_yield": 0.022, # 2.2% daily passive yield
+        "growth_mult": 1.3,
+    },
+    "construction": {
+        "key": "construction",
+        "name": "Construction Site",
+        "emoji": "🏗️",
+        "desc": "Rapid infrastructure development maximizing land growth rate.",
+        "cost_pct": 0.20,     # 20% of base price
+        "val_boost": 0.20,    # +20% valuation boost
+        "daily_yield": 0.010, # 1.0% daily yield
+        "growth_mult": 2.5,   # 2.5x growth rate boost!
+    },
+    "bunker": {
+        "key": "bunker",
+        "name": "Bunker",
+        "emoji": "🛡️",
+        "desc": "Subterranean stronghold shielding plot valuation and providing defense.",
+        "cost_pct": 0.35,     # 35% of base price
+        "val_boost": 0.35,    # +35% valuation boost
+        "daily_yield": 0.015, # 1.5% daily yield
+        "growth_mult": 1.1,
+    },
+    "military": {
+        "key": "military",
+        "name": "Military Base",
+        "emoji": "🪖",
+        "desc": "Regiment forward operations outpost with high tactical authority stipends.",
+        "cost_pct": 0.45,     # 45% of base price
+        "val_boost": 0.45,    # +45% valuation boost
+        "daily_yield": 0.028, # 2.8% daily yield
+        "growth_mult": 1.4,
+    },
+    "bank": {
+        "key": "bank",
+        "name": "Bank",
+        "emoji": "🏦",
+        "desc": "Central commercial branch producing top-tier financial dividend yields.",
+        "cost_pct": 0.50,     # 50% of base price
+        "val_boost": 0.60,    # +60% valuation boost
+        "daily_yield": 0.035, # 3.5% daily yield
+        "growth_mult": 1.5,
+    }
+}
+
+DEFAULT_ESTATE_PLOTS = [
+    # Row 1 (Outer Greenery - 10k to 50k)
+    {"id": 1, "x": 1, "y": 1, "name": "Verdant Outpost Alpha", "district": "The Outskirts", "terrain": "plains", "price": 10000},
+    {"id": 2, "x": 1, "y": 2, "name": "Pinecrest Glade", "district": "The Outskirts", "terrain": "forest", "price": 15000},
+    {"id": 3, "x": 1, "y": 3, "name": "Whispering Woods", "district": "The Outskirts", "terrain": "forest", "price": 20000},
+    {"id": 4, "x": 1, "y": 4, "name": "Mossy Ridge", "district": "The Outskirts", "terrain": "plains", "price": 25000},
+    {"id": 5, "x": 1, "y": 5, "name": "Wildflower Meadow", "district": "The Outskirts", "terrain": "plains", "price": 35000},
+    {"id": 6, "x": 1, "y": 6, "name": "Evergreen Foothills", "district": "The Outskirts", "terrain": "forest", "price": 50000},
+    # Row 2 (Greenery into Riverfront - 12k to 110k)
+    {"id": 7, "x": 2, "y": 1, "name": "Sunlit Orchard", "district": "The Outskirts", "terrain": "plains", "price": 12000},
+    {"id": 8, "x": 2, "y": 2, "name": "Clover Basin", "district": "The Outskirts", "terrain": "plains", "price": 18000},
+    {"id": 9, "x": 2, "y": 3, "name": "Riverbend Crossing", "district": "Riverside Commons", "terrain": "riverfront", "price": 75000},
+    {"id": 10, "x": 2, "y": 4, "name": "Azure Basin East", "district": "Riverside Commons", "terrain": "riverfront", "price": 90000},
+    {"id": 11, "x": 2, "y": 5, "name": "Silverwater Bay", "district": "Riverside Commons", "terrain": "riverfront", "price": 110000},
+    {"id": 12, "x": 2, "y": 6, "name": "Old Mill Copse", "district": "The Outskirts", "terrain": "forest", "price": 45000},
+    # Row 3 (Riverfront & High Bastion - 125k to 2M)
+    {"id": 13, "x": 3, "y": 1, "name": "Twin Bridges Marina", "district": "Riverside Commons", "terrain": "riverfront", "price": 125000},
+    {"id": 14, "x": 3, "y": 2, "name": "Delta Wharf", "district": "Riverside Commons", "terrain": "riverfront", "price": 150000},
+    {"id": 15, "x": 3, "y": 3, "name": "Highland Bastion", "district": "Shadow Citadel", "terrain": "citadel", "price": 2000000},
+    {"id": 16, "x": 3, "y": 4, "name": "Imperial Garrison Reserve", "district": "Shadow Citadel", "terrain": "citadel", "price": 3000000},
+    {"id": 17, "x": 3, "y": 5, "name": "Apex Foundry Plot", "district": "Ironworks District", "terrain": "industrial", "price": 350000},
+    {"id": 18, "x": 3, "y": 6, "name": "Fisherman's Reach", "district": "Riverside Commons", "terrain": "riverfront", "price": 180000},
+    # Row 4 (Riverfront, Citadel Core & Industrial - 200k to 6M)
+    {"id": 19, "x": 4, "y": 1, "name": "Riverbank Commons", "district": "Riverside Commons", "terrain": "riverfront", "price": 200000},
+    {"id": 20, "x": 4, "y": 2, "name": "Heron's Lagoon", "district": "Riverside Commons", "terrain": "riverfront", "price": 250000},
+    {"id": 21, "x": 4, "y": 3, "name": "Crown Plaza Central", "district": "Shadow Citadel", "terrain": "citadel", "price": 4500000},
+    {"id": 22, "x": 4, "y": 4, "name": "Obsidian Boulevard", "district": "Shadow Citadel", "terrain": "citadel", "price": 6000000},
+    {"id": 23, "x": 4, "y": 5, "name": "Cybernetic Depot", "district": "Ironworks District", "terrain": "industrial", "price": 450000},
+    {"id": 24, "x": 4, "y": 6, "name": "Titan Machine Works", "district": "Ironworks District", "terrain": "industrial", "price": 600000},
+    # Row 5 (Industrial & Citadel Peak - 750k to 10M)
+    {"id": 25, "x": 5, "y": 1, "name": "Vanguard Tech Yard", "district": "Ironworks District", "terrain": "industrial", "price": 750000},
+    {"id": 26, "x": 5, "y": 2, "name": "Ironclad Terminal", "district": "Ironworks District", "terrain": "industrial", "price": 850000},
+    {"id": 27, "x": 5, "y": 3, "name": "Grand Regent Spire", "district": "Shadow Citadel", "terrain": "citadel", "price": 7500000},
+    {"id": 28, "x": 5, "y": 4, "name": "Sovereign Apex Plaza", "district": "Shadow Citadel", "terrain": "citadel", "price": 8500000},
+    {"id": 29, "x": 5, "y": 5, "name": "Citadel Supreme Monolith", "district": "Shadow Citadel", "terrain": "citadel", "price": 10000000},
+    {"id": 30, "x": 5, "y": 6, "name": "Silicon Valley Lot", "district": "Ironworks District", "terrain": "industrial", "price": 1000000},
+    # Row 6 (Highlands & Faction Peak - 1.25M to 10M)
+    {"id": 31, "x": 6, "y": 1, "name": "Reactor Point", "district": "Ironworks District", "terrain": "industrial", "price": 1250000},
+    {"id": 32, "x": 6, "y": 2, "name": "Overlook Ridge", "district": "Highland Outpost", "terrain": "highlands", "price": 1500000},
+    {"id": 33, "x": 6, "y": 3, "name": "Paladin Enclave", "district": "Shadow Citadel", "terrain": "citadel", "price": 2500000},
+    {"id": 34, "x": 6, "y": 4, "name": "Monarch Square", "district": "Shadow Citadel", "terrain": "citadel", "price": 5000000},
+    {"id": 35, "x": 6, "y": 5, "name": "Phantom Vanguard Keep", "district": "Shadow Citadel", "terrain": "citadel", "price": 8000000},
+    {"id": 36, "x": 6, "y": 6, "name": "Zenith Citadel Peak", "district": "Shadow Citadel", "terrain": "citadel", "price": 10000000},
+]
