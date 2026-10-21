@@ -7,6 +7,16 @@ services:
     envVars:
       - key: DISCORD_TOKEN
         sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_REDIRECT_URI
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GUILD_ID
+        value: "1550544659217125467"
       - key: GITHUB_TOKEN
         sync: false
       - key: GITHUB_REPO
