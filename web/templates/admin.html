@@ -9,39 +9,39 @@
         <div class="surface-box">
             <div class="eyebrow-text">EXCLUSIVE TO SERVER MANAGERS & OWNER</div>
             <h1 class="hero-headline">
-                High Command<br>
-                <span>Staff Control Panel</span>
+                Admin Panel<br>
+                <span>Stock & Bank Controls</span>
             </h1>
             <p class="hero-desc">
-                Restricted strictly to the Server Owner and verified Server Managers. Manage live market equities, adjust prices in real time, and audit all player bank vault passwords.
+                Restricted strictly to the Server Owner and Server Managers. Create and delist stocks, adjust stock prices, and view registered member bank vault passwords.
             </p>
         </div>
 
         <div class="ghost-ui-box">
             <div class="ghost-header">
                 <span class="glow-dot-green"></span>
-                <span>ADMIN PRIVILEGES</span>
+                <span>ADMIN CONTROLS</span>
             </div>
 
             <div class="ghost-grid-2x2">
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Live Delisting</div>
-                    <div class="ghost-tile-sub">Refunds active shareholders at prevailing market valuation.</div>
+                    <div class="ghost-tile-title">Delist Stock</div>
+                    <div class="ghost-tile-sub">Removes stock and refunds shareholders at current price.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
                     <div class="ghost-tile-title">Price Tuning</div>
-                    <div class="ghost-tile-sub">Real-time manual stock price appreciation or adjustment.</div>
+                    <div class="ghost-tile-sub">Directly increase or adjust any stock price.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
                     <div class="ghost-tile-title">Vault Passwords</div>
-                    <div class="ghost-tile-sub">Direct access to view all player plaintext bank vault passwords.</div>
+                    <div class="ghost-tile-sub">View all player plaintext bank passwords and balances.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">Audit Logging</div>
-                    <div class="ghost-tile-sub">All staff transactions are logged directly to the bot database.</div>
+                    <div class="ghost-tile-title">Live Sync</div>
+                    <div class="ghost-tile-sub">Changes apply instantly to the market and database.</div>
                 </div>
             </div>
         </div>
@@ -49,7 +49,7 @@
 
     <!-- Admin Subnavigation Tabs -->
     <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; margin-bottom: 1.5rem;">
-        <button class="btn btn-pill-dark" id="btn-stocks-tab" onclick="switchAdminTab('stocks-tab', this)" style="border-color: var(--orange); color: var(--orange);">
+        <button class="btn btn-pill-dark" id="btn-stocks-tab" onclick="switchAdminTab('stocks-tab', this)" style="border-color: var(--blue-primary); color: var(--blue-primary);">
             📈 Stock Market Controls
         </button>
         <button class="btn btn-pill-dark" id="btn-passwords-tab" onclick="switchAdminTab('passwords-tab', this)">
@@ -63,7 +63,7 @@
             <!-- Create Stock Form -->
             <div class="surface-box">
                 <h3 style="margin-bottom: 0.25rem;">Add New Stock to Market</h3>
-                <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">Create a new company equity for members to trade (Max supply is fixed at 150 shares).</p>
+                <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">Create a new stock for members to trade (Max supply is fixed at 150 shares).</p>
 
                 <form id="create-stock-form" onsubmit="handleCreateStock(event)">
                     <div class="form-group">
@@ -79,17 +79,17 @@
                         <input type="number" id="new-price" class="form-input" placeholder="e.g. 150" min="10" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Description / Lore</label>
+                        <label class="form-label">Description / Info</label>
                         <textarea id="new-desc" class="form-input" rows="2" placeholder="Brief background of company..."></textarea>
                     </div>
-                    <button type="submit" class="btn btn-orange" style="width: 100%;">Create & List Stock</button>
+                    <button type="submit" class="btn btn-blue" style="width: 100%;">Create & List Stock</button>
                 </form>
             </div>
 
             <!-- Existing Stocks Table -->
             <div class="surface-box">
                 <h3 style="margin-bottom: 0.25rem;">Manage Listed Stocks</h3>
-                <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">Increase or adjust price in real time, or delist equity.</p>
+                <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">Increase or adjust prices in real time, or delist stock.</p>
 
                 <div style="overflow-x: auto;">
                     <table class="table" id="admin-stocks-table">
@@ -117,7 +117,7 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; gap: 1rem; flex-wrap: wrap;">
                 <div>
                     <h3 style="margin-bottom: 0.25rem;">Registered Bank Vault Passwords</h3>
-                    <p style="font-size: 0.78rem; color: var(--text-muted);">Live registry of all player vault credentials, current tiers, and balances.</p>
+                    <p style="font-size: 0.78rem; color: var(--text-muted);">List of all registered users, their vault passwords, tier, and balances.</p>
                 </div>
                 <input type="text" id="pass-search" class="form-input" placeholder="Search user ID or name..." oninput="filterPasswords()" style="max-width: 280px;">
             </div>
@@ -151,8 +151,8 @@
             el.style.color = "var(--text-white)";
         });
         document.getElementById(tabId).style.display = "block";
-        btn.style.borderColor = "var(--orange)";
-        btn.style.color = "var(--orange)";
+        btn.style.borderColor = "var(--blue-primary)";
+        btn.style.color = "var(--blue-primary)";
         if (tabId === "passwords-tab") {
             loadPasswords();
         }
@@ -171,12 +171,12 @@
             body.innerHTML = stocks.map(s => `
                 <tr>
                     <td><strong>${s.symbol}</strong><br><small class="text-muted">${s.name}</small></td>
-                    <td><strong class="text-orange">${s.price.toLocaleString()}</strong> M</td>
+                    <td><strong class="text-blue">${s.price.toLocaleString()}</strong> M</td>
                     <td>${s.available_shares} / ${s.total_supply}</td>
                     <td>
                         <div style="display: flex; gap: 0.4rem; align-items: center;">
                             <input type="number" id="price-input-${s.id}" class="form-input" style="width: 80px; padding: 0.35rem 0.5rem;" value="${s.price}" min="1">
-                            <button class="btn btn-sm btn-orange" onclick="updatePrice(${s.id})">Set</button>
+                            <button class="btn btn-sm btn-blue" onclick="updatePrice(${s.id})">Set</button>
                         </div>
                     </td>
                     <td>
@@ -273,7 +273,7 @@
     function renderPasswords(list) {
         const body = document.getElementById("passwords-body");
         if (!list.length) {
-            body.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No bank accounts found.</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No registered users found.</td></tr>';
             return;
         }
 
@@ -287,8 +287,8 @@
                 </td>
                 <td><code style="color: var(--text-muted); font-size: 0.78rem;">${b.user_id}</code></td>
                 <td><span class="role-pill">${b.tier_name}</span></td>
-                <td><strong class="text-orange">${b.balance.toLocaleString()}</strong> M</td>
-                <td><code style="background: var(--bg-card-inner); padding: 0.2rem 0.6rem; border-radius: 6px; color: var(--orange); font-weight: 700;">${b.password}</code></td>
+                <td><strong class="text-blue">${b.balance.toLocaleString()}</strong> M</td>
+                <td><code style="background: var(--bg-card-inner); padding: 0.2rem 0.6rem; border-radius: 6px; color: var(--blue-primary); font-weight: 700; border: 1px solid rgba(56, 189, 248, 0.2);">${b.password}</code></td>
                 <td style="color: var(--text-sub);">${b.created_at}</td>
             </tr>
         `).join("");

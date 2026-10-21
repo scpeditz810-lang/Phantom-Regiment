@@ -7,9 +7,15 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 def run_async(coro):
     bot = current_app.config.get("DISCORD_BOT")
-    if bot and bot.loop and bot.loop.is_running():
-        future = asyncio.run_coroutine_threadsafe(coro, bot.loop)
-        return future.result(timeout=10)
+    if bot:
+        try:
+            loop = bot.loop
+            if loop and loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(coro, loop)
+                return future.result(timeout=10)
+        except Exception:
+            pass
+
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -100,7 +106,16 @@ def buy_stock():
     user_id = session["user"]["id"]
     db = get_db()
     success, message = run_async(db.buy_stock(user_id, stock_id, shares))
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
+    if success:
+        st = run_async(db.get_stock(stock_id))
+        econ = run_async(db.get_global_economy(user_id))
+        return jsonify({
+            "success": True, 
+            "message": message, 
+            "new_price": st["price"] if st else None,
+            "wallet": econ.get("medals", 0)
+        }), 200
+    return jsonify({"success": False, "message": message}), 400
 
 @api_bp.route("/sell", methods=["POST"])
 @login_required
@@ -118,7 +133,16 @@ def sell_stock():
     user_id = session["user"]["id"]
     db = get_db()
     success, message = run_async(db.sell_stock(user_id, stock_id, shares))
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
+    if success:
+        st = run_async(db.get_stock(stock_id))
+        econ = run_async(db.get_global_economy(user_id))
+        return jsonify({
+            "success": True, 
+            "message": message, 
+            "new_price": st["price"] if st else None,
+            "wallet": econ.get("medals", 0)
+        }), 200
+    return jsonify({"success": False, "message": message}), 400
 
 @api_bp.route("/bank/deposit", methods=["POST"])
 @login_required
@@ -132,7 +156,16 @@ def bank_deposit():
     user_id = session["user"]["id"]
     db = get_db()
     success, message = run_async(db.web_deposit_bank(user_id, amount))
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
+    if success:
+        econ = run_async(db.get_global_economy(user_id))
+        bank = run_async(db.get_bank(user_id, 0))
+        return jsonify({
+            "success": True,
+            "message": message,
+            "wallet": econ.get("medals", 0),
+            "vault": bank.get("balance", 0) if bank else 0
+        }), 200
+    return jsonify({"success": False, "message": message}), 400
 
 @api_bp.route("/bank/withdraw", methods=["POST"])
 @login_required
@@ -146,7 +179,16 @@ def bank_withdraw():
     user_id = session["user"]["id"]
     db = get_db()
     success, message = run_async(db.web_withdraw_bank(user_id, amount))
-    return jsonify({"success": success, "message": message}), (200 if success else 400)
+    if success:
+        econ = run_async(db.get_global_economy(user_id))
+        bank = run_async(db.get_bank(user_id, 0))
+        return jsonify({
+            "success": True,
+            "message": message,
+            "wallet": econ.get("medals", 0),
+            "vault": bank.get("balance", 0) if bank else 0
+        }), 200
+    return jsonify({"success": False, "message": message}), 400
 
 @api_bp.route("/leaderboards")
 def get_leaderboards():
