@@ -1073,3 +1073,60 @@ a {
         text-align: center;
     }
 }
+
+/* ── Live Leaderboard Indicator & Polish ── */
+.live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    border-radius: 9999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #10b981;
+    text-transform: uppercase;
+}
+
+.pulse-dot {
+    width: 6px;
+    height: 6px;
+    background: #10b981;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #10b981;
+    animation: pulseLive 1.8s infinite ease-in-out;
+}
+
+@keyframes pulseLive {
+    0%, 100% {
+        transform: scale(0.9);
+        opacity: 0.6;
+    }
+    50% {
+        transform: scale(1.3);
+        opacity: 1;
+        box-shadow: 0 0 12px #10b981;
+    }
+}
+
+.lb-row {
+    position: relative;
+    overflow: hidden;
+}
+
+.lb-row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: transparent;
+    transition: background 0.2s ease;
+}
+
+.lb-row.top-1::before { background: #eab308; }
+.lb-row.top-2::before { background: #94a3b8; }
+.lb-row.top-3::before { background: #d97706; }

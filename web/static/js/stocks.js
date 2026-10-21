@@ -13,6 +13,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (document.getElementById("portfolio-body")) {
         loadPortfolio();
     }
+    // Live Auto-Refresh Leaderboards every 5 seconds
+    setInterval(() => {
+        loadLeaderboards();
+    }, 5000);
 });
 
 async function initMarket() {
@@ -298,6 +302,7 @@ async function executeTrade(action) {
             if (document.getElementById("portfolio-body")) {
                 loadPortfolio();
             }
+            loadLeaderboards();
         } else {
             showToast(data.message, true);
         }
@@ -356,79 +361,90 @@ async function loadPortfolio() {
     }
 }
 
-// ── Dual Leaderboards ───────────────────────────────────────────────────────
+// ── Dual Leaderboards (Live Auto-Updating) ──────────────────────────────────
+let _lastMedalsJson = "";
+let _lastGamblingJson = "";
+
 async function loadLeaderboards() {
     try {
         const res = await fetch("/api/leaderboards");
         if (!res.ok) return;
         const data = await res.json();
 
-        // 1. Most Medals Globally
+        // 1. Most Medals Globally (Live)
         const medalsContainer = document.getElementById("lb-medals-list");
         if (medalsContainer && data.medals) {
-            if (!data.medals.length) {
-                medalsContainer.innerHTML = '<div class="text-center text-muted p-3">No ranked users yet.</div>';
-            } else {
-                medalsContainer.innerHTML = data.medals.map(u => {
-                    const rankMedal = u.rank === 1 ? '🥇' : u.rank === 2 ? '🥈' : u.rank === 3 ? '🥉' : `#${u.rank}`;
-                    const rowClass = u.rank === 1 ? 'top-1' : u.rank === 2 ? 'top-2' : u.rank === 3 ? 'top-3' : '';
-                    return `
-                        <div class="lb-row ${rowClass}">
-                            <div class="lb-user">
-                                <span class="lb-rank">${rankMedal}</span>
-                                <img src="${u.avatar}" class="lb-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                <span class="lb-name">${u.name}</span>
+            const currentStr = JSON.stringify(data.medals);
+            if (currentStr !== _lastMedalsJson) {
+                _lastMedalsJson = currentStr;
+                if (!data.medals.length) {
+                    medalsContainer.innerHTML = '<div class="text-center text-muted p-3">No ranked users yet.</div>';
+                } else {
+                    medalsContainer.innerHTML = data.medals.map(u => {
+                        const rankMedal = u.rank === 1 ? '🥇' : u.rank === 2 ? '🥈' : u.rank === 3 ? '🥉' : `#${u.rank}`;
+                        const rowClass = u.rank === 1 ? 'top-1' : u.rank === 2 ? 'top-2' : u.rank === 3 ? 'top-3' : '';
+                        return `
+                            <div class="lb-row ${rowClass}">
+                                <div class="lb-user">
+                                    <span class="lb-rank">${rankMedal}</span>
+                                    <img src="${u.avatar}" class="lb-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                    <span class="lb-name">${u.name}</span>
+                                </div>
+                                <div class="lb-val">
+                                    <strong class="text-blue">${u.medals.toLocaleString()}</strong>
+                                    <small class="text-muted">Medals</small>
+                                </div>
                             </div>
-                            <div class="lb-val">
-                                <strong class="text-blue">${u.medals.toLocaleString()}</strong>
-                                <small class="text-muted">Medals</small>
-                            </div>
-                        </div>
-                    `;
-                }).join("");
+                        `;
+                    }).join("");
+                }
             }
         }
 
-        // 2. Best Gambler (Net Medals Won)
+        // 2. Best Gambler (Live Net Medals Won)
         const gambleContainer = document.getElementById("lb-gambling-list");
         if (gambleContainer && data.gambling) {
-            if (!data.gambling.length) {
-                gambleContainer.innerHTML = `
-                    <div class="lb-empty-box">
-                        <div style="font-size: 1.8rem; margin-bottom: 0.35rem;">🎰</div>
-                        <div style="font-weight: 700; color: var(--text-white); margin-bottom: 0.25rem;">Season 1 Casino Open!</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.45;">
-                            Challenge the bot with <code>/coinflip</code>, play <code>/blackjack</code>, or spin <code>/roulette</code> in Discord to claim #1!
-                        </div>
-                    </div>
-                `;
-            } else {
-                gambleContainer.innerHTML = data.gambling.map(u => {
-                    const rankMedal = u.rank === 1 ? '🥇' : u.rank === 2 ? '🥈' : u.rank === 3 ? '🥉' : `#${u.rank}`;
-                    const rowClass = u.rank === 1 ? 'top-1' : u.rank === 2 ? 'top-2' : u.rank === 3 ? 'top-3' : '';
-                    const isProfit = u.net_profit >= 0;
-                    const sign = isProfit ? "+" : "";
-                    const profitClass = isProfit ? "text-emerald" : "text-crimson";
-
-                    return `
-                        <div class="lb-row ${rowClass}">
-                            <div class="lb-user">
-                                <span class="lb-rank">${rankMedal}</span>
-                                <img src="${u.avatar}" class="lb-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
-                                <div>
-                                    <span class="lb-name">${u.name}</span>
-                                    <div style="font-size: 0.72rem; color: var(--text-muted);">
-                                        Won: ${u.total_won.toLocaleString()} | Lost: ${u.total_lost.toLocaleString()}
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="lb-val">
-                                <strong class="${profitClass}">${sign}${u.net_profit.toLocaleString()}</strong>
-                                <small class="text-muted">Net Medals</small>
+            const gambleStr = JSON.stringify(data.gambling);
+            if (gambleStr !== _lastGamblingJson) {
+                _lastGamblingJson = gambleStr;
+                if (!data.gambling.length) {
+                    gambleContainer.innerHTML = `
+                        <div class="lb-empty-box">
+                            <div style="font-size: 1.8rem; margin-bottom: 0.35rem;">🎰</div>
+                            <div style="font-weight: 700; color: var(--text-white); margin-bottom: 0.25rem;">Season 1 Casino Live!</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.45;">
+                                Play <code>/coinflip</code>, <code>/blackjack</code>, <code>/roulette</code>, or <code>/crash</code> in Discord to compete for #1!
                             </div>
                         </div>
                     `;
-                }).join("");
+                } else {
+                    gambleContainer.innerHTML = data.gambling.map(u => {
+                        const rankMedal = u.rank === 1 ? '🥇' : u.rank === 2 ? '🥈' : u.rank === 3 ? '🥉' : `#${u.rank}`;
+                        const rowClass = u.rank === 1 ? 'top-1' : u.rank === 2 ? 'top-2' : u.rank === 3 ? 'top-3' : '';
+                        const isProfit = u.net_profit >= 0;
+                        const sign = isProfit ? "+" : "";
+                        const profitClass = isProfit ? "text-emerald" : "text-crimson";
+
+                        return `
+                            <div class="lb-row ${rowClass}">
+                                <div class="lb-user">
+                                    <span class="lb-rank">${rankMedal}</span>
+                                    <img src="${u.avatar}" class="lb-avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                                    <div>
+                                        <span class="lb-name">${u.name}</span>
+                                        <div style="font-size: 0.72rem; color: var(--text-muted);">
+                                            Won: ${u.total_won.toLocaleString()} | Lost: ${u.total_lost.toLocaleString()}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="lb-val">
+                                    <strong class="${profitClass}">${sign}${u.net_profit.toLocaleString()}</strong>
+                                    <small class="text-muted">Net Medals</small>
+                                </div>
+                            </div>
+                        `;
+                    }).join("");
+                }
             }
         }
     } catch (e) {
@@ -496,6 +512,7 @@ async function submitBankAction() {
                 const vaultEl = document.getElementById("user-vault-val");
                 if (vaultEl) vaultEl.innerText = Number(data.vault).toLocaleString();
             }
+            loadLeaderboards();
         } else {
             showToast(data.message, true);
         }
