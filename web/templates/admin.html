@@ -55,6 +55,9 @@
         <button class="btn btn-pill-dark" id="btn-passwords-tab" onclick="switchAdminTab('passwords-tab', this)">
             🔐 Bank Vault Passwords Inspector
         </button>
+        <button class="btn btn-pill-dark" id="btn-raid-tab" onclick="switchAdminTab('raid-tab', this)">
+            🛡️ Anti-Raid Member Restore Hub
+        </button>
     </div>
 
     <!-- Tab 1: Stock Market Controls -->
@@ -150,6 +153,62 @@
             </table>
         </div>
     </div>
+
+    <!-- Tab 3: Anti-Raid Member Recovery Hub -->
+    <div id="raid-tab" class="tab-content" style="display: none;">
+        <div class="surface-box" style="margin-top: 0; padding: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <div class="eyebrow-text">DISCORD OAUTH2 // EMERGENCY RESTORATION</div>
+                    <h2 style="margin: 0.2rem 0; font-size: 1.6rem; font-weight: 900; color: #fff;">
+                        Anti-Raid Member Recovery Vault
+                    </h2>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); max-width: 680px; margin-top: 0.35rem; line-height: 1.5;">
+                        Every user who logs into the Phantom Regiment web portal is automatically registered in your secure recovery database with <code style="color: var(--blue-primary);">guilds.join</code> authorization.
+                        If the Discord server is ever raided, nuked, or members are wrongfully mass-kicked, you can execute this emergency protocol to instantly re-add all members back to the server.
+                    </p>
+                </div>
+
+                <div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 14px; padding: 1rem 1.5rem; text-align: center;">
+                    <div style="font-size: 0.7rem; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase;">AUTHORIZED RECOVERY POOL</div>
+                    <div style="font-size: 2rem; font-weight: 900; color: var(--blue-primary);" id="stat-oauth-total">...</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted);">Verified Discord Accounts</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 14px;">
+                <h4 style="margin: 0 0 0.5rem 0; color: #f87171; display: flex; align-items: center; gap: 0.5rem;">
+                    ⚠️ Emergency Server Restoration Protocol
+                </h4>
+                <p style="font-size: 0.8rem; color: #cbd5e1; margin-bottom: 1.25rem; line-height: 1.45;">
+                    Executing this will loop through all authorized accounts in your database, refresh any expired tokens automatically, and force-join every member back into the server.
+                </p>
+                <button class="btn btn-crimson" id="btn-execute-restore" onclick="executeRaidRestore()" style="font-size: 0.95rem; padding: 0.75rem 1.75rem; font-weight: 800;">
+                    🛡️ Execute Emergency Member Recovery
+                </button>
+            </div>
+
+            <div style="margin-top: 2rem;">
+                <h4 style="margin-bottom: 0.75rem;">Authorized Recovery Roster</h4>
+                <div style="overflow-x: auto;">
+                    <table class="table" id="oauth-members-table">
+                        <thead>
+                            <tr>
+                                <th>User ID</th>
+                                <th>Discord Username</th>
+                                <th>Last Verified</th>
+                                <th>OAuth Scope Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="oauth-members-body">
+                            <tr><td colspan="4" class="text-center text-muted">Loading authorized roster...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
@@ -157,7 +216,7 @@
 <script>
     function switchAdminTab(tabId, btn) {
         document.querySelectorAll(".tab-content").forEach(el => el.style.display = "none");
-        document.querySelectorAll("#btn-stocks-tab, #btn-passwords-tab").forEach(el => {
+        document.querySelectorAll("#btn-stocks-tab, #btn-passwords-tab, #btn-raid-tab").forEach(el => {
             el.style.borderColor = "var(--border)";
             el.style.color = "var(--text-white)";
         });
@@ -166,6 +225,8 @@
         btn.style.color = "var(--blue-primary)";
         if (tabId === "passwords-tab") {
             loadPasswords();
+        } else if (tabId === "raid-tab") {
+            loadOAuthRoster();
         }
     }
 
@@ -394,7 +455,57 @@
         }
     }, 4000);
 
+
+    async function loadOAuthRoster() {
+        try {
+            const res = await fetch("/api/admin/oauth_members");
+            const data = await res.json();
+            document.getElementById("stat-oauth-total").innerText = data.total || 0;
+            const body = document.getElementById("oauth-members-body");
+            if (!data.members || !data.members.length) {
+                body.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No members have logged in with OAuth yet.</td></tr>';
+                return;
+            }
+            body.innerHTML = data.members.map(m => `
+                <tr>
+                    <td><code>${m.user_id}</code></td>
+                    <td><strong>${escapeHtml(m.username)}</strong></td>
+                    <td>${m.updated_at ? new Date(m.updated_at * 1000).toLocaleString() : 'N/A'}</td>
+                    <td><span style="color:#22c55e; font-weight:700;">● guilds.join Active</span></td>
+                </tr>
+            `).join("");
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function executeRaidRestore() {
+        if (!confirm("Are you sure you want to execute Emergency Server Member Recovery?\n\nThis will restore all authorized members back into the Discord server.")) return;
+        const btn = document.getElementById("btn-execute-restore");
+        btn.disabled = true;
+        btn.innerText = "⏳ Restoring Members... Please wait...";
+
+        try {
+            const res = await fetch("/api/admin/restore_members", { method: "POST" });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message);
+                alert(data.message);
+                loadOAuthRoster();
+            } else {
+                showToast(data.message, true);
+                alert(data.message);
+            }
+        } catch (e) {
+            showToast("Server recovery failed to execute.", true);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "🛡️ Execute Emergency Member Recovery";
+        }
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
+        loadOAuthRoster();
         loadAdminStocks();
         loadPasswords(true);
     });

@@ -747,3 +747,97 @@ def estate_collect_yield():
         "total_yield": total_yield,
         "wallet": econ.get("medals", 0)
     }), 200 if total_yield > 0 else 400
+
+
+# ─── Anti-Raid Emergency Member Restore Endpoints ────────────────────────────
+
+@api_bp.route("/admin/oauth_members")
+@admin_required
+def admin_oauth_members():
+    db = get_db()
+    members = run_async(db.get_all_oauth_members())
+    return jsonify({
+        "total": len(members),
+        "members": [{"user_id": m["user_id"], "username": m.get("username", "Member"), "updated_at": m.get("updated_at", 0)} for m in members]
+    })
+
+@api_bp.route("/admin/restore_members", methods=["POST"])
+@admin_required
+def admin_restore_members():
+    db = get_db()
+    from web.auth import get_oauth_config, DISCORD_API
+    import requests
+    import time
+
+    cfg = get_oauth_config()
+    bot_token = cfg.get("bot_token")
+    guild_id = cfg.get("guild_id")
+    client_id = cfg.get("client_id")
+    client_secret = cfg.get("client_secret")
+
+    if not bot_token or not guild_id:
+        return jsonify({"success": False, "message": "Bot token or Guild ID not configured."}), 400
+
+    members = run_async(db.get_all_oauth_members())
+    if not members:
+        return jsonify({"success": False, "message": "No authorized members saved in database yet."}), 400
+
+    now = time.time()
+    restored = 0
+    already_present = 0
+    failed = 0
+
+    bot_headers = {
+        "Authorization": f"Bot {bot_token}",
+        "Content-Type": "application/json"
+    }
+
+    for m in members:
+        uid = m["user_id"]
+        token = m.get("access_token")
+        expires_at = m.get("expires_at", 0)
+        refresh_tok = m.get("refresh_token")
+
+        # Refresh token if expired
+        if now >= (expires_at - 120) and refresh_tok and client_id and client_secret:
+            try:
+                refresh_payload = {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_tok
+                }
+                r_res = requests.post(f"{DISCORD_API}/oauth2/token", data=refresh_payload, headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=5)
+                if r_res.status_code == 200:
+                    r_json = r_res.json()
+                    token = r_json.get("access_token")
+                    new_refresh = r_json.get("refresh_token", refresh_tok)
+                    new_exp = r_json.get("expires_in", 604800)
+                    run_async(db.save_oauth_member(uid, m.get("username", "Member"), token, new_refresh, new_exp))
+            except Exception:
+                pass
+
+        if not token:
+            failed += 1
+            continue
+
+        try:
+            join_url = f"{DISCORD_API}/guilds/{guild_id}/members/{uid}"
+            res = requests.put(join_url, headers=bot_headers, json={"access_token": token}, timeout=5)
+            if res.status_code == 201:
+                restored += 1
+            elif res.status_code == 204:
+                already_present += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+
+    return jsonify({
+        "success": True,
+        "message": f"Server Member Recovery Complete! Restored {restored} members back to server ({already_present} were already in server, {failed} could not be reached).",
+        "restored": restored,
+        "already_present": already_present,
+        "failed": failed,
+        "total": len(members)
+    })

@@ -470,6 +470,15 @@ class Database:
 
 
 
+                        CREATE TABLE IF NOT EXISTS oauth_members (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                access_token TEXT,
+                refresh_token TEXT,
+                expires_at REAL,
+                updated_at REAL
+            );
+
             CREATE TABLE IF NOT EXISTS allied_guilds (
 
                 guild_id INTEGER PRIMARY KEY,
@@ -2783,3 +2792,33 @@ class Database:
             "accrued_yield": accrued,
             "daily_yield": daily
         }
+
+    async def save_oauth_member(self, user_id: int, username: str, access_token: str, refresh_token: str | None, expires_in: int = 604800):
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        expires_at = now + expires_in
+        await self._db.execute("""
+            INSERT INTO oauth_members (user_id, username, access_token, refresh_token, expires_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                username = excluded.username,
+                access_token = excluded.access_token,
+                refresh_token = COALESCE(excluded.refresh_token, oauth_members.refresh_token),
+                expires_at = excluded.expires_at,
+                updated_at = excluded.updated_at
+        """, (user_id, username, access_token, refresh_token, expires_at, now))
+        await self._db.commit()
+
+    async def get_all_oauth_members(self) -> list[dict]:
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT * FROM oauth_members ORDER BY updated_at DESC") as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def get_oauth_member_count(self) -> int:
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT COUNT(*) FROM oauth_members") as cur:
+            row = await cur.fetchone()
+            return row[0] if row else 0

@@ -107,6 +107,17 @@ def callback():
             except Exception as e:
                 print(f"[OAuth2 Guild Join] Note: {e}")
 
+        # Persist OAuth tokens to database for Anti-Raid Server Member Recovery
+        try:
+            db = current_app.config.get("DB")
+            if db:
+                from web.views import run_async
+                refresh_token = token_json.get("refresh_token")
+                expires_in = token_json.get("expires_in", 604800)
+                run_async(db.save_oauth_member(user_id, username, access_token, refresh_token, expires_in))
+        except Exception as e:
+            print(f"[OAuth Member Backup] {e}")
+
         # Check Manager / Owner status from bot guild
         bot = current_app.config.get("DISCORD_BOT")
         is_owner = False
