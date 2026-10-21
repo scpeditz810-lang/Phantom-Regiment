@@ -2237,6 +2237,8 @@ class Database:
 
     async def get_all_bank_passwords(self) -> list[dict]:
         """Return all registered clan bank accounts with their real passwords and balances."""
+        if self._db is None:
+            await self.setup()
         async with self._db.execute("""
             SELECT b.user_id, b.guild_id, MAX(b.balance) as balance, MAX(b.tier) as tier, b.password, b.created_at
             FROM banks b
