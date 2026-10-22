@@ -986,6 +986,24 @@ def api_estate_attack():
     db = get_db()
     success, msg, battle_data = run_async(db.attack_estate_plot(user_id, plot_id))
     econ = run_async(db.get_global_economy(user_id))
+
+    # Dispatch Discord DM alert to defender
+    bot = current_app.config.get("DISCORD_BOT")
+    if bot and battle_data and battle_data.get("defender_id"):
+        try:
+            target_plot = run_async(db.get_estate_plot(plot_id))
+            attacker_user = session.get("user", {})
+            attacker_name = attacker_user.get("username") or f"User {user_id}"
+            if target_plot:
+                import asyncio
+                from cogs.economy import send_raid_alert_dm
+                asyncio.run_coroutine_threadsafe(
+                    send_raid_alert_dm(bot, attacker_name, battle_data["defender_id"], target_plot, battle_data),
+                    bot.loop
+                )
+        except Exception:
+            pass
+
     return jsonify({
         "success": success,
         "message": msg,
