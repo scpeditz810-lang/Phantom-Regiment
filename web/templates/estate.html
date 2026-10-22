@@ -168,6 +168,25 @@
             <div id="three-map-viewport" class="three-viewport-container">
                 <canvas id="three-canvas"></canvas>
 
+                <!-- 💥 Live 3D Tactical Combat Cinematic HUD Overlay -->
+                <div id="battle-cinematic-hud" style="display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100; pointer-events: none; text-align: center; width: 92%; max-width: 580px;">
+                    <div style="background: rgba(15, 23, 42, 0.94); border: 2px solid #ef4444; border-radius: 12px; padding: 0.85rem 1.25rem; box-shadow: 0 0 30px rgba(239, 68, 68, 0.45); backdrop-filter: blur(10px);">
+                        <div style="font-size: 0.72rem; font-weight: 900; color: #f87171; letter-spacing: 0.12em; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                            <span class="live-dot-green" style="background:#ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+                            LIVE TACTICAL BATTLE ENGAGEMENT
+                        </div>
+                        <div id="battle-hud-title" style="font-size: 1.15rem; font-weight: 900; color: #fff; margin: 3px 0;">
+                            Deploying Strike Division...
+                        </div>
+                        <div id="battle-hud-status" style="font-size: 0.8rem; color: #94a3b8;">
+                            Attacking forces advancing on target perimeter...
+                        </div>
+                    </div>
+                    <button id="btn-skip-battle" onclick="skipBattleAnimation()" style="pointer-events: auto; margin-top: 8px; background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.3); color: #fff; font-size: 0.74rem; font-weight: 700; padding: 4px 14px; border-radius: 999px; cursor: pointer; backdrop-filter: blur(4px);">
+                        ⏩ Skip Battle Animation
+                    </button>
+                </div>
+
                 <!-- Floating 3D Hover Tooltip -->
                 <div id="three-hover-tooltip" class="three-tooltip" style="display: none;">
                     <div class="tt-header">
@@ -2305,6 +2324,11 @@ function animate3D(time) {
 
     if (controls) controls.update();
 
+    // Run live combat simulation loop if active
+    if (activeBattleSimulation) {
+        activeBattleSimulation.update(time);
+    }
+
     // Run item animations (smokestacks, spinning radars, cranes, floating rings)
     animatedItems.forEach(item => {
         if (!item.mesh) return;
@@ -3445,6 +3469,512 @@ function renderWarRoomView(data) {
     }
 }
 
+
+// ─── 3D LIVE TACTICAL COMBAT SIMULATION ENGINE ──────────────────────────────
+let activeBattleSimulation = null;
+
+function createSoldierMesh(uniformColor, helmetColor, hasRifle = true) {
+    const soldierGroup = new THREE.Group();
+
+    // Torso
+    const torsoMat = new THREE.MeshStandardMaterial({ color: uniformColor, roughness: 0.6 });
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.3, 0.6), torsoMat);
+    torso.position.y = 1.3;
+    torso.castShadow = true;
+    soldierGroup.add(torso);
+
+    // Head
+    const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.5 });
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 8), headMat);
+    head.position.y = 2.2;
+    soldierGroup.add(head);
+
+    // Helmet
+    const helmMat = new THREE.MeshStandardMaterial({ color: helmetColor, metalness: 0.2, roughness: 0.4 });
+    const helmet = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.44, 0.35, 8), helmMat);
+    helmet.position.y = 2.45;
+    soldierGroup.add(helmet);
+
+    // Left & Right Legs
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7 });
+    const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.9, 0.28), legMat);
+    leftLeg.position.set(-0.24, 0.45, 0);
+    const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.9, 0.28), legMat);
+    rightLeg.position.set(0.24, 0.45, 0);
+    soldierGroup.add(leftLeg);
+    soldierGroup.add(rightLeg);
+    soldierGroup.userData.leftLeg = leftLeg;
+    soldierGroup.userData.rightLeg = rightLeg;
+
+    // Assault Rifle
+    if (hasRifle) {
+        const rifleMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.8, roughness: 0.2 });
+        const rifle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 1.4), rifleMat);
+        rifle.position.set(0.38, 1.25, 0.65);
+        soldierGroup.add(rifle);
+
+        // Muzzle Flash Spark
+        const flash = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffea00 }));
+        flash.position.set(0.38, 1.25, 1.45);
+        flash.visible = false;
+        soldierGroup.add(flash);
+        soldierGroup.userData.muzzleFlash = flash;
+    }
+
+    soldierGroup.userData.isAlive = true;
+    return soldierGroup;
+}
+
+function createTankMesh(camoColor) {
+    const tankGroup = new THREE.Group();
+
+    // Chassis / Hull
+    const hullMat = new THREE.MeshStandardMaterial({ color: camoColor, metalness: 0.4, roughness: 0.5 });
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.3, 5.8), hullMat);
+    hull.position.y = 1.0;
+    hull.castShadow = true;
+    tankGroup.add(hull);
+
+    // Treads
+    const treadMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
+    const leftTread = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 6.2), treadMat);
+    leftTread.position.set(-2.2, 0.6, 0);
+    const rightTread = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 6.2), treadMat);
+    rightTread.position.set(2.2, 0.6, 0);
+    tankGroup.add(leftTread);
+    tankGroup.add(rightTread);
+
+    // Turret (Rotating part)
+    const turret = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.1, 2.8), hullMat);
+    turret.position.set(0, 2.1, 0.2);
+    tankGroup.add(turret);
+    tankGroup.userData.turret = turret;
+
+    // Cannon Barrel
+    const barrelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.7, roughness: 0.3 });
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 4.2, 8), barrelMat);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 2.1, 3.4);
+    tankGroup.add(barrel);
+    tankGroup.userData.barrel = barrel;
+
+    // Cannon Muzzle Flash
+    const flash = new THREE.Mesh(new THREE.SphereGeometry(0.85, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+    flash.position.set(0, 2.1, 5.8);
+    flash.visible = false;
+    tankGroup.add(flash);
+    tankGroup.userData.muzzleFlash = flash;
+
+    return tankGroup;
+}
+
+function createChopperMesh() {
+    const chopperGroup = new THREE.Group();
+
+    // Fuselage
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5, roughness: 0.4 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.5, 4.4), bodyMat);
+    body.position.y = 1.0;
+    chopperGroup.add(body);
+
+    // Cockpit Glass
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 });
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 1.5), glassMat);
+    glass.position.set(0, 1.2, 1.8);
+    chopperGroup.add(glass);
+
+    // Tail Boom
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 3.5), bodyMat);
+    tail.position.set(0, 1.2, -3.2);
+    chopperGroup.add(tail);
+
+    // Main Rotor Blades
+    const rotorMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8 });
+    const rotor = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.06, 0.35), rotorMat);
+    rotor.position.set(0, 2.1, 0);
+    chopperGroup.add(rotor);
+    chopperGroup.userData.rotor = rotor;
+
+    return chopperGroup;
+}
+
+function shootBulletTracer(fromPos, toPos, colorHex) {
+    if (!scene) return;
+    const tracerGeo = new THREE.CylinderGeometry(0.12, 0.12, 2.2, 6);
+    const tracerMat = new THREE.MeshBasicMaterial({ color: colorHex });
+    const tracer = new THREE.Mesh(tracerGeo, tracerMat);
+
+    tracer.position.copy(fromPos);
+    tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(toPos, fromPos).normalize());
+    scene.add(tracer);
+
+    new TWEEN.Tween(tracer.position)
+        .to({ x: toPos.x, y: toPos.y, z: toPos.z }, 240)
+        .onComplete(() => {
+            if (scene) scene.remove(tracer);
+            tracerGeo.dispose();
+            tracerMat.dispose();
+        })
+        .start();
+}
+
+function triggerExplosion(pos, scale = 1.0) {
+    if (!scene) return;
+    const expGeo = new THREE.SphereGeometry(1.2 * scale, 8, 8);
+    const expMat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.95 });
+    const fireball = new THREE.Mesh(expGeo, expMat);
+    fireball.position.copy(pos);
+    scene.add(fireball);
+
+    new TWEEN.Tween(fireball.scale)
+        .to({ x: 3.5, y: 3.5, z: 3.5 }, 360)
+        .start();
+
+    new TWEEN.Tween(fireball.material)
+        .to({ opacity: 0 }, 400)
+        .onComplete(() => {
+            if (scene) scene.remove(fireball);
+            expGeo.dispose();
+            expMat.dispose();
+        })
+        .start();
+}
+
+function triggerGoldCoinShower(pos) {
+    if (!scene) return;
+    const coins = [];
+    const coinGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.12, 10);
+    const coinMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.2 });
+
+    for (let i = 0; i < 16; i++) {
+        const coin = new THREE.Mesh(coinGeo, coinMat);
+        coin.position.set(pos.x, pos.y + 2, pos.z);
+        scene.add(coin);
+        coins.push(coin);
+
+        const targetX = pos.x + (Math.random() - 0.5) * 16;
+        const targetZ = pos.z + (Math.random() - 0.5) * 16;
+        const targetY = pos.y + 0.2;
+
+        new TWEEN.Tween(coin.position)
+            .to({ x: targetX, y: pos.y + 10 + Math.random() * 4, z: targetZ }, 450)
+            .easing(TWEEN.Easing.Quadratic.Out)
+            .chain(
+                new TWEEN.Tween(coin.position)
+                    .to({ y: targetY }, 550)
+                    .easing(TWEEN.Easing.Bounce.Out)
+                    .onComplete(() => {
+                        setTimeout(() => {
+                            if (scene) scene.remove(coin);
+                        }, 1200);
+                    })
+            )
+            .start();
+    }
+}
+
+function triggerPeacekeeperDome(pos) {
+    if (!scene) return null;
+    const domeGeo = new THREE.SphereGeometry(18, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    const domeMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0,
+        metalness: 0.5,
+        roughness: 0.1,
+        wireframe: true
+    });
+    const dome = new THREE.Mesh(domeGeo, domeMat);
+    dome.position.set(pos.x, pos.y + 50, pos.z);
+    scene.add(dome);
+
+    new TWEEN.Tween(dome.position)
+        .to({ y: pos.y }, 900)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+
+    new TWEEN.Tween(dome.material)
+        .to({ opacity: 0.45 }, 900)
+        .start();
+
+    return dome;
+}
+
+function startLive3DCombatSimulation(targetPlot, data, onComplete) {
+    if (!scene || !camera || !controls) {
+        if (onComplete) onComplete();
+        return;
+    }
+
+    const b = data.battle || {};
+    const isVictory = data.success && b.success;
+    const coords = PLOT_COORDINATES[targetPlot.id] || { x: (targetPlot.x - 3.5) * 50, z: (targetPlot.y - 3.5) * 40 };
+    const targetPos = new THREE.Vector3(coords.x, 0, coords.z);
+
+    // Show HUD
+    const hud = document.getElementById("battle-cinematic-hud");
+    const hudTitle = document.getElementById("battle-hud-title");
+    const hudStatus = document.getElementById("battle-hud-status");
+    if (hud) hud.style.display = "block";
+    if (hudTitle) hudTitle.innerText = `Assaulting ${targetPlot.name} (#${targetPlot.id})`;
+    if (hudStatus) hudStatus.innerText = "Deploying mechanized strike division...";
+
+    // Smoothly swoop camera to dramatic battle framing
+    new TWEEN.Tween(controls.target)
+        .to({ x: targetPos.x, y: 3, z: targetPos.z }, 1200)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+
+    new TWEEN.Tween(camera.position)
+        .to({ x: targetPos.x - 25, y: 36, z: targetPos.z + 48 }, 1200)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .start();
+
+    // Battle Entities Collection
+    const battleMeshes = [];
+    const attackerSoldiers = [];
+    const defenderSoldiers = [];
+
+    // 1. Spawn Attackers at an offset (-40, +25)
+    const atkStart = new THREE.Vector3(targetPos.x - 42, 0, targetPos.z + 28);
+    const atkHalt = new THREE.Vector3(targetPos.x - 22, 0, targetPos.z + 16);
+
+    // Armored Tank
+    const tank = createTankMesh(0x2d4a22);
+    tank.position.copy(atkStart);
+    tank.lookAt(targetPos);
+    scene.add(tank);
+    battleMeshes.push(tank);
+
+    // Attacker Infantry Squad (3 soldiers)
+    for (let i = 0; i < 3; i++) {
+        const s = createSoldierMesh(0x365314, 0x14532d, true);
+        const offset = new THREE.Vector3((i - 1) * 3.5, 0, (i === 1 ? -2 : 2));
+        s.position.copy(atkStart).add(offset);
+        s.lookAt(targetPos);
+        scene.add(s);
+        battleMeshes.push(s);
+        attackerSoldiers.push(s);
+    }
+
+    // Strike Chopper
+    const chopper = createChopperMesh();
+    chopper.position.set(atkStart.x - 10, 22, atkStart.z + 15);
+    scene.add(chopper);
+    battleMeshes.push(chopper);
+
+    // 2. Spawn Defenders around the Plot Center
+    // Sandbag Barricade
+    const sandbag = new THREE.Mesh(
+        new THREE.BoxGeometry(8, 1.2, 1.2),
+        new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.9 })
+    );
+    sandbag.position.set(targetPos.x - 8, 0.6, targetPos.z + 6);
+    sandbag.lookAt(atkStart);
+    scene.add(sandbag);
+    battleMeshes.push(sandbag);
+
+    // 2 Base Defenders (Navy uniforms)
+    for (let i = 0; i < 2; i++) {
+        const d = createSoldierMesh(0x1e293b, 0x0f172a, true);
+        d.position.set(targetPos.x - 7 + (i * 3.2), 0, targetPos.z + 8);
+        d.lookAt(atkStart);
+        scene.add(d);
+        battleMeshes.push(d);
+        defenderSoldiers.push(d);
+    }
+
+    // 2 Allied Coalition Reinforcements (if allied bonus > 0)
+    if (b.allied_bonus > 0) {
+        for (let i = 0; i < 2; i++) {
+            const ally = createSoldierMesh(0x1d4ed8, 0x3b82f6, true);
+            ally.position.set(targetPos.x - 5 + (i * 3.5), 0, targetPos.z + 11);
+            ally.lookAt(atkStart);
+            scene.add(ally);
+            battleMeshes.push(ally);
+            defenderSoldiers.push(ally);
+        }
+    }
+
+    let peacekeeperDome = null;
+    let isCleanedUp = false;
+
+    // Advance Phase: Tween Attackers towards battle halt line (0.0s – 1.8s)
+    new TWEEN.Tween(tank.position)
+        .to({ x: atkHalt.x, z: atkHalt.z }, 1800)
+        .start();
+
+    attackerSoldiers.forEach((s, idx) => {
+        const targetOffset = new THREE.Vector3((idx - 1) * 3.5, 0, (idx === 1 ? -2 : 2));
+        new TWEEN.Tween(s.position)
+            .to({ x: atkHalt.x + targetOffset.x, z: atkHalt.z + targetOffset.z }, 1800)
+            .start();
+    });
+
+    new TWEEN.Tween(chopper.position)
+        .to({ x: targetPos.x - 12, y: 19, z: targetPos.z + 18 }, 2200)
+        .start();
+
+    // Combat Simulation Object
+    activeBattleSimulation = {
+        startTime: Date.now(),
+        update: function(time) {
+            if (isCleanedUp) return;
+            const elapsed = Date.now() - this.startTime;
+
+            // Animate Chopper Rotor
+            if (chopper.userData.rotor) {
+                chopper.userData.rotor.rotation.y += 0.45;
+            }
+
+            // Animate Walking Legs during Advance (first 1.8s)
+            if (elapsed < 1800) {
+                const legSwing = Math.sin(elapsed * 0.012) * 0.45;
+                attackerSoldiers.forEach(s => {
+                    if (s.userData.leftLeg) s.userData.leftLeg.rotation.x = legSwing;
+                    if (s.userData.rightLeg) s.userData.rightLeg.rotation.x = -legSwing;
+                });
+            } else {
+                // Reset legs
+                attackerSoldiers.forEach(s => {
+                    if (s.userData.leftLeg) s.userData.leftLeg.rotation.x = 0;
+                    if (s.userData.rightLeg) s.userData.rightLeg.rotation.x = 0;
+                });
+            }
+
+            // Firefight Phase (1.8s – 5.5s)
+            if (elapsed >= 1800 && elapsed < 5500) {
+                if (hudStatus) hudStatus.innerText = "Heavy firefight! Armed units clashing...";
+
+                // Random Bullet Tracers every few frames
+                if (Math.random() < 0.35) {
+                    // Attacker shoots red tracer
+                    const livingAtk = attackerSoldiers.filter(s => s.userData.isAlive);
+                    const livingDef = defenderSoldiers.filter(d => d.userData.isAlive);
+                    if (livingAtk.length > 0 && livingDef.length > 0) {
+                        const shooter = livingAtk[Math.floor(Math.random() * livingAtk.length)];
+                        const target = livingDef[Math.floor(Math.random() * livingDef.length)];
+                        const from = shooter.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+                        const to = target.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+                        shootBulletTracer(from, to, 0xff2222);
+
+                        // Flash muzzle
+                        if (shooter.userData.muzzleFlash) {
+                            shooter.userData.muzzleFlash.visible = true;
+                            setTimeout(() => { if (shooter.userData.muzzleFlash) shooter.userData.muzzleFlash.visible = false; }, 60);
+                        }
+                    }
+                }
+
+                if (Math.random() < 0.35) {
+                    // Defender shoots blue tracer
+                    const livingAtk = attackerSoldiers.filter(s => s.userData.isAlive);
+                    const livingDef = defenderSoldiers.filter(d => d.userData.isAlive);
+                    if (livingAtk.length > 0 && livingDef.length > 0) {
+                        const shooter = livingDef[Math.floor(Math.random() * livingDef.length)];
+                        const target = livingAtk[Math.floor(Math.random() * livingAtk.length)];
+                        const from = shooter.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+                        const to = target.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+                        shootBulletTracer(from, to, 0x38bdf8);
+
+                        // Flash muzzle
+                        if (shooter.userData.muzzleFlash) {
+                            shooter.userData.muzzleFlash.visible = true;
+                            setTimeout(() => { if (shooter.userData.muzzleFlash) shooter.userData.muzzleFlash.visible = false; }, 60);
+                        }
+                    }
+                }
+
+                // Tank Cannon Fires at 2.6s and 4.2s
+                if ((elapsed > 2600 && elapsed < 2650) || (elapsed > 4200 && elapsed < 4250)) {
+                    if (tank.userData.muzzleFlash) {
+                        tank.userData.muzzleFlash.visible = true;
+                        setTimeout(() => { if (tank.userData.muzzleFlash) tank.userData.muzzleFlash.visible = false; }, 120);
+                    }
+                    const cannonTarget = sandbag.position.clone().add(new THREE.Vector3(Math.random() * 2, 0, 0));
+                    triggerExplosion(cannonTarget, 1.4);
+                }
+
+                // First Casualties
+                if (elapsed > 3000 && defenderSoldiers[0] && defenderSoldiers[0].userData.isAlive && isVictory) {
+                    defenderSoldiers[0].userData.isAlive = false;
+                    new TWEEN.Tween(defenderSoldiers[0].rotation).to({ x: -Math.PI / 2 }, 400).start();
+                }
+
+                if (elapsed > 3800 && attackerSoldiers[0] && attackerSoldiers[0].userData.isAlive && !isVictory) {
+                    attackerSoldiers[0].userData.isAlive = false;
+                    new TWEEN.Tween(attackerSoldiers[0].rotation).to({ x: Math.PI / 2 }, 400).start();
+                }
+            }
+
+            // Resolution Phase (5.5s – 8.0s)
+            if (elapsed >= 5500 && elapsed < 8000) {
+                if (isVictory) {
+                    if (hudStatus) hudStatus.innerText = "🏆 Victory! Defenses overrun, claiming plundered yield...";
+                    // All remaining defenders fall
+                    defenderSoldiers.forEach(d => {
+                        if (d.userData.isAlive) {
+                            d.userData.isAlive = false;
+                            new TWEEN.Tween(d.rotation).to({ x: -Math.PI / 2 }, 400).start();
+                        }
+                    });
+
+                    // Trigger Gold Coin Fountain at 5.7s
+                    if (elapsed > 5700 && !this.goldFountainTriggered) {
+                        this.goldFountainTriggered = true;
+                        triggerGoldCoinShower(targetPos);
+                    }
+
+                    // Drop State Bank Peacekeeper Dome at 6.3s
+                    if (elapsed > 6300 && !this.domeTriggered) {
+                        this.domeTriggered = true;
+                        peacekeeperDome = triggerPeacekeeperDome(targetPos);
+                        if (peacekeeperDome) battleMeshes.push(peacekeeperDome);
+                    }
+                } else {
+                    if (hudStatus) hudStatus.innerText = "🛡️ Repulsed! Fortress garrisons held the line!";
+                    // Attacker tank disabled / explodes
+                    if (elapsed > 5600 && !this.tankExploded) {
+                        this.tankExploded = true;
+                        triggerExplosion(tank.position.clone().add(new THREE.Vector3(0, 1.5, 0)), 1.8);
+                        attackerSoldiers.forEach(s => {
+                            if (s.userData.isAlive) {
+                                s.userData.isAlive = false;
+                                new TWEEN.Tween(s.rotation).to({ x: Math.PI / 2 }, 400).start();
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Finish battle at 8 seconds
+            if (elapsed >= 8000) {
+                finishBattle();
+            }
+        }
+    };
+
+    function finishBattle() {
+        if (isCleanedUp) return;
+        isCleanedUp = true;
+        activeBattleSimulation = null;
+
+        // Hide HUD
+        if (hud) hud.style.display = "none";
+
+        // Clean up 3D meshes
+        battleMeshes.forEach(mesh => {
+            if (scene) scene.remove(mesh);
+        });
+
+        // Trigger completion callback to display final stats modal
+        if (onComplete) onComplete();
+    }
+
+    // Expose global skip function
+    window.skipBattleAnimation = finishBattle;
+}
+
 async function executeAttackPlotId(plotId, plotName) {
     if (!confirm(`Launch an armed tactical strike on ${plotName} (Plot #${plotId})? Your strike roll will clash against the plot's defense score!`)) return;
 
@@ -3460,13 +3990,28 @@ async function executeAttackPlotId(plotId, plotName) {
         const warModal = document.getElementById("war-room-modal");
         if (warModal) warModal.style.display = "none";
 
-        // Open Battle Resolution Modal
-        showBattleClashResult(data);
-        loadEstateData(true);
+        if (!data.success) {
+            showToast(data.message || "Attack rejected.", "error");
+            loadEstateData(true);
+            return;
+        }
+
+        // Switch to 3D mode to view live battle
+        if (currentViewMode !== '3d') switchViewMode('3d');
+
+        const targetPlot = allPlots.find(p => p.id === plotId) || { id: plotId, name: plotName, x: 2, y: 2 };
+
+        // Launch 3D combat simulation on the map!
+        startLive3DCombatSimulation(targetPlot, data, () => {
+            showBattleClashResult(data);
+            loadEstateData(true);
+        });
+
     } catch (err) {
         showToast("Error launching attack: " + err.message, "error");
     }
 }
+
 
 function showBattleClashResult(data) {
     const modal = document.getElementById("battle-result-modal");
