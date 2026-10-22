@@ -287,6 +287,8 @@ class ElectionsCog(commands.Cog):
         if not ele or now > ele["end_time"]:
             ele = await self.bot.db.create_election(guild.id, duration_hours=ELECTION_DURATION_HOURS)
 
+        end_time_ts = int(ele["end_time"])
+
         cands = await self.bot.db.get_election_candidates(ele["id"])
         if len(cands) >= MAX_CANDIDATES:
             return await interaction.followup.send(
