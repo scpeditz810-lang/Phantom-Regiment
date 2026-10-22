@@ -524,6 +524,44 @@ class Database:
                 FOREIGN KEY(plot_id) REFERENCES estate_plots(id)
             );
 
+            CREATE TABLE IF NOT EXISTS elections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                status TEXT DEFAULT 'active',
+                start_time REAL NOT NULL,
+                end_time REAL NOT NULL,
+                winner_id INTEGER DEFAULT NULL,
+                term_end REAL DEFAULT 0,
+                created_at REAL NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS election_candidates (
+                election_id INTEGER NOT NULL,
+                candidate_id INTEGER NOT NULL,
+                slogan TEXT DEFAULT '',
+                votes INTEGER DEFAULT 0,
+                registered_at REAL NOT NULL,
+                PRIMARY KEY (election_id, candidate_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS election_votes (
+                election_id INTEGER NOT NULL,
+                voter_id INTEGER NOT NULL,
+                candidate_id INTEGER NOT NULL,
+                voted_at REAL NOT NULL,
+                PRIMARY KEY (election_id, voter_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS commander_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                election_id INTEGER NOT NULL,
+                commander_id INTEGER NOT NULL,
+                action_type TEXT NOT NULL,
+                target_id INTEGER DEFAULT NULL,
+                details TEXT DEFAULT '',
+                created_at REAL NOT NULL
+            );
+
         """)
 
 
@@ -2801,3 +2839,208 @@ class Database:
         async with self._db.execute("SELECT COUNT(*) FROM oauth_members") as cur:
             row = await cur.fetchone()
             return row[0] if row else 0
+
+
+    # ── Supreme Commander & Elections System ──────────────────────────────────
+    async def get_active_election(self, guild_id: int) -> dict | None:
+        """Get the current running election for a guild."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute(
+            "SELECT * FROM elections WHERE guild_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
+            (guild_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def get_latest_election(self, guild_id: int) -> dict | None:
+        """Get the latest election for a guild (active or concluded)."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute(
+            "SELECT * FROM elections WHERE guild_id = ? ORDER BY id DESC LIMIT 1",
+            (guild_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def create_election(self, guild_id: int, duration_hours: float = 48.0) -> dict:
+        """Create a new 48-hour election cycle."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        end_time = now + (duration_hours * 3600.0)
+        async with self._db.execute(
+            "INSERT INTO elections (guild_id, status, start_time, end_time, created_at) VALUES (?, 'active', ?, ?, ?)",
+            (guild_id, now, end_time, now)
+        ) as cur:
+            election_id = cur.lastrowid
+        await self._db.commit()
+        return {
+            "id": election_id,
+            "guild_id": guild_id,
+            "status": "active",
+            "start_time": now,
+            "end_time": end_time,
+            "winner_id": None,
+            "term_end": 0,
+            "created_at": now
+        }
+
+    async def register_candidate(self, election_id: int, candidate_id: int, slogan: str = "") -> tuple[bool, str]:
+        """Register candidate for an election. Limit: Max 5 candidates."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+
+        # Check election status
+        async with self._db.execute("SELECT status, end_time FROM elections WHERE id = ?", (election_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, "Election not found."
+        if row[0] != "active" or now > row[1]:
+            return False, "This election is no longer accepting candidate registrations."
+
+        # Check existing candidates
+        async with self._db.execute("SELECT candidate_id FROM election_candidates WHERE election_id = ?", (election_id,)) as cur:
+            cands = await cur.fetchall()
+            cand_ids = [c[0] for c in cands]
+
+        if candidate_id in cand_ids:
+            return False, "You are already registered as a candidate in this election!"
+
+        if len(cand_ids) >= 5:
+            return False, "Candidate slots are full! Only 5 candidates can run in each election cycle."
+
+        await self._db.execute(
+            "INSERT INTO election_candidates (election_id, candidate_id, slogan, votes, registered_at) VALUES (?, ?, ?, 0, ?)",
+            (election_id, candidate_id, slogan[:120], now)
+        )
+        await self._db.commit()
+        return True, "Successfully registered as an official candidate for Supreme Commander!"
+
+    async def get_election_candidates(self, election_id: int) -> list[dict]:
+        """Return registered candidates ordered by votes DESC."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute(
+            "SELECT * FROM election_candidates WHERE election_id = ? ORDER BY votes DESC, registered_at ASC",
+            (election_id,)
+        ) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def has_user_voted(self, election_id: int, voter_id: int) -> bool:
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute(
+            "SELECT 1 FROM election_votes WHERE election_id = ? AND voter_id = ?",
+            (election_id, voter_id)
+        ) as cur:
+            return bool(await cur.fetchone())
+
+    async def vote_candidate(self, election_id: int, voter_id: int, candidate_id: int) -> tuple[bool, str]:
+        """Cast a ballot. Strictly enforces: cannot vote for self, only 1 vote per member."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+
+        # Check election
+        async with self._db.execute("SELECT status, end_time FROM elections WHERE id = ?", (election_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, "Election not found."
+        if row[0] != "active" or now > row[1]:
+            return False, "Voting has ended for this election cycle."
+
+        # Anti-self-vote rule
+        if str(voter_id) == str(candidate_id):
+            return False, "Anti-Corruption Rule: You cannot vote for yourself! Democracy requires other Regiment citizens to support your candidacy."
+
+        # Check if candidate is registered
+        async with self._db.execute(
+            "SELECT 1 FROM election_candidates WHERE election_id = ? AND candidate_id = ?",
+            (election_id, candidate_id)
+        ) as cur:
+            if not await cur.fetchone():
+                return False, "This member is not a registered candidate in this election."
+
+        # Check if already voted
+        if await self.has_user_voted(election_id, voter_id):
+            return False, "You have already cast your ballot in this election! Only 1 vote per citizen."
+
+        # Record vote
+        await self._db.execute(
+            "INSERT INTO election_votes (election_id, voter_id, candidate_id, voted_at) VALUES (?, ?, ?, ?)",
+            (election_id, voter_id, candidate_id, now)
+        )
+        await self._db.execute(
+            "UPDATE election_candidates SET votes = votes + 1 WHERE election_id = ? AND candidate_id = ?",
+            (election_id, candidate_id)
+        )
+        await self._db.commit()
+        return True, "Ballot successfully cast!"
+
+    async def conclude_election(self, election_id: int) -> tuple[bool, dict | None, str]:
+        """Conclude an election and crown the winner."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+
+        async with self._db.execute("SELECT * FROM elections WHERE id = ?", (election_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, None, "Election not found."
+        election = dict(row)
+
+        cands = await self.get_election_candidates(election_id)
+        winner_id = cands[0]["candidate_id"] if cands else None
+        term_end = now + (14 * 86400.0) if winner_id else 0
+
+        await self._db.execute(
+            "UPDATE elections SET status = 'concluded', winner_id = ?, term_end = ? WHERE id = ?",
+            (winner_id, term_end, election_id)
+        )
+        await self._db.commit()
+        election["winner_id"] = winner_id
+        election["term_end"] = term_end
+        election["status"] = "concluded"
+        return True, election, f"Election concluded! Winner: {winner_id}"
+
+    async def get_current_commander(self, guild_id: int) -> dict | None:
+        """Get the active Supreme Commander for a guild."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        async with self._db.execute(
+            "SELECT * FROM elections WHERE guild_id = ? AND status = 'concluded' AND winner_id IS NOT NULL AND term_end > ? ORDER BY id DESC LIMIT 1",
+            (guild_id, now)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def get_commander_awards_count(self, election_id: int, commander_id: int) -> int:
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute(
+            "SELECT COUNT(*) FROM commander_actions WHERE election_id = ? AND commander_id = ? AND action_type = 'award'",
+            (election_id, commander_id)
+        ) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else 0
+
+    async def log_commander_action(self, election_id: int, commander_id: int, action_type: str, target_id: int | None = None, details: str = ""):
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        await self._db.execute(
+            "INSERT INTO commander_actions (election_id, commander_id, action_type, target_id, details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (election_id, commander_id, action_type, target_id, details, now)
+        )
+        await self._db.commit()
+
+    async def get_active_elections_all_guilds(self) -> list[dict]:
+        """Fetch all elections currently active across all guilds."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT * FROM elections WHERE status = 'active'") as cur:
+            return [dict(r) for r in await cur.fetchall()]

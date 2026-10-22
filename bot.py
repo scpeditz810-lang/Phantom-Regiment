@@ -243,6 +243,7 @@ COGS = [
     "cogs.pingcooldown",
 
     "cogs.banking",
+    "cogs.elections",
 
 ]
 
@@ -253,6 +254,7 @@ PARTNER_COGS = [
     "cogs.economy",
 
     "cogs.banking",
+    "cogs.elections",
 
     "cogs.roblox",
 
