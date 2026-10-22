@@ -2252,7 +2252,7 @@ class EconomyCog(commands.Cog):
 
     async def coinflip(self, interaction: discord.Interaction, bet: int):
 
-        if bet <= 0 or bet > 50000: return await interaction.response.send_message("❌ Bet must be between 1 and 50,000 Medals!", ephemeral=True)
+        if bet <= 0 or bet > 150000: return await interaction.response.send_message("❌ Bet must be between 1 and 150,000 Medals!", ephemeral=True)
 
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
 
@@ -2304,7 +2304,7 @@ class EconomyCog(commands.Cog):
 
         if opponent.id == interaction.user.id or opponent.bot: return await interaction.response.send_message("❌ Invalid opponent!", ephemeral=True)
 
-        if bet <= 0: return await interaction.response.send_message("❌ Bet positive!", ephemeral=True)
+        if bet <= 0 or bet > 150000: return await interaction.response.send_message("❌ Bet must be between 1 and 150,000 Medals!", ephemeral=True)
 
         d1 = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
 
@@ -2410,7 +2410,7 @@ class EconomyCog(commands.Cog):
 
     async def fight(self, interaction: discord.Interaction, opponent: discord.Member, bet: int):
 
-        if bet < 0: return await interaction.response.send_message("❌ Bet cannot be negative.", ephemeral=True)
+        if bet <= 0 or bet > 150000: return await interaction.response.send_message("❌ Bet must be between 1 and 150,000 Medals!", ephemeral=True)
 
         if opponent.id == interaction.user.id or opponent.bot: return await interaction.response.send_message("❌ Invalid opponent!", ephemeral=True)
 
@@ -2448,7 +2448,7 @@ class EconomyCog(commands.Cog):
 
     async def blackjack(self, interaction: discord.Interaction, bet: int):
 
-        if bet <= 0 or bet > 50000: return await interaction.response.send_message("❌ Bet must be between 1 and 50,000 Medals!", ephemeral=True)
+        if bet <= 0 or bet > 150000: return await interaction.response.send_message("❌ Bet must be between 1 and 150,000 Medals!", ephemeral=True)
 
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
 
@@ -2583,7 +2583,7 @@ class EconomyCog(commands.Cog):
 
     async def roulette(self, interaction: discord.Interaction, bet: int, bet_type: str):
 
-        if bet <= 0 or bet > 50000: return await interaction.response.send_message("❌ Bet must be between 1 and 50,000 Medals!", ephemeral=True)
+        if bet <= 0 or bet > 150000: return await interaction.response.send_message("❌ Bet must be between 1 and 150,000 Medals!", ephemeral=True)
 
         data = await self.bot.db.ensure_user(interaction.user.id, interaction.guild_id)
 

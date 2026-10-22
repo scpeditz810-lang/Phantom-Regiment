@@ -187,7 +187,8 @@ class ElectionsCog(commands.Cog):
                                     f"  - 💰 **Executive Daily Salary:** Earns 12,500 M/day from the City Treasury!\n"
                                     f"  - 🎖️ **Key to the City:** Can grant +15,000 M honors to citizens!\n"
                                     f"  - 🏛️ **Mayoral Stimulus:** Release public medal grants in chat!\n"
-                                    f"  - 📈 **Tax Policy:** Tune stock market transaction taxes (10% to 20%)!\n"
+                                    f"  - 🗺️ **E-State Zoning:** Zone & create new territory plots on the 3D map!\n"
+                                    f"  - 📈 **Stock Market Control:** Set taxes (0-50%), adjust share float & list new IPO stocks!\n"
                                     f"  - ⚖️ **Mayoral Pardon:** Clear robbery cooldowns for citizens!\n\n"
                                     f"*\"Congratulations to our new civic leader!\"*"
                                 ),
@@ -360,7 +361,9 @@ class ElectionsCog(commands.Cog):
                 f"• 🔑 **`/mayor award @member`** — Hand out **+{AWARD_AMOUNT:,} Medals** + Key to the City to your best supporters (3 times; cannot self-award).",
                 "• 📦 **`/mayor stimulus`** — Drop a **10,000 Medal** crate in chat for 4 people to claim 2.5k each (2 times).",
                 "• ⚖️ **`/mayor pardon @member`** — Clear someone's robbery cooldown or jail time clean (3 times).",
-                "• 📈 **`/mayor tax <10-20>`** — Set the stock market transaction tax rate (10% to 20%).",
+                "• 🗺️ **`/mayor create_plot`** — Zone & place brand new territory parcels on the 3D map for citizens to buy!",
+                "• 📈 **`/mayor tax <0-50>`** — Full control over global stock market transaction tax rate (0% to 50%).",
+                "• 📊 **`/mayor stock_supply` & `/mayor stock_create`** — Control stock quantity (expand/retire float) and launch new IPO corporate listings!",
                 "• 🏛️ **Golden Hoisted Role** — Unique `🏛️ Mayor` role placed at the very top of the Discord member list.",
                 "",
                 "### 🗳️ How to Win:",
@@ -814,8 +817,8 @@ class ElectionsCog(commands.Cog):
         embed.set_footer(text=f"Decreed by Mayor {user.display_name}")
         await interaction.response.send_message(embed=embed)
 
-    @mayor.command(name="tax", description="[Mayor Only] Adjust the Stock Market transaction tax rate (10% to 20%)")
-    @app_commands.describe(tax_pct="New tax percentage on stock sales (e.g. 10 to 20)")
+    @mayor.command(name="tax", description="[Mayor Only] Fully control the Global Stock Market transaction tax (0% to 50%)")
+    @app_commands.describe(tax_pct="New tax percentage on stock sales (e.g. 0 to 50)")
     async def mayor_tax(self, interaction: discord.Interaction, tax_pct: int):
         user = interaction.user
         if not await self.is_mayor(user):
@@ -824,11 +827,13 @@ class ElectionsCog(commands.Cog):
                 ephemeral=True
             )
 
-        if tax_pct < 10 or tax_pct > 20:
+        if tax_pct < 0 or tax_pct > 50:
             return await interaction.response.send_message(
-                "⚠️ Constitution limits: The Mayor can only set the stock market transaction tax between **10%** and **20%**.",
+                "⚠️ Constitution limits: The Mayor can set the stock market transaction tax anywhere between **0%** (tax-free trading) and **50%**.",
                 ephemeral=True
             )
+
+        await self.bot.db.set_stock_tax_rate(tax_pct / 100.0)
 
         latest = await self.bot.db.get_latest_election(interaction.guild_id)
         ele_id = latest["id"] if latest else 0
@@ -841,13 +846,203 @@ class ElectionsCog(commands.Cog):
             description=(
                 f"Mayor {user.mention} has enacted a new fiscal tax regulation:\n\n"
                 f"• **New Transaction Tax:** `{tax_pct}%`\n"
-                f"• **Effective:** Immediate on all corporate stock transactions.\n\n"
-                f"*Policy set under executive authority of the City Mayor.*"
+                f"• **Effective:** Immediate on all corporate stock transactions across Discord and the Web Portal.\n\n"
+                f"*Policy set under supreme fiscal authority of the City Mayor.*"
             ),
             color=0xF1C40F
         )
         embed.set_footer(text=f"Fiscal Policy • Mayor {user.display_name}")
         await interaction.response.send_message(embed=embed)
+
+    @mayor.command(name="stock_supply", description="[Mayor Only] Adjust stock circulating supply / floating shares (increase or decrease)")
+    @app_commands.describe(
+        symbol="Stock ticker symbol (e.g. PRC, TSC, VNG)",
+        amount="Number of shares to add (+value) or retire (-value)"
+    )
+    async def mayor_stock_supply(self, interaction: discord.Interaction, symbol: str, amount: int):
+        user = interaction.user
+        if not await self.is_mayor(user):
+            return await interaction.response.send_message(
+                "⛔ **Access Denied:** Only the reigning Mayor can adjust corporate stock float & supply.",
+                ephemeral=True
+            )
+
+        if amount == 0:
+            return await interaction.response.send_message("❌ Amount must be non-zero (positive to add supply, negative to retire supply).", ephemeral=True)
+
+        success, msg, updated_stock = await self.bot.db.adjust_stock_supply(symbol.strip().upper(), amount)
+        if not success:
+            return await interaction.response.send_message(f"❌ Operation failed: {msg}", ephemeral=True)
+
+        latest = await self.bot.db.get_latest_election(interaction.guild_id)
+        ele_id = latest["id"] if latest else 0
+        action_type = "stock_supply_expansion" if amount > 0 else "stock_supply_reduction"
+        await self.bot.db.log_commander_action(
+            ele_id, user.id, action_type, details=f"Adjusted {symbol.upper()} float by {amount:+,} shares"
+        )
+
+        embed = discord.Embed(
+            title="📊 MAYORAL EXECUTIVE ORDER: CORPORATE SHARE FLOAT ADJUSTED",
+            description=(
+                f"Mayor {user.mention} has intervened in the corporate equity markets:\n\n"
+                f"• **Stock Ticker:** `{updated_stock['symbol']}` ({updated_stock['name']})\n"
+                f"• **Supply Shift:** `{amount:+,} Shares`\n"
+                f"• **New Available Market Float:** `{updated_stock['available_shares']:,} Shares`\n"
+                f"• **Total Capitalization Supply:** `{updated_stock['total_supply']:,} Shares`\n"
+                f"• **Current Share Price:** `{updated_stock['price']:,} Medals`\n\n"
+                f"*{msg}*"
+            ),
+            color=0x2ECC71 if amount > 0 else 0xE67E22
+        )
+        embed.set_footer(text=f"Market Regulation • Mayor {user.display_name}")
+        await interaction.response.send_message(embed=embed)
+
+    @mayor.command(name="stock_create", description="[Mayor Only] Issue an IPO and list a brand new corporate stock on the exchange")
+    @app_commands.describe(
+        symbol="Unique ticker symbol (2 to 6 uppercase letters, e.g. TECH, ARMY)",
+        name="Company or organization name",
+        price="Starting share price in Medals (min 20)",
+        supply="Initial total share float / supply (min 100, max 50,000)",
+        description="Brief description of the enterprise"
+    )
+    async def mayor_stock_create(
+        self,
+        interaction: discord.Interaction,
+        symbol: str,
+        name: str,
+        price: int,
+        supply: int,
+        description: str = ""
+    ):
+        user = interaction.user
+        if not await self.is_mayor(user):
+            return await interaction.response.send_message(
+                "⛔ **Access Denied:** Only the reigning Mayor can authorize new corporate stock IPO listings.",
+                ephemeral=True
+            )
+
+        clean_symbol = symbol.strip().upper()
+        if not (2 <= len(clean_symbol) <= 6 and clean_symbol.isalnum()):
+            return await interaction.response.send_message(
+                "❌ Invalid ticker symbol: Must be between 2 and 6 alphanumeric characters (e.g. `PRC`, `CORP`).",
+                ephemeral=True
+            )
+
+        if price < 20:
+            return await interaction.response.send_message("❌ Starting price must be at least **20 Medals**.", ephemeral=True)
+
+        if supply < 100 or supply > 50_000:
+            return await interaction.response.send_message("❌ Initial share float must be between **100** and **50,000** shares.", ephemeral=True)
+
+        clean_desc = (description or f"Authorized by Mayor {user.display_name}").strip()
+        created = await self.bot.db.create_stock(clean_symbol, name.strip(), price, clean_desc, supply)
+        if not created:
+            return await interaction.response.send_message(
+                f"❌ Stock with symbol **{clean_symbol}** already exists on the exchange! Choose a unique symbol.",
+                ephemeral=True
+            )
+
+        latest = await self.bot.db.get_latest_election(interaction.guild_id)
+        ele_id = latest["id"] if latest else 0
+        await self.bot.db.log_commander_action(
+            ele_id, user.id, "new_stock_ipo", details=f"Listed new IPO: {clean_symbol} ({name}) @ {price}M ({supply} shares)"
+        )
+
+        embed = discord.Embed(
+            title="🔔 NEW IPO LISTED: MAYOR AUTHORIZES CORPORATE STOCK!",
+            description=(
+                f"By official decree of Mayor {user.mention}, a new corporate entity has been approved and listed on the **Global Stock Exchange**!\n\n"
+                f"🏢 **Company:** **{name}**\n"
+                f"🏷️ **Ticker Symbol:** `{clean_symbol}`\n"
+                f"💰 **IPO Launch Price:** `{price:,} Medals`\n"
+                f"📦 **Initial Market Float:** `{supply:,} Shares`\n"
+                f"📜 **Corporate Brief:** *{clean_desc}*\n\n"
+                f"Trading is immediately live! Purchase shares using the web stock exchange or `/stocks`!"
+            ),
+            color=0xF1C40F
+        )
+        embed.set_footer(text=f"Exchange Regulation • Mayor {user.display_name}")
+        await interaction.response.send_message(content=f"📈 **NEW STOCK IPO: ${clean_symbol} IS LIVE!**", embed=embed)
+
+    @mayor.command(name="create_plot", description="[Mayor Only] Zone and create a brand new territory plot on the 3D E-State map")
+    @app_commands.describe(
+        name="Name of the new parcel / plot (e.g. Ironclad Harbor)",
+        district="District to expand",
+        terrain="Terrain environment type",
+        price="Base purchase price in Medals (min 5,000)",
+        x="Optional X map coordinate (leave blank to auto-allocate)",
+        y="Optional Y map coordinate (leave blank to auto-allocate)"
+    )
+    @app_commands.choices(district=[
+        app_commands.Choice(name="The Outskirts (Parks & Ridges)", value="The Outskirts"),
+        app_commands.Choice(name="Riverside Commons (Waterfront)", value="Riverside Commons"),
+        app_commands.Choice(name="Ironworks District (Industrial)", value="Ironworks District"),
+        app_commands.Choice(name="Shadow Citadel (Downtown Spire)", value="Shadow Citadel"),
+        app_commands.Choice(name="Highland Outpost (Fortified High Ground)", value="Highland Outpost")
+    ])
+    @app_commands.choices(terrain=[
+        app_commands.Choice(name="Plains (Standard flat terrain)", value="plains"),
+        app_commands.Choice(name="Forest (Wooded ridge)", value="forest"),
+        app_commands.Choice(name="Riverfront (Waterfront access)", value="riverfront"),
+        app_commands.Choice(name="Industrial (Refinery & docks)", value="industrial"),
+        app_commands.Choice(name="Citadel (Urban high-tech core)", value="citadel")
+    ])
+    async def mayor_create_plot(
+        self,
+        interaction: discord.Interaction,
+        name: str,
+        district: app_commands.Choice[str],
+        terrain: app_commands.Choice[str],
+        price: int,
+        x: int | None = None,
+        y: int | None = None
+    ):
+        user = interaction.user
+        if not await self.is_mayor(user):
+            return await interaction.response.send_message(
+                "⛔ **Access Denied:** Only the reigning Mayor can zone and expand city territory on the map.",
+                ephemeral=True
+            )
+
+        if price < 5000:
+            return await interaction.response.send_message("❌ Minimum base parcel price must be at least **5,000 Medals**.", ephemeral=True)
+
+        success, msg, new_plot = await self.bot.db.create_estate_plot(
+            name=name,
+            district=district.value,
+            terrain=terrain.value,
+            base_price=price,
+            x=x,
+            y=y
+        )
+
+        if not success:
+            return await interaction.response.send_message(f"❌ Failed to zone plot: {msg}", ephemeral=True)
+
+        latest = await self.bot.db.get_latest_election(interaction.guild_id)
+        ele_id = latest["id"] if latest else 0
+        await self.bot.db.log_commander_action(
+            ele_id, user.id, "estate_zone_expansion", details=f"Zoned Plot #{new_plot['id']} ({name}) in {district.value} @ {price:,}M"
+        )
+
+        embed = discord.Embed(
+            title="🗺️ TERRITORY EXPANSION: MAYOR ZONES NEW E-STATE PLOT!",
+            description=(
+                f"Mayor {user.mention} has officially signed a civic zoning expansion decree!\n\n"
+                f"📍 **Plot Designation:** **Plot #{new_plot['id']} — {name}**\n"
+                f"🏙️ **District:** `{district.value}`\n"
+                f"🌲 **Terrain:** `{terrain.name}`\n"
+                f"🌐 **Map Coordinates:** `({new_plot['x']}, {new_plot['y']})`\n"
+                f"💰 **Listing Valuation:** `{price:,} Medals`\n\n"
+                f"✅ **Citizen Property Rights Protected:** Mayors cannot confiscate or evict owned plots, but can expand city territory for citizens to settle!\n\n"
+                f"This plot is unowned and immediately available for purchase! Explore it on the live 3D map or buy via `/estate`!"
+            ),
+            color=0x2ECC71
+        )
+        embed.set_footer(text=f"Civic Development & Zoning • Mayor {user.display_name}")
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="🌐 View 3D E-State Map", url="https://phantom-regiment.onrender.com/estate", style=discord.ButtonStyle.link, emoji="🗺️"))
+        await interaction.response.send_message(embed=embed, view=view)
 
 
 async def setup(bot: commands.Bot):
