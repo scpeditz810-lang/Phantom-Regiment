@@ -14,6 +14,7 @@ import time
 
 import random
 
+import json
 import aiosqlite
 
 
@@ -3422,9 +3423,13 @@ class Database:
 
         await self.set_meta(f"attack_cooldown_{attacker_id}", str(now))
 
+        battle_id = f"raid_{int(now)}_{target_plot_id}_{attacker_id}"
         battle_data = {
+            "battle_id": battle_id,
             "target_id": target_plot_id,
             "target_name": target["name"],
+            "target_x": target.get("x", 0),
+            "target_y": target.get("y", 0),
             "attacker_id": attacker_id,
             "defender_id": defender_id,
             "attacker_power": atk_stats["attack_power"],
@@ -3432,7 +3437,9 @@ class Database:
             "defender_defense": def_stats["total_defense"],
             "defender_roll": def_roll,
             "allied_bonus": def_stats["allied_bonus"],
-            "allies_count": len(def_stats["allies_involved"])
+            "allies_count": len(def_stats["allies_involved"]),
+            "start_time": now,
+            "duration": 8.5
         }
 
         if atk_roll > def_roll:
@@ -3465,6 +3472,24 @@ class Database:
 
             battle_data["loot"] = total_loot
             battle_data["success"] = True
+            try:
+                active_battle_info = {
+                    "battle_id": battle_id,
+                    "target_id": target_plot_id,
+                    "target_name": target["name"],
+                    "target_x": target.get("x", 0),
+                    "target_y": target.get("y", 0),
+                    "attacker_id": attacker_id,
+                    "defender_id": defender_id,
+                    "success": True,
+                    "battle_data": battle_data,
+                    "start_time": now,
+                    "duration": 8.5,
+                    "expires_at": now + 12.0
+                }
+                await self.set_meta("active_estate_battle", json.dumps(active_battle_info))
+            except Exception:
+                pass
             msg_lines = [
                 f"⚔️ **TACTICAL STRIKE SUCCESSFUL!** Your strike divisions breached the defenses of **Plot #{target_plot_id}: {target['name']}**!",
                 "",
@@ -3490,6 +3515,24 @@ class Database:
 
             battle_data["casualty_fee"] = casualty_fee
             battle_data["success"] = False
+            try:
+                active_battle_info = {
+                    "battle_id": battle_id,
+                    "target_id": target_plot_id,
+                    "target_name": target["name"],
+                    "target_x": target.get("x", 0),
+                    "target_y": target.get("y", 0),
+                    "attacker_id": attacker_id,
+                    "defender_id": defender_id,
+                    "success": False,
+                    "battle_data": battle_data,
+                    "start_time": now,
+                    "duration": 8.5,
+                    "expires_at": now + 12.0
+                }
+                await self.set_meta("active_estate_battle", json.dumps(active_battle_info))
+            except Exception:
+                pass
             fail_lines = [
                 f"💥 **TACTICAL ASSAULT REPELLED!** The garrison and allied forces at **Plot #{target_plot_id}: {target['name']}** held the defensive line!",
                 "",
@@ -3646,3 +3689,16 @@ class Database:
         await self._db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, str(value)))
         await self._db.commit()
 
+
+    async def get_active_estate_battle(self) -> dict | None:
+        """Return the currently ongoing live estate battle if active."""
+        val = await self.get_meta("active_estate_battle")
+        if not val:
+            return None
+        try:
+            data = json.loads(val)
+            if data and data.get("expires_at", 0) > time.time():
+                return data
+        except Exception:
+            pass
+        return None
