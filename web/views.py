@@ -217,6 +217,12 @@ def medals_page():
             if (time.time() - user_data["last_daily"]) < 86400:
                 claimed_today = True
 
+    db = current_app.config["DB"]
+    try:
+        stock_tax_pct = int(round(run_async(db.get_stock_tax_rate()) * 100))
+    except Exception:
+        stock_tax_pct = 15
+
     return render_template(
         "medals.html",
         user=user,
@@ -224,7 +230,8 @@ def medals_page():
         bank_data=bank_data,
         tier_info=tier_info,
         streak_val=streak_val,
-        claimed_today=claimed_today
+        claimed_today=claimed_today,
+        stock_tax_pct=stock_tax_pct
     )
 
 @views_bp.route("/members")

@@ -47,7 +47,8 @@ class Database:
 
             import stat
 
-            os.chmod(dir_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            if dir_path and os.path.exists(dir_path):
+                os.chmod(dir_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
 
             if os.path.exists(self.db_path):
 
@@ -2065,7 +2066,7 @@ class Database:
 
 
 
-    async def create_stock(self, symbol: str, name: str, price: int, description: str = "") -> bool:
+    async def create_stock(self, symbol: str, name: str, price: int, description: str = "", supply: int = 2500) -> bool:
 
         symbol = symbol.strip().upper()
 
@@ -2076,12 +2077,13 @@ class Database:
                 return False
 
         now = time.time()
+        supply = max(50, int(supply))
 
         await self._db.execute(
 
-            "INSERT INTO stocks (symbol, name, price, total_supply, available_shares, description, created_at) VALUES (?, ?, ?, 150, 150, ?, ?)",
+            "INSERT INTO stocks (symbol, name, price, total_supply, available_shares, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
 
-            (symbol, name, price, description, now)
+            (symbol, name, price, supply, supply, description, now)
 
         )
 
@@ -2094,6 +2096,47 @@ class Database:
         await self._db.commit()
 
         return True
+
+    async def adjust_stock_supply(self, stock_id_or_symbol, delta: int) -> tuple[bool, str, dict | None]:
+        """Mayor / Executive adjustment of stock market share supply."""
+        stock = await self.get_stock(stock_id_or_symbol)
+        if not stock:
+            return False, "Stock not found.", None
+
+        current_supply = stock.get("total_supply", 2500)
+        current_avail = stock.get("available_shares", 2500)
+
+        new_avail = current_avail + delta
+        new_supply = current_supply + delta
+
+        if new_avail < 0:
+            return False, f"Cannot reduce supply by {abs(delta):,}: only {current_avail:,} floating shares are currently available on the market.", None
+        if new_supply < 10:
+            return False, "Total stock supply cannot fall below 10 shares.", None
+
+        await self._db.execute(
+            "UPDATE stocks SET total_supply = ?, available_shares = ? WHERE id = ?",
+            (new_supply, new_avail, stock["id"])
+        )
+        await self._db.commit()
+        updated = await self.get_stock(stock["id"])
+        return True, f"Successfully adjusted {stock['symbol']} float supply by {delta:+,} shares. (New float: {new_avail:,} / Total Supply: {new_supply:,}).", updated
+
+    async def get_stock_tax_rate(self) -> float:
+        """Fetch active stock market transaction tax rate set by the Mayor (default: 0.15)."""
+        raw = await self.get_meta("stock_tax_rate")
+        if raw is not None:
+            try:
+                rate = float(raw)
+                return max(0.0, min(0.50, rate))
+            except (ValueError, TypeError):
+                pass
+        return 0.15
+
+    async def set_stock_tax_rate(self, rate: float):
+        """Set the active stock market transaction tax rate (0.0 to 0.50)."""
+        rate = max(0.0, min(0.50, float(rate)))
+        await self.set_meta("stock_tax_rate", str(rate))
 
 
 
@@ -2273,9 +2316,9 @@ class Database:
         effective_sell_price = (stock["price"] + new_price) / 2.0
         gross_return = int(round(shares * effective_sell_price))
 
-        # 15% Stock Market Transaction / Brokerage Tax
-        TAX_RATE = 0.15
-        tax_amount = int(round(gross_return * TAX_RATE))
+        # Dynamic Stock Market Transaction / Brokerage Tax (Set by Mayor)
+        tax_rate = await self.get_stock_tax_rate()
+        tax_amount = int(round(gross_return * tax_rate))
         net_return = max(1, gross_return - tax_amount)
 
         await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (net_return, user_id))
@@ -2291,7 +2334,8 @@ class Database:
         await self.update_stock_price(stock_id, new_price)
         await self._db.commit()
 
-        return True, f"Successfully sold {shares} shares of {stock['symbol']} for {net_return:,} Medals! (Gross: {gross_return:,} - 15% Market Tax: {tax_amount:,}). Price dropped to {new_price:,} Medals."
+        tax_pct_str = f"{int(round(tax_rate * 100))}%"
+        return True, f"Successfully sold {shares} shares of {stock['symbol']} for {net_return:,} Medals! (Gross: {gross_return:,} - {tax_pct_str} Market Tax: {tax_amount:,}). Price dropped to {new_price:,} Medals."
 
 
 
@@ -2444,6 +2488,65 @@ class Database:
             r["bank_tax"] = bank_tax
 
         return rows
+
+    async def create_estate_plot(
+        self,
+        name: str,
+        district: str,
+        terrain: str = "plains",
+        base_price: int = 50000,
+        x: int | None = None,
+        y: int | None = None
+    ) -> tuple[bool, str, dict | None]:
+        """Mayor / Executive creation of a brand new territory plot on the map."""
+        if self._db is None:
+            await self.setup()
+
+        # Find next available ID
+        async with self._db.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM estate_plots") as cur:
+            next_id = (await cur.fetchone())[0]
+
+        # Determine coordinates if not provided
+        if x is None or y is None:
+            async with self._db.execute("SELECT x, y FROM estate_plots") as cur:
+                occupied = set(await cur.fetchall())
+            found_slot = False
+            for test_x in range(1, 20):
+                for test_y in range(1, 20):
+                    if (test_x, test_y) not in occupied:
+                        x = test_x
+                        y = test_y
+                        found_slot = True
+                        break
+                if found_slot:
+                    break
+            if not found_slot:
+                x = next_id
+                y = 1
+        else:
+            # Check if (x, y) already taken
+            async with self._db.execute("SELECT id, name FROM estate_plots WHERE x = ? AND y = ?", (x, y)) as cur:
+                existing = await cur.fetchone()
+                if existing:
+                    return False, f"Coordinates ({x}, {y}) are already occupied by Plot #{existing[0]} ('{existing[1]}'). Choose another location.", None
+
+        now = time.time()
+        base_price = max(1000, int(base_price))
+
+        await self._db.execute("""
+            INSERT INTO estate_plots (
+                id, x, y, name, district, terrain, base_price, current_value,
+                owner_id, building_type, building_level, last_yield_claim,
+                last_value_update, for_sale_price, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'empty', 0, ?, ?, NULL, ?)
+        """, (
+            next_id, x, y, name.strip(), district.strip(), terrain.strip(),
+            base_price, base_price, now, now, now
+        ))
+        await self._db.commit()
+
+        new_plot = await self.get_estate_plot(next_id)
+        return True, f"Successfully zoned Plot #{next_id}: **{name}** in district **{district}** at coordinates `({x}, {y})` with initial value `{base_price:,}` Medals!", new_plot
 
     async def get_estate_plot(self, plot_id: int) -> dict | None:
         """Get single plot details."""

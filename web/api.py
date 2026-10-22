@@ -48,6 +48,10 @@ def get_stocks():
         item["dividend_per_share"] = max(1, int(round(s["price"] * 0.004)))
         engine = current_app.config.get("STOCK_ENGINE")
         item["market_news"] = engine.latest_news if engine and hasattr(engine, "latest_news") else "Market operating at normal liquidity."
+        try:
+            item["tax_rate_pct"] = int(round(run_async(db.get_stock_tax_rate()) * 100))
+        except Exception:
+            item["tax_rate_pct"] = 15
         result.append(item)
     return jsonify(result)
 
