@@ -225,6 +225,8 @@ BANK_TIERS = {
 
 
 # ─── E-State Virtual Real Estate & Tycoon ──────────────────────────────────────
+MAX_ESTATE_PLOTS_PER_USER = 6
+
 ESTATE_BUILDINGS = {
     "factory": {
         "key": "factory",
