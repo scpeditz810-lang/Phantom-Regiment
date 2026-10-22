@@ -54,6 +54,33 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def is_current_mayor(user_id: int) -> bool:
+    if not user_id:
+        return False
+    bot = current_app.config.get("DISCORD_BOT")
+    db = current_app.config.get("DB")
+    cfg = get_oauth_config()
+    if bot:
+        guild = bot.get_guild(cfg["guild_id"]) or (bot.guilds[0] if bot.guilds else None)
+        if guild:
+            if guild.owner_id == user_id:
+                return True
+            member = guild.get_member(user_id)
+            if member and any(r.name == "🏛️ Mayor" for r in member.roles):
+                return True
+    if db:
+        from web.views import run_async
+        import time
+        curr = run_async(db.get_current_commander(cfg["guild_id"]))
+        if curr and curr.get("winner_id") == user_id:
+            return True
+        latest = run_async(db.get_latest_election(cfg["guild_id"]))
+        if latest and latest.get("winner_id") == user_id:
+            term_end = latest.get("term_end", 0) or 0
+            if time.time() < term_end:
+                return True
+    return False
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -62,6 +89,18 @@ def admin_required(f):
             return redirect(url_for("auth.login", next=next_target))
         user = session["user"]
         if not (user.get("is_owner") or user.get("is_manager")):
+            return redirect(url_for("views.unauthorized"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def mayor_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user" not in session:
+            next_target = request.full_path.rstrip("?") if request.query_string else request.path
+            return redirect(url_for("auth.login", next=next_target))
+        user_id = session["user"]["id"]
+        if not is_current_mayor(user_id) and not session["user"].get("is_owner"):
             return redirect(url_for("views.unauthorized"))
         return f(*args, **kwargs)
     return decorated_function
@@ -185,7 +224,8 @@ def callback():
             "global_name": global_name,
             "avatar": avatar_url,
             "is_owner": is_owner,
-            "is_manager": is_manager
+            "is_manager": is_manager,
+            "is_mayor": is_current_mayor(user_id) or is_owner
         }
         dest = get_clean_next(session.pop("next_url", None)) or url_for("views.index")
         return redirect(dest)

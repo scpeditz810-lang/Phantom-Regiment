@@ -4,7 +4,7 @@ import asyncio
 import time
 from datetime import datetime
 from flask import Blueprint, jsonify, request, session, current_app
-from web.auth import login_required, admin_required
+from web.auth import login_required, admin_required, mayor_required
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -866,3 +866,141 @@ def admin_restore_members():
         "failed": failed,
         "total": len(members)
     })
+
+
+# ── Mayor Executive Endpoints ──────────────────────────────────────────────
+@api_bp.route("/mayor/plot/create", methods=["POST"])
+@mayor_required
+def api_mayor_create_plot():
+    data = request.get_json() or {}
+    name = str(data.get("name", "")).strip()
+    district = str(data.get("district", "The Outskirts")).strip()
+    terrain = str(data.get("terrain", "plains")).strip()
+    try:
+        price = int(data.get("price", 50000))
+    except (ValueError, TypeError):
+        price = 50000
+    x = int(data["x"]) if data.get("x") is not None and str(data.get("x")).isdigit() else None
+    y = int(data["y"]) if data.get("y") is not None and str(data.get("y")).isdigit() else None
+
+    if not name:
+        return jsonify({"success": False, "message": "Plot name is required."}), 400
+
+    db = get_db()
+    success, msg, new_plot = run_async(db.create_estate_plot(name, district, terrain, price, x, y))
+    return jsonify({"success": success, "message": msg, "plot": new_plot}), 200 if success else 400
+
+@api_bp.route("/mayor/stock/tax", methods=["POST"])
+@mayor_required
+def api_mayor_stock_tax():
+    data = request.get_json() or {}
+    try:
+        tax_pct = int(data.get("tax_pct", 15))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid tax percentage."}), 400
+
+    if tax_pct < 0 or tax_pct > 50:
+        return jsonify({"success": False, "message": "Tax rate must be between 0% and 50%."}), 400
+
+    db = get_db()
+    run_async(db.set_stock_tax_rate(tax_pct / 100.0))
+    return jsonify({"success": True, "message": f"Global market transaction tax updated to {tax_pct}%."})
+
+@api_bp.route("/mayor/stock/supply", methods=["POST"])
+@mayor_required
+def api_mayor_stock_supply():
+    data = request.get_json() or {}
+    symbol = str(data.get("symbol", "")).strip().upper()
+    try:
+        amount = int(data.get("amount", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid adjustment amount."}), 400
+
+    if not symbol or amount == 0:
+        return jsonify({"success": False, "message": "Symbol and non-zero amount required."}), 400
+
+    db = get_db()
+    success, msg, updated = run_async(db.adjust_stock_supply(symbol, amount))
+    return jsonify({"success": success, "message": msg, "stock": updated}), 200 if success else 400
+
+@api_bp.route("/mayor/stock/create", methods=["POST"])
+@mayor_required
+def api_mayor_stock_create():
+    data = request.get_json() or {}
+    symbol = str(data.get("symbol", "")).strip().upper()
+    name = str(data.get("name", "")).strip()
+    try:
+        price = int(data.get("price", 100))
+        supply = int(data.get("supply", 2500))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid price or supply."}), 400
+    description = str(data.get("description", "")).strip()
+
+    if not (2 <= len(symbol) <= 6 and symbol.isalnum()):
+        return jsonify({"success": False, "message": "Symbol must be 2-6 alphanumeric chars."}), 400
+    if not name:
+        return jsonify({"success": False, "message": "Company name is required."}), 400
+
+    db = get_db()
+    created = run_async(db.create_stock(symbol, name, price, description, supply))
+    if not created:
+        return jsonify({"success": False, "message": f"Stock {symbol} already exists on the exchange."}), 400
+    return jsonify({"success": True, "message": f"IPO successfully issued for {symbol} ({name}) at {price:,} Medals!"})
+
+# ── E-State Military Combat & Defense Endpoints ─────────────────────────────
+@api_bp.route("/estate/attack", methods=["POST"])
+@login_required
+def api_estate_attack():
+    data = request.get_json() or {}
+    try:
+        plot_id = int(data.get("plot_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Plot ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, battle_data = run_async(db.attack_estate_plot(user_id, plot_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "battle": battle_data,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/estate/military", methods=["GET"])
+@login_required
+def api_estate_military():
+    user_id = session["user"]["id"]
+    db = get_db()
+    stats = run_async(db.get_user_military_stats(user_id))
+    allies = run_async(db.get_user_allies(user_id))
+    return jsonify({"stats": stats, "allies": allies})
+
+@api_bp.route("/estate/ally/request", methods=["POST"])
+@login_required
+def api_estate_ally_request():
+    data = request.get_json() or {}
+    try:
+        ally_id = int(data.get("ally_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Ally User ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.create_alliance_request(user_id, ally_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/estate/ally/accept", methods=["POST"])
+@login_required
+def api_estate_ally_accept():
+    data = request.get_json() or {}
+    try:
+        requester_id = int(data.get("requester_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Requester ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.accept_alliance(user_id, requester_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400

@@ -3160,29 +3160,141 @@ class EconomyCog(commands.Cog):
 
 
     @app_commands.command(name="collectyield", description="Collect accrued passive land yields from your owned E-State territory plots")
-
     async def collectyield(self, interaction: discord.Interaction):
-
         total_yield, msg = await self.bot.db.collect_estate_yields(interaction.user.id)
-
         if total_yield <= 0:
-
             return await interaction.response.send_message(f"ℹ️ {msg}", ephemeral=True)
 
-
-
         embed = discord.Embed(
-
             title="💰 E-State Passive Dividends Collected!",
-
             description=f"✅ **{msg}**\nMedals have been transferred to your wallet.",
-
             color=0x2ECC71
-
         )
-
         embed.set_footer(text="Plots generate continuous yields over time!")
+        await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="raid", description="Launch an armed military strike on an enemy E-State territory parcel")
+    @app_commands.describe(plot_id="The target parcel ID to assault (view IDs via /estate or the 3D map)")
+    async def raid(self, interaction: discord.Interaction, plot_id: int):
+        await interaction.response.defer()
+        success, msg, battle_data = await self.bot.db.attack_estate_plot(interaction.user.id, plot_id)
+        embed = discord.Embed(
+            title="⚔️ E-STATE TACTICAL BORDER INCURSION",
+            description=msg,
+            color=0x2ECC71 if success else 0xE74C3C
+        )
+        if battle_data:
+            embed.add_field(
+                name="📊 Tactical Battle Metrics",
+                value=(
+                    f"• **Attacker Force Power:** `{battle_data.get('attacker_power', 0):,}` (Roll: `{battle_data.get('attacker_roll', 0):,}`)\n"
+                    f"• **Defender Defense Rating:** `{battle_data.get('defender_defense', 0):,}` (Roll: `{battle_data.get('defender_roll', 0):,}`)\n"
+                    f"• **Allied Defense Reinforcements:** `+{battle_data.get('allied_bonus', 0):,}` from `{battle_data.get('allies_count', 0)}` Allies"
+                ),
+                inline=False
+            )
+        embed.set_footer(text="Territory Skirmishes • Central State Bank Peacekeepers")
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="military", description="View your personal military tycoon power, bases, bunkers, and tactical readiness")
+    async def military(self, interaction: discord.Interaction):
+        stats = await self.bot.db.get_user_military_stats(interaction.user.id)
+        allies = await self.bot.db.get_user_allies(interaction.user.id)
+        embed = discord.Embed(
+            title="🪖 E-STATE MILITARY HIGH COMMAND",
+            description=f"Strategic defense and offensive tactical summary for {interaction.user.mention}:",
+            color=0x34495E
+        )
+        embed.add_field(name="⚔️ Offensive Strike Power", value=f"`{stats['attack_power']:,}` Attack Rating", inline=True)
+        embed.add_field(name="🛡️ Garrison Defense Rating", value=f"`{stats['defense_power']:,}` Defense Rating", inline=True)
+        embed.add_field(name="🤝 Active Military Alliances", value=f"`{len(allies)}` Pacts Formed", inline=True)
+
+        bases_text = "\n".join([f"• **Plot #{b['plot_id']}** ({b['name']}) — Lvl {b['level']} Base (`+{b['attack']} ATK / +{b['defense']} DEF`)" for b in stats["military_bases"]]) or "*No Military Bases built. Build one via `/estate upgrade`!*"
+        bunkers_text = "\n".join([f"• **Plot #{b['plot_id']}** ({b['name']}) — Lvl {b['level']} Bunker (`+{b['defense']} Regional DEF`)" for b in stats["bunkers"]]) or "*No Defense Bunkers built.*"
+        rigs_text = "\n".join([f"• **Plot #{r['plot_id']}** ({r['name']}) — Lvl {r['level']} Offshore Rig (`4.0% Yield`)" for r in stats["oil_rigs"]]) or "*No Offshore Oil Rigs owned.*"
+
+        embed.add_field(name="🏰 Operational Military Bases", value=bases_text, inline=False)
+        embed.add_field(name="🛡️ Fortified Bunkers", value=bunkers_text, inline=False)
+        embed.add_field(name="🛢️ Offshore Oil Rigs", value=rigs_text, inline=False)
+        embed.set_footer(text="Upgrade military facilities to launch strikes on rival plots with /raid!")
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="ally", description="Propose a mutual defense military alliance with another landowner")
+    @app_commands.describe(member="The landowner to propose alliance to")
+    async def ally(self, interaction: discord.Interaction, member: discord.Member):
+        if member.id == interaction.user.id:
+            return await interaction.response.send_message("❌ You cannot ally with yourself!", ephemeral=True)
+        if member.bot:
+            return await interaction.response.send_message("❌ Cannot ally with automated bot systems.", ephemeral=True)
+
+        success, msg = await self.bot.db.create_alliance_request(interaction.user.id, member.id)
+        if not success:
+            return await interaction.response.send_message(f"❌ {msg}", ephemeral=True)
+
+        ally_lines = [
+            f"{interaction.user.mention} has dispatched an official military defense alliance treaty to {member.mention}!",
+            "",
+            "**Alliance Benefits:**",
+            "• Mutual defense garrisons reinforce each other during enemy raids!",
+            "• Non-aggression treaty prevents friendly fire between coalition plots!",
+            "",
+            f"👉 {member.mention}: Accept the alliance treaty by running `/acceptally @{interaction.user.display_name}`!"
+        ]
+        embed = discord.Embed(
+            title="🤝 MILITARY ALLIANCE PROPOSAL DISPATCHED",
+            description="\n".join(ally_lines),
+            color=0x3498DB
+        )
+        embed.set_footer(text="Phantom Regiment Strategic Coalitions")
+        await interaction.response.send_message(content=member.mention, embed=embed)
+
+    @app_commands.command(name="acceptally", description="Accept an incoming mutual defense alliance proposal")
+    @app_commands.describe(member="The landowner who proposed the alliance")
+    async def acceptally(self, interaction: discord.Interaction, member: discord.Member):
+        success, msg = await self.bot.db.accept_alliance(interaction.user.id, member.id)
+        if not success:
+            return await interaction.response.send_message(f"❌ {msg}", ephemeral=True)
+
+        accept_lines = [
+            f"The mutual defense treaty between {interaction.user.mention} and {member.mention} is now **OFFICIALLY RATIFIED**!",
+            "",
+            "• Both landowners' military bases will now reinforce each other when attacked!",
+            "• View your coalition status anytime using `/allies` or `/military`."
+        ]
+        embed = discord.Embed(
+            title="🤝 MILITARY DEFENSE ALLIANCE SEALED!",
+            description="\n".join(accept_lines),
+            color=0x2ECC71
+        )
+        await interaction.response.send_message(content=f"🤝 {interaction.user.mention} + {member.mention}", embed=embed)
+
+    @app_commands.command(name="breakally", description="Dissolve a mutual defense military alliance")
+    @app_commands.describe(member="The ally to dissolve alliance with")
+    async def breakally(self, interaction: discord.Interaction, member: discord.Member):
+        success, msg = await self.bot.db.break_alliance(interaction.user.id, member.id)
+        await interaction.response.send_message(f"ℹ️ {msg}", ephemeral=True)
+
+    @app_commands.command(name="allies", description="View your active defense allies and combined military coalition strength")
+    async def allies(self, interaction: discord.Interaction):
+        ally_ids = await self.bot.db.get_user_allies(interaction.user.id)
+        if not ally_ids:
+            return await interaction.response.send_message("ℹ️ You do not currently have any active military alliances. Propose an alliance using `/ally @member`!", ephemeral=True)
+
+        lines = []
+        guild = interaction.guild
+        for a_id in ally_ids:
+            m = guild.get_member(a_id) if guild else None
+            name = m.mention if m else f"<@{a_id}>"
+            stats = await self.bot.db.get_user_military_stats(a_id)
+            lines.append(f"• {name} — Defense Contribution: `+{int(round(stats['defense_power'] * 0.35)):,} DEF` (`{len(stats['military_bases'])}` Bases, `{len(stats['bunkers'])}` Bunkers)")
+
+        desc_text = "Active mutual defense pacts protecting your E-State territories:\n\n" + "\n".join(lines)
+        embed = discord.Embed(
+            title="🤝 YOUR DEFENSE COALITION & ALLIES",
+            description=desc_text,
+            color=0x2ECC71
+        )
+        embed.set_footer(text="Allies automatically reinforce your garrison defense when under raid!")
         await interaction.response.send_message(embed=embed)
 
 

@@ -48,6 +48,11 @@
                 <a href="{{ url_for('views.members_page') }}" class="nav-link {% if request.path == '/members' %}active{% endif %}">
                     Our Members
                 </a>
+                {% if session.get('user') and (session['user'].get('is_mayor') or session['user'].get('is_owner')) %}
+                <a href="{{ url_for('views.mayor_page') }}" class="nav-link {% if request.path == '/mayor' %}active{% endif %}" style="color: #f1c40f; font-weight: 700;">
+                    🎩 Mayor Office
+                </a>
+                {% endif %}
                 {% if session.get('user') and (session['user'].get('is_owner') or session['user'].get('is_manager')) %}
                 <a href="{{ url_for('views.admin_page') }}" class="nav-link {% if request.path == '/admin' %}active{% endif %}" style="color: var(--blue-primary);">
                     ⚡ Admin Panel
@@ -63,7 +68,9 @@
                     <span class="user-name-sm">
                         {{ session['user']['global_name'] }}
                     </span>
-                    {% if session['user'].get('is_owner') %}
+                    {% if session['user'].get('is_mayor') %}
+                    <span style="font-size: 0.65rem; background: rgba(241,196,15,0.18); color: #f1c40f; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800; border: 1px solid rgba(241,196,15,0.35);">MAYOR</span>
+                    {% elif session['user'].get('is_owner') %}
                     <span style="font-size: 0.65rem; background: rgba(56,189,248,0.15); color: var(--blue-primary); padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800; border: 1px solid rgba(56,189,248,0.3);">OWNER</span>
                     {% elif session['user'].get('is_manager') %}
                     <span style="font-size: 0.65rem; background: rgba(56,189,248,0.12); color: var(--blue-primary); padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 700; border: 1px solid rgba(56,189,248,0.25);">MANAGER</span>
