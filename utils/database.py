@@ -2135,6 +2135,13 @@ class Database:
 
 
     async def buy_stock(self, user_id: int, stock_id: int, shares: int) -> tuple[bool, str]:
+        try:
+            user_id = int(user_id)
+            stock_id = int(stock_id)
+            shares = int(shares)
+        except (ValueError, TypeError):
+            return False, "Invalid user ID, stock ID, or shares amount."
+
         if shares <= 0:
             return False, "Invalid number of shares."
 
@@ -2150,8 +2157,9 @@ class Database:
             current_shares = row[0] if row else 0
             current_avg = row[1] if row else 0.0
 
-        if current_shares + shares > 50:
-            return False, f"Holding limit reached. You can only hold a maximum of 50 shares per stock (Currently hold: {current_shares})."
+        MAX_HOLDING = 250
+        if current_shares + shares > MAX_HOLDING:
+            return False, f"Holding limit reached. You can only hold a maximum of {MAX_HOLDING} shares per stock (Currently hold: {current_shares})."
 
         # Dampened price impact: 0.015% per share (capped at 4% maximum shift per order)
         pct_impact = min(0.04, 0.00015 * shares)
@@ -2164,7 +2172,7 @@ class Database:
 
         user_econ = await self.get_global_economy(user_id)
         if user_econ.get("medals", 0) < total_cost:
-            return False, f"Insufficient Medals. You need {total_cost:,} Medals (Avg price: {int(round(effective_buy_price)):,}/share), but only have {user_econ.get('medals', 0):,}."
+            return False, f"Insufficient Wallet Medals. You need {total_cost:,} Medals (Avg: {int(round(effective_buy_price)):,} M/share), but only have {user_econ.get('medals', 0):,} in your wallet. (Withdraw from your /bank if needed!)"
 
         await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
         await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
@@ -2189,6 +2197,13 @@ class Database:
         return True, f"Successfully purchased {shares} shares of {stock['symbol']} for {total_cost:,} Medals (Avg: {int(round(effective_buy_price)):,} Medals/share). Price rose to {new_price:,} Medals!"
 
     async def sell_stock(self, user_id: int, stock_id: int, shares: int) -> tuple[bool, str]:
+        try:
+            user_id = int(user_id)
+            stock_id = int(stock_id)
+            shares = int(shares)
+        except (ValueError, TypeError):
+            return False, "Invalid user ID, stock ID, or shares amount."
+
         if shares <= 0:
             return False, "Invalid number of shares."
 
