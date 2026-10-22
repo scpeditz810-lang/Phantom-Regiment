@@ -281,13 +281,13 @@ function updateTradeTotal() {
     const currentStock = allStocks.find(s => s.id == activeStockId);
     if (currentStock) {
         const estGross = qty * currentStock.price;
-        const estTax = Math.round(estGross * 0.10);
+        const estTax = Math.round(estGross * 0.15);
         const estNetSell = Math.max(1, estGross - estTax);
-        const estDiv = Math.max(1, Math.round(estGross * 0.02));
+        const estDiv = Math.min(250, Math.max(1, Math.round(estGross * 0.004)));
         totalEl.innerHTML = `
             <div><strong>Buy Est:</strong> ${estGross.toLocaleString()} Medals</div>
             <div style="font-size:0.74rem; color:#94a3b8; margin-top:2px;">
-                <strong>Sell Est:</strong> ${estNetSell.toLocaleString()} M <span style="color:#ef4444;">(-10% State Tax: ${estTax.toLocaleString()} M)</span>
+                <strong>Sell Est:</strong> ${estNetSell.toLocaleString()} M <span style="color:#ef4444;">(-15% Market Tax: ${estTax.toLocaleString()} M)</span>
             </div>
             <div style="font-size:0.72rem; color:#22c55e; margin-top:2px;">
                 💰 +${estDiv.toLocaleString()} M / Div Cycle
@@ -310,7 +310,12 @@ async function executeTrade(action) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ stock_id: activeStockId, shares })
         });
-        const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch (jsonErr) {
+            return showToast(`Server error (${res.status}). Please try again.`, true);
+        }
 
         if (data.success) {
             showToast(data.message);
@@ -334,7 +339,7 @@ async function executeTrade(action) {
             showToast(data.message, true);
         }
     } catch (err) {
-        showToast(`Failed to execute ${action}.`, true);
+        showToast(`Network error executing ${action}.`, true);
     }
 }
 

@@ -36,7 +36,8 @@ class Database:
 
         dir_path = os.path.dirname(self.db_path)
 
-        os.makedirs(dir_path, exist_ok=True)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
 
         
 
