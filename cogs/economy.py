@@ -2,9 +2,17 @@ import random
 
 import time
 
+import os
+
 import asyncio
 
 import discord
+
+def get_jackpot_file() -> discord.File | None:
+    path = "assets/jackpot_win.mp4"
+    if os.path.exists(path):
+        return discord.File(path, filename="jackpot.mp4")
+    return None
 
 from discord.ext import commands
 
@@ -233,6 +241,20 @@ class RpsView(discord.ui.View):
         for item in self.children: item.disabled = True
 
         await message.edit(embed=embed, view=self)
+
+        if winner and message.channel:
+
+            vid = get_jackpot_file()
+
+            if vid:
+
+                try:
+
+                    await message.channel.send(content=f"🎰 **HIT THE JACKPOT!** {winner.mention} won the Rock Paper Scissors gamble (**{self.bet:,} Medals**)!", file=vid)
+
+                except Exception:
+
+                    pass
 
 
 
@@ -776,6 +798,8 @@ class BlackjackView(discord.ui.View):
 
     async def update_embed(self, interaction, final=False):
 
+        is_jackpot_win = False
+
         p_val = calculate_hand(self.player_hand)
 
         d_val = calculate_hand(self.dealer_hand)
@@ -812,9 +836,11 @@ class BlackjackView(discord.ui.View):
 
             elif d_val > 21 or p_val > d_val:
 
-                res = f"🎉 You won **{self.bet:,} Medals**!"
+                res = f"🎉 You won **{self.bet:,} Medals**! 🎰 **HIT THE JACKPOT!**"
 
                 embed.color = 0x2ECC71
+
+                is_jackpot_win = True
 
                 await self.bot.db.add_medals(self.user.id, interaction.guild_id, self.bet)
 
@@ -869,6 +895,20 @@ class BlackjackView(discord.ui.View):
             
 
         await interaction.response.edit_message(embed=embed, view=self if not final else None)
+
+        if final and is_jackpot_win and interaction.channel:
+
+            vid = get_jackpot_file()
+
+            if vid:
+
+                try:
+
+                    await interaction.channel.send(content=f"🎰 **HIT THE JACKPOT!** {self.user.mention} won **{self.bet:,} Medals** in Blackjack!", file=vid)
+
+                except Exception:
+
+                    pass
 
 
 
@@ -1992,7 +2032,17 @@ class EconomyCog(commands.Cog):
 
                 pass
 
-            await interaction.response.send_message(f"🪙 **Heads**! Won **{bet:,} Medals**!")
+            vid = get_jackpot_file()
+
+            msg = f"🪙 **Heads**! You won **{bet:,} Medals**! 🎰 **HIT THE JACKPOT!**"
+
+            if vid:
+
+                await interaction.response.send_message(msg, file=vid)
+
+            else:
+
+                await interaction.response.send_message(msg)
 
         else:
 
@@ -2206,7 +2256,7 @@ class EconomyCog(commands.Cog):
 
             embed.set_field_at(1, name=f"Dealer's Hand ({calculate_hand(dealer_hand)})", value=format_hand(dealer_hand), inline=False)
 
-            embed.description = f"🎉 **BLACKJACK!** You won **{winnings:,} Medals**!"
+            embed.description = f"🎉 **BLACKJACK!** You won **{winnings:,} Medals**! 🎰 **HIT THE JACKPOT!**"
 
             await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, winnings)
 
@@ -2218,7 +2268,15 @@ class EconomyCog(commands.Cog):
 
                 pass
 
-            await interaction.response.send_message(embed=embed)
+            vid = get_jackpot_file()
+
+            if vid:
+
+                await interaction.response.send_message(embed=embed, file=vid)
+
+            else:
+
+                await interaction.response.send_message(embed=embed)
 
         else:
 
@@ -2326,7 +2384,17 @@ class EconomyCog(commands.Cog):
 
                 pass
 
-            await interaction.response.send_message(f"🎰 The wheel landed on {color_emoji} **{result}**!\n🎉 You won **{payout:,} Medals**! (+{profit:,} profit)")
+            vid = get_jackpot_file()
+
+            msg = f"🎰 The wheel landed on {color_emoji} **{result}**!\n🎉 You won **{payout:,} Medals**! (+{profit:,} profit) 🎰 **HIT THE JACKPOT!**"
+
+            if vid:
+
+                await interaction.response.send_message(msg, file=vid)
+
+            else:
+
+                await interaction.response.send_message(msg)
 
         else:
 
