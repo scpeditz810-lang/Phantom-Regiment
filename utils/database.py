@@ -2150,11 +2150,11 @@ class Database:
             current_shares = row[0] if row else 0
             current_avg = row[1] if row else 0.0
 
-        if current_shares + shares > 100:
-            return False, f"Holding limit reached. You can only hold a maximum of 100 shares per stock (Currently hold: {current_shares})."
+        if current_shares + shares > 50:
+            return False, f"Holding limit reached. You can only hold a maximum of 50 shares per stock (Currently hold: {current_shares})."
 
-        # Dampened price impact: 0.03% per share (capped at 8% maximum shift per order)
-        pct_impact = min(0.08, 0.0003 * shares)
+        # Dampened price impact: 0.015% per share (capped at 4% maximum shift per order)
+        pct_impact = min(0.04, 0.00015 * shares)
         price_bump = max(1, int(round(stock["price"] * pct_impact)))
         new_price = stock["price"] + price_bump
 
@@ -2204,14 +2204,14 @@ class Database:
         if current_shares < shares:
             return False, f"You only own {current_shares} shares of {stock['symbol']}."
 
-        # Anti-arbitrage lock: Must hold for at least 60 seconds
+        # Anti-arbitrage lock: Must hold for at least 180 seconds (3 minutes)
         elapsed = time.time() - last_buy_time
-        if last_buy_time > 0 and elapsed < 60:
-            remaining = int(60 - elapsed)
-            return False, f"Anti-Arbitrage Lock: You recently purchased this stock. You must hold shares for at least 60s before selling ({remaining}s remaining)."
+        if last_buy_time > 0 and elapsed < 180:
+            remaining = int(180 - elapsed)
+            return False, f"Anti-Arbitrage Lock: You recently purchased this stock. You must hold shares for at least 3 minutes before selling ({remaining}s remaining)."
 
-        # Dampened price drop: 0.03% per share (capped at 8% maximum drop)
-        pct_impact = min(0.08, 0.0003 * shares)
+        # Dampened price drop: 0.015% per share (capped at 4% maximum drop)
+        pct_impact = min(0.04, 0.00015 * shares)
         price_drop = max(1, int(round(stock["price"] * pct_impact)))
         new_price = max(20, stock["price"] - price_drop)
 
@@ -2219,8 +2219,8 @@ class Database:
         effective_sell_price = (stock["price"] + new_price) / 2.0
         gross_return = int(round(shares * effective_sell_price))
 
-        # 10% Stock Market Transaction / Brokerage Tax
-        TAX_RATE = 0.10
+        # 15% Stock Market Transaction / Brokerage Tax
+        TAX_RATE = 0.15
         tax_amount = int(round(gross_return * TAX_RATE))
         net_return = max(1, gross_return - tax_amount)
 
@@ -2237,7 +2237,7 @@ class Database:
         await self.update_stock_price(stock_id, new_price)
         await self._db.commit()
 
-        return True, f"Successfully sold {shares} shares of {stock['symbol']} for {net_return:,} Medals! (Gross: {gross_return:,} - 10% Market Tax: {tax_amount:,}). Price dropped to {new_price:,} Medals."
+        return True, f"Successfully sold {shares} shares of {stock['symbol']} for {net_return:,} Medals! (Gross: {gross_return:,} - 15% Market Tax: {tax_amount:,}). Price dropped to {new_price:,} Medals."
 
 
 

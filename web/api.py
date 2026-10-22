@@ -98,8 +98,8 @@ _USER_LAST_STOCK_TRADE = {}
 def buy_stock():
     user_id = session["user"]["id"]
     now = time.time()
-    if now - _USER_LAST_STOCK_TRADE.get(user_id, 0) < 1.5:
-        return jsonify({"success": False, "message": "Market rate limit: Please wait 2 seconds between orders."}), 429
+    if now - _USER_LAST_STOCK_TRADE.get(user_id, 0) < 3.0:
+        return jsonify({"success": False, "message": "Market rate limit: Please wait 3 seconds between orders."}), 429
     _USER_LAST_STOCK_TRADE[user_id] = now
 
     data = request.get_json() or {}
@@ -130,8 +130,8 @@ def buy_stock():
 def sell_stock():
     user_id = session["user"]["id"]
     now = time.time()
-    if now - _USER_LAST_STOCK_TRADE.get(user_id, 0) < 1.5:
-        return jsonify({"success": False, "message": "Market rate limit: Please wait 2 seconds between orders."}), 429
+    if now - _USER_LAST_STOCK_TRADE.get(user_id, 0) < 3.0:
+        return jsonify({"success": False, "message": "Market rate limit: Please wait 3 seconds between orders."}), 429
     _USER_LAST_STOCK_TRADE[user_id] = now
 
     data = request.get_json() or {}
