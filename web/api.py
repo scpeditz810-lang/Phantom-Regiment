@@ -1027,12 +1027,64 @@ def api_estate_attack():
         except Exception:
             pass
 
+    has_battle = bool(battle_data and "attacker_roll" in battle_data)
     return jsonify({
         "success": success,
+        "battle_initiated": has_battle,
         "message": msg,
         "battle": battle_data,
         "wallet": econ.get("medals", 0)
-    }), 200 if success else 400
+    }), 200 if (success or has_battle) else 400
+
+@api_bp.route("/estate/active_battle", methods=["GET"])
+def api_estate_active_battle():
+    db = get_db()
+    battle = run_async(db.get_active_estate_battle())
+    if not battle:
+        return jsonify({"active": False})
+
+    bot = current_app.config.get("DISCORD_BOT")
+    def resolve_user(uid):
+        if not uid:
+            return "Commander", "https://cdn.discordapp.com/embed/avatars/0.png"
+        try:
+            int_uid = int(uid)
+        except (ValueError, TypeError):
+            int_uid = uid
+        if int_uid in _DISCORD_PROFILES:
+            return _DISCORD_PROFILES[int_uid][0], _DISCORD_PROFILES[int_uid][1]
+        name = f"Commander {uid}"
+        avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
+        if bot:
+            u = bot.get_user(int_uid)
+            if u:
+                res = (u.global_name or u.display_name or u.name, u.display_avatar.url)
+                _DISCORD_PROFILES[int_uid] = res
+                return res
+            for g in bot.guilds:
+                m = g.get_member(int_uid)
+                if m:
+                    res = (m.global_name or m.display_name or m.name, m.display_avatar.url)
+                    _DISCORD_PROFILES[int_uid] = res
+                    return res
+        return name, avatar
+
+    atk_name, atk_avatar = resolve_user(battle.get("attacker_id"))
+    def_name, def_avatar = resolve_user(battle.get("defender_id"))
+    battle["attacker_name"] = atk_name
+    battle["attacker_avatar"] = atk_avatar
+    battle["defender_name"] = def_name
+    battle["defender_avatar"] = def_avatar
+
+    curr_user = session.get("user")
+    user_id = str(curr_user.get("id")) if curr_user else None
+    battle["is_my_attack"] = (user_id == str(battle.get("attacker_id")))
+    battle["is_my_defense"] = (user_id == str(battle.get("defender_id")))
+
+    return jsonify({
+        "active": True,
+        "battle": battle
+    })
 
 @api_bp.route("/estate/military", methods=["GET"])
 @login_required

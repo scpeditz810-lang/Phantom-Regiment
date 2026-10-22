@@ -168,23 +168,61 @@
             <div id="three-map-viewport" class="three-viewport-container">
                 <canvas id="three-canvas"></canvas>
 
-                <!-- 💥 Live 3D Tactical Combat Cinematic HUD Overlay -->
-                <div id="battle-cinematic-hud" style="display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100; pointer-events: none; text-align: center; width: 92%; max-width: 580px;">
-                    <div style="background: rgba(15, 23, 42, 0.94); border: 2px solid #ef4444; border-radius: 12px; padding: 0.85rem 1.25rem; box-shadow: 0 0 30px rgba(239, 68, 68, 0.45); backdrop-filter: blur(10px);">
-                        <div style="font-size: 0.72rem; font-weight: 900; color: #f87171; letter-spacing: 0.12em; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                            <span class="live-dot-green" style="background:#ef4444; box-shadow: 0 0 8px #ef4444;"></span>
-                            LIVE TACTICAL BATTLE ENGAGEMENT
+                <!-- 💥 Live 3D Tactical Combat Cinematic HUD Overlay (Compulsory Viewing • Global Broadcast) -->
+                <div id="battle-cinematic-hud" style="display: none; position: absolute; top: 18px; left: 50%; transform: translateX(-50%); z-index: 100; pointer-events: none; text-align: center; width: 94%; max-width: 620px;">
+                    <div style="background: rgba(15, 23, 42, 0.96); border: 2px solid #ef4444; border-radius: 14px; padding: 0.95rem 1.35rem; box-shadow: 0 0 35px rgba(239, 68, 68, 0.45); backdrop-filter: blur(12px);">
+                        <!-- Tactical Broadcast Badge -->
+                        <div style="font-size: 0.72rem; font-weight: 900; color: #f87171; letter-spacing: 0.12em; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            <span class="live-dot-green" style="background:#ef4444; box-shadow: 0 0 10px #ef4444;"></span>
+                            <span id="battle-hud-badge-text">LIVE MILITARY COMBAT BROADCAST</span>
+                            <span class="live-dot-green" style="background:#ef4444; box-shadow: 0 0 10px #ef4444;"></span>
                         </div>
-                        <div id="battle-hud-title" style="font-size: 1.15rem; font-weight: 900; color: #fff; margin: 3px 0;">
+
+                        <!-- Attacker vs Defender Clash Strip -->
+                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin: 8px 0 10px 0;">
+                            <!-- Attacker -->
+                            <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-start; overflow: hidden;">
+                                <img id="battle-hud-atk-avatar" src="https://cdn.discordapp.com/embed/avatars/0.png" style="width: 34px; height: 34px; border-radius: 50%; border: 2px solid #ef4444; object-fit: cover; flex-shrink: 0;">
+                                <div style="text-align: left; overflow: hidden;">
+                                    <div id="battle-hud-atk-name" style="font-weight: 800; font-size: 0.85rem; color: #fff; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; max-width: 140px;">Attacking Force</div>
+                                    <div id="battle-hud-atk-roll" style="font-size: 0.72rem; color: #f87171; font-weight: 700;">Roll: 0</div>
+                                </div>
+                            </div>
+
+                            <!-- VS Badge -->
+                            <div style="background: rgba(239,68,68,0.25); border: 1px solid rgba(239,68,68,0.5); color: #fca5a5; font-size: 0.72rem; font-weight: 900; padding: 3px 9px; border-radius: 999px;">
+                                VS
+                            </div>
+
+                            <!-- Defender -->
+                            <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end; overflow: hidden;">
+                                <div style="text-align: right; overflow: hidden;">
+                                    <div id="battle-hud-def-name" style="font-weight: 800; font-size: 0.85rem; color: #fff; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; max-width: 140px;">Defender Fort</div>
+                                    <div id="battle-hud-def-roll" style="font-size: 0.72rem; color: #38bdf8; font-weight: 700;">Defense: 0</div>
+                                </div>
+                                <img id="battle-hud-def-avatar" src="https://cdn.discordapp.com/embed/avatars/0.png" style="width: 34px; height: 34px; border-radius: 50%; border: 2px solid #38bdf8; object-fit: cover; flex-shrink: 0;">
+                            </div>
+                        </div>
+
+                        <!-- Tug-of-war Clash HP Meter -->
+                        <div style="display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: #334155; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.15);">
+                            <div id="battle-meter-atk" style="width: 50%; background: linear-gradient(90deg, #dc2626, #f87171); transition: width 0.35s ease;"></div>
+                            <div id="battle-meter-def" style="width: 50%; background: linear-gradient(90deg, #38bdf8, #2563eb); transition: width 0.35s ease;"></div>
+                        </div>
+
+                        <!-- Battle Title & Live Tactical Status -->
+                        <div id="battle-hud-title" style="font-size: 1.05rem; font-weight: 900; color: #fff; margin: 3px 0;">
                             Deploying Strike Division...
                         </div>
                         <div id="battle-hud-status" style="font-size: 0.8rem; color: #94a3b8;">
-                            Attacking forces advancing on target perimeter...
+                            Attacking forces marching on target perimeter...
+                        </div>
+
+                        <!-- Mandatory Observation Ticker (NO SKIP) -->
+                        <div style="font-size: 0.65rem; color: #64748b; margin-top: 6px; letter-spacing: 0.06em; font-weight: 800;">
+                            🔴 LIVE SATELLITE COMBAT FEED • MANDATORY BATTLE STREAM
                         </div>
                     </div>
-                    <button id="btn-skip-battle" onclick="skipBattleAnimation()" style="pointer-events: auto; margin-top: 8px; background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.3); color: #fff; font-size: 0.74rem; font-weight: 700; padding: 4px 14px; border-radius: 999px; cursor: pointer; backdrop-filter: blur(4px);">
-                        ⏩ Skip Battle Animation
-                    </button>
                 </div>
 
                 <!-- Floating 3D Hover Tooltip -->
@@ -1735,6 +1773,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Auto-poll estate data every 10 seconds live
     setInterval(() => loadEstateData(true), 10000);
+    // Live global battle observation poller (checks every 2.2 seconds for real-time war broadcast)
+    setInterval(checkLiveActiveBattle, 2200);
 });
 
 
@@ -3736,96 +3776,212 @@ function triggerPeacekeeperDome(pos) {
     return dome;
 }
 
-function startLive3DCombatSimulation(targetPlot, data, onComplete) {
+// ─── GLOBAL LIVE COMBAT SIMULATION & BROADCAST ENGINE ──────────────────────
+let seenBattleIds = new Set();
+let isBattleSimulationPlaying = false;
+
+async function checkLiveActiveBattle() {
+    if (isBattleSimulationPlaying) return;
+    try {
+        const res = await fetch("/api/estate/active_battle");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.active && data.battle) {
+            const b = data.battle;
+            if (seenBattleIds.has(b.battle_id)) return;
+            seenBattleIds.add(b.battle_id);
+
+            // Automatically switch to 3D mode so everyone sees the live battle!
+            if (currentViewMode !== '3d') {
+                switchViewMode('3d');
+            }
+
+            const targetPlot = allPlots.find(p => p.id === b.target_id) || {
+                id: b.target_id,
+                name: b.target_name,
+                x: b.target_x || 2,
+                y: b.target_y || 2
+            };
+
+            const payload = {
+                success: b.success,
+                battle: b.battle_data,
+                attacker_name: b.attacker_name,
+                attacker_avatar: b.attacker_avatar,
+                defender_name: b.defender_name,
+                defender_avatar: b.defender_avatar,
+                is_my_attack: b.is_my_attack,
+                is_my_defense: b.is_my_defense,
+                message: b.battle_data?.success ?
+                    `Tactical Strike Breached Plot #${b.target_id} (${b.target_name})!` :
+                    `Tactical Assault Repelled at Plot #${b.target_id} (${b.target_name})!`
+            };
+
+            startLive3DCombatSimulation(targetPlot, payload, () => {
+                if (b.is_my_attack) {
+                    showBattleClashResult(payload);
+                } else if (b.is_my_defense) {
+                    showDefenseAlertModal(payload);
+                } else {
+                    showToast(
+                        b.success ?
+                        `⚔️ BATTLE RESOLUTION: ${b.attacker_name} breached ${b.target_name}! Treasury seized.` :
+                        `🛡️ BATTLE RESOLUTION: ${b.defender_name} repelled assault on ${b.target_name}!`,
+                        b.success ? "success" : "info"
+                    );
+                }
+                loadEstateData(true);
+            }, b);
+        }
+    } catch (e) {
+        // silent
+    }
+}
+
+function startLive3DCombatSimulation(targetPlot, data, onComplete, metaBattle = null) {
     if (!scene || !camera || !controls) {
         if (onComplete) onComplete();
         return;
     }
 
+    isBattleSimulationPlaying = true;
     const b = data.battle || {};
-    const isVictory = data.success && b.success;
+    const isVictory = data.success && (b.success !== undefined ? b.success : true);
     const coords = PLOT_COORDINATES[targetPlot.id] || { x: (targetPlot.x - 3.5) * 50, z: (targetPlot.y - 3.5) * 40 };
     const targetPos = new THREE.Vector3(coords.x, 0, coords.z);
 
-    // Show HUD
+    // Setup Cinematic HUD
     const hud = document.getElementById("battle-cinematic-hud");
+    const hudBadge = document.getElementById("battle-hud-badge-text");
     const hudTitle = document.getElementById("battle-hud-title");
     const hudStatus = document.getElementById("battle-hud-status");
-    if (hud) hud.style.display = "block";
-    if (hudTitle) hudTitle.innerText = `Assaulting ${targetPlot.name} (#${targetPlot.id})`;
-    if (hudStatus) hudStatus.innerText = "Deploying mechanized strike division...";
+    const atkAvatar = document.getElementById("battle-hud-atk-avatar");
+    const atkName = document.getElementById("battle-hud-atk-name");
+    const atkRoll = document.getElementById("battle-hud-atk-roll");
+    const defAvatar = document.getElementById("battle-hud-def-avatar");
+    const defName = document.getElementById("battle-hud-def-name");
+    const defRoll = document.getElementById("battle-hud-def-roll");
+    const meterAtk = document.getElementById("battle-meter-atk");
+    const meterDef = document.getElementById("battle-meter-def");
 
-    // Smoothly swoop camera to dramatic battle framing
+    if (hud) hud.style.display = "block";
+
+    // Set Role Badge
+    if (hudBadge) {
+        if (metaBattle?.is_my_attack) {
+            hudBadge.innerText = "⚔️ YOUR STRIKE FORCE IN ACTIVE BATTLE";
+        } else if (metaBattle?.is_my_defense) {
+            hudBadge.innerText = "🚨 YOUR TERRITORY IS UNDER HOSTILE ATTACK!";
+        } else {
+            hudBadge.innerText = "👁️ SPECTATING LIVE TERRITORIAL WARFARE";
+        }
+    }
+
+    if (atkAvatar) atkAvatar.src = metaBattle?.attacker_avatar || "https://cdn.discordapp.com/embed/avatars/0.png";
+    if (atkName) atkName.innerText = metaBattle?.attacker_name || "Strike Division";
+    if (atkRoll) atkRoll.innerText = "Roll: " + Number(b.attacker_roll || 0).toLocaleString();
+
+    if (defAvatar) defAvatar.src = metaBattle?.defender_avatar || "https://cdn.discordapp.com/embed/avatars/0.png";
+    if (defName) defName.innerText = metaBattle?.defender_name || (targetPlot.name || "Garrison");
+    if (defRoll) defRoll.innerText = "Defense: " + Number(b.defender_roll || 0).toLocaleString() + (b.allied_bonus > 0 ? ` (+${b.allied_bonus} Allies)` : "");
+
+    if (meterAtk) meterAtk.style.width = "50%";
+    if (meterDef) meterDef.style.width = "50%";
+
+    if (hudTitle) hudTitle.innerText = `Assault on ${targetPlot.name} (#${targetPlot.id})`;
+    if (hudStatus) hudStatus.innerText = "Mechanized strike battalion marching into combat formation...";
+
+    // Smooth camera swoop into strategy game action view
     new TWEEN.Tween(controls.target)
-        .to({ x: targetPos.x, y: 3, z: targetPos.z }, 1200)
+        .to({ x: targetPos.x, y: 3, z: targetPos.z }, 1300)
         .easing(TWEEN.Easing.Cubic.Out)
         .start();
 
     new TWEEN.Tween(camera.position)
-        .to({ x: targetPos.x - 25, y: 36, z: targetPos.z + 48 }, 1200)
+        .to({ x: targetPos.x - 32, y: 44, z: targetPos.z + 54 }, 1300)
         .easing(TWEEN.Easing.Cubic.Out)
         .start();
 
-    // Battle Entities Collection
+    // Battle Meshes Collection
     const battleMeshes = [];
     const attackerSoldiers = [];
     const defenderSoldiers = [];
 
-    // 1. Spawn Attackers at an offset (-40, +25)
-    const atkStart = new THREE.Vector3(targetPos.x - 42, 0, targetPos.z + 28);
-    const atkHalt = new THREE.Vector3(targetPos.x - 22, 0, targetPos.z + 16);
+    // 1. Spawning Attacker Strike Division at an offset
+    const atkStart = new THREE.Vector3(targetPos.x - 46, 0, targetPos.z + 30);
+    const atkHalt = new THREE.Vector3(targetPos.x - 22, 0, targetPos.z + 15);
 
-    // Armored Tank
+    // Armored Main Battle Tank
     const tank = createTankMesh(0x2d4a22);
     tank.position.copy(atkStart);
     tank.lookAt(targetPos);
     scene.add(tank);
     battleMeshes.push(tank);
 
-    // Attacker Infantry Squad (3 soldiers)
-    for (let i = 0; i < 3; i++) {
-        const s = createSoldierMesh(0x365314, 0x14532d, true);
-        const offset = new THREE.Vector3((i - 1) * 3.5, 0, (i === 1 ? -2 : 2));
-        s.position.copy(atkStart).add(offset);
-        s.lookAt(targetPos);
-        scene.add(s);
-        battleMeshes.push(s);
-        attackerSoldiers.push(s);
-    }
+    // Attacker Infantry Platoon (4 Soldiers in 2x2 squad formation)
+    const squadOffsets = [
+        new THREE.Vector3(-3.2, 0, -2.5),
+        new THREE.Vector3(3.2, 0, -2.5),
+        new THREE.Vector3(-3.2, 0, 2.5),
+        new THREE.Vector3(3.2, 0, 2.5)
+    ];
 
-    // Strike Chopper
+    squadOffsets.forEach((offset, idx) => {
+        const soldier = createSoldierMesh(0x365314, 0x14532d, true);
+        soldier.position.copy(atkStart).add(offset);
+        soldier.lookAt(targetPos);
+        soldier.userData.targetOffset = offset;
+        soldier.userData.isAlive = true;
+        scene.add(soldier);
+        battleMeshes.push(soldier);
+        attackerSoldiers.push(soldier);
+    });
+
+    // Air Support: Attack Gunship Helicopter
     const chopper = createChopperMesh();
-    chopper.position.set(atkStart.x - 10, 22, atkStart.z + 15);
+    chopper.position.set(atkStart.x - 14, 25, atkStart.z + 18);
     scene.add(chopper);
     battleMeshes.push(chopper);
 
-    // 2. Spawn Defenders around the Plot Center
-    // Sandbag Barricade
-    const sandbag = new THREE.Mesh(
-        new THREE.BoxGeometry(8, 1.2, 1.2),
+    // 2. Spawn Defender Fortifications around the Plot
+    // Sandbag Barricades (2 curved lines)
+    const sandbag1 = new THREE.Mesh(
+        new THREE.BoxGeometry(9, 1.3, 1.4),
         new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.9 })
     );
-    sandbag.position.set(targetPos.x - 8, 0.6, targetPos.z + 6);
-    sandbag.lookAt(atkStart);
-    scene.add(sandbag);
-    battleMeshes.push(sandbag);
+    sandbag1.position.set(targetPos.x - 8, 0.65, targetPos.z + 5);
+    sandbag1.lookAt(atkStart);
+    scene.add(sandbag1);
+    battleMeshes.push(sandbag1);
 
-    // 2 Base Defenders (Navy uniforms)
-    for (let i = 0; i < 2; i++) {
+    const sandbag2 = new THREE.Mesh(
+        new THREE.BoxGeometry(6, 1.3, 1.4),
+        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 })
+    );
+    sandbag2.position.set(targetPos.x - 3, 0.65, targetPos.z + 9);
+    sandbag2.lookAt(atkStart);
+    scene.add(sandbag2);
+    battleMeshes.push(sandbag2);
+
+    // 3 Garrison Defenders in Navy Camo
+    for (let i = 0; i < 3; i++) {
         const d = createSoldierMesh(0x1e293b, 0x0f172a, true);
-        d.position.set(targetPos.x - 7 + (i * 3.2), 0, targetPos.z + 8);
+        d.position.set(targetPos.x - 8 + (i * 2.8), 0, targetPos.z + 7.5);
         d.lookAt(atkStart);
+        d.userData.isAlive = true;
         scene.add(d);
         battleMeshes.push(d);
         defenderSoldiers.push(d);
     }
 
-    // 2 Allied Coalition Reinforcements (if allied bonus > 0)
+    // Allied Coalition Reinforcements (if allied bonus > 0)
     if (b.allied_bonus > 0) {
         for (let i = 0; i < 2; i++) {
             const ally = createSoldierMesh(0x1d4ed8, 0x3b82f6, true);
-            ally.position.set(targetPos.x - 5 + (i * 3.5), 0, targetPos.z + 11);
+            ally.position.set(targetPos.x - 2 + (i * 3.2), 0, targetPos.z + 12);
             ally.lookAt(atkStart);
+            ally.userData.isAlive = true;
+            ally.userData.isAllied = true;
             scene.add(ally);
             battleMeshes.push(ally);
             defenderSoldiers.push(ally);
@@ -3835,156 +3991,218 @@ function startLive3DCombatSimulation(targetPlot, data, onComplete) {
     let peacekeeperDome = null;
     let isCleanedUp = false;
 
-    // Advance Phase: Tween Attackers towards battle halt line (0.0s – 1.8s)
+    // Advance Phase: Tween Tank and Squad towards battle halt line (0.0s – 1.9s)
     new TWEEN.Tween(tank.position)
-        .to({ x: atkHalt.x, z: atkHalt.z }, 1800)
+        .to({ x: atkHalt.x, z: atkHalt.z }, 1900)
         .start();
 
-    attackerSoldiers.forEach((s, idx) => {
-        const targetOffset = new THREE.Vector3((idx - 1) * 3.5, 0, (idx === 1 ? -2 : 2));
+    attackerSoldiers.forEach((s) => {
+        const dest = atkHalt.clone().add(s.userData.targetOffset);
         new TWEEN.Tween(s.position)
-            .to({ x: atkHalt.x + targetOffset.x, z: atkHalt.z + targetOffset.z }, 1800)
+            .to({ x: dest.x, z: dest.z }, 1900)
             .start();
     });
 
     new TWEEN.Tween(chopper.position)
-        .to({ x: targetPos.x - 12, y: 19, z: targetPos.z + 18 }, 2200)
+        .to({ x: targetPos.x - 12, y: 20, z: targetPos.z + 18 }, 2200)
         .start();
 
-    // Combat Simulation Object
+    // Combat Simulation Lifecycle Object
     activeBattleSimulation = {
         startTime: Date.now(),
         update: function(time) {
             if (isCleanedUp) return;
             const elapsed = Date.now() - this.startTime;
 
-            // Animate Chopper Rotor
+            // Animate Chopper Rotors
             if (chopper.userData.rotor) {
-                chopper.userData.rotor.rotation.y += 0.45;
+                chopper.userData.rotor.rotation.y += 0.48;
             }
 
-            // Animate Walking Legs during Advance (first 1.8s)
-            if (elapsed < 1800) {
-                const legSwing = Math.sin(elapsed * 0.012) * 0.45;
-                attackerSoldiers.forEach(s => {
-                    if (s.userData.leftLeg) s.userData.leftLeg.rotation.x = legSwing;
-                    if (s.userData.rightLeg) s.userData.rightLeg.rotation.x = -legSwing;
+            // Animate Marching Cadence (Leg Swing & Torso Bob) during Advance (first 1.9s)
+            if (elapsed < 1900) {
+                const legSwing = Math.sin(elapsed * 0.014) * 0.52;
+                attackerSoldiers.forEach((s, idx) => {
+                    const phaseOffset = idx % 2 === 0 ? 0 : Math.PI;
+                    const swing = Math.sin((elapsed * 0.014) + phaseOffset) * 0.52;
+                    if (s.userData.leftLeg) s.userData.leftLeg.rotation.x = swing;
+                    if (s.userData.rightLeg) s.userData.rightLeg.rotation.x = -swing;
+                    s.position.y = Math.abs(Math.sin((elapsed * 0.014) + phaseOffset)) * 0.14;
                 });
             } else {
-                // Reset legs
+                // Settle into firing stances
                 attackerSoldiers.forEach(s => {
                     if (s.userData.leftLeg) s.userData.leftLeg.rotation.x = 0;
                     if (s.userData.rightLeg) s.userData.rightLeg.rotation.x = 0;
+                    if (s.userData.isAlive) s.position.y = 0;
                 });
             }
 
-            // Firefight Phase (1.8s – 5.5s)
-            if (elapsed >= 1800 && elapsed < 5500) {
-                if (hudStatus) hudStatus.innerText = "Heavy firefight! Armed units clashing...";
+            // Phase 2: Firefight Engagement (1.9s – 5.8s)
+            if (elapsed >= 1900 && elapsed < 5800) {
+                if (hudStatus) hudStatus.innerText = "Heavy firefight! Rapid tracers & cannon barrages clashing...";
 
-                // Random Bullet Tracers every few frames
-                if (Math.random() < 0.35) {
-                    // Attacker shoots red tracer
+                // Dynamic Tug-of-war Clash HP Meter
+                const clashProgress = Math.min(1.0, (elapsed - 1900) / 3600);
+                let atkPct = 50;
+                if (isVictory) {
+                    atkPct = 50 + (clashProgress * 45); // Climbs to 95%
+                } else {
+                    atkPct = 50 - (clashProgress * 45); // Drops to 5%
+                }
+                if (meterAtk) meterAtk.style.width = atkPct + "%";
+                if (meterDef) meterDef.style.width = (100 - atkPct) + "%";
+
+                // High-Frequency Bullet Tracers (Attacker: Red, Defender: Cyan, Allies: Amber)
+                if (Math.random() < 0.42) {
                     const livingAtk = attackerSoldiers.filter(s => s.userData.isAlive);
                     const livingDef = defenderSoldiers.filter(d => d.userData.isAlive);
                     if (livingAtk.length > 0 && livingDef.length > 0) {
                         const shooter = livingAtk[Math.floor(Math.random() * livingAtk.length)];
                         const target = livingDef[Math.floor(Math.random() * livingDef.length)];
                         const from = shooter.position.clone().add(new THREE.Vector3(0, 1.4, 0));
-                        const to = target.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+                        const to = target.position.clone().add(new THREE.Vector3(0, 1.1, 0));
                         shootBulletTracer(from, to, 0xff2222);
 
-                        // Flash muzzle
                         if (shooter.userData.muzzleFlash) {
                             shooter.userData.muzzleFlash.visible = true;
-                            setTimeout(() => { if (shooter.userData.muzzleFlash) shooter.userData.muzzleFlash.visible = false; }, 60);
+                            setTimeout(() => { if (shooter.userData.muzzleFlash) shooter.userData.muzzleFlash.visible = false; }, 50);
                         }
                     }
                 }
 
-                if (Math.random() < 0.35) {
-                    // Defender shoots blue tracer
+                if (Math.random() < 0.42) {
                     const livingAtk = attackerSoldiers.filter(s => s.userData.isAlive);
                     const livingDef = defenderSoldiers.filter(d => d.userData.isAlive);
                     if (livingAtk.length > 0 && livingDef.length > 0) {
                         const shooter = livingDef[Math.floor(Math.random() * livingDef.length)];
                         const target = livingAtk[Math.floor(Math.random() * livingAtk.length)];
                         const from = shooter.position.clone().add(new THREE.Vector3(0, 1.4, 0));
-                        const to = target.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-                        shootBulletTracer(from, to, 0x38bdf8);
+                        const to = target.position.clone().add(new THREE.Vector3(0, 1.1, 0));
+                        const tracerColor = shooter.userData.isAllied ? 0xf59e0b : 0x38bdf8;
+                        shootBulletTracer(from, to, tracerColor);
 
-                        // Flash muzzle
                         if (shooter.userData.muzzleFlash) {
                             shooter.userData.muzzleFlash.visible = true;
-                            setTimeout(() => { if (shooter.userData.muzzleFlash) shooter.userData.muzzleFlash.visible = false; }, 60);
+                            setTimeout(() => { if (shooter.userData.muzzleFlash) shooter.userData.muzzleFlash.visible = false; }, 50);
                         }
                     }
                 }
 
-                // Tank Cannon Fires at 2.6s and 4.2s
-                if ((elapsed > 2600 && elapsed < 2650) || (elapsed > 4200 && elapsed < 4250)) {
+                // Chopper Gun Strafing Run (Yellow Tracers from above)
+                if (Math.random() < 0.28) {
+                    const livingDef = defenderSoldiers.filter(d => d.userData.isAlive);
+                    if (livingDef.length > 0) {
+                        const target = livingDef[Math.floor(Math.random() * livingDef.length)];
+                        const from = chopper.position.clone().add(new THREE.Vector3(0, -0.6, 1.5));
+                        const to = target.position.clone().add(new THREE.Vector3(0, 0.4, 0));
+                        shootBulletTracer(from, to, 0xffea00);
+                    }
+                }
+
+                // Tank Cannon Recoil & Shell Explosions at 2.7s and 4.3s
+                if ((elapsed > 2700 && elapsed < 2740) || (elapsed > 4300 && elapsed < 4340)) {
                     if (tank.userData.muzzleFlash) {
                         tank.userData.muzzleFlash.visible = true;
-                        setTimeout(() => { if (tank.userData.muzzleFlash) tank.userData.muzzleFlash.visible = false; }, 120);
+                        setTimeout(() => { if (tank.userData.muzzleFlash) tank.userData.muzzleFlash.visible = false; }, 100);
                     }
-                    const cannonTarget = sandbag.position.clone().add(new THREE.Vector3(Math.random() * 2, 0, 0));
-                    triggerExplosion(cannonTarget, 1.4);
+                    if (tank.userData.barrel) {
+                        new TWEEN.Tween(tank.userData.barrel.position)
+                            .to({ z: 2.7 }, 70)
+                            .chain(new TWEEN.Tween(tank.userData.barrel.position).to({ z: 3.4 }, 300))
+                            .start();
+                    }
+                    const blastTarget = sandbag1.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 4, 0, (Math.random() - 0.5) * 2));
+                    triggerExplosion(blastTarget, 1.6);
                 }
 
-                // First Casualties
-                if (elapsed > 3000 && defenderSoldiers[0] && defenderSoldiers[0].userData.isAlive && isVictory) {
-                    defenderSoldiers[0].userData.isAlive = false;
-                    new TWEEN.Tween(defenderSoldiers[0].rotation).to({ x: -Math.PI / 2 }, 400).start();
+                // Casualties: Soldiers Falling & Dying During Firefight
+                if (elapsed > 3400) {
+                    if (isVictory && defenderSoldiers[0] && defenderSoldiers[0].userData.isAlive) {
+                        defenderSoldiers[0].userData.isAlive = false;
+                        new TWEEN.Tween(defenderSoldiers[0].rotation).to({ x: -Math.PI / 2 }, 360).start();
+                        new TWEEN.Tween(defenderSoldiers[0].position).to({ y: 0.3 }, 360).start();
+                        triggerExplosion(defenderSoldiers[0].position.clone().add(new THREE.Vector3(0, 1, 0)), 0.4);
+                    } else if (!isVictory && attackerSoldiers[0] && attackerSoldiers[0].userData.isAlive) {
+                        attackerSoldiers[0].userData.isAlive = false;
+                        new TWEEN.Tween(attackerSoldiers[0].rotation).to({ x: Math.PI / 2 }, 360).start();
+                        new TWEEN.Tween(attackerSoldiers[0].position).to({ y: 0.3 }, 360).start();
+                        triggerExplosion(attackerSoldiers[0].position.clone().add(new THREE.Vector3(0, 1, 0)), 0.4);
+                    }
                 }
 
-                if (elapsed > 3800 && attackerSoldiers[0] && attackerSoldiers[0].userData.isAlive && !isVictory) {
-                    attackerSoldiers[0].userData.isAlive = false;
-                    new TWEEN.Tween(attackerSoldiers[0].rotation).to({ x: Math.PI / 2 }, 400).start();
+                if (elapsed > 4600) {
+                    if (isVictory && defenderSoldiers[1] && defenderSoldiers[1].userData.isAlive) {
+                        defenderSoldiers[1].userData.isAlive = false;
+                        new TWEEN.Tween(defenderSoldiers[1].rotation).to({ x: -Math.PI / 2 }, 360).start();
+                        new TWEEN.Tween(defenderSoldiers[1].position).to({ y: 0.3 }, 360).start();
+                        triggerExplosion(defenderSoldiers[1].position.clone().add(new THREE.Vector3(0, 1, 0)), 0.4);
+                    } else if (!isVictory && attackerSoldiers[1] && attackerSoldiers[1].userData.isAlive) {
+                        attackerSoldiers[1].userData.isAlive = false;
+                        new TWEEN.Tween(attackerSoldiers[1].rotation).to({ x: Math.PI / 2 }, 360).start();
+                        new TWEEN.Tween(attackerSoldiers[1].position).to({ y: 0.3 }, 360).start();
+                        triggerExplosion(attackerSoldiers[1].position.clone().add(new THREE.Vector3(0, 1, 0)), 0.4);
+                    }
                 }
             }
 
-            // Resolution Phase (5.5s – 8.0s)
-            if (elapsed >= 5500 && elapsed < 8000) {
+            // Phase 3: Decisive Breakthrough or Fortress Repulsion (5.8s – 8.2s)
+            if (elapsed >= 5800 && elapsed < 8200) {
                 if (isVictory) {
-                    if (hudStatus) hudStatus.innerText = "🏆 Victory! Defenses overrun, claiming plundered yield...";
-                    // All remaining defenders fall
+                    if (meterAtk) meterAtk.style.width = "100%";
+                    if (meterDef) meterDef.style.width = "0%";
+                    if (hudStatus) hudStatus.innerText = "🏆 Defenses overrun! Attacking forces seizing plundered yield...";
+
+                    // All remaining defenders collapse
                     defenderSoldiers.forEach(d => {
                         if (d.userData.isAlive) {
                             d.userData.isAlive = false;
-                            new TWEEN.Tween(d.rotation).to({ x: -Math.PI / 2 }, 400).start();
+                            new TWEEN.Tween(d.rotation).to({ x: -Math.PI / 2 }, 360).start();
+                            new TWEEN.Tween(d.position).to({ y: 0.3 }, 360).start();
                         }
                     });
 
-                    // Trigger Gold Coin Fountain at 5.7s
-                    if (elapsed > 5700 && !this.goldFountainTriggered) {
+                    // Surviving attackers raise rifles in victory salute
+                    attackerSoldiers.forEach(s => {
+                        if (s.userData.isAlive) {
+                            s.rotation.x = -0.15;
+                        }
+                    });
+
+                    // Treasury Gold Shower at 6.1s
+                    if (elapsed > 6100 && !this.goldFountainTriggered) {
                         this.goldFountainTriggered = true;
                         triggerGoldCoinShower(targetPos);
                     }
 
-                    // Drop State Bank Peacekeeper Dome at 6.3s
-                    if (elapsed > 6300 && !this.domeTriggered) {
+                    // Deploy Central State Bank Peacekeeper Shield Dome at 6.7s
+                    if (elapsed > 6700 && !this.domeTriggered) {
                         this.domeTriggered = true;
                         peacekeeperDome = triggerPeacekeeperDome(targetPos);
                         if (peacekeeperDome) battleMeshes.push(peacekeeperDome);
                     }
                 } else {
-                    if (hudStatus) hudStatus.innerText = "🛡️ Repulsed! Fortress garrisons held the line!";
-                    // Attacker tank disabled / explodes
+                    if (meterAtk) meterAtk.style.width = "0%";
+                    if (meterDef) meterDef.style.width = "100%";
+                    if (hudStatus) hudStatus.innerText = "🛡️ Assault repulsed! Garrison & Allied Coalition held firm!";
+
+                    // Attacker lead tank disabled by anti-tank ordnance
                     if (elapsed > 5600 && !this.tankExploded) {
                         this.tankExploded = true;
-                        triggerExplosion(tank.position.clone().add(new THREE.Vector3(0, 1.5, 0)), 1.8);
+                        triggerExplosion(tank.position.clone().add(new THREE.Vector3(0, 1.6, 0)), 2.2);
                         attackerSoldiers.forEach(s => {
                             if (s.userData.isAlive) {
                                 s.userData.isAlive = false;
-                                new TWEEN.Tween(s.rotation).to({ x: Math.PI / 2 }, 400).start();
+                                new TWEEN.Tween(s.rotation).to({ x: Math.PI / 2 }, 360).start();
+                                new TWEEN.Tween(s.position).to({ y: 0.3 }, 360).start();
                             }
                         });
                     }
                 }
             }
 
-            // Finish battle at 8 seconds
-            if (elapsed >= 8000) {
+            // Finish battle at 8.4 seconds (Compulsory full playback)
+            if (elapsed >= 8400) {
                 finishBattle();
             }
         }
@@ -3994,6 +4212,7 @@ function startLive3DCombatSimulation(targetPlot, data, onComplete) {
         if (isCleanedUp) return;
         isCleanedUp = true;
         activeBattleSimulation = null;
+        isBattleSimulationPlaying = false;
 
         // Hide HUD
         if (hud) hud.style.display = "none";
@@ -4003,12 +4222,9 @@ function startLive3DCombatSimulation(targetPlot, data, onComplete) {
             if (scene) scene.remove(mesh);
         });
 
-        // Trigger completion callback to display final stats modal
+        // Trigger debrief resolution callback
         if (onComplete) onComplete();
     }
-
-    // Expose global skip function
-    window.skipBattleAnimation = finishBattle;
 }
 
 async function executeAttackPlotId(plotId, plotName) {
@@ -4026,7 +4242,7 @@ async function executeAttackPlotId(plotId, plotName) {
         const warModal = document.getElementById("war-room-modal");
         if (warModal) warModal.style.display = "none";
 
-        if (!data.success) {
+        if (!data.battle_initiated && !data.success) {
             showToast(data.message || "Attack rejected.", "error");
             loadEstateData(true);
             return;
@@ -4036,11 +4252,21 @@ async function executeAttackPlotId(plotId, plotName) {
         if (currentViewMode !== '3d') switchViewMode('3d');
 
         const targetPlot = allPlots.find(p => p.id === plotId) || { id: plotId, name: plotName, x: 2, y: 2 };
+        if (data.battle && data.battle.battle_id) {
+            seenBattleIds.add(data.battle.battle_id);
+        }
 
         // Launch 3D combat simulation on the map!
         startLive3DCombatSimulation(targetPlot, data, () => {
             showBattleClashResult(data);
             loadEstateData(true);
+        }, {
+            attacker_name: "You (High Command)",
+            attacker_avatar: currentDiscordUser?.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png',
+            defender_name: targetPlot.owner_name || `Commander ${targetPlot.owner_id || ''}`,
+            defender_avatar: targetPlot.owner_avatar || 'https://cdn.discordapp.com/embed/avatars/0.png',
+            is_my_attack: true,
+            is_my_defense: false
         });
 
     } catch (err) {
@@ -4048,27 +4274,37 @@ async function executeAttackPlotId(plotId, plotName) {
     }
 }
 
+function showDefenseAlertModal(data) {
+    showBattleClashResult(data, true);
+}
 
-function showBattleClashResult(data) {
+function showBattleClashResult(data, isDefense = false) {
     const modal = document.getElementById("battle-result-modal");
     if (!modal) return;
 
     const b = data.battle || {};
-    const success = data.success && b.success;
+    const success = data.success && (b.success !== undefined ? b.success : true);
 
     const badge = document.getElementById("battle-outcome-badge");
-    badge.style.background = success ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)";
-    badge.style.color = success ? "#10b981" : "#ef4444";
-    badge.innerText = success ? "🏆 BREACH VICTORY" : "❌ ASSAULT REPULSED";
+    if (isDefense) {
+        badge.style.background = success ? "rgba(239,68,68,0.2)" : "rgba(16,185,129,0.2)";
+        badge.style.color = success ? "#ef4444" : "#10b981";
+        badge.innerText = success ? "🚨 DEFENSES OVERRUN" : "🛡️ ASSAULT REPULSED";
+        document.getElementById("battle-headline").innerText = success ? "Your Territory Was Breached!" : "Your Garrison Held Firm!";
+    } else {
+        badge.style.background = success ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)";
+        badge.style.color = success ? "#10b981" : "#ef4444";
+        badge.innerText = success ? "🏆 BREACH VICTORY" : "❌ ASSAULT REPULSED";
+        document.getElementById("battle-headline").innerText = success ? "Territory Defenses Overrun!" : "Garrison Defenses Held Firm!";
+    }
 
-    document.getElementById("battle-headline").innerText = success ? "Territory Defenses Overrun!" : "Garrison Defenses Held Firm!";
     document.getElementById("battle-submessage").innerText = data.message || "";
 
-    document.getElementById("battle-atk-roll").innerText = b.attacker_roll || 0;
-    document.getElementById("battle-atk-power").innerText = "Base Power: " + (b.attacker_power || 0);
+    document.getElementById("battle-atk-roll").innerText = Number(b.attacker_roll || 0).toLocaleString();
+    document.getElementById("battle-atk-power").innerText = "Base Power: " + Number(b.attacker_power || 0).toLocaleString();
 
-    document.getElementById("battle-def-roll").innerText = b.defender_roll || 0;
-    document.getElementById("battle-def-power").innerText = "Base Def: " + (b.defender_power || 0) + (b.allied_bonus > 0 ? ` (+${b.allied_bonus} Allies)` : "");
+    document.getElementById("battle-def-roll").innerText = Number(b.defender_roll || 0).toLocaleString();
+    document.getElementById("battle-def-power").innerText = "Base Def: " + Number(b.defender_power || 0).toLocaleString() + (b.allied_bonus > 0 ? ` (+${b.allied_bonus} Allies)` : "");
 
     const lootBox = document.getElementById("battle-loot-box");
     const pkNotice = document.getElementById("battle-peacekeeper-notice");
@@ -4085,6 +4321,7 @@ function showBattleClashResult(data) {
     }
 
     modal.style.display = "flex";
+    return;
 }
 
 function closeBattleResultModal(e) {
