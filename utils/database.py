@@ -3130,3 +3130,16 @@ class Database:
             (user_id, guild_id)
         )
         await self._db.commit()
+    async def get_meta(self, key: str) -> str | None:
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT value FROM meta WHERE key = ?", (key,)) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else None
+
+    async def set_meta(self, key: str, value: str):
+        if self._db is None:
+            await self.setup()
+        await self._db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, str(value)))
+        await self._db.commit()
+
