@@ -14,6 +14,59 @@ def get_jackpot_file() -> discord.File | None:
         return discord.File(path, filename="jackpot.mp4")
     return None
 
+async def send_raid_alert_dm(bot, attacker_name: str, defender_id: int, plot: dict, battle_data: dict):
+    """Notify landowner via Discord DM when their territory parcel is raided."""
+    if not bot:
+        return
+    try:
+        user = bot.get_user(defender_id)
+        if not user:
+            user = await bot.fetch_user(defender_id)
+        if not user:
+            return
+
+        success = battle_data.get("success", False)
+        loot = battle_data.get("loot", 0)
+        plot_name = plot.get("name", f"Plot #{battle_data.get('target_id')}")
+        plot_id = battle_data.get("target_id")
+
+        if success:
+            lines = [
+                f"Commander **{attacker_name}** deployed an armed tactical raid on your territory **Plot #{plot_id}: {plot_name}**!",
+                "",
+                f"• **Assault Roll:** `{battle_data.get('attacker_roll', 0):,}` vs **Your Defense:** `{battle_data.get('defender_roll', 0):,}`",
+                f"• **Loot Plundered:** `-{loot:,} Medals` seized from your accrued land dividends!",
+                "• 🛡️ **State Bank Peacekeepers Active:** The Central State Bank deployed elite garrison forces to lock down and protect this parcel for **1 Full Hour** (cannot be attacked again until protection expires)!",
+                "",
+                "👉 Upgrade your defenses or seal alliances on the web map: [Open E-State Map](https://phantom-regiment-1.onrender.com/estate)"
+            ]
+            embed = discord.Embed(
+                title="🚨 TACTICAL ALERT: YOUR E-STATE PARCEL WAS BREACHED!",
+                description="\n".join(lines),
+                color=0xE74C3C
+            )
+            embed.set_footer(text="E-State Defense System • Construct Bunkers & form Alliances to repel raids!")
+        else:
+            lines = [
+                f"Commander **{attacker_name}** attempted an armed raid on your territory **Plot #{plot_id}: {plot_name}**, but **your garrison held the line!**",
+                "",
+                f"• **Enemy Assault Roll:** `{battle_data.get('attacker_roll', 0):,}` vs **Your Defense:** `{battle_data.get('defender_roll', 0):,}`",
+                f"• **Reparations Won:** You were awarded **+{battle_data.get('loot', 0):,} Medals** from attacker casualty fees!",
+                "• 🏰 Your fortifications and allied garrison reinforcements successfully defended the realm."
+            ]
+            embed = discord.Embed(
+                title="🛡️ TACTICAL DEFENSE REPORT: ENEMY ASSAULT REPELLED!",
+                description="\n".join(lines),
+                color=0x2ECC71
+            )
+            embed.set_footer(text="E-State Defense System • Sovereign Territory Protected")
+
+        await user.send(embed=embed)
+    except Exception:
+        pass
+
+
+
 from discord.ext import commands
 
 from discord import app_commands
@@ -3196,6 +3249,15 @@ class EconomyCog(commands.Cog):
         embed.set_footer(text="Territory Skirmishes • Central State Bank Peacekeepers")
         await interaction.followup.send(embed=embed)
 
+        # Dispatch Tactical Alert DM to Defender
+        if battle_data and battle_data.get("defender_id"):
+            try:
+                target_plot = await self.bot.db.get_estate_plot(plot_id)
+                if target_plot:
+                    await send_raid_alert_dm(self.bot, interaction.user.display_name, battle_data["defender_id"], target_plot, battle_data)
+            except Exception:
+                pass
+
     @app_commands.command(name="military", description="View your personal military tycoon power, bases, bunkers, and tactical readiness")
     async def military(self, interaction: discord.Interaction):
         stats = await self.bot.db.get_user_military_stats(interaction.user.id)
@@ -3216,6 +3278,19 @@ class EconomyCog(commands.Cog):
         embed.add_field(name="🏰 Operational Military Bases", value=bases_text, inline=False)
         embed.add_field(name="🛡️ Fortified Bunkers", value=bunkers_text, inline=False)
         embed.add_field(name="🛢️ Offshore Oil Rigs", value=rigs_text, inline=False)
+
+        # Recent Skirmishes
+        user_raids = await self.bot.db.get_user_raids(interaction.user.id, limit=3)
+        if user_raids:
+            raid_lines = []
+            for r in user_raids:
+                is_attacker = (r["attacker_id"] == interaction.user.id)
+                outcome = "VICTORY" if r["success"] else "DEFEAT"
+                role_str = "Attacked" if is_attacker else "Defended against"
+                other_uid = r["defender_id"] if is_attacker else r["attacker_id"]
+                raid_lines.append(f"• `{outcome}` — {role_str} <@{other_uid}> on Plot #{r['plot_id']} ({r.get('loot', 0):,} M)")
+            embed.add_field(name="📜 Recent Combat Skirmishes", value="\n".join(raid_lines), inline=False)
+
         embed.set_footer(text="Upgrade military facilities to launch strikes on rival plots with /raid!")
         await interaction.response.send_message(embed=embed)
 
