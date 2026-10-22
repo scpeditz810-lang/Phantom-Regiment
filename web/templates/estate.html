@@ -4069,6 +4069,16 @@ function focusActiveBattle() {
     if (currentViewMode !== '3d') switchViewMode('3d');
     const mapEl = document.getElementById("three-map-viewport");
     if (mapEl) mapEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (window.lastActiveBattleCoords && camera && controls) {
+        new TWEEN.Tween(controls.target)
+            .to({ x: window.lastActiveBattleCoords.x, y: 3, z: window.lastActiveBattleCoords.z }, 1200)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .start();
+        new TWEEN.Tween(camera.position)
+            .to({ x: window.lastActiveBattleCoords.x - 32, y: 44, z: window.lastActiveBattleCoords.z + 54 }, 1200)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .start();
+    }
 }
 
 async function checkLiveActiveBattle() {
@@ -4082,23 +4092,28 @@ async function checkLiveActiveBattle() {
             if (seenBattleIds.has(b.battle_id)) return;
             seenBattleIds.add(b.battle_id);
 
-            // 1. Close any open dialogs/modals immediately so spectators unobstructed view of battle!
-            document.querySelectorAll(".modal-overlay").forEach(m => {
-                if (m.id !== "battle-result-modal") m.style.display = "none";
-            });
+            const isCombatant = Boolean(b.is_my_attack || b.is_my_defense);
 
-            // 2. Automatically switch to 3D mode so everyone sees the live fight!
-            if (currentViewMode !== '3d') {
-                switchViewMode('3d');
+            // Only hijack camera and close menus if the user is an active COMBATANT (Attacker or Defender)
+            if (isCombatant) {
+                // Close any open dialogs/modals for combatants
+                document.querySelectorAll(".modal-overlay").forEach(m => {
+                    if (m.id !== "battle-result-modal") m.style.display = "none";
+                });
+
+                // Automatically switch to 3D mode for combatants
+                if (currentViewMode !== '3d') {
+                    switchViewMode('3d');
+                }
+
+                // Center/scroll page to the 3D map viewport
+                const mapEl = document.getElementById("three-map-viewport");
+                if (mapEl) {
+                    mapEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
             }
 
-            // 3. Smoothly center/scroll page to the 3D map viewport
-            const mapEl = document.getElementById("three-map-viewport");
-            if (mapEl) {
-                mapEl.scrollIntoView({ behavior: "smooth", block: "center" });
-            }
-
-            // 4. Update the global Live Warfare Announcement Banner
+            // Ambient Live Warfare Banner (shows subtle live world event ticker)
             const warBanner = document.getElementById("live-war-broadcast-banner");
             const warText = document.getElementById("live-war-banner-text");
             if (warBanner) warBanner.style.display = "block";
@@ -4158,7 +4173,10 @@ function startLive3DCombatSimulation(targetPlot, data, onComplete, metaBattle = 
     const coords = PLOT_COORDINATES[targetPlot.id] || { x: (targetPlot.x - 3.5) * 50, z: (targetPlot.y - 3.5) * 40 };
     const targetPos = new THREE.Vector3(coords.x, 0, coords.z);
 
-    // Setup Cinematic HUD
+    window.lastActiveBattleCoords = targetPos;
+    const isCombatant = Boolean(metaBattle && (metaBattle.is_my_attack || metaBattle.is_my_defense));
+
+    // Setup Cinematic HUD & HP Clash Meter ONLY for Attacker and Defender
     const hud = document.getElementById("battle-cinematic-hud");
     const hudBadge = document.getElementById("battle-hud-badge-text");
     const hudTitle = document.getElementById("battle-hud-title");
@@ -4172,43 +4190,41 @@ function startLive3DCombatSimulation(targetPlot, data, onComplete, metaBattle = 
     const meterAtk = document.getElementById("battle-meter-atk");
     const meterDef = document.getElementById("battle-meter-def");
 
-    if (hud) hud.style.display = "block";
-
-    // Set Role Badge
-    if (hudBadge) {
-        if (metaBattle?.is_my_attack) {
-            hudBadge.innerText = "⚔️ YOUR STRIKE FORCE IN ACTIVE BATTLE";
-        } else if (metaBattle?.is_my_defense) {
-            hudBadge.innerText = "🚨 YOUR TERRITORY IS UNDER HOSTILE ATTACK!";
-        } else {
-            hudBadge.innerText = "👁️ SPECTATING LIVE TERRITORIAL WARFARE";
+    if (isCombatant && hud) {
+        hud.style.display = "block";
+        if (hudBadge) {
+            hudBadge.innerText = metaBattle.is_my_attack ? "⚔️ YOUR STRIKE FORCE IN ACTIVE BATTLE" : "🚨 YOUR TERRITORY IS UNDER HOSTILE ATTACK!";
         }
+        if (atkAvatar) atkAvatar.src = metaBattle?.attacker_avatar || "https://cdn.discordapp.com/embed/avatars/0.png";
+        if (atkName) atkName.innerText = metaBattle?.attacker_name || "Strike Division";
+        if (atkRoll) atkRoll.innerText = "Roll: " + Number(b.attacker_roll || 0).toLocaleString();
+
+        if (defAvatar) defAvatar.src = metaBattle?.defender_avatar || "https://cdn.discordapp.com/embed/avatars/0.png";
+        if (defName) defName.innerText = metaBattle?.defender_name || (targetPlot.name || "Garrison");
+        if (defRoll) defRoll.innerText = "Defense: " + Number(b.defender_roll || 0).toLocaleString() + (b.allied_bonus > 0 ? ` (+${b.allied_bonus} Allies)` : "");
+
+        if (meterAtk) meterAtk.style.width = "50%";
+        if (meterDef) meterDef.style.width = "50%";
+
+        if (hudTitle) hudTitle.innerText = `Assault on ${targetPlot.name} (#${targetPlot.id})`;
+        if (hudStatus) hudStatus.innerText = "Mechanized strike battalion marching into combat formation...";
+
+        // Smooth camera swoop into strategy game action view ONLY for combatants
+        if (camera && controls) {
+            new TWEEN.Tween(controls.target)
+                .to({ x: targetPos.x, y: 3, z: targetPos.z }, 1300)
+                .easing(TWEEN.Easing.Cubic.Out)
+                .start();
+
+            new TWEEN.Tween(camera.position)
+                .to({ x: targetPos.x - 32, y: 44, z: targetPos.z + 54 }, 1300)
+                .easing(TWEEN.Easing.Cubic.Out)
+                .start();
+        }
+    } else {
+        // SPECTATORS: Keep screen completely unobstructed! No HP bars, no forced camera movement!
+        if (hud) hud.style.display = "none";
     }
-
-    if (atkAvatar) atkAvatar.src = metaBattle?.attacker_avatar || "https://cdn.discordapp.com/embed/avatars/0.png";
-    if (atkName) atkName.innerText = metaBattle?.attacker_name || "Strike Division";
-    if (atkRoll) atkRoll.innerText = "Roll: " + Number(b.attacker_roll || 0).toLocaleString();
-
-    if (defAvatar) defAvatar.src = metaBattle?.defender_avatar || "https://cdn.discordapp.com/embed/avatars/0.png";
-    if (defName) defName.innerText = metaBattle?.defender_name || (targetPlot.name || "Garrison");
-    if (defRoll) defRoll.innerText = "Defense: " + Number(b.defender_roll || 0).toLocaleString() + (b.allied_bonus > 0 ? ` (+${b.allied_bonus} Allies)` : "");
-
-    if (meterAtk) meterAtk.style.width = "50%";
-    if (meterDef) meterDef.style.width = "50%";
-
-    if (hudTitle) hudTitle.innerText = `Assault on ${targetPlot.name} (#${targetPlot.id})`;
-    if (hudStatus) hudStatus.innerText = "Mechanized strike battalion marching into combat formation...";
-
-    // Smooth camera swoop into strategy game action view
-    new TWEEN.Tween(controls.target)
-        .to({ x: targetPos.x, y: 3, z: targetPos.z }, 1300)
-        .easing(TWEEN.Easing.Cubic.Out)
-        .start();
-
-    new TWEEN.Tween(camera.position)
-        .to({ x: targetPos.x - 32, y: 44, z: targetPos.z + 54 }, 1300)
-        .easing(TWEEN.Easing.Cubic.Out)
-        .start();
 
     // Battle Meshes Collection
     const battleMeshes = [];
