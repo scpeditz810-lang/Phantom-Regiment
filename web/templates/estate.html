@@ -114,6 +114,18 @@
         </div>
     </div>
 
+    <!-- 🚨 Real-time Live Warfare Global Broadcast Banner (Visible to Everyone on Page) -->
+    <div id="live-war-broadcast-banner" style="display: none; background: linear-gradient(90deg, #7f1d1d, #991b1b, #7f1d1d); border: 2px solid #ef4444; border-radius: 12px; padding: 0.65rem 1rem; margin-bottom: 0.85rem; text-align: center; box-shadow: 0 0 25px rgba(239, 68, 68, 0.45); animation: pulseWarGlow 2s infinite;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;">
+            <span class="live-dot-green" style="background:#ef4444; box-shadow: 0 0 10px #ef4444;"></span>
+            <strong style="color: #fff; font-size: 0.85rem; letter-spacing: 0.05em; text-transform: uppercase;">🚨 ACTIVE MILITARY SIEGE IN PROGRESS:</strong>
+            <span id="live-war-banner-text" style="color: #fca5a5; font-size: 0.82rem; font-weight: 700;">Plot under tactical raid</span>
+            <button type="button" class="btn btn-sm" onclick="focusActiveBattle()" style="background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.4); color: #fff; font-size: 0.72rem; padding: 2px 10px; border-radius: 999px; margin-left: 6px; cursor: pointer;">
+                👁️ View Live Combat Feed
+            </button>
+        </div>
+    </div>
+
     <!-- Main Workspace: 3D Map Viewer Canvas + Inspector Drawer -->
     <div class="estate-layout">
         <!-- The Virtual Visual Map Container -->
@@ -1666,6 +1678,276 @@
     border-radius: 999px;
     font-weight: 800;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   📱 ULTRA-STABLE MOBILE & TABLET RESPONSIVE ENGINE
+   ══════════════════════════════════════════════════════════════════════════════ */
+@keyframes pulseWarGlow {
+    0%, 100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); border-color: #ef4444; }
+    50% { box-shadow: 0 0 30px rgba(239, 68, 68, 0.85); border-color: #fca5a5; }
+}
+
+@media (max-width: 900px) {
+    .estate-layout {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+    }
+    .estate-inspector {
+        position: static !important;
+        width: 100% !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .estate-wrapper {
+        padding: 0.65rem 0.5rem 2.5rem 0.5rem !important;
+    }
+
+    .estate-hero {
+        padding: 1rem 0.85rem !important;
+    }
+
+    .estate-hero-top {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.85rem !important;
+    }
+
+    .estate-hero h1 {
+        font-size: 1.45rem !important;
+    }
+
+    .estate-hero p {
+        font-size: 0.78rem !important;
+    }
+
+    .estate-claim-box {
+        width: 100% !important;
+        justify-content: space-between !important;
+        padding: 0.75rem 1rem !important;
+    }
+
+    .claim-amount {
+        font-size: 1.35rem !important;
+    }
+
+    /* 2-Column Responsive Dashboard */
+    .estate-stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.55rem !important;
+    }
+
+    .estate-stats-grid .stat-tile:last-child {
+        grid-column: span 2 !important;
+    }
+
+    .stat-tile {
+        padding: 0.7rem 0.75rem !important;
+    }
+
+    .stat-tile-label {
+        font-size: 0.64rem !important;
+    }
+
+    .stat-tile-val {
+        font-size: 1.15rem !important;
+    }
+
+    .stat-tile-sub {
+        font-size: 0.65rem !important;
+    }
+
+    /* Horizontal Swipe Filter Chips */
+    .filter-pills {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
+        padding-bottom: 4px !important;
+        gap: 0.35rem !important;
+    }
+
+    .filter-pills::-webkit-scrollbar {
+        display: none !important;
+    }
+
+    .filter-pill {
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
+        padding: 0.38rem 0.7rem !important;
+        font-size: 0.73rem !important;
+    }
+
+    .estate-controls-bar {
+        gap: 0.65rem !important;
+    }
+
+    /* 3D Map Container & Viewport */
+    .estate-map-container {
+        padding: 0.55rem !important;
+        border-radius: 12px !important;
+    }
+
+    .three-viewport-container {
+        height: min(60vh, 420px) !important;
+        border-radius: 10px !important;
+    }
+
+    /* 3D Toolbar */
+    .map-3d-toolbar {
+        padding: 0.5rem 0.65rem !important;
+        gap: 0.45rem !important;
+    }
+
+    .map-3d-toolbar-left {
+        width: 100% !important;
+        justify-content: space-between !important;
+    }
+
+    .district-indicator {
+        font-size: 0.74rem !important;
+    }
+
+    .map-3d-toolbar-right {
+        width: 100% !important;
+        justify-content: space-between !important;
+        gap: 0.35rem !important;
+    }
+
+    .map-search-box {
+        width: 100% !important;
+        flex: 1 !important;
+    }
+
+    .map-search-box input {
+        width: 100% !important;
+        font-size: 0.8rem !important;
+    }
+
+    .map-search-box input:focus {
+        width: 100% !important;
+    }
+
+    .map-tool-btn {
+        padding: 0.35rem 0.6rem !important;
+        font-size: 0.74rem !important;
+    }
+
+    /* Mobile Touch D-Pad */
+    .mobile-controls-hud {
+        bottom: 12px !important;
+        left: 10px !important;
+        right: 10px !important;
+    }
+
+    .virtual-dpad {
+        padding: 5px !important;
+        border-radius: 16px !important;
+    }
+
+    .dpad-btn {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 0.95rem !important;
+        border-radius: 8px !important;
+    }
+
+    .dpad-center-knob {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 0.8rem !important;
+    }
+
+    .mobile-hud-actions {
+        padding: 5px !important;
+        border-radius: 14px !important;
+        gap: 5px !important;
+    }
+
+    .hud-action-btn {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 0.92rem !important;
+        border-radius: 8px !important;
+    }
+
+    /* Cinematic Battle HUD on Mobile */
+    #battle-cinematic-hud {
+        width: 96% !important;
+        top: 8px !important;
+        z-index: 10001 !important;
+    }
+
+    #battle-cinematic-hud > div {
+        padding: 0.65rem 0.75rem !important;
+        border-radius: 10px !important;
+    }
+
+    #battle-hud-atk-name, #battle-hud-def-name {
+        max-width: 90px !important;
+        font-size: 0.74rem !important;
+    }
+
+    #battle-hud-atk-avatar, #battle-hud-def-avatar {
+        width: 28px !important;
+        height: 28px !important;
+    }
+
+    #battle-hud-title {
+        font-size: 0.92rem !important;
+    }
+
+    #battle-hud-status {
+        font-size: 0.73rem !important;
+    }
+
+    /* Inspector Drawer on Mobile */
+    .inspector-tabs {
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
+        gap: 0.25rem !important;
+    }
+
+    .inspector-tabs::-webkit-scrollbar {
+        display: none !important;
+    }
+
+    .insp-tab {
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
+        padding: 0.45rem 0.65rem !important;
+        font-size: 0.74rem !important;
+    }
+
+    /* Modals on Mobile */
+    .modal-overlay {
+        padding: 0.5rem !important;
+    }
+
+    .modal-content {
+        padding: 1.1rem 0.85rem !important;
+        border-radius: 12px !important;
+        max-height: 92vh !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .estate-stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    #battle-hud-atk-name, #battle-hud-def-name {
+        max-width: 75px !important;
+        font-size: 0.7rem !important;
+    }
+
+    .three-viewport-container {
+        height: 360px !important;
+    }
+}
 </style>
 
 <script>
@@ -1771,10 +2053,13 @@ document.addEventListener("DOMContentLoaded", () => {
     setupSearchAutocomplete();
     setupMovementListeners();
 
+    // Immediate battle check on load (so new page visitors catch in-progress battles instantly)
+    checkLiveActiveBattle();
+
     // Auto-poll estate data every 10 seconds live
     setInterval(() => loadEstateData(true), 10000);
-    // Live global battle observation poller (checks every 2.2 seconds for real-time war broadcast)
-    setInterval(checkLiveActiveBattle, 2200);
+    // Live global battle observation poller (checks every 1.2s for instantaneous sync across everyone on page)
+    setInterval(checkLiveActiveBattle, 1200);
 });
 
 
@@ -3780,6 +4065,12 @@ function triggerPeacekeeperDome(pos) {
 let seenBattleIds = new Set();
 let isBattleSimulationPlaying = false;
 
+function focusActiveBattle() {
+    if (currentViewMode !== '3d') switchViewMode('3d');
+    const mapEl = document.getElementById("three-map-viewport");
+    if (mapEl) mapEl.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 async function checkLiveActiveBattle() {
     if (isBattleSimulationPlaying) return;
     try {
@@ -3791,10 +4082,27 @@ async function checkLiveActiveBattle() {
             if (seenBattleIds.has(b.battle_id)) return;
             seenBattleIds.add(b.battle_id);
 
-            // Automatically switch to 3D mode so everyone sees the live battle!
+            // 1. Close any open dialogs/modals immediately so spectators unobstructed view of battle!
+            document.querySelectorAll(".modal-overlay").forEach(m => {
+                if (m.id !== "battle-result-modal") m.style.display = "none";
+            });
+
+            // 2. Automatically switch to 3D mode so everyone sees the live fight!
             if (currentViewMode !== '3d') {
                 switchViewMode('3d');
             }
+
+            // 3. Smoothly center/scroll page to the 3D map viewport
+            const mapEl = document.getElementById("three-map-viewport");
+            if (mapEl) {
+                mapEl.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+
+            // 4. Update the global Live Warfare Announcement Banner
+            const warBanner = document.getElementById("live-war-broadcast-banner");
+            const warText = document.getElementById("live-war-banner-text");
+            if (warBanner) warBanner.style.display = "block";
+            if (warText) warText.innerText = `${b.attacker_name} assaulting ${b.target_name} (#${b.target_id})`;
 
             const targetPlot = allPlots.find(p => p.id === b.target_id) || {
                 id: b.target_id,
@@ -4214,8 +4522,10 @@ function startLive3DCombatSimulation(targetPlot, data, onComplete, metaBattle = 
         activeBattleSimulation = null;
         isBattleSimulationPlaying = false;
 
-        // Hide HUD
+        // Hide HUD and Live War Banner
         if (hud) hud.style.display = "none";
+        const warBanner = document.getElementById("live-war-broadcast-banner");
+        if (warBanner) warBanner.style.display = "none";
 
         // Clean up 3D meshes
         battleMeshes.forEach(mesh => {
