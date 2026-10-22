@@ -667,6 +667,7 @@ def estate_buy_market():
     return jsonify({
         "success": success,
         "message": msg,
+        "error": msg if not success else None,
         "wallet": econ.get("medals", 0)
     }), 200 if success else 400
 
@@ -676,14 +677,21 @@ def estate_offer():
     data = request.get_json() or {}
     try:
         plot_id = int(data.get("plot_id", 0))
-        amount = int(data.get("amount", 0))
+        amount = int(data.get("offer_amount", data.get("amount", 0)))
     except (ValueError, TypeError):
-        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        return jsonify({"success": False, "message": "Invalid parameters.", "error": "Invalid parameters."}), 400
+
+    if plot_id <= 0 or amount <= 0:
+        return jsonify({"success": False, "message": "Invalid Plot ID or offer amount.", "error": "Invalid Plot ID or offer amount."}), 400
 
     user_id = session["user"]["id"]
     db = get_db()
     success, msg = run_async(db.create_estate_offer(user_id, plot_id, amount))
-    return jsonify({"success": success, "message": msg}), 200 if success else 400
+    return jsonify({
+        "success": success, 
+        "message": msg,
+        "error": msg if not success else None
+    }), 200 if success else 400
 
 @api_bp.route("/estate/offers")
 @login_required
@@ -745,7 +753,7 @@ def estate_reject_offer():
     user_id = session["user"]["id"]
     db = get_db()
     success, msg = run_async(db.reject_estate_offer(user_id, offer_id))
-    return jsonify({"success": success, "message": msg}), 200 if success else 400
+    return jsonify({"success": success, "message": msg, "error": msg if not success else None}), 200 if success else 400
 
 @api_bp.route("/estate/collect_yield", methods=["POST"])
 @login_required

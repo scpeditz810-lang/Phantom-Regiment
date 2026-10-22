@@ -2667,7 +2667,7 @@ async function setMarketListing() {
             showToast(data.message || "Marketplace listing updated!");
             await loadEstateData(true);
         } else {
-            showToast("Listing error: " + (data.error || "Unknown error"), "error");
+            showToast("Listing error: " + (data.message || data.error || "Unknown error"), "error");
         }
     } catch (err) {
         showToast("Error updating listing.", "error");
@@ -2691,7 +2691,7 @@ async function delistMarketListing() {
             showToast("Plot delisted from marketplace.");
             await loadEstateData(true);
         } else {
-            showToast("Delisting failed: " + (data.error || "Unknown error"), "error");
+            showToast("Delisting failed: " + (data.message || data.error || "Unknown error"), "error");
         }
     } catch (err) {
         showToast("Delist error.", "error");
@@ -2716,7 +2716,7 @@ async function executeBuyMarket() {
             showToast(data.message || "Purchased from market!");
             await loadEstateData(true);
         } else {
-            showToast("Purchase error: " + (data.error || "Unknown error"), "error");
+            showToast("Purchase error: " + (data.message || data.error || "Unknown error"), "error");
         }
     } catch (err) {
         showToast("Transaction error.", "error");
@@ -2735,14 +2735,14 @@ async function submitCustomOffer() {
         const res = await fetch("/api/estate/offer", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plot_id: selectedPlot.id, offer_amount: amount })
+            body: JSON.stringify({ plot_id: selectedPlot.id, offer_amount: amount, amount: amount })
         });
         const data = await res.json();
         if (res.ok && data.success) {
             showToast(data.message || "Offer submitted to owner!");
             document.getElementById("input-offer-amount").value = "";
         } else {
-            showToast("Offer failed: " + (data.error || "Unknown error"), "error");
+            showToast("Offer failed: " + (data.message || data.error || "Unknown error"), "error");
         }
     } catch (err) {
         showToast("Communication error.", "error");
@@ -2851,7 +2851,7 @@ async function acceptOffer(offerId) {
             closeOffersModal();
             await loadEstateData(true);
         } else {
-            showToast("Failed to accept offer: " + (data.error || "Unknown error"), "error");
+            showToast("Failed to accept offer: " + (data.message || data.error || "Unknown error"), "error");
         }
     } catch (err) {
         showToast("Communication error.", "error");
@@ -2875,7 +2875,7 @@ async function rejectOffer(offerId) {
             showToast("Offer rejected.");
             openOffersModal();
         } else {
-            showToast("Failed to reject offer: " + (data.error || "Unknown error"), "error");
+            showToast("Failed to reject offer: " + (data.message || data.error || "Unknown error"), "error");
         }
     } catch (err) {
         showToast("Communication error.", "error");
