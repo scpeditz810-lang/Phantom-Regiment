@@ -326,7 +326,20 @@ def mayor_page():
     user = session.get("user")
     plots = run_async(db.get_estate_plots())
     stocks = run_async(db.get_all_stocks())
-    raids = run_async(db.get_recent_raids(8))
+    raw_raids = run_async(db.get_recent_raids(8))
+    bot = current_app.config.get("DISCORD_BOT")
+    from web.api import _resolve_discord_user
+    enriched_raids = []
+    for r in raw_raids:
+        item = dict(r)
+        atk_name, atk_av = _resolve_discord_user(r.get("attacker_id"), bot=bot, db=db)
+        def_name, def_av = _resolve_discord_user(r.get("defender_id"), bot=bot, db=db)
+        item["attacker_name"] = atk_name
+        item["attacker_avatar"] = atk_av
+        item["defender_name"] = def_name
+        item["defender_avatar"] = def_av
+        enriched_raids.append(item)
+    raids = enriched_raids
     try:
         tax_pct = int(round(run_async(db.get_stock_tax_rate()) * 100))
     except Exception:

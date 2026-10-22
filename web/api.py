@@ -241,7 +241,7 @@ try:
 except Exception as _e:
     pass
 
-def _resolve_discord_user(uid, bot=None):
+def _resolve_discord_user(uid, bot=None, db=None):
     if not uid:
         return "Unknown Citizen", "https://cdn.discordapp.com/embed/avatars/0.png"
     try:
@@ -250,21 +250,75 @@ def _resolve_discord_user(uid, bot=None):
         int_uid = uid
     if int_uid in _DISCORD_PROFILES:
         return _DISCORD_PROFILES[int_uid]
-    name = f"Citizen #{uid}"
+
+    name = None
     avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
+
+    # 1. Discord Bot in-memory member/user cache
     if bot:
         user = bot.get_user(int_uid)
         if user:
-            res = (user.global_name or user.display_name or user.name, user.display_avatar.url)
-            _DISCORD_PROFILES[int_uid] = res
-            return res
-        for g in bot.guilds:
+            name = user.global_name or user.display_name or user.name
+            avatar = user.display_avatar.url
+            _DISCORD_PROFILES[int_uid] = (name, avatar)
+            return _DISCORD_PROFILES[int_uid]
+        for g in getattr(bot, "guilds", []):
             m = g.get_member(int_uid)
             if m:
-                res = (m.global_name or m.display_name or m.name, m.display_avatar.url)
-                _DISCORD_PROFILES[int_uid] = res
-                return res
-    return name, avatar
+                name = m.global_name or m.display_name or m.name
+                avatar = m.display_avatar.url
+                _DISCORD_PROFILES[int_uid] = (name, avatar)
+                return _DISCORD_PROFILES[int_uid]
+
+    # 2. Database lookup (Roblox Link & OAuth Members)
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            db = None
+
+    if db:
+        try:
+            rlink = run_async(db.get_roblox_link(int_uid))
+            if rlink:
+                disp = rlink.get("roblox_display")
+                uname = rlink.get("roblox_username")
+                if disp and uname and disp.lower() != uname.lower():
+                    name = f"{disp} (@{uname})"
+                else:
+                    name = disp or uname
+                rid = rlink.get("roblox_id")
+                if rid:
+                    avatar = f"https://www.roblox.com/headshot-thumbnail/image?userId={rid}&width=150&height=150&format=png"
+                if name:
+                    _DISCORD_PROFILES[int_uid] = (name, avatar)
+                    return _DISCORD_PROFILES[int_uid]
+        except Exception:
+            pass
+
+        try:
+            omember = run_async(db.get_oauth_member(int_uid))
+            if omember and omember.get("username"):
+                name = omember["username"]
+                _DISCORD_PROFILES[int_uid] = (name, avatar)
+                return _DISCORD_PROFILES[int_uid]
+        except Exception:
+            pass
+
+    # 3. Discord API fetch fallback
+    if bot and hasattr(bot, "fetch_user"):
+        try:
+            user = run_async(bot.fetch_user(int_uid))
+            if user:
+                name = user.global_name or user.display_name or user.name
+                avatar = user.display_avatar.url
+                _DISCORD_PROFILES[int_uid] = (name, avatar)
+                return _DISCORD_PROFILES[int_uid]
+        except Exception:
+            pass
+
+    fallback_name = f"Commander {str(uid)[-4:]}"
+    return fallback_name, avatar
 
 @api_bp.route("/squads")
 def api_squads():
@@ -522,29 +576,7 @@ def estate_plots():
     plots = run_async(db.get_estate_plots())
 
     def resolve_user(uid):
-        if not uid:
-            return None, None
-        try:
-            int_uid = int(uid)
-        except (ValueError, TypeError):
-            int_uid = uid
-        if int_uid in _DISCORD_PROFILES:
-            return _DISCORD_PROFILES[int_uid]
-        name = f"User {uid}"
-        avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
-        if bot:
-            u = bot.get_user(int_uid)
-            if u:
-                res = (u.global_name or u.display_name or u.name, u.display_avatar.url)
-                _DISCORD_PROFILES[int_uid] = res
-                return res
-            for g in bot.guilds:
-                m = g.get_member(int_uid)
-                if m:
-                    res = (m.global_name or m.display_name or m.name, m.display_avatar.url)
-                    _DISCORD_PROFILES[int_uid] = res
-                    return res
-        return name, avatar
+        return _resolve_discord_user(uid, bot, db) if uid else (None, None)
 
     from utils.constants import ESTATE_BUILDINGS
 
@@ -1016,7 +1048,9 @@ def api_estate_attack():
         try:
             target_plot = run_async(db.get_estate_plot(plot_id))
             attacker_user = session.get("user", {})
-            attacker_name = attacker_user.get("username") or f"User {user_id}"
+            attacker_name = attacker_user.get("global_name") or attacker_user.get("username")
+            if not attacker_name:
+                attacker_name, _ = _resolve_discord_user(user_id, bot=bot, db=db)
             if target_plot:
                 import asyncio
                 from cogs.economy import send_raid_alert_dm
@@ -1045,29 +1079,7 @@ def api_estate_active_battle():
 
     bot = current_app.config.get("DISCORD_BOT")
     def resolve_user(uid):
-        if not uid:
-            return "Commander", "https://cdn.discordapp.com/embed/avatars/0.png"
-        try:
-            int_uid = int(uid)
-        except (ValueError, TypeError):
-            int_uid = uid
-        if int_uid in _DISCORD_PROFILES:
-            return _DISCORD_PROFILES[int_uid][0], _DISCORD_PROFILES[int_uid][1]
-        name = f"Commander {uid}"
-        avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
-        if bot:
-            u = bot.get_user(int_uid)
-            if u:
-                res = (u.global_name or u.display_name or u.name, u.display_avatar.url)
-                _DISCORD_PROFILES[int_uid] = res
-                return res
-            for g in bot.guilds:
-                m = g.get_member(int_uid)
-                if m:
-                    res = (m.global_name or m.display_name or m.name, m.display_avatar.url)
-                    _DISCORD_PROFILES[int_uid] = res
-                    return res
-        return name, avatar
+        return _resolve_discord_user(uid, bot, db)
 
     atk_name, atk_avatar = resolve_user(battle.get("attacker_id"))
     def_name, def_avatar = resolve_user(battle.get("defender_id"))
@@ -1198,8 +1210,8 @@ def api_estate_military():
     raw_raids = run_async(db.get_recent_raids(12))
     recent_raids = []
     for r in raw_raids:
-        atk_name, atk_av = _resolve_discord_user(r["attacker_id"], bot)
-        def_name, def_av = _resolve_discord_user(r["defender_id"], bot)
+        atk_name, atk_av = _resolve_discord_user(r["attacker_id"], bot, db)
+        def_name, def_av = _resolve_discord_user(r["defender_id"], bot, db)
         recent_raids.append({
             "id": r["id"],
             "attacker_id": r["attacker_id"],

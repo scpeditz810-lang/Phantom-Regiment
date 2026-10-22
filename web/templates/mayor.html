@@ -309,12 +309,32 @@
                                 {% if r.success %}BREACH SUCCESSFUL{% else %}ASSAULT REPELLED{% endif %}
                             </span>
                         </div>
-                        <div style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4;">
-                            Attacker: <span style="color: var(--text-white);">{{ r.attacker_id }}</span> (Roll: {{ r.attacker_power }}) vs Defender: <span style="color: var(--text-white);">{{ r.defender_id }}</span> (Roll: {{ r.defender_power }})<br>
+                        <div style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.35rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem;">
+                                <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                                    {% if r.attacker_avatar %}
+                                    <img src="{{ r.attacker_avatar }}" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(239,68,68,0.4);" alt="Attacker">
+                                    {% endif %}
+                                    Attacker: <strong style="color: #f87171;">{{ r.attacker_name | default(r.attacker_id) }}</strong>
+                                    <span style="color: var(--text-muted); font-size: 0.74rem;">(Roll: {{ r.attacker_power }})</span>
+                                </span>
+                                <span style="color: var(--text-muted); font-weight: 800; font-size: 0.75rem;">VS</span>
+                                <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                                    {% if r.defender_avatar %}
+                                    <img src="{{ r.defender_avatar }}" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(56,189,248,0.4);" alt="Defender">
+                                    {% endif %}
+                                    Defender: <strong style="color: #38bdf8;">{{ r.defender_name | default(r.defender_id) }}</strong>
+                                    <span style="color: var(--text-muted); font-size: 0.74rem;">(Roll: {{ r.defender_power }})</span>
+                                </span>
+                            </div>
                             {% if r.success %}
-                            💰 Plunder Seized: <strong style="color: #2ecc71;">+{{ "{:,}".format(r.loot) }} Medals</strong> • 🛡️ 1-Hour Bank Guard Deployed
+                            <div style="color: #2ecc71; font-weight: 600;">
+                                💰 Plunder Seized: +{{ "{:,}".format(r.loot) }} Medals • 🛡️ 1-Hour Bank Guard Deployed
+                            </div>
                             {% else %}
-                            💥 Assault Repelled by Garrison & Allied Reinforcements
+                            <div style="color: #94a3b8;">
+                                💥 Assault Repelled by Garrison & Allied Reinforcements
+                            </div>
                             {% endif %}
                         </div>
                     </div>
