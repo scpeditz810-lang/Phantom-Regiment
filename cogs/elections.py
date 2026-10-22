@@ -465,6 +465,108 @@ class ElectionsCog(commands.Cog):
         embed.set_footer(text="Phantom Regiment Elections")
         await interaction.followup.send(embed=embed)
 
+    @election.command(name="broadcast_dm", description="[Admin Only] Safely DM server members with link to election announcement")
+    @app_commands.default_permissions(administrator=True)
+    async def election_broadcast_dm(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator and interaction.user.id != (interaction.guild.owner_id if interaction.guild else 0):
+            return await interaction.response.send_message("⛔ You must be an Administrator or Server Owner to use this command.", ephemeral=True)
+
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild or self.bot.get_guild(MAIN_GUILD_ID)
+        if not guild:
+            return await interaction.followup.send("❌ Server not found.", ephemeral=True)
+
+        ele = await self._resolve_election(interaction)
+        ele_id = ele["id"] if ele else 0
+        meta_key = f"election_dm_broadcast_{ele_id}"
+        already_sent = await self.bot.db.get_meta(meta_key)
+        if already_sent:
+            return await interaction.followup.send("⚠️ A mass DM broadcast has already been executed for this election cycle.", ephemeral=True)
+
+        await self.bot.db.set_meta(meta_key, str(time.time()))
+
+        # Spawn background safe DM loop
+        asyncio.create_task(self._send_election_dms(interaction, guild))
+        msg_text = "\n".join([
+            "🚀 **Mass DM Dispatch Started!**",
+            "DMs are being sent in the background with an anti-rate-limit safety delay (1.5s per member) to prevent Discord spam flagging.",
+            "Progress will update below in real time."
+        ])
+        await interaction.followup.send(msg_text, ephemeral=True)
+
+    async def _send_election_dms(self, interaction: discord.Interaction, guild: discord.Guild):
+        announcement_url = "https://discord.com/channels/1550544659217125467/1550657802396110918/1562911767741333557"
+
+        desc = "\n".join([
+            f"Citizens of **{guild.name}**,",
+            "",
+            "Our official server **Mayoral Election** is in progress! Candidates have staked **400,000 Medals** to run, and the winner will lead the server with executive powers for the next 14 days (including **2X Double XP days**, daily Treasury salary, stimulus crates, and more).",
+            "",
+            "👉 **Check the official announcement & candidates:**",
+            f"[Click here to view announcement in chat]({announcement_url})",
+            "",
+            "**How to participate:**",
+            "• Cast your vote: `/election vote @candidate`",
+            "• Check live standings: `/election status`",
+            "• Track polls on web: Check the **Elections** tab on our portal!"
+        ])
+
+        embed = discord.Embed(
+            title="🗳️ Phantom Regiment Mayoral Elections Are Live!",
+            description=desc,
+            color=0xF1C40F
+        )
+        embed.set_footer(text="Phantom Regiment Democracy • One-Time Civic Notice")
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="🗳️ View Election Announcement", url=announcement_url, style=discord.ButtonStyle.link))
+
+        members = [m for m in guild.members if not m.bot]
+        total = len(members)
+        success_count = 0
+        failed_count = 0
+
+        status_msg = await interaction.followup.send(
+            f"⏳ Dispatching DMs: `0 / {total}` members processed...",
+            ephemeral=True
+        )
+
+        for idx, m in enumerate(members, 1):
+            try:
+                await m.send(embed=embed, view=view)
+                success_count += 1
+            except (discord.Forbidden, discord.HTTPException):
+                failed_count += 1
+            except Exception:
+                failed_count += 1
+
+            # Safety throttle delay: 1.5s between DMs to comply with Discord API limits
+            await asyncio.sleep(1.5)
+
+            if idx % 15 == 0 or idx == total:
+                try:
+                    prog_text = "\n".join([
+                        f"📬 **DM Broadcast Progress:** `{idx} / {total}` processed",
+                        f"• ✅ Delivered: `{success_count}`",
+                        f"• 🔒 Skipped (DMs closed/private): `{failed_count}`"
+                    ])
+                    await status_msg.edit(content=prog_text)
+                except Exception:
+                    pass
+
+        try:
+            done_text = "\n".join([
+                "🎉 **DM Broadcast Complete!**",
+                f"• Total Processed: `{total}`",
+                f"• ✅ Delivered to DMs: `{success_count}`",
+                f"• 🔒 Skipped (DMs closed by user): `{failed_count}`"
+            ])
+            await status_msg.edit(content=done_text)
+        except Exception:
+            pass
+
     # ── Mayoral Powers Group ──────────────────────────────────────────────────
     mayor = app_commands.Group(name="mayor", description="Executive powers reserved exclusively for the reigning Mayor")
 
