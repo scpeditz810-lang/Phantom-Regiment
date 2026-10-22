@@ -4066,7 +4066,7 @@ let seenBattleIds = new Set();
 let isBattleSimulationPlaying = false;
 
 function focusActiveBattle() {
-    if (currentViewMode !== '3d') switchViewMode('3d');
+    if (viewMode !== '3d') switchViewMode('3d');
     const mapEl = document.getElementById("three-map-viewport");
     if (mapEl) mapEl.scrollIntoView({ behavior: "smooth", block: "center" });
     if (window.lastActiveBattleCoords && camera && controls) {
@@ -4102,7 +4102,7 @@ async function checkLiveActiveBattle() {
                 });
 
                 // Automatically switch to 3D mode for combatants
-                if (currentViewMode !== '3d') {
+                if (viewMode !== '3d') {
                     switchViewMode('3d');
                 }
 
@@ -4209,21 +4209,31 @@ function startLive3DCombatSimulation(targetPlot, data, onComplete, metaBattle = 
         if (hudTitle) hudTitle.innerText = `Assault on ${targetPlot.name} (#${targetPlot.id})`;
         if (hudStatus) hudStatus.innerText = "Mechanized strike battalion marching into combat formation...";
 
-        // Smooth camera swoop into strategy game action view ONLY for combatants
-        if (camera && controls) {
-            new TWEEN.Tween(controls.target)
-                .to({ x: targetPos.x, y: 3, z: targetPos.z }, 1300)
+    } else {
+        // SPECTATORS: Keep screen completely unobstructed! NO HP bars, NO intrusive dialogs!
+        if (hud) hud.style.display = "none";
+    }
+
+    // Smooth camera framing so everyone on the 3D map automatically sees the army marching & fighting!
+    if (camera && controls) {
+        new TWEEN.Tween(controls.target)
+            .to({ x: targetPos.x, y: 3, z: targetPos.z }, 1200)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .start();
+
+        if (isCombatant) {
+            // Combatants (Attacker / Defender): Close-up dramatic battle framing
+            new TWEEN.Tween(camera.position)
+                .to({ x: targetPos.x - 30, y: 40, z: targetPos.z + 50 }, 1200)
                 .easing(TWEEN.Easing.Cubic.Out)
                 .start();
-
+        } else {
+            // Spectators: Elevated tactical strategy view to watch the army march and clash as a world event
             new TWEEN.Tween(camera.position)
-                .to({ x: targetPos.x - 32, y: 44, z: targetPos.z + 54 }, 1300)
+                .to({ x: targetPos.x - 45, y: 65, z: targetPos.z + 75 }, 1400)
                 .easing(TWEEN.Easing.Cubic.Out)
                 .start();
         }
-    } else {
-        // SPECTATORS: Keep screen completely unobstructed! No HP bars, no forced camera movement!
-        if (hud) hud.style.display = "none";
     }
 
     // Battle Meshes Collection
@@ -4575,7 +4585,7 @@ async function executeAttackPlotId(plotId, plotName) {
         }
 
         // Switch to 3D mode to view live battle
-        if (currentViewMode !== '3d') switchViewMode('3d');
+        if (viewMode !== '3d') switchViewMode('3d');
 
         const targetPlot = allPlots.find(p => p.id === plotId) || { id: plotId, name: plotName, x: 2, y: 2 };
         if (data.battle && data.battle.battle_id) {
