@@ -89,7 +89,7 @@ function renderStockCards() {
                 </div>
                 <div class="stock-footer">
                     <span>Avail: ${s.available_shares} / ${s.total_supply}</span>
-                    <span>Max: 50/usr</span>
+                    <span>Max: 250/usr</span>
                 </div>
             </div>
         `;
@@ -122,8 +122,9 @@ function onStockSelectChange() {
 }
 
 function selectStock(stockId) {
+    stockId = parseInt(stockId) || stockId;
     activeStockId = stockId;
-    const stock = allStocks.find(s => s.id === stockId);
+    const stock = allStocks.find(s => s.id == stockId);
     if (!stock) return;
 
     // Update active card styling
@@ -256,7 +257,7 @@ async function loadChart(stockId) {
 function setQty(val) {
     const input = document.getElementById("trade-qty");
     if (!input) return;
-    input.value = Math.max(1, Math.min(50, parseInt(val) || 1));
+    input.value = Math.max(1, Math.min(250, parseInt(val) || 1));
     updateTradeTotal();
 }
 
@@ -264,7 +265,7 @@ function adjustQty(delta) {
     const input = document.getElementById("trade-qty");
     if (!input) return;
     let val = parseInt(input.value) || 1;
-    val = Math.max(1, Math.min(50, val + delta));
+    val = Math.max(1, Math.min(250, val + delta));
     input.value = val;
     updateTradeTotal();
 }
@@ -275,9 +276,9 @@ function updateTradeTotal() {
     if (!input || !totalEl) return;
 
     let qty = parseInt(input.value) || 1;
-    qty = Math.max(1, Math.min(50, qty));
+    qty = Math.max(1, Math.min(250, qty));
 
-    const currentStock = allStocks.find(s => s.id === activeStockId);
+    const currentStock = allStocks.find(s => s.id == activeStockId);
     if (currentStock) {
         const estGross = qty * currentStock.price;
         const estTax = Math.round(estGross * 0.10);
@@ -371,7 +372,7 @@ async function loadPortfolio() {
                         <small class="text-muted">${h.name}</small>
                     </td>
                     <td>
-                        <strong>${h.shares}</strong> / 50
+                        <strong>${h.shares}</strong> / 250
                     </td>
                     <td>${h.avg_buy_price.toLocaleString()} Medals</td>
                     <td><strong class="text-blue">${h.current_price.toLocaleString()}</strong> Medals</td>

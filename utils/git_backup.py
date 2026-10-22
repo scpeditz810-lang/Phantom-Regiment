@@ -146,7 +146,7 @@ class GitBackup:
         self._last_hash = current
 
         try:
-            self._run(["git", "add", "-A"], cwd=self.repo_dir)
+            self._run(["git", "add", "bot.db"], cwd=self.repo_dir)
             status = self._run(
                 ["git", "status", "--porcelain"],
                 cwd=self.repo_dir, capture=True,
@@ -174,7 +174,7 @@ class GitBackup:
                 self._run(["git", "pull", "--no-rebase", "-X", "ours", "--no-edit", "origin", "main"], cwd=self.repo_dir, check=False)
                 self._run(["git", "checkout", "--ours", "bot.db"], cwd=self.repo_dir, check=False)
                 self._fix_permissions()
-                self._run(["git", "add", "-A"], cwd=self.repo_dir, check=False)
+                self._run(["git", "add", "bot.db"], cwd=self.repo_dir, check=False)
                 self._run(["git", "commit", "-m", "Auto-backup resolution"], cwd=self.repo_dir, check=False)
                 self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
                 print("✅  Successfully resolved binary conflict and pushed backup!")
