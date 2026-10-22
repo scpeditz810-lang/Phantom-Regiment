@@ -403,6 +403,73 @@ def leaderboard_page():
         guild_name=guild.name if guild else "Phantom Regiment"
     )
 
+
+
+@views_bp.route("/elections")
+@views_bp.route("/election")
+def elections_page():
+    import time
+    guild = get_pr_guild()
+    db = current_app.config.get("DB")
+    gid = guild.id if guild else 0
+
+    active_election = run_async(db.get_active_election(gid)) if (db and gid) else None
+    candidates = []
+    total_votes = 0
+    time_remaining_str = ""
+    if active_election:
+        cands_raw = run_async(db.get_election_candidates(active_election["id"])) if db else []
+        candidates = [dict(c) for c in cands_raw] if cands_raw else []
+        total_votes = sum(c.get("votes", 0) for c in candidates)
+        candidates.sort(key=lambda x: x.get("votes", 0), reverse=True)
+        for idx, c in enumerate(candidates, 1):
+            c["rank"] = idx
+            cid = c.get("candidate_id")
+            member = guild.get_member(cid) if guild else None
+            c["name"] = (member.global_name or member.display_name) if member else f"Candidate {cid}"
+            c["avatar"] = member.display_avatar.url if (member and hasattr(member, "display_avatar")) else "https://cdn.discordapp.com/embed/avatars/0.png"
+            c["pct"] = round((c.get("votes", 0) / max(total_votes, 1)) * 100, 1)
+
+        end_time = active_election.get("end_time", 0)
+        rem_sec = max(0, int(end_time - time.time()))
+        rem_h = rem_sec // 3600
+        rem_m = (rem_sec % 3600) // 60
+        time_remaining_str = f"{rem_h}h {rem_m}m"
+
+    current_commander = run_async(db.get_current_commander(gid)) if (db and gid) else None
+    mayor_info = None
+    if current_commander and current_commander.get("winner_id"):
+        wid = current_commander["winner_id"]
+        member = guild.get_member(wid) if guild else None
+        term_end = current_commander.get("term_end", 0)
+        rem_term_sec = max(0, int(term_end - time.time()))
+        rem_days = rem_term_sec // 86400
+        rem_term_hours = (rem_term_sec % 86400) // 3600
+        mayor_info = {
+            "id": wid,
+            "name": (member.global_name or member.display_name) if member else f"Mayor {wid}",
+            "avatar": member.display_avatar.url if (member and hasattr(member, "display_avatar")) else "https://cdn.discordapp.com/embed/avatars/0.png",
+            "term_end": term_end,
+            "term_days_left": rem_days,
+            "term_hours_left": rem_term_hours
+        }
+
+    double_xp_active = run_async(db.is_double_xp_active(gid)) if (db and gid) else False
+    double_xp_remaining = run_async(db.get_double_xp_remaining(gid)) if (db and gid) else 0.0
+    double_xp_hours_left = round(double_xp_remaining / 3600, 1) if double_xp_remaining > 0 else 0
+
+    return render_template(
+        "elections.html",
+        active_election=active_election,
+        candidates=candidates,
+        total_votes=total_votes,
+        time_remaining_str=time_remaining_str,
+        mayor_info=mayor_info,
+        double_xp_active=double_xp_active,
+        double_xp_hours_left=double_xp_hours_left,
+        guild_name=guild.name if guild else "Phantom Regiment"
+    )
+
 @views_bp.route("/unauthorized")
 def unauthorized():
     return render_template("unauthorized.html"), 403

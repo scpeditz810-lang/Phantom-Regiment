@@ -95,7 +95,7 @@
 
 
     <!-- City Hall // Mayor Elections & Executive Perks -->
-    <div class="surface-box" style="margin-top: 2rem;">
+    <div class="surface-box" id="city-hall" style="margin-top: 2rem;">
         <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
             <div>
                 <div class="eyebrow-text">PHANTOM REGIMENT // CITY HALL</div>
@@ -106,7 +106,10 @@
                     Run for Mayor in 48-hour server elections with <code style="color: #38bdf8;">/election register</code> (400,000 M filing fee, max 5 candidates). Win the vote and take control of the city with real server powers for a full 14-day term.
                 </p>
             </div>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                <a href="{{ url_for('views.elections_page') }}" class="btn btn-pill-dark" style="color: var(--blue-primary); border-color: rgba(56, 189, 248, 0.4); text-decoration: none; font-size: 0.82rem; padding: 0.45rem 0.95rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    🗳️ Open Elections Hub →
+                </a>
                 <span class="metric-status-pill" style="position: static; background: rgba(241, 196, 15, 0.15); color: #f1c40f; border-color: rgba(241, 196, 15, 0.4);">
                     🏛️ 14-DAY TERM
                 </span>

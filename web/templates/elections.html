@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}City Hall & Mayoral Elections — Phantom Regiment{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Top Hero Split Layout -->
+    <div class="hero-split-grid">
+        <!-- Left: Overview & Status -->
+        <div class="surface-box">
+            <div class="eyebrow-text">PHANTOM REGIMENT // CITY HALL & DEMOCRACY</div>
+            <h1 class="hero-headline">
+                Server <span>Mayoral Elections</span><br>
+                <span>Executive Governance</span>
+            </h1>
+            <p class="hero-desc">
+                Every 14 days, Phantom Regiment citizens head to the polls to elect a Mayor. The winning candidate leads our community with executive Discord powers — unlocking 2X Double XP events, daily Treasury paychecks, member honor awards, stimulus packages, market tax policy, and mayoral pardons.
+            </p>
+
+            <div style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
+                {% if active_election %}
+                <div style="display: inline-flex; align-items: center; gap: 0.65rem; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.4); padding: 0.5rem 1.15rem; border-radius: 999px;">
+                    <span class="glow-dot-blue"></span>
+                    <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-white);">
+                        48-HR ELECTION: <strong class="text-blue">VOTING LIVE</strong> ({{ time_remaining_str }} remaining)
+                    </span>
+                </div>
+                {% elif mayor_info %}
+                <div style="display: inline-flex; align-items: center; gap: 0.65rem; background: rgba(241, 196, 15, 0.12); border: 1px solid rgba(241, 196, 15, 0.4); padding: 0.5rem 1.15rem; border-radius: 999px;">
+                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f1c40f; box-shadow: 0 0 10px #f1c40f;"></span>
+                    <span style="font-size: 0.82rem; font-weight: 700; color: #f1c40f;">
+                        OFFICE OF THE MAYOR: <strong>ACTIVE TERM</strong> ({{ mayor_info.term_days_left }}d {{ mayor_info.term_hours_left }}h left)
+                    </span>
+                </div>
+                {% else %}
+                <div style="display: inline-flex; align-items: center; gap: 0.65rem; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.3); padding: 0.5rem 1.15rem; border-radius: 999px;">
+                    <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted);">
+                        MAYORAL SEAT: <strong>NEXT CYCLE SOON</strong>
+                    </span>
+                </div>
+                {% endif %}
+
+                {% if double_xp_active %}
+                <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.4); padding: 0.5rem 1rem; border-radius: 999px;">
+                    <span style="font-size: 0.82rem; font-weight: 700; color: #22c55e;">
+                        ⚡ 2X DOUBLE XP ACTIVE ({{ double_xp_hours_left }}h left)
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right: Current Mayor Office HUD / Terminal -->
+        <div class="war-dispatch-terminal" style="display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <div class="terminal-topbar">
+                    <div class="terminal-dots">
+                        <span class="dot red"></span>
+                        <span class="dot yellow"></span>
+                        <span class="dot green"></span>
+                    </div>
+                    <span class="terminal-title">CITY HALL // MAYOR OFFICE</span>
+                    <span class="terminal-status"><span class="pulse-dot"></span> LIVE</span>
+                </div>
+
+                {% if mayor_info %}
+                <div style="display: flex; align-items: center; gap: 1.25rem; margin-top: 1.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                    <img src="{{ mayor_info.avatar }}" alt="{{ mayor_info.name }}" style="width: 68px; height: 68px; border-radius: 50%; border: 2px solid #f1c40f; box-shadow: 0 0 15px rgba(241, 196, 15, 0.3);">
+                    <div>
+                        <span style="font-size: 0.72rem; font-weight: 800; color: #f1c40f; text-transform: uppercase; letter-spacing: 0.05em; display: block;">
+                            🏛️ CURRENT SERVING MAYOR
+                        </span>
+                        <h3 style="font-size: 1.35rem; color: var(--text-white); margin: 0.2rem 0 0.1rem 0;">{{ mayor_info.name }}</h3>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Term concludes in {{ mayor_info.term_days_left }} days, {{ mayor_info.term_hours_left }} hours</span>
+                    </div>
+                </div>
+
+                <div class="terminal-stat-row" style="margin-top: 1rem;">
+                    <div class="t-stat">
+                        <span class="t-label">DAILY SALARY</span>
+                        <span class="t-val text-gold">12,500 M/day</span>
+                    </div>
+                    <div class="t-stat">
+                        <span class="t-label">DOUBLE XP STATUS</span>
+                        {% if double_xp_active %}
+                        <span class="t-val text-emerald">⚡ Active</span>
+                        {% else %}
+                        <span class="t-val text-muted">Ready</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div style="text-align: center; padding: 2rem 1rem;">
+                    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🏛️</div>
+                    <h3 style="color: var(--text-white); font-size: 1.15rem; margin-bottom: 0.35rem;">Mayoral Seat Open</h3>
+                    <p style="color: var(--text-muted); font-size: 0.84rem; max-width: 300px; margin: 0 auto;">
+                        No Mayor is currently sworn in. Stake 400,000 Medals to run in the next election!
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div style="background: rgba(0, 0, 0, 0.25); border-radius: 10px; padding: 0.85rem 1rem; margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">Democratic Discord Governance</span>
+                <span style="font-size: 0.78rem; color: #38bdf8; font-weight: 700;">14-Day Term Cycles</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Election Live Standings (If Election is Active) -->
+    {% if active_election %}
+    <div class="surface-box" style="margin-top: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+            <div>
+                <div class="eyebrow-text">LIVE BALLOT // 48-HOUR POLLS</div>
+                <h2 style="font-size: 1.6rem; color: var(--text-white); margin-top: 0.25rem;">
+                    Official <span>Candidates & Standings</span>
+                </h2>
+                <p style="color: var(--text-muted); font-size: 0.88rem; max-width: 650px; margin-top: 0.35rem;">
+                    Cast your vote in Discord with <code style="color: #38bdf8;">/election vote @candidate</code>. Candidate registration is capped at 5 slots.
+                </p>
+            </div>
+            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                <span class="metric-status-pill" style="position: static; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);">
+                    📊 {{ total_votes }} TOTAL VOTES
+                </span>
+                <span class="metric-status-pill" style="position: static; background: rgba(241, 196, 15, 0.15); color: #f1c40f; border-color: rgba(241, 196, 15, 0.4);">
+                    👥 {{ candidates|length }} / 5 CANDIDATES
+                </span>
+            </div>
+        </div>
+
+        {% if candidates %}
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            {% for c in candidates %}
+            <div style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.85rem;">
+                        <span style="font-size: 1.1rem; font-weight: 900; color: {% if loop.index == 1 %}#f1c40f{% elif loop.index == 2 %}#cbd5e1{% elif loop.index == 3 %}#d97706{% else %}var(--text-muted){% endif %}; width: 26px;">
+                            #{{ loop.index }}
+                        </span>
+                        <img src="{{ c.avatar }}" alt="{{ c.name }}" style="width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.1);">
+                        <div>
+                            <strong style="color: var(--text-white); font-size: 1.05rem; display: block;">{{ c.name }}</strong>
+                            <span style="color: var(--text-muted); font-size: 0.82rem; font-style: italic;">
+                                "{{ c.slogan or 'Vote for me, I got big plans for the server!' }}"
+                            </span>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 1.25rem; font-weight: 800; color: var(--blue-primary);">{{ c.votes }} votes</span>
+                        <span style="color: var(--text-muted); font-size: 0.82rem; display: block;">{{ c.pct }}% of ballots</span>
+                    </div>
+                </div>
+                <!-- Progress Bar -->
+                <div style="background: rgba(255, 255, 255, 0.06); border-radius: 999px; height: 8px; overflow: hidden;">
+                    <div style="background: linear-gradient(90deg, var(--blue-primary), #60a5fa); height: 100%; border-radius: 999px; width: {{ c.pct }}%; transition: width 0.5s ease;"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 2.5rem 1rem; background: var(--bg-card-inner); border-radius: 14px;">
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 0.75rem;">
+                No candidates have registered yet for this election cycle.
+            </p>
+            <p style="color: var(--text-white); font-size: 0.9rem;">
+                Be the first to step up: use <code style="color: #38bdf8;">/election register &lt;slogan&gt;</code> (400,000 M fee).
+            </p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Mayoral Powers & Executive Perks Section -->
+    <div class="surface-box" style="margin-top: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+            <div>
+                <div class="eyebrow-text">CIVIC BENEFITS // EXECUTIVE OFFICE</div>
+                <h2 style="font-size: 1.6rem; color: var(--text-white); margin-top: 0.25rem;">
+                    Mayoral <span>Powers & Executive Perks</span>
+                </h2>
+                <p style="color: var(--text-muted); font-size: 0.88rem; max-width: 650px; margin-top: 0.35rem;">
+                    The 400,000 Medals filing fee unlocks massive financial and server-wide authority. Here is everything the elected Mayor receives during their 14-day term:
+                </p>
+            </div>
+            <span class="metric-status-pill" style="position: static; background: rgba(241, 196, 15, 0.15); color: #f1c40f; border-color: rgba(241, 196, 15, 0.4);">
+                🏛️ 14-DAY EXECUTIVE TERM
+            </span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+            <!-- Perk 1: 2X XP Surge -->
+            <div style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 1.35rem;">
+                <div style="font-size: 1.6rem; margin-bottom: 0.5rem;">⚡</div>
+                <strong style="color: var(--text-white); font-size: 1.1rem; display: block;">2X Double XP for 24h</strong>
+                <span style="color: var(--text-muted); font-size: 0.84rem; margin-top: 0.35rem; display: block; line-height: 1.45;">
+                    Trigger server-wide 2X chat XP for 24 hours. The Mayor can activate this up to <strong>3 times</strong> during their 2-week term with <code style="color: #38bdf8;">/mayor doublexp</code>.
+                </span>
+            </div>
+
+            <!-- Perk 2: 12.5k Daily Salary -->
+            <div style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 1.35rem;">
+                <div style="font-size: 1.6rem; margin-bottom: 0.5rem;">💰</div>
+                <strong style="color: var(--text-white); font-size: 1.1rem; display: block;">12,500 M Daily Paycheck</strong>
+                <span style="color: var(--text-muted); font-size: 0.84rem; margin-top: 0.35rem; display: block; line-height: 1.45;">
+                    Collect 12,500 Medals every 24 hours straight from the City Treasury via <code style="color: #38bdf8;">/mayor salary</code>. Recoup up to <strong>175,000 Medals</strong> across your term!
+                </span>
+            </div>
+
+            <!-- Perk 3: Key to the City -->
+            <div style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 1.35rem;">
+                <div style="font-size: 1.6rem; margin-bottom: 0.5rem;">🔑</div>
+                <strong style="color: var(--text-white); font-size: 1.1rem; display: block;">Key to the City (+15,000 M)</strong>
+                <span style="color: var(--text-muted); font-size: 0.84rem; margin-top: 0.35rem; display: block; line-height: 1.45;">
+                    Award 15,000 Medals + Key to the City honors to your top campaign supporters using <code style="color: #38bdf8;">/mayor award @member</code> (3x per term; strictly anti-self-award).
+                </span>
+            </div>
+
+            <!-- Perk 4: 10,000 M Stimulus Drop -->
+            <div style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 1.35rem;">
+                <div style="font-size: 1.6rem; margin-bottom: 0.5rem;">📦</div>
+                <strong style="color: var(--text-white); font-size: 1.1rem; display: block;">10,000 M Stimulus Drops</strong>
+                <span style="color: var(--text-muted); font-size: 0.84rem; margin-top: 0.35rem; display: block; line-height: 1.45;">
+                    Drop a public stimulus package in chat using <code style="color: #38bdf8;">/mayor stimulus</code>. The first 4 citizens to click claim 2,500 Medals each! (2x per term).
+                </span>
+            </div>
+
+            <!-- Perk 5: Market Tax Control -->
+            <div style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 1.35rem;">
+                <div style="font-size: 1.6rem; margin-bottom: 0.5rem;">📈</div>
+                <strong style="color: var(--text-white); font-size: 1.1rem; display: block;">Stock Market Tax Control</strong>
+                <span style="color: var(--text-muted); font-size: 0.84rem; margin-top: 0.35rem; display: block; line-height: 1.45;">
+                    Adjust the Stock Market transaction tax between 10% and 20% with <code style="color: #38bdf8;">/mayor tax</code>. Traders will lobby you to cut rates!
+                </span>
+            </div>
+
+            <!-- Perk 6: Mayoral Pardons -->
+            <div style="background: var(--bg-card-inner); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 1.35rem;">
+                <div style="font-size: 1.6rem; margin-bottom: 0.5rem;">⚖️</div>
+                <strong style="color: var(--text-white); font-size: 1.1rem; display: block;">Mayoral Pardons</strong>
+                <span style="color: var(--text-muted); font-size: 0.84rem; margin-top: 0.35rem; display: block; line-height: 1.45;">
+                    Pardon citizens to instantly reset their bank robbery and criminal cooldowns with <code style="color: #38bdf8;">/mayor pardon @member</code> (3x per term; cannot self-pardon).
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Constitution & Rules Row -->
+    <div class="surface-box" style="margin-top: 2rem;">
+        <div class="eyebrow-text">ELECTORAL CONSTITUTION // SERVER BYLAWS</div>
+        <h2 style="font-size: 1.5rem; color: var(--text-white); margin-top: 0.25rem; margin-bottom: 1.25rem;">
+            Campaign Bylaws & <span>Integrity Rules</span>
+        </h2>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem;">
+            <div style="background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 1.2rem; border-left: 3px solid #f1c40f;">
+                <strong style="color: var(--text-white); font-size: 0.95rem; display: block; margin-bottom: 0.35rem;">1. Filing Fee: 400,000 Medals</strong>
+                <p style="color: var(--text-muted); font-size: 0.82rem; margin: 0; line-height: 1.4;">
+                    Staking medals guarantees only serious leaders run. The fee is non-refundable, but mayors can earn back up to 175k via daily salary.
+                </p>
+            </div>
+
+            <div style="background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 1.2rem; border-left: 3px solid var(--blue-primary);">
+                <strong style="color: var(--text-white); font-size: 0.95rem; display: block; margin-bottom: 0.35rem;">2. 5 Candidate Limit</strong>
+                <p style="color: var(--text-muted); font-size: 0.82rem; margin: 0; line-height: 1.4;">
+                    To keep campaigns competitive and engaging, each 48-hour election cycle accepts a maximum of 5 registered candidates.
+                </p>
+            </div>
+
+            <div style="background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 1.2rem; border-left: 3px solid #22c55e;">
+                <strong style="color: var(--text-white); font-size: 0.95rem; display: block; margin-bottom: 0.35rem;">3. Anti-Self-Vote Policy</strong>
+                <p style="color: var(--text-muted); font-size: 0.82rem; margin: 0; line-height: 1.4;">
+                    Candidates are strictly barred from voting for themselves. You must rally real server members and squads to win!
+                </p>
+            </div>
+
+            <div style="background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 1.2rem; border-left: 3px solid #a855f7;">
+                <strong style="color: var(--text-white); font-size: 0.95rem; display: block; margin-bottom: 0.35rem;">4. 14-Day Term & Roles</strong>
+                <p style="color: var(--text-muted); font-size: 0.82rem; margin: 0; line-height: 1.4;">
+                    The winner automatically receives the hoisted gold <code style="color: #f1c40f;">🏛️ Mayor</code> role at the top of the member list.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
