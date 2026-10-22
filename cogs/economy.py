@@ -2925,25 +2925,54 @@ class EconomyCog(commands.Cog):
         
 
         embed.add_field(
-
             name="🌐 3D E-State & Sovereign Territory",
-
             value=(
-
-                "• **3D Holographic Map:** Explore and interact with live 3D tactical territory maps at: **https://phantom-regiment.onrender.com/estate**\n"
-
-                "• **5 Sovereign Districts:** Central Command, Industrial Sector, Residential Heights, Financial District, and Tactical Outpost.\n"
-
-                "• **Passive Tycoon Yields:** Own territory plots to earn continuous passive medal yields from buildings and clan facilities!\n"
-
+                "• **3D Interactive Map:** Explore real-time 3D tactical territory maps at: **https://phantom-regiment-1.onrender.com/estate**\n"
+                "• **Territory Expansion:** 48+ parcels across Outskirts, Riverfront, Citadel, Industrial, and Deepwater Basin!\n"
+                "• **Parcel Cap:** Hold up to **6 territory parcels** simultaneously (increased from 4)!\n"
+                "• **Passive Tycoon Yields:** Construct Factories, Hospitals, Bunkers, Military Bases, or Offshore Oil Rigs (**4.0% daily yield** in Deepwater Basin)!\n"
                 "• **`/estate`:** Inspect your real estate portfolio, district statistics, and total territory valuation.\n"
-
-                "• **`/collectyield`:** Collect accrued hourly land yields from your owned E-State plots."
-
+                "• **`/collectyield`:** Collect accrued hourly land dividends from your owned E-State plots."
             ),
-
             inline=False
+        )
 
+        embed.add_field(
+            name="🪖 Military Tycoon, Raids & State Bank Protection",
+            value=(
+                "• **Military Bases (Lv 1–5):** Construct command posts to generate offensive strike power and garrison defense.\n"
+                "• **Fortified Bunkers:** Provide massive regional defense auras protecting all your owned plots from enemy strikes.\n"
+                "• **`/raid <plot_id>` (or Web War Room):** Deploy military strikes on rival plots to breach defenses and plunder land yields!\n"
+                "• **Plunder & Bounties:** Successful breaches seize **40% of the victim's uncollected dividends** plus a Central War Bounty!\n"
+                "• **Assault Repelled:** If the defender's fortifications hold, the attacker pays up to 15,000 Medals in casualty reparations directly to the defender's wallet!\n"
+                "• **🛡️ 1-Hour State Bank Peacekeepers:** Following any successful breach, Central State Bank elite forces lock down and protect the victim parcel for **1 full hour** (cannot be attacked again until protection concludes).\n"
+                "• **🚨 Instant Alerts:** Landowners automatically receive real-time Discord DM notifications whenever their territory is attacked!"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🤝 Mutual Defense Coalition & Alliances",
+            value=(
+                "• **`/ally <member>` / `/acceptally <member>`:** Form permanent mutual defense pacts (or manage via the Web Alliances Suite).\n"
+                "• **🛡️ +35% Defense Bonus Per Ally:** Allies' military bases automatically reinforce your plots when you are attacked, granting **+35% of their total military defense score**! Multiple allies' bonuses stack together.\n"
+                "• **⛔ Non-Aggression Treaties:** Allies are strictly barred from raiding each other's territories.\n"
+                "• **`/allies`:** View your active defense coalition and allied garrison bonuses.\n"
+                "• **`/breakally <member>`:** Dissolve an alliance anytime."
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🏛️ City Elections & Mayor Executive Suite",
+            value=(
+                "• **Democratic Elections:** Citizens run for Mayor with campaign manifestos, minimum tenure requirements, and verified community voting.\n"
+                "• **🎩 Mayor Office (`/mayor`):** The reigning Mayor gains web access to the Executive Suite:\n"
+                "  - 🗺️ **Zoning:** Zone and place brand-new territory parcels onto the 3D map for citizens to buy.\n"
+                "  - 📈 **Stock Exchange Control:** Adjust transaction taxes (0–50%), share float, and list new corporate IPO stocks!\n"
+                "  - 🪖 **Tactical Radar:** Live city-wide radar tracking border skirmishes and peacekeeper lockdowns."
+            ),
+            inline=False
         )
 
         
