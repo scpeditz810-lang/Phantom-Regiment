@@ -343,6 +343,7 @@ def mayor_page():
 
     total_land_val = sum(p.get("current_value", 0) for p in plots)
     owned_plots = [p for p in plots if p.get("owner_id")]
+    zoning_quota = run_async(db.get_mayor_weekly_zoning_quota())
 
     return render_template(
         "mayor.html",
@@ -355,7 +356,8 @@ def mayor_page():
         term_hours_left=term_hours_left,
         total_land_val=total_land_val,
         owned_count=len(owned_plots),
-        total_plots=len(plots)
+        total_plots=len(plots),
+        zoning_quota=zoning_quota
     )
 
 @views_bp.route("/admin")

@@ -78,9 +78,21 @@
             <div class="surface-box">
                 <div class="eyebrow-text" style="color: #f1c40f;">CIVIC DEVELOPMENT ACT</div>
                 <h3 style="margin-bottom: 0.25rem; font-size: 1.25rem;">Zone & Deploy New Territory Plot</h3>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
                     Create a brand new parcel on the map for citizens to buy and develop. You can zone land parcels or deepwater ocean oil platforms!
                 </p>
+
+                <div style="background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 0.72rem; color: #7dd3fc; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;">Weekly Mayoral Zoning Quota</div>
+                        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Mayors are authorized to zone up to <strong>5 territory parcels per week</strong>.</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span id="quota-display" style="font-size: 1.25rem; font-weight: 900; color: {% if zoning_quota and zoning_quota.can_create %}#10b981{% else %}#ef4444{% endif %};">
+                            {{ zoning_quota.remaining if zoning_quota else 5 }} / 5 Available
+                        </span>
+                    </div>
+                </div>
 
                 <form id="create-plot-form" onsubmit="handleCreatePlot(event)">
                     <div class="form-group">
@@ -134,9 +146,18 @@
                         ⚖️ <strong>Constitutional Guarantee:</strong> Mayors can zone and place new plots on the map to grow the city, but cannot seize or evict existing plots from citizens.
                     </div>
 
+                    {% if zoning_quota and not zoning_quota.can_create %}
+                    <div style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.78rem; color: #fca5a5; text-align: center;">
+                        ⚠️ <strong>Weekly Zoning Cap Reached (5/5 plots placed):</strong> You have exhausted your mayoral zoning quota for this 7-day period.
+                    </div>
+                    <button type="submit" class="btn btn-blue" id="btn-submit-plot" disabled style="width: 100%; background: #475569; color: #94a3b8; font-weight: 800; border: none; cursor: not-allowed;">
+                        ⛔ Weekly Zoning Limit Reached (5/5 Placed)
+                    </button>
+                    {% else %}
                     <button type="submit" class="btn btn-blue" id="btn-submit-plot" style="width: 100%; background: #f1c40f; color: #000; font-weight: 800; border: none;">
                         🗺️ Authorize & Zone Plot onto Map
                     </button>
+                    {% endif %}
                 </form>
             </div>
 

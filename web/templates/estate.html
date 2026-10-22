@@ -1662,9 +1662,9 @@ let rotVelocity = 0;
 const MOVE_ACCEL = 2.2;
 const MOVE_DAMPING = 0.88; // Buttery smooth exponential decay
 
-// Geographic Map Spatial Mapping (400 x 247 units matching map texture aspect ratio)
-const MAP_WIDTH = 420;
-const MAP_HEIGHT = 260;
+// Geographic Map Spatial Mapping (Expanded terrain territory)
+const MAP_WIDTH = 580;
+const MAP_HEIGHT = 380;
 
 // Coordinates distribution across metropolitan sectors
 const PLOT_COORDINATES = {
@@ -1802,7 +1802,7 @@ function init3DViewer() {
     controls.dampingFactor = 0.08;
     controls.maxPolarAngle = Math.PI / 2.05; // Do not go below ground
     controls.minDistance = 25;
-    controls.maxDistance = 480;
+    controls.maxDistance = 650;
     controls.target.set(0, 0, 0);
 
     // Lighting
@@ -1816,7 +1816,7 @@ function init3DViewer() {
     dirLight.shadow.mapSize.height = 2048;
     dirLight.shadow.camera.near = 10;
     dirLight.shadow.camera.far = 600;
-    const d = 220;
+    const d = 300;
     dirLight.shadow.camera.left = -d;
     dirLight.shadow.camera.right = d;
     dirLight.shadow.camera.top = d;
@@ -1864,7 +1864,7 @@ function buildGroundMapPlane() {
             scene.add(groundMesh);
 
             // Water reflection plane beneath
-            const waterGeo = new THREE.PlaneGeometry(MAP_WIDTH * 1.5, MAP_HEIGHT * 1.5);
+            const waterGeo = new THREE.PlaneGeometry(MAP_WIDTH * 2.2, MAP_HEIGHT * 2.2);
             const waterMat = new THREE.MeshStandardMaterial({
                 color: 0x4a7eb8,
                 roughness: 0.25,
@@ -2877,7 +2877,30 @@ function selectPlot(p) {
     } else {
         if (ownMil) ownMil.style.display = "none";
         if (unownedMil) unownedMil.style.display = "none";
-        if (isProtected) {
+
+        if (p.is_allied) {
+            if (protBox) protBox.style.display = "none";
+            if (atkActions) {
+                atkActions.style.display = "block";
+                atkActions.innerHTML = `
+                    <div style="background: rgba(37,99,235,0.18); border: 1px solid rgba(59,130,246,0.5); border-radius: 8px; padding: 0.85rem; font-size: 0.82rem; color: #93c5fd; text-align: center;">
+                        🤝 <strong>Active Sovereign Alliance:</strong><br>
+                        You share an active mutual defense treaty with this commander (+35% defense bonus active). Non-aggression pact prevents friendly strikes.
+                    </div>
+                `;
+            }
+        } else if (p.is_pending_ally) {
+            if (protBox) protBox.style.display = "none";
+            if (atkActions) {
+                atkActions.style.display = "block";
+                atkActions.innerHTML = `
+                    <div style="background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.4); border-radius: 8px; padding: 0.85rem; font-size: 0.82rem; color: #fbbf24; text-align: center;">
+                        ⏳ <strong>Defense Treaty Transmitted:</strong><br>
+                        An alliance proposal has been sent to this landowner. Waiting for them to ratify the treaty.
+                    </div>
+                `;
+            }
+        } else if (isProtected) {
             if (protBox) {
                 protBox.style.display = "block";
                 const remMins = Math.max(1, Math.round((p.protection_seconds_left || 0) / 60));
@@ -2886,7 +2909,20 @@ function selectPlot(p) {
             if (atkActions) atkActions.style.display = "none";
         } else {
             if (protBox) protBox.style.display = "none";
-            if (atkActions) atkActions.style.display = "block";
+            if (atkActions) {
+                atkActions.style.display = "block";
+                atkActions.innerHTML = `
+                    <p style="font-size: 0.76rem; color: var(--text-muted); margin-bottom: 0.85rem; line-height: 1.45;">
+                        Launch a military strike from your Military Base to breach their defenses, plunder accrued yields, and seize combat bounties!
+                    </p>
+                    <button class="btn btn-blue" id="btn-attack-plot" onclick="executeAttackPlot()" style="width: 100%; background: #ef4444; color: #fff; font-weight: 800; border: none; margin-bottom: 0.65rem;">
+                        ⚔️ Launch Tactical Strike
+                    </button>
+                    <button class="btn btn-pill-dark" onclick="executeAllyRequest()" style="width: 100%; border-color: rgba(255,255,255,0.2);">
+                        🤝 Propose Mutual Defense Alliance
+                    </button>
+                `;
+            }
         }
     }
 }
