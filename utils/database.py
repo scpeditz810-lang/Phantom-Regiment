@@ -3044,3 +3044,89 @@ class Database:
             await self.setup()
         async with self._db.execute("SELECT * FROM elections WHERE status = 'active'") as cur:
             return [dict(r) for r in await cur.fetchall()]
+
+
+    # ── Double XP & Mayoral Perks ─────────────────────────────────────────────
+    async def is_double_xp_active(self, guild_id: int) -> bool:
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        async with self._db.execute("SELECT value FROM meta WHERE key = ?", (f"double_xp_{guild_id}",)) as cur:
+            row = await cur.fetchone()
+            if row:
+                try:
+                    return now < float(row[0])
+                except (ValueError, TypeError):
+                    return False
+        return False
+
+    async def get_double_xp_remaining(self, guild_id: int) -> float:
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        async with self._db.execute("SELECT value FROM meta WHERE key = ?", (f"double_xp_{guild_id}",)) as cur:
+            row = await cur.fetchone()
+            if row:
+                try:
+                    return max(0.0, float(row[0]) - now)
+                except (ValueError, TypeError):
+                    return 0.0
+        return 0.0
+
+    async def set_double_xp(self, guild_id: int, duration_seconds: float = 86400.0) -> float:
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        expires_at = now + duration_seconds
+        await self._db.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+            (f"double_xp_{guild_id}", str(expires_at))
+        )
+        await self._db.commit()
+        return expires_at
+
+    async def get_last_mayor_salary(self, mayor_id: int) -> float:
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT value FROM meta WHERE key = ?", (f"mayor_salary_{mayor_id}",)) as cur:
+            row = await cur.fetchone()
+            if row:
+                try:
+                    return float(row[0])
+                except (ValueError, TypeError):
+                    return 0.0
+        return 0.0
+
+    async def set_last_mayor_salary(self, mayor_id: int):
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        await self._db.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+            (f"mayor_salary_{mayor_id}", str(now))
+        )
+        await self._db.commit()
+
+    async def get_commander_action_count(self, election_id: int, commander_id: int, action_type: str) -> int:
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute(
+            "SELECT COUNT(*) FROM commander_actions WHERE election_id = ? AND commander_id = ? AND action_type = ?",
+            (election_id, commander_id, action_type)
+        ) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else 0
+
+    async def mayoral_pardon(self, user_id: int, guild_id: int):
+        """Pardon a citizen: clears robbery cooldown and crime cooldowns."""
+        if self._db is None:
+            await self.setup()
+        await self._db.execute(
+            "DELETE FROM rob_cooldowns WHERE robber_id = ? AND guild_id = ?",
+            (user_id, guild_id)
+        )
+        await self._db.execute(
+            "UPDATE users SET last_crime = 0, last_scavenge = 0 WHERE user_id = ? AND guild_id = ?",
+            (user_id, guild_id)
+        )
+        await self._db.commit()

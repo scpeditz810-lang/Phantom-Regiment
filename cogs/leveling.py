@@ -110,6 +110,8 @@ class LevelingCog(commands.Cog):
         self._cooldowns[uid] = now
 
         xp_gain = random.randint(*XP_PER_MESSAGE)
+        if hasattr(self.bot.db, "is_double_xp_active") and await self.bot.db.is_double_xp_active(message.guild.id):
+            xp_gain *= 2
         await self.bot.db.add_xp(uid, message.guild.id, xp_gain)
 
         data = await self.bot.db.get_user(uid, message.guild.id)
