@@ -160,10 +160,10 @@ class ElectionsCog(commands.Cog):
                             top_cand = next((c for c in cands if c["candidate_id"] == winner_id), None)
                             votes = top_cand["votes"] if top_cand else 0
                             embed = discord.Embed(
-                                title="🏛️ ELECTION RESULTS: NEW MAYOR SWORN INTO OFFICE!",
+                                title="🎉 THE VOTES ARE IN — OUR NEW MAYOR IS ELECTED!",
                                 description=(
                                     f"The 48-hour election polls have closed!\n\n"
-                                    f"🎩 **All hail the newly elected Mayor:** {winner_member.mention}!\n\n"
+                                    f"🎩 **Congratulations to our new Mayor:** {winner_member.mention}!\n\n"
                                     f"• **Winning Ballots:** `{votes}` votes\n"
                                     f"• **Term Length:** 14 Days\n"
                                     f"• **Executive Mayoral Powers:**\n"
@@ -178,7 +178,7 @@ class ElectionsCog(commands.Cog):
                                 color=0xF1C40F
                             )
                             embed.set_thumbnail(url=winner_member.display_avatar.url)
-                            embed.set_footer(text="City Hall • Democratic Governance")
+                            embed.set_footer(text="Phantom Regiment City Hall")
                             await channel.send(content=f"🎉 Congratulations {winner_member.mention}!", embed=embed)
                         else:
                             embed = discord.Embed(
@@ -237,7 +237,7 @@ class ElectionsCog(commands.Cog):
         embed = discord.Embed(
             title="🗳️ MAYORAL ELECTION — VOTING IN PROGRESS",
             description=(
-                f"Citizens of the Regiment, cast your ballot! The elected Mayor will lead the city for 2 weeks.\n\n"
+                f"Mayoral election is live! The winner leads the server with real executive powers for 2 weeks.\n\n"
                 f"⏳ **Voting Closes:** <t:{end_time_ts}:R> (<t:{end_time_ts}:F>)\n"
                 f"📊 **Total Ballots Cast:** `{total_votes:,}`\n"
                 f"👥 **Candidate Slots:** `{len(cands)} / {MAX_CANDIDATES}` filled\n"
@@ -266,7 +266,7 @@ class ElectionsCog(commands.Cog):
 
                 embed.add_field(
                     name=f"#{idx} {name} — `{votes}` votes ({pct}%)",
-                    value=f"`[{bar}]`\n💬 *\"{c.get('slogan') or 'A better future for our city!'}\"*",
+                    value=f"`[{bar}]`\n💬 *\"{c.get('slogan') or 'Vote for me, I got big plans for the server!'}\"*",
                     inline=False
                 )
 
@@ -325,7 +325,39 @@ class ElectionsCog(commands.Cog):
             except Exception:
                 pass
 
-        end_time_ts = int(ele["end_time"])
+        # DM candidate with their benefits & campaign tips
+        try:
+            dm_lines = [
+                f"Yo {user.display_name}, you just locked in your spot as an official candidate for Mayor of **{guild.name}**!",
+                "",
+                f"Your **{CANDIDATE_COST:,} Medals** filing fee is confirmed. Voting is live for **48 hours**.",
+                "",
+                "### 🏆 What You Get If You Win (14-Day Term):",
+                "• ⚡ **`/mayor doublexp`** — Drop server-wide **2X Double XP for 24 hours** (use up to 3 times). Whole server will love you for this.",
+                f"• 💰 **`/mayor salary`** — Collect **{MAYOR_DAILY_SALARY:,} Medals every 24 hours** from City Hall (makes back up to **175,000 Medals** across your term!).",
+                f"• 🔑 **`/mayor award @member`** — Hand out **+{AWARD_AMOUNT:,} Medals** + Key to the City to your best supporters (3 times; cannot self-award).",
+                "• 📦 **`/mayor stimulus`** — Drop a **10,000 Medal** crate in chat for 4 people to claim 2.5k each (2 times).",
+                "• ⚖️ **`/mayor pardon @member`** — Clear someone's robbery cooldown or jail time clean (3 times).",
+                "• 📈 **`/mayor tax <10-20>`** — Set the stock market transaction tax rate (10% to 20%).",
+                "• 🏛️ **Golden Hoisted Role** — Unique `🏛️ Mayor` role placed at the very top of the Discord member list.",
+                "",
+                "### 🗳️ How to Win:",
+                f"1. Get people to vote for you: `/election vote {user.mention}`",
+                f'2. Your slogan: *"{slogan}"*',
+                "3. **Remember:** You can't vote for yourself, so get your friends & squad to back you!",
+                "",
+                "Good luck on the campaign trail!"
+            ]
+            dm_embed = discord.Embed(
+                title="🎩 You're Officially Running for Mayor!",
+                description="\n".join(dm_lines),
+                color=0xF1C40F
+            )
+            dm_embed.set_footer(text="Mayoral Elections • Phantom Regiment")
+            await user.send(embed=dm_embed)
+        except Exception:
+            pass
+
         embed = discord.Embed(
             title="📢 NEW MAYORAL CANDIDATE DECLARED!",
             description=(
@@ -338,7 +370,7 @@ class ElectionsCog(commands.Cog):
             color=0x3498DB
         )
         embed.set_thumbnail(url=user.display_avatar.url)
-        embed.set_footer(text="City Hall Elections • 1 Vote Per Citizen")
+        embed.set_footer(text="Phantom Regiment Elections • 1 Vote Per Member")
         await interaction.followup.send(embed=embed)
 
     @election.command(name="vote", description="Cast your ballot for a registered Mayoral candidate")
@@ -351,7 +383,7 @@ class ElectionsCog(commands.Cog):
         # Anti-self-vote rule
         if candidate.id == user.id:
             return await interaction.followup.send(
-                "❌ **Anti-Corruption Rule:** You cannot vote for yourself! Democracy requires other citizens to support your candidacy.",
+                "❌ **Anti-Corruption Rule:** You cannot vote for yourself! You gotta get other members to vote for you!",
                 ephemeral=True
             )
 
@@ -368,7 +400,7 @@ class ElectionsCog(commands.Cog):
             return await interaction.followup.send(f"❌ {msg}", ephemeral=True)
 
         await interaction.followup.send(
-            f"✅ **Ballot Cast!** You have successfully voted for {candidate.mention} as Mayor! Thank you for participating in city democracy.",
+            f"✅ **Ballot Cast!** You have successfully voted for {candidate.mention} as Mayor! Thanks for voting!",
             ephemeral=True
         )
 
@@ -394,7 +426,7 @@ class ElectionsCog(commands.Cog):
         end_time_ts = int(new_ele["end_time"])
 
         embed = discord.Embed(
-            title="🏛️ CITY HALL DECREE: MAYORAL ELECTIONS ARE NOW OPEN!",
+            title="🏛️ MAYORAL ELECTIONS ARE NOW OPEN!",
             description=(
                 f"A new **{duration_hours}-Hour Election Cycle** has officially begun for the office of **Mayor**!\n\n"
                 f"⏳ **Voting Deadline:** <t:{end_time_ts}:R> (<t:{end_time_ts}:F>)\n"
@@ -408,7 +440,7 @@ class ElectionsCog(commands.Cog):
             ),
             color=0xF1C40F
         )
-        embed.set_footer(text="City Hall Electoral Commission")
+        embed.set_footer(text="Phantom Regiment Elections")
         await interaction.followup.send(embed=embed)
 
     # ── Mayoral Powers Group ──────────────────────────────────────────────────
@@ -456,7 +488,7 @@ class ElectionsCog(commands.Cog):
         embed = discord.Embed(
             title="⚡ MAYORAL SURGE: 2X DOUBLE XP ACTIVATED FOR 24 HOURS!",
             description=(
-                f"By official executive decree of Mayor {user.mention}:\n\n"
+                f"Mayor {user.mention}:\n\n"
                 f"🔥 **All chat XP earned across the entire server is DOUBLED (2x) for the next 24 hours!**\n\n"
                 f"⏳ **Surge Concludes:** <t:{int(expires_at)}:R> (<t:{int(expires_at)}:F>)\n"
                 f"🎩 **Mayoral 2XP Activations Left:** `{remaining_uses} / {MAX_DOUBLE_XP_PER_TERM}` this term.\n\n"
@@ -552,7 +584,7 @@ class ElectionsCog(commands.Cog):
         embed = discord.Embed(
             title="🔑 MAYORAL KEY TO THE CITY BESTOWED!",
             description=(
-                f"By official executive decree of Mayor {user.mention}:\n\n"
+                f"Mayor {user.mention}:\n\n"
                 f"Citizen {member.mention} has been honored with the prestigious **Key to the City** for outstanding civic contribution and loyalty!\n\n"
                 f"💰 **City Bounty:** `+{AWARD_AMOUNT:,} Medals` transferred to {member.mention}'s wallet!\n"
                 f"🎖️ **Mayoral Awards Left:** `{remaining} / {MAX_AWARDS_PER_TERM}` this term.\n\n"
