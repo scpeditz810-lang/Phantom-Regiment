@@ -49,8 +49,8 @@
 
             <div class="stat-tile">
                 <div class="stat-tile-label">PARCELS OWNED</div>
-                <div class="stat-tile-val text-blue"><span id="user-plots-count">0</span> <span style="font-size: 0.9rem; color: var(--text-muted);">/ 4 Max</span></div>
-                <div class="stat-tile-sub">Max 4 areas per member</div>
+                <div class="stat-tile-val text-blue"><span id="user-plots-count">0</span> <span style="font-size: 0.9rem; color: var(--text-muted);">/ 6 Max</span></div>
+                <div class="stat-tile-sub">Max 6 areas per member</div>
             </div>
 
             <div class="stat-tile">
@@ -68,7 +68,7 @@
             <div class="stat-tile">
                 <div class="stat-tile-label">CLAN MAP MARKET CAP</div>
                 <div class="stat-tile-val"><span id="clan-market-cap">...</span> M</div>
-                <div class="stat-tile-sub">All 36 state parcels</div>
+                <div class="stat-tile-sub">All <span id="total-state-parcels">state</span> parcels</div>
             </div>
         </div>
     </div>
@@ -2401,6 +2401,8 @@ function renderHUD(stats) {
     document.getElementById("user-daily-yield").innerText = Number(user.daily_yield || 0).toLocaleString();
     document.getElementById("stat-accrued-yield").innerText = Number(user.accrued_yield || 0).toLocaleString();
     document.getElementById("clan-market-cap").innerText = Number(stats.total_market_cap || 0).toLocaleString();
+    const totalParcelsEl = document.getElementById("total-state-parcels");
+    if (totalParcelsEl && stats.total_plots) totalParcelsEl.innerText = stats.total_plots + " state";
 
     // Pulse collect button if yield > 0
     const collectBtn = document.getElementById("btn-collect-all");
@@ -2530,11 +2532,11 @@ function selectPlot(p) {
     const userPlotsCount = parseInt(document.getElementById("user-plots-count").innerText) || 0;
     if (isUnclaimed) {
         buyBox.style.display = "block";
-        if (userPlotsCount >= 4) {
+        if (userPlotsCount >= 6) {
             buyBox.innerHTML = `
                 <div style="padding: 0.85rem; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; color: #fca5a5; font-size: 0.78rem; text-align: center;">
-                    ⚠️ <strong>Maximum Land Limit Reached (4 / 4):</strong><br>
-                    You already hold 4 territory parcels. Liquidate or sell an existing plot to the State Bank before purchasing new land.
+                    ⚠️ <strong>Maximum Land Limit Reached (6 / 6):</strong><br>
+                    You already hold 6 territory parcels. Liquidate or sell an existing plot to the State Bank before purchasing new land.
                 </div>
             `;
         } else {
@@ -2543,7 +2545,7 @@ function selectPlot(p) {
                     🛒 Purchase Land for <span>${Number(p.current_value).toLocaleString()}</span> Medals
                 </button>
                 <p style="font-size: 0.72rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem;">
-                    Direct acquisition from the clan territory authority (Max 4 parcels per member).
+                    Direct acquisition from the clan territory authority (Max 6 parcels per member).
                 </p>
             `;
         }

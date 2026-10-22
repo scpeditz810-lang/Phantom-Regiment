@@ -2591,8 +2591,9 @@ class Database:
 
         async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (user_id,)) as cur:
             owned_count = (await cur.fetchone())[0]
-        if owned_count >= 4:
-            return False, "Land cap reached! Each player can only hold a maximum of 4 territory parcels."
+        from utils.constants import MAX_ESTATE_PLOTS_PER_USER
+        if owned_count >= MAX_ESTATE_PLOTS_PER_USER:
+            return False, f"Land cap reached! Each player can only hold a maximum of {MAX_ESTATE_PLOTS_PER_USER} territory parcels."
 
         cost = plot["current_value"]
         econ = await self.get_global_economy(user_id)
@@ -2732,8 +2733,9 @@ class Database:
 
         async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (buyer_id,)) as cur:
             buyer_count = (await cur.fetchone())[0]
-        if buyer_count >= 4:
-            return False, "Land cap reached! You already own 4 territory parcels (the maximum allowed)."
+        from utils.constants import MAX_ESTATE_PLOTS_PER_USER
+        if buyer_count >= MAX_ESTATE_PLOTS_PER_USER:
+            return False, f"Land cap reached! You already own {MAX_ESTATE_PLOTS_PER_USER} territory parcels (the maximum allowed)."
 
         econ = await self.get_global_economy(buyer_id)
         if econ.get("medals", 0) < price:
@@ -2774,8 +2776,9 @@ class Database:
 
         async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (buyer_id,)) as cur:
             buyer_count = (await cur.fetchone())[0]
-        if buyer_count >= 4:
-            return False, "Land cap reached! You already hold 4 territory parcels and cannot bid on additional land."
+        from utils.constants import MAX_ESTATE_PLOTS_PER_USER
+        if buyer_count >= MAX_ESTATE_PLOTS_PER_USER:
+            return False, f"Land cap reached! You already hold {MAX_ESTATE_PLOTS_PER_USER} territory parcels and cannot bid on additional land."
 
         if offer_amount < 1000:
             return False, "Minimum offer is 1,000 Medals."
@@ -2840,8 +2843,9 @@ class Database:
         buyer_id = offer["buyer_id"]
         async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE owner_id = ?", (buyer_id,)) as cur:
             buyer_count = (await cur.fetchone())[0]
-        if buyer_count >= 4:
-            return False, "Cannot complete transaction: Buyer already holds the maximum limit of 4 territory parcels."
+        from utils.constants import MAX_ESTATE_PLOTS_PER_USER
+        if buyer_count >= MAX_ESTATE_PLOTS_PER_USER:
+            return False, f"Cannot complete transaction: Buyer already holds the maximum limit of {MAX_ESTATE_PLOTS_PER_USER} territory parcels."
 
         buyer_econ = await self.get_global_economy(buyer_id)
         offer_amount = offer["offer_amount"]
