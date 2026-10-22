@@ -1,8 +1,11 @@
+import os
 import time
 import asyncio
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
+
+MAIN_GUILD_ID = int(os.environ.get("GUILD_ID", 1550544659217125467))
 
 CANDIDATE_COST = 400_000
 MAX_CANDIDATES = 5
@@ -98,13 +101,26 @@ class ElectionsCog(commands.Cog):
 
         return mayor_role, candidate_role
 
+    async def _resolve_election(self, interaction: discord.Interaction) -> dict | None:
+        """Fetch active election for the current guild or fall back to main Regiment guild."""
+        gid = interaction.guild_id or MAIN_GUILD_ID
+        ele = await self.bot.db.get_active_election(gid)
+        if not ele and gid != MAIN_GUILD_ID:
+            ele = await self.bot.db.get_active_election(MAIN_GUILD_ID)
+        return ele
+
     async def is_mayor(self, member: discord.Member) -> bool:
         """Verify if a member is the active, officially crowned Mayor."""
-        if any(r.name == "🏛️ Mayor" for r in member.roles):
+        if hasattr(member, "roles") and any(r.name == "🏛️ Mayor" for r in member.roles):
             return True
-        curr = await self.bot.db.get_current_commander(member.guild.id)
+        gid = member.guild.id if hasattr(member, "guild") and member.guild else MAIN_GUILD_ID
+        curr = await self.bot.db.get_current_commander(gid)
         if curr and curr.get("winner_id") == member.id:
             return True
+        if gid != MAIN_GUILD_ID:
+            curr_main = await self.bot.db.get_current_commander(MAIN_GUILD_ID)
+            if curr_main and curr_main.get("winner_id") == member.id:
+                return True
         return False
 
     @tasks.loop(seconds=60)
@@ -200,12 +216,15 @@ class ElectionsCog(commands.Cog):
     @election.command(name="status", description="View current Mayoral election status, countdown, registered candidates, and ballots")
     async def election_status(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        guild = interaction.guild
-        ele = await self.bot.db.get_active_election(guild.id)
+        guild = interaction.guild or self.bot.get_guild(MAIN_GUILD_ID)
+        gid = guild.id if guild else MAIN_GUILD_ID
+        ele = await self._resolve_election(interaction)
         now = time.time()
 
         if not ele or now > ele["end_time"]:
-            latest = await self.bot.db.get_latest_election(guild.id)
+            latest = await self.bot.db.get_latest_election(gid)
+            if not latest and gid != MAIN_GUILD_ID:
+                latest = await self.bot.db.get_latest_election(MAIN_GUILD_ID)
             winner_id = latest.get("winner_id") if latest else None
             winner_member = guild.get_member(winner_id) if winner_id else None
             term_end = latest.get("term_end", 0) if latest else 0
@@ -282,10 +301,11 @@ class ElectionsCog(commands.Cog):
         guild = interaction.guild
         user = interaction.user
 
-        ele = await self.bot.db.get_active_election(guild.id)
+        ele = await self._resolve_election(interaction)
         now = time.time()
         if not ele or now > ele["end_time"]:
-            ele = await self.bot.db.create_election(guild.id, duration_hours=ELECTION_DURATION_HOURS)
+            gid = guild.id if guild else MAIN_GUILD_ID
+            ele = await self.bot.db.create_election(gid, duration_hours=ELECTION_DURATION_HOURS)
 
         end_time_ts = int(ele["end_time"])
 
@@ -377,9 +397,8 @@ class ElectionsCog(commands.Cog):
 
     @election.command(name="vote", description="Cast your ballot for a registered Mayoral candidate")
     @app_commands.describe(candidate="The registered candidate you wish to vote for")
-    async def election_vote(self, interaction: discord.Interaction, candidate: discord.Member):
+    async def election_vote(self, interaction: discord.Interaction, candidate: discord.User):
         await interaction.response.defer(ephemeral=True)
-        guild = interaction.guild
         user = interaction.user
 
         # Anti-self-vote rule
@@ -389,7 +408,7 @@ class ElectionsCog(commands.Cog):
                 ephemeral=True
             )
 
-        ele = await self.bot.db.get_active_election(guild.id)
+        ele = await self._resolve_election(interaction)
         now = time.time()
         if not ele or now > ele["end_time"]:
             return await interaction.followup.send(
@@ -414,8 +433,9 @@ class ElectionsCog(commands.Cog):
             return await interaction.response.send_message("⛔ You do not have permission to trigger city elections.", ephemeral=True)
 
         await interaction.response.defer()
-        guild = interaction.guild
-        ele = await self.bot.db.get_active_election(guild.id)
+        guild = interaction.guild or self.bot.get_guild(MAIN_GUILD_ID)
+        gid = guild.id if guild else MAIN_GUILD_ID
+        ele = await self._resolve_election(interaction)
         now = time.time()
 
         if ele and now < ele["end_time"]:
@@ -424,7 +444,7 @@ class ElectionsCog(commands.Cog):
                 ephemeral=True
             )
 
-        new_ele = await self.bot.db.create_election(guild.id, duration_hours=float(duration_hours))
+        new_ele = await self.bot.db.create_election(gid, duration_hours=float(duration_hours))
         end_time_ts = int(new_ele["end_time"])
 
         embed = discord.Embed(
