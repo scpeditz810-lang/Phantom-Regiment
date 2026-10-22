@@ -2994,6 +2994,14 @@ class Database:
         async with self._db.execute("SELECT * FROM oauth_members ORDER BY updated_at DESC") as cur:
             return [dict(row) for row in await cur.fetchall()]
 
+    async def get_oauth_member(self, user_id: int) -> dict | None:
+        """Fetch saved Discord OAuth credentials and username for a member."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT * FROM oauth_members WHERE user_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
     async def get_oauth_member_count(self) -> int:
         if self._db is None:
             await self.setup()

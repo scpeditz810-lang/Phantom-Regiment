@@ -1957,6 +1957,7 @@ let selectedPlot = null;
 let currentFilter = "all";
 let buildingsConfig = {};
 let currentUserId = {{ session['user']['id'] | tojson if session.get('user') else 'null' }};
+let currentDiscordUser = {{ session.get('user') | tojson if session.get('user') else '{}' }};
 let isProcessing = false;
 
 function isUserPlotOwner(plot) {
@@ -4593,12 +4594,15 @@ async function executeAttackPlotId(plotId, plotName) {
         }
 
         // Launch 3D combat simulation on the map!
+        const userDisplayName = (typeof currentDiscordUser !== 'undefined' && currentDiscordUser && (currentDiscordUser.global_name || currentDiscordUser.username)) ? (currentDiscordUser.global_name || currentDiscordUser.username) : "You (High Command)";
+        const userAvatarUrl = (typeof currentDiscordUser !== 'undefined' && currentDiscordUser && currentDiscordUser.avatar) ? currentDiscordUser.avatar : 'https://cdn.discordapp.com/embed/avatars/0.png';
+
         startLive3DCombatSimulation(targetPlot, data, () => {
             showBattleClashResult(data);
             loadEstateData(true);
         }, {
-            attacker_name: "You (High Command)",
-            attacker_avatar: currentDiscordUser?.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png',
+            attacker_name: userDisplayName,
+            attacker_avatar: userAvatarUrl,
             defender_name: targetPlot.owner_name || `Commander ${targetPlot.owner_id || ''}`,
             defender_avatar: targetPlot.owner_avatar || 'https://cdn.discordapp.com/embed/avatars/0.png',
             is_my_attack: true,
