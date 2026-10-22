@@ -91,9 +91,17 @@ def get_portfolio():
         "net_profit": total_value - total_invested
     })
 
+_USER_LAST_STOCK_TRADE = {}
+
 @api_bp.route("/buy", methods=["POST"])
 @login_required
 def buy_stock():
+    user_id = session["user"]["id"]
+    now = time.time()
+    if now - _USER_LAST_STOCK_TRADE.get(user_id, 0) < 1.5:
+        return jsonify({"success": False, "message": "Market rate limit: Please wait 2 seconds between orders."}), 429
+    _USER_LAST_STOCK_TRADE[user_id] = now
+
     data = request.get_json() or {}
     stock_id = data.get("stock_id")
     try:
@@ -104,7 +112,6 @@ def buy_stock():
     if not stock_id or shares <= 0:
         return jsonify({"success": False, "message": "Invalid stock ID or share amount."}), 400
 
-    user_id = session["user"]["id"]
     db = get_db()
     success, message = run_async(db.buy_stock(user_id, stock_id, shares))
     if success:
@@ -121,6 +128,12 @@ def buy_stock():
 @api_bp.route("/sell", methods=["POST"])
 @login_required
 def sell_stock():
+    user_id = session["user"]["id"]
+    now = time.time()
+    if now - _USER_LAST_STOCK_TRADE.get(user_id, 0) < 1.5:
+        return jsonify({"success": False, "message": "Market rate limit: Please wait 2 seconds between orders."}), 429
+    _USER_LAST_STOCK_TRADE[user_id] = now
+
     data = request.get_json() or {}
     stock_id = data.get("stock_id")
     try:
@@ -131,7 +144,6 @@ def sell_stock():
     if not stock_id or shares <= 0:
         return jsonify({"success": False, "message": "Invalid stock ID or share amount."}), 400
 
-    user_id = session["user"]["id"]
     db = get_db()
     success, message = run_async(db.sell_stock(user_id, stock_id, shares))
     if success:

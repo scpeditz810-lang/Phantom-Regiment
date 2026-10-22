@@ -279,9 +279,19 @@ function updateTradeTotal() {
 
     const currentStock = allStocks.find(s => s.id === activeStockId);
     if (currentStock) {
-        const total = qty * currentStock.price;
-        const estDiv = Math.max(1, Math.round(total * 0.02));
-        totalEl.innerHTML = `${total.toLocaleString()} Medals <span style="font-size:0.75rem; color:#22c55e; margin-left:6px; font-weight:600;">(💰 +${estDiv.toLocaleString()} M / Div Cycle)</span>`;
+        const estGross = qty * currentStock.price;
+        const estTax = Math.round(estGross * 0.10);
+        const estNetSell = Math.max(1, estGross - estTax);
+        const estDiv = Math.max(1, Math.round(estGross * 0.02));
+        totalEl.innerHTML = `
+            <div><strong>Buy Est:</strong> ${estGross.toLocaleString()} Medals</div>
+            <div style="font-size:0.74rem; color:#94a3b8; margin-top:2px;">
+                <strong>Sell Est:</strong> ${estNetSell.toLocaleString()} M <span style="color:#ef4444;">(-10% State Tax: ${estTax.toLocaleString()} M)</span>
+            </div>
+            <div style="font-size:0.72rem; color:#22c55e; margin-top:2px;">
+                💰 +${estDiv.toLocaleString()} M / Div Cycle
+            </div>
+        `;
     } else {
         totalEl.innerText = "-- Medals";
     }

@@ -127,7 +127,10 @@
         <span style="font-size:1.1rem;">📢</span> <span id="stock-news-text">Market News: High trading volume recorded across corporate equities.</span>
     </div>
 
-    <!-- Stock Cards Grid -->
+    <!-- Stock Cards Grid (Horizontal touch-swipe on mobile) -->
+    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.5rem; display:flex; align-items:center; gap:0.4rem;">
+        <span>↔️ <strong>Equities Deck:</strong> Swipe horizontally to switch corporate stocks</span>
+    </div>
     <div class="stock-cards-grid" id="stocks-container">
         <div class="text-muted p-4">Loading market tickers...</div>
     </div>
@@ -183,6 +186,10 @@
                 <strong class="text-blue" id="trade-calc-total">-- Medals</strong>
             </div>
 
+            <div style="background: rgba(15, 23, 42, 0.7); border: 1px dashed rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 0.65rem 0.85rem; margin-bottom: 1rem; font-size: 0.74rem; color: var(--text-muted); line-height: 1.45;">
+                🛡️ <strong>Fair Market Protections:</strong> 10% Transaction Tax on sales • 60s Anti-Arbitrage lock • 2.0% passive dividends every 4m.
+            </div>
+
             {% if session.get('user') %}
             <div class="trade-actions">
                 <button class="btn btn-buy" onclick="executeTrade('buy')">Buy Shares</button>
@@ -197,8 +204,15 @@
     <!-- User Portfolio Table (Only if Logged In) -->
     {% if session.get('user') %}
     <div class="table-surface">
-        <h3 style="margin-bottom: 0.35rem;">Your Portfolio Holdings</h3>
-        <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">Active stocks held in your account.</p>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: 0.5rem; margin-bottom: 1rem;">
+            <div>
+                <h3 style="margin-bottom: 0.2rem;">Your Portfolio Holdings</h3>
+                <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">Active stocks held in your account.</p>
+            </div>
+            <span style="font-size: 0.72rem; color: var(--blue-primary); background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.25); padding: 0.25rem 0.65rem; border-radius: 6px;">
+                👉 Swipe table horizontally for full data
+            </span>
+        </div>
 
         <table class="table" id="portfolio-table">
             <thead>

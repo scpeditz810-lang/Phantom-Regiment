@@ -9,6 +9,8 @@ CATALYST_EVENTS = [
     ("VNG", "⚔️ [WEAPONS] Vanguard Armaments unveils next-gen kinetic armor plating! Demand surges."),
     ("AERO", "🛰️ [SURVEILLANCE] Apex Aerospace successfully launches sub-orbital stealth drone constellation!"),
     ("CRYP", "💎 [TECH] Cypher Intelligence intercepts high-value encrypted network ledger! Breakthrough rally."),
+    ("TSLA", "⚡ [INNOVATION] Tesla automated defense units deployed across clan strongholds! Rally surging."),
+    ("PANDA", "🍜 [MERGER] PandaPo signs multi-district tactical ration supply pact! Stock value climbing."),
     ("PRC", "⚡ [EXPANSION] Phantom Regiment opens 3 new tactical training grounds. Valuation upgraded."),
     ("TSC", "🏦 [BUYBACK] TS Clan treasury initiates strategic stock buyback program!"),
     ("VNG", "🛡️ [UPGRADE] Vanguard Armaments signs alliance defense pact with sovereign clans.")
@@ -22,7 +24,7 @@ class StockMarketEngine:
         self._running = False
         self._thread = None
         self.tick_count = 0
-        self.latest_news = "📈 Market Open: High-volume trading active across all 5 corporate equities."
+        self.latest_news = "📈 Market Open: High-volume trading active across corporate equities."
         self.last_dividend_time = time.time()
 
     def start(self):
@@ -66,17 +68,22 @@ class StockMarketEngine:
             old_price = stock["price"]
 
             if catalyst_stock_symbol and stock["symbol"] == catalyst_stock_symbol:
-                # Big positive catalyst bump (+7% to +16%)
-                change_percent = random.uniform(0.07, 0.16)
+                # Big positive catalyst bump (+7% to +18%)
+                change_percent = random.uniform(0.07, 0.18)
+            elif old_price <= 25:
+                # Automatic Support Bounce: If a stock is too low, trigger recovery buying
+                change_percent = random.uniform(0.06, 0.15)
+                self.latest_news = f"🛡️ [SUPPORT BOUNCE] Institutional buy-wall activated for {stock['symbol']}! Rebound in progress."
             else:
-                # Normal market volatility: -3% to +4% with slight upward growth bias
-                change_percent = random.uniform(-0.035, 0.042)
+                # Normal market volatility: -2.5% to +4.5% with healthy upward growth bias
+                change_percent = random.uniform(-0.025, 0.045)
 
             diff = int(round(old_price * change_percent))
             if diff == 0:
-                diff = random.choice([-1, 1, 2])
+                diff = random.choice([1, 2])
 
-            new_price = max(10, old_price + diff)
+            # Strong floor of 20 Medals - stocks never crash below 20
+            new_price = max(20, old_price + diff)
             if new_price != old_price:
                 await self.db.update_stock_price(stock["id"], new_price)
 
@@ -84,7 +91,7 @@ class StockMarketEngine:
         if self.tick_count % 10 == 0:
             await self._distribute_dividends()
 
-        # Cleanup old history (keep last 60 ticks per stock)
+        # Cleanup old history (keep last 300 records)
         try:
             await self.db._db.execute("""
                 DELETE FROM stock_history WHERE id NOT IN (

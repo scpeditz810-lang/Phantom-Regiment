@@ -447,6 +447,7 @@ class Database:
                 shares INTEGER DEFAULT 0,
 
                 avg_buy_price REAL DEFAULT 0,
+                last_buy_time REAL DEFAULT 0,
 
                 PRIMARY KEY (user_id, stock_id)
 
@@ -559,6 +560,7 @@ class Database:
             "ALTER TABLE users ADD COLUMN last_scavenge REAL DEFAULT 0",
 
             "ALTER TABLE users ADD COLUMN last_trivia REAL DEFAULT 0",
+            "ALTER TABLE user_stocks ADD COLUMN last_buy_time REAL DEFAULT 0",
 
             "PRAGMA journal_mode=WAL"
 
@@ -2133,148 +2135,109 @@ class Database:
 
 
     async def buy_stock(self, user_id: int, stock_id: int, shares: int) -> tuple[bool, str]:
-
         if shares <= 0:
-
             return False, "Invalid number of shares."
 
         stock = await self.get_stock(stock_id)
-
         if not stock:
-
             return False, "Stock not found."
 
         if stock["available_shares"] < shares:
-
-            return False, f"Only {stock['available_shares']} shares available on the market (Max 150 total)."
-
-
+            return False, f"Only {stock['available_shares']} shares available on the market (Max {stock.get('total_supply', 2500)} total)."
 
         async with self._db.execute("SELECT shares, avg_buy_price FROM user_stocks WHERE user_id = ? AND stock_id = ?", (user_id, stock_id)) as cur:
-
             row = await cur.fetchone()
-
             current_shares = row[0] if row else 0
-
             current_avg = row[1] if row else 0.0
 
-
-
         if current_shares + shares > 100:
-
             return False, f"Holding limit reached. You can only hold a maximum of 100 shares per stock (Currently hold: {current_shares})."
 
-
-
-        total_cost = shares * stock["price"]
-
-        user_econ = await self.get_global_economy(user_id)
-
-        if user_econ.get("medals", 0) < total_cost:
-
-            return False, f"Insufficient Medals. You need {total_cost:,} Medals, but only have {user_econ.get('medals', 0):,}."
-
-
-
-        await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
-
-        await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
-
-        await self._db.execute("UPDATE stocks SET available_shares = available_shares - ? WHERE id = ?", (shares, stock_id))
-
-
-
-        new_total_shares = current_shares + shares
-
-        new_avg = ((current_shares * current_avg) + total_cost) / new_total_shares
-
-        await self._db.execute("""
-
-            INSERT INTO user_stocks (user_id, stock_id, shares, avg_buy_price)
-
-            VALUES (?, ?, ?, ?)
-
-            ON CONFLICT(user_id, stock_id) DO UPDATE SET
-
-                shares = ?,
-
-                avg_buy_price = ?
-
-        """, (user_id, stock_id, new_total_shares, new_avg, new_total_shares, new_avg))
-
-
-
-        price_bump = max(1, int(round(stock["price"] * (0.003 * shares))))
-
+        # Dampened price impact: 0.03% per share (capped at 8% maximum shift per order)
+        pct_impact = min(0.08, 0.0003 * shares)
+        price_bump = max(1, int(round(stock["price"] * pct_impact)))
         new_price = stock["price"] + price_bump
 
-        await self.update_stock_price(stock_id, new_price)
+        # Average execution price along the order book curve (slippage protection)
+        effective_buy_price = (stock["price"] + new_price) / 2.0
+        total_cost = int(round(shares * effective_buy_price))
 
+        user_econ = await self.get_global_economy(user_id)
+        if user_econ.get("medals", 0) < total_cost:
+            return False, f"Insufficient Medals. You need {total_cost:,} Medals (Avg price: {int(round(effective_buy_price)):,}/share), but only have {user_econ.get('medals', 0):,}."
+
+        await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
+        await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
+        await self._db.execute("UPDATE stocks SET available_shares = available_shares - ? WHERE id = ?", (shares, stock_id))
+
+        new_total_shares = current_shares + shares
+        new_avg = ((current_shares * current_avg) + total_cost) / new_total_shares
+        now_ts = time.time()
+
+        await self._db.execute("""
+            INSERT INTO user_stocks (user_id, stock_id, shares, avg_buy_price, last_buy_time)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, stock_id) DO UPDATE SET
+                shares = ?,
+                avg_buy_price = ?,
+                last_buy_time = ?
+        """, (user_id, stock_id, new_total_shares, new_avg, now_ts, new_total_shares, new_avg, now_ts))
+
+        await self.update_stock_price(stock_id, new_price)
         await self._db.commit()
 
-        return True, f"Successfully purchased {shares} shares of {stock['symbol']} for {total_cost:,} Medals. Price rose to {new_price:,} Medals!"
-
-
+        return True, f"Successfully purchased {shares} shares of {stock['symbol']} for {total_cost:,} Medals (Avg: {int(round(effective_buy_price)):,} Medals/share). Price rose to {new_price:,} Medals!"
 
     async def sell_stock(self, user_id: int, stock_id: int, shares: int) -> tuple[bool, str]:
-
         if shares <= 0:
-
             return False, "Invalid number of shares."
 
         stock = await self.get_stock(stock_id)
-
         if not stock:
-
             return False, "Stock not found."
 
-
-
-        async with self._db.execute("SELECT shares, avg_buy_price FROM user_stocks WHERE user_id = ? AND stock_id = ?", (user_id, stock_id)) as cur:
-
+        async with self._db.execute("SELECT shares, avg_buy_price, last_buy_time FROM user_stocks WHERE user_id = ? AND stock_id = ?", (user_id, stock_id)) as cur:
             row = await cur.fetchone()
-
             current_shares = row[0] if row else 0
-
-
+            last_buy_time = row[2] if row and len(row) > 2 and row[2] else 0.0
 
         if current_shares < shares:
-
             return False, f"You only own {current_shares} shares of {stock['symbol']}."
 
+        # Anti-arbitrage lock: Must hold for at least 60 seconds
+        elapsed = time.time() - last_buy_time
+        if last_buy_time > 0 and elapsed < 60:
+            remaining = int(60 - elapsed)
+            return False, f"Anti-Arbitrage Lock: You recently purchased this stock. You must hold shares for at least 60s before selling ({remaining}s remaining)."
 
+        # Dampened price drop: 0.03% per share (capped at 8% maximum drop)
+        pct_impact = min(0.08, 0.0003 * shares)
+        price_drop = max(1, int(round(stock["price"] * pct_impact)))
+        new_price = max(20, stock["price"] - price_drop)
 
-        total_return = shares * stock["price"]
+        # Average execution price along the order book curve
+        effective_sell_price = (stock["price"] + new_price) / 2.0
+        gross_return = int(round(shares * effective_sell_price))
 
-        await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (total_return, user_id))
+        # 10% Stock Market Transaction / Brokerage Tax
+        TAX_RATE = 0.10
+        tax_amount = int(round(gross_return * TAX_RATE))
+        net_return = max(1, gross_return - tax_amount)
 
-        await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ?", (total_return, user_id))
-
+        await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (net_return, user_id))
+        await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ?", (net_return, user_id))
         await self._db.execute("UPDATE stocks SET available_shares = min(total_supply, available_shares + ?) WHERE id = ?", (shares, stock_id))
 
-
-
         new_shares = current_shares - shares
-
         if new_shares == 0:
-
             await self._db.execute("DELETE FROM user_stocks WHERE user_id = ? AND stock_id = ?", (user_id, stock_id))
-
         else:
-
             await self._db.execute("UPDATE user_stocks SET shares = ? WHERE user_id = ? AND stock_id = ?", (new_shares, user_id, stock_id))
 
-
-
-        price_drop = max(1, int(round(stock["price"] * (0.003 * shares))))
-
-        new_price = max(5, stock["price"] - price_drop)
-
         await self.update_stock_price(stock_id, new_price)
-
         await self._db.commit()
 
-        return True, f"Successfully sold {shares} shares of {stock['symbol']} for {total_return:,} Medals. Price dropped to {new_price:,} Medals."
+        return True, f"Successfully sold {shares} shares of {stock['symbol']} for {net_return:,} Medals! (Gross: {gross_return:,} - 10% Market Tax: {tax_amount:,}). Price dropped to {new_price:,} Medals."
 
 
 

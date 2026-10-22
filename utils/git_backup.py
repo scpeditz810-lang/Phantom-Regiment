@@ -98,6 +98,8 @@ class GitBackup:
                   cwd=self.repo_dir, check=False)
         self._run(["git", "config", "core.fileMode", "false"],
                   cwd=self.repo_dir, check=False)
+        self._run(["git", "config", "pull.rebase", "false"],
+                  cwd=self.repo_dir, check=False)
 
         # On Render: merge=ours preserves cloud DB across code deploys
         if self.is_render():
@@ -169,7 +171,7 @@ class GitBackup:
                 self._run(["git", "rebase", "--abort"], cwd=self.repo_dir, check=False)
 
                 # Fetch and pull remote with -X ours to prioritize the active live cloud database
-                self._run(["git", "pull", "-X", "ours", "--no-edit", "origin", "main"], cwd=self.repo_dir, check=False)
+                self._run(["git", "pull", "--no-rebase", "-X", "ours", "--no-edit", "origin", "main"], cwd=self.repo_dir, check=False)
                 self._run(["git", "checkout", "--ours", "bot.db"], cwd=self.repo_dir, check=False)
                 self._fix_permissions()
                 self._run(["git", "add", "-A"], cwd=self.repo_dir, check=False)
@@ -179,12 +181,8 @@ class GitBackup:
                 return True
             except Exception as e:
                 print(f"⚠️  Auto-backup recovery attempt: {e}")
-                try:
-                    # Final safety fallback: push to ensure cloud DB is preserved
-                    self._run(["git", "push", "-f", "origin", "main"], cwd=self.repo_dir, check=False)
-                    return True
-                except Exception:
-                    return False
+                # Do NOT force push - allow developer code commits to take precedence
+                return False
 
     def sync_from_remote(self, force: bool = False) -> bool:
         """Sync the local database with the latest backup on GitHub origin/main.

@@ -74,6 +74,9 @@
     </div>
 
     <!-- Filter Bar & View Controls -->
+    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.4rem; display:flex; align-items:center; gap:0.4rem;">
+        <span>↔️ <strong>Territory Filters:</strong> Swipe horizontally to view all districts</span>
+    </div>
     <div class="estate-controls-bar">
         <div class="filter-pills" id="filter-pills">
             <button class="filter-pill active" onclick="setFilter('all', this)">🌐 All Territory (36)</button>
@@ -2389,6 +2392,12 @@ function selectPlot(p) {
     // Reveal inspector
     document.getElementById("inspector-empty").style.display = "none";
     document.getElementById("inspector-content").style.display = "block";
+
+    // Auto-scroll on mobile to inspector
+    if (window.innerWidth <= 900) {
+        const insp = document.getElementById("estate-inspector");
+        if (insp) insp.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
 
     // Fill Hero Card
     document.getElementById("insp-district-badge").innerText = p.district;
