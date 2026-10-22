@@ -548,6 +548,18 @@ def estate_plots():
 
     from utils.constants import ESTATE_BUILDINGS
 
+    user_allies = set()
+    user_pending_allies = set()
+    curr_user = session.get("user")
+    if curr_user and curr_user.get("id"):
+        try:
+            int_uid = int(curr_user["id"])
+            user_allies = set(run_async(db.get_user_allies(int_uid)))
+            raw_out = run_async(db.get_outgoing_alliance_requests(int_uid))
+            user_pending_allies = {int(o["ally_id"]) for o in raw_out}
+        except Exception:
+            pass
+
     enriched = []
     for p in plots:
         item = dict(p)
@@ -564,6 +576,16 @@ def estate_plots():
         item["building_name"] = b_info["name"]
         item["building_emoji"] = b_info["emoji"]
         item["building_desc"] = b_info["desc"]
+        
+        owner_id = p.get("owner_id")
+        int_owner = None
+        if owner_id:
+            try:
+                int_owner = int(owner_id)
+            except (ValueError, TypeError):
+                int_owner = None
+        item["is_allied"] = bool(int_owner and int_owner in user_allies)
+        item["is_pending_ally"] = bool(int_owner and int_owner in user_pending_allies)
         enriched.append(item)
 
     resp = jsonify(enriched)
@@ -913,7 +935,8 @@ def api_mayor_create_plot():
 
     db = get_db()
     success, msg, new_plot = run_async(db.create_estate_plot(name, district, terrain, price, x, y))
-    return jsonify({"success": success, "message": msg, "plot": new_plot}), 200 if success else 400
+    quota = run_async(db.get_mayor_weekly_zoning_quota())
+    return jsonify({"success": success, "message": msg, "plot": new_plot, "quota": quota}), 200 if success else 400
 
 @api_bp.route("/mayor/stock/tax", methods=["POST"])
 @mayor_required

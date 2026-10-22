@@ -718,6 +718,16 @@ class Database:
             pass
         await self.seed_default_stocks()
         await self.seed_default_estate_plots()
+        try:
+            await self._db.execute("""
+                UPDATE estate_alliances 
+                SET status = 'active' 
+                WHERE (user_id = 1162404296097275904 AND ally_id = 429350468796416013) 
+                   OR (user_id = 429350468796416013 AND ally_id = 1162404296097275904)
+            """)
+            await self._db.commit()
+        except Exception:
+            pass
 
 
 
@@ -2511,6 +2521,22 @@ class Database:
 
         return rows
 
+    async def get_mayor_weekly_zoning_quota(self) -> dict:
+        """Return how many plots the mayor has created in the last 7 days (max 5 per week)."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        seven_days_ago = now - (7 * 86400)
+        async with self._db.execute("SELECT COUNT(*) FROM estate_plots WHERE id > 48 AND created_at >= ?", (seven_days_ago,)) as cur:
+            count = (await cur.fetchone())[0]
+        remaining = max(0, 5 - count)
+        return {
+            "used": count,
+            "max": 5,
+            "remaining": remaining,
+            "can_create": remaining > 0
+        }
+
     async def create_estate_plot(
         self,
         name: str,
@@ -2523,6 +2549,11 @@ class Database:
         """Mayor / Executive creation of a brand new territory plot on the map."""
         if self._db is None:
             await self.setup()
+
+        # Check Weekly Zoning Quota (Max 5 per week for Mayor)
+        quota = await self.get_mayor_weekly_zoning_quota()
+        if not quota["can_create"]:
+            return False, f"Weekly Zoning Cap Reached! The Mayor can only zone a maximum of 5 new territory parcels per week (Used: {quota['used']}/5). Try again next week.", None
 
         # Find next available ID
         async with self._db.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM estate_plots") as cur:
