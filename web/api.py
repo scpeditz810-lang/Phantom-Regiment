@@ -241,6 +241,31 @@ try:
 except Exception as _e:
     pass
 
+def _resolve_discord_user(uid, bot=None):
+    if not uid:
+        return "Unknown Citizen", "https://cdn.discordapp.com/embed/avatars/0.png"
+    try:
+        int_uid = int(uid)
+    except (ValueError, TypeError):
+        int_uid = uid
+    if int_uid in _DISCORD_PROFILES:
+        return _DISCORD_PROFILES[int_uid]
+    name = f"Citizen #{uid}"
+    avatar = "https://cdn.discordapp.com/embed/avatars/0.png"
+    if bot:
+        user = bot.get_user(int_uid)
+        if user:
+            res = (user.global_name or user.display_name or user.name, user.display_avatar.url)
+            _DISCORD_PROFILES[int_uid] = res
+            return res
+        for g in bot.guilds:
+            m = g.get_member(int_uid)
+            if m:
+                res = (m.global_name or m.display_name or m.name, m.display_avatar.url)
+                _DISCORD_PROFILES[int_uid] = res
+                return res
+    return name, avatar
+
 @api_bp.route("/squads")
 def api_squads():
     bot = current_app.config.get("DISCORD_BOT")
@@ -973,9 +998,143 @@ def api_estate_attack():
 def api_estate_military():
     user_id = session["user"]["id"]
     db = get_db()
+    bot = current_app.config.get("DISCORD_BOT")
+    
+    # 1. User military stats
     stats = run_async(db.get_user_military_stats(user_id))
-    allies = run_async(db.get_user_allies(user_id))
-    return jsonify({"stats": stats, "allies": allies})
+    
+    # 2. Active allies
+    raw_allies = run_async(db.get_user_allies(user_id))
+    allies = []
+    for a_id in raw_allies:
+        a_name, a_av = _resolve_discord_user(a_id, bot)
+        a_stats = run_async(db.get_user_military_stats(a_id))
+        allies.append({
+            "user_id": a_id,
+            "name": a_name,
+            "avatar": a_av,
+            "defense_power": a_stats.get("defense_power", 0),
+            "attack_power": a_stats.get("attack_power", 0),
+            "bases_count": len(a_stats.get("military_bases", [])),
+            "defense_contribution": int(round(a_stats.get("defense_power", 0) * 0.35))
+        })
+        
+    # 3. Pending incoming requests
+    raw_pending = run_async(db.get_pending_alliance_requests(user_id))
+    pending_requests = []
+    for p in raw_pending:
+        req_id = p["requester_id"]
+        req_name, req_av = _resolve_discord_user(req_id, bot)
+        req_stats = run_async(db.get_user_military_stats(req_id))
+        pending_requests.append({
+            "id": p["id"],
+            "requester_id": req_id,
+            "name": req_name,
+            "avatar": req_av,
+            "defense_power": req_stats.get("defense_power", 0),
+            "created_at": p.get("created_at", 0)
+        })
+
+    # 4. Outgoing pending requests
+    raw_outgoing = run_async(db.get_outgoing_alliance_requests(user_id))
+    outgoing_requests = []
+    for o in raw_outgoing:
+        target_id = o["ally_id"]
+        t_name, t_av = _resolve_discord_user(target_id, bot)
+        outgoing_requests.append({
+            "id": o["id"],
+            "ally_id": target_id,
+            "name": t_name,
+            "avatar": t_av,
+            "created_at": o.get("created_at", 0)
+        })
+
+    # 5. Raid targets (rival plots)
+    plots = run_async(db.get_estate_plots())
+    from utils.constants import ESTATE_BUILDINGS
+    targets = []
+    other_landowners = {}
+    
+    for p in plots:
+        o_id = p.get("owner_id")
+        if not o_id:
+            continue
+        if str(o_id) == str(user_id):
+            continue
+        
+        o_name, o_av = _resolve_discord_user(o_id, bot)
+        if o_id not in other_landowners:
+            other_landowners[o_id] = {
+                "user_id": o_id,
+                "name": o_name,
+                "avatar": o_av
+            }
+            
+        # If allied, cannot attack
+        if int(o_id) in raw_allies:
+            continue
+            
+        b_type = p.get("building_type", "empty")
+        b_info = ESTATE_BUILDINGS.get(b_type, {"name": "Vacant Land", "emoji": "🌱"})
+        def_stats = run_async(db.get_plot_defense_stats(p["id"]))
+        
+        is_prot = p.get("is_protected", False)
+        prot_left = p.get("protection_seconds_left", 0)
+        
+        targets.append({
+            "id": p["id"],
+            "name": p["name"],
+            "district": p["district"],
+            "terrain": p.get("terrain", "plains"),
+            "owner_id": o_id,
+            "owner_name": o_name,
+            "owner_avatar": o_av,
+            "building_type": b_type,
+            "building_name": b_info.get("name", "Vacant Land"),
+            "building_emoji": b_info.get("emoji", "🌱"),
+            "building_level": p.get("building_level", 0),
+            "current_value": p.get("current_value", 0),
+            "accrued_yield": p.get("accrued_yield", 0),
+            "defense_rating": def_stats.get("total_defense", 0),
+            "is_protected": is_prot,
+            "protection_seconds_left": prot_left,
+            "can_attack": (len(stats.get("military_bases", [])) > 0) and (not is_prot)
+        })
+
+    # 6. Recent server-wide raids
+    raw_raids = run_async(db.get_recent_raids(12))
+    recent_raids = []
+    for r in raw_raids:
+        atk_name, atk_av = _resolve_discord_user(r["attacker_id"], bot)
+        def_name, def_av = _resolve_discord_user(r["defender_id"], bot)
+        recent_raids.append({
+            "id": r["id"],
+            "attacker_id": r["attacker_id"],
+            "attacker_name": atk_name,
+            "attacker_avatar": atk_av,
+            "defender_id": r["defender_id"],
+            "defender_name": def_name,
+            "defender_avatar": def_av,
+            "plot_id": r["plot_id"],
+            "plot_name": r.get("plot_name", f"Plot #{r['plot_id']}"),
+            "district": r.get("district", "City Territory"),
+            "attacker_power": r["attacker_power"],
+            "defender_power": r["defender_power"],
+            "allied_bonus": r.get("allied_bonus", 0),
+            "success": bool(r["success"]),
+            "loot": r.get("loot", 0),
+            "timestamp": r["timestamp"]
+        })
+
+    return jsonify({
+        "stats": stats,
+        "allies": allies,
+        "pending_requests": pending_requests,
+        "outgoing_requests": outgoing_requests,
+        "targets": targets,
+        "recent_raids": recent_raids,
+        "other_landowners": list(other_landowners.values())
+    })
 
 @api_bp.route("/estate/ally/request", methods=["POST"])
 @login_required
@@ -1003,4 +1162,31 @@ def api_estate_ally_accept():
     user_id = session["user"]["id"]
     db = get_db()
     success, msg = run_async(db.accept_alliance(user_id, requester_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+@api_bp.route("/estate/ally/decline", methods=["POST"])
+@login_required
+def api_estate_ally_decline():
+    data = request.get_json() or {}
+    try:
+        requester_id = int(data.get("requester_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Requester ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.decline_alliance(user_id, requester_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/estate/ally/break", methods=["POST"])
+@login_required
+def api_estate_ally_break():
+    data = request.get_json() or {}
+    try:
+        ally_id = int(data.get("ally_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Ally ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.break_alliance(user_id, ally_id))
     return jsonify({"success": success, "message": msg}), 200 if success else 400

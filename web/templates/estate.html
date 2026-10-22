@@ -99,6 +99,12 @@
                 </button>
             </div>
 
+            <button class="btn btn-sm btn-pill-dark" style="background: rgba(239, 68, 68, 0.16); border: 1px solid rgba(239, 68, 68, 0.45); color: #fca5a5; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;" onclick="openWarRoomModal()">
+                <span style="font-size: 1rem;">⚔️</span> War Room & Raids
+            </button>
+            <button class="btn btn-sm btn-pill-dark" style="background: rgba(56, 189, 248, 0.16); border: 1px solid rgba(56, 189, 248, 0.45); color: #7dd3fc; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;" onclick="openAlliancesModal()">
+                <span style="font-size: 1rem;">🤝</span> Defense Alliances <span id="alliance-badge" class="badge-mini" style="display:none; background:#38bdf8; color:#0f172a; margin-left:4px; font-weight: 900; padding: 1px 6px; border-radius: 999px;">0</span>
+            </button>
             <button class="btn btn-sm btn-pill-dark" onclick="openOffersModal()">
                 📩 Offers Hub <span id="offers-count-badge" class="badge-mini" style="display:none;">0</span>
             </button>
@@ -520,6 +526,211 @@
 
         <div id="offers-list-container" style="max-height: 400px; overflow-y: auto;">
             <div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading offers...</div>
+        </div>
+    </div>
+</div>
+
+
+<!-- War Room & Raids Modal -->
+<div class="modal-overlay" id="war-room-modal" style="display: none;" onclick="closeWarRoomModal(event)">
+    <div class="modal-content table-surface" onclick="event.stopPropagation()" style="max-width: 860px; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span style="font-size: 1.5rem;">⚔️</span>
+                <div>
+                    <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800;">High Command War Room & Raids</h3>
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">Command your forces, scout rival territories, and launch tactical operations.</div>
+                </div>
+            </div>
+            <button class="btn btn-sm btn-pill-dark" onclick="closeWarRoomModal()">✕</button>
+        </div>
+
+        <!-- Combat Readiness Stats Bar -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+            <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 10px; padding: 0.85rem; text-align: center;">
+                <div style="font-size: 0.72rem; color: #fca5a5; font-weight: 700; letter-spacing: 0.05em;">💥 OFFENSIVE STRIKE POWER</div>
+                <div style="font-size: 1.5rem; font-weight: 900; color: #ef4444;" id="war-atk-power">0</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted);">From Military Bases</div>
+            </div>
+            <div style="background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); border-radius: 10px; padding: 0.85rem; text-align: center;">
+                <div style="font-size: 0.72rem; color: #7dd3fc; font-weight: 700; letter-spacing: 0.05em;">🛡️ DEFENSE FORTIFICATION</div>
+                <div style="font-size: 1.5rem; font-weight: 900; color: #38bdf8;" id="war-def-power">0</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted);">Bases + Bunkers</div>
+            </div>
+            <div style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 10px; padding: 0.85rem; text-align: center;">
+                <div style="font-size: 0.72rem; color: #6ee7b7; font-weight: 700; letter-spacing: 0.05em;">🪖 OPERATIONAL BASES</div>
+                <div style="font-size: 1.5rem; font-weight: 900; color: #10b981;" id="war-bases-count">0</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted);">Required to Raid</div>
+            </div>
+            <div style="background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 0.85rem; text-align: center;">
+                <div style="font-size: 0.72rem; color: #fcd34d; font-weight: 700; letter-spacing: 0.05em;">🛢️ OFFSHORE OIL RIGS</div>
+                <div style="font-size: 1.5rem; font-weight: 900; color: #f59e0b;" id="war-rigs-count">0</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted);">High-Value Assets</div>
+            </div>
+        </div>
+
+        <div id="war-no-base-warning" style="display: none; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); border-radius: 8px; padding: 0.85rem; margin-bottom: 1.25rem; font-size: 0.8rem; color: #fcd34d;">
+            ⚠️ <strong>Requisition Notice:</strong> You do not currently own an operational <strong>Military Base</strong>. Upgrade one of your owned plots on the 3D map to a Military Base to launch raids on rival territories!
+        </div>
+
+        <!-- War Room Sub-Tabs -->
+        <div style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.65rem; margin-bottom: 1rem;">
+            <button class="btn btn-sm btn-pill-dark active" id="tab-btn-war-targets" onclick="switchWarRoomTab('targets', this)">
+                🎯 Raid Targets & Recon
+            </button>
+            <button class="btn btn-sm btn-pill-dark" id="tab-btn-war-logs" onclick="switchWarRoomTab('logs', this)">
+                📜 Combat Engagement Logs
+            </button>
+        </div>
+
+        <!-- War Room Tab 1: Targets -->
+        <div id="war-tab-targets">
+            <div style="font-size: 0.76rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                Target rival parcels to plunder uncollected dividends and claim combat bounties. Victims receive <strong>1 Hour State Bank Peacekeeper Protection</strong> following successful breaches.
+            </div>
+            <div id="war-targets-list" style="display: flex; flex-direction: column; gap: 0.65rem;">
+                <div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading reconnaissance radar...</div>
+            </div>
+        </div>
+
+        <!-- War Room Tab 2: Logs -->
+        <div id="war-tab-logs" style="display: none;">
+            <div id="war-logs-list" style="display: flex; flex-direction: column; gap: 0.65rem;">
+                <div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading combat reports...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Battle Clash Resolution Modal -->
+<div class="modal-overlay" id="battle-result-modal" style="display: none;" onclick="closeBattleResultModal(event)">
+    <div class="modal-content table-surface" onclick="event.stopPropagation()" style="max-width: 580px; text-align: center; padding: 1.75rem;">
+        <div id="battle-outcome-badge" style="display: inline-block; padding: 0.35rem 1rem; border-radius: 999px; font-weight: 900; font-size: 0.85rem; letter-spacing: 0.05em; margin-bottom: 0.8rem;">
+            TACTICAL DEPLOYMENT REPORT
+        </div>
+        <h3 id="battle-headline" style="margin: 0 0 0.5rem 0; font-size: 1.5rem; font-weight: 900;">Breach Resolution</h3>
+        <p id="battle-submessage" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5;"></p>
+
+        <!-- Clash Card -->
+        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.75rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem;">
+            <div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">YOUR STRIKE FORCE</div>
+                <div style="font-size: 1.8rem; font-weight: 900; color: #ef4444;" id="battle-atk-roll">0</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted);" id="battle-atk-power">Power: 0</div>
+            </div>
+            <div style="font-size: 1.2rem; font-weight: 900; color: var(--text-muted);">VS</div>
+            <div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">DEFENDER FORTIFICATION</div>
+                <div style="font-size: 1.8rem; font-weight: 900; color: #38bdf8;" id="battle-def-roll">0</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted);" id="battle-def-power">Defense: 0</div>
+            </div>
+        </div>
+
+        <!-- Loot Breakdown -->
+        <div id="battle-loot-box" style="display: none; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); border-radius: 10px; padding: 1rem; margin-bottom: 1.25rem; text-align: left;">
+            <div style="font-size: 0.75rem; color: #6ee7b7; font-weight: 800; text-transform: uppercase;">💰 Plunder & Spoils of War</div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 0.4rem;">
+                <span style="color: var(--text-muted);">Accrued Land Yield Plundered (40%):</span>
+                <strong style="color: #10b981;" id="battle-loot-yield">0 M</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 0.25rem;">
+                <span style="color: var(--text-muted);">Central War Bounty:</span>
+                <strong style="color: #10b981;" id="battle-loot-bounty">0 M</strong>
+            </div>
+            <div style="border-top: 1px dashed rgba(16,185,129,0.3); margin-top: 0.5rem; padding-top: 0.5rem; display: flex; justify-content: space-between; font-size: 0.95rem; font-weight: 800;">
+                <span style="color: var(--text-white);">Total Credited to Wallet:</span>
+                <strong style="color: #f59e0b;" id="battle-loot-total">0 Medals</strong>
+            </div>
+        </div>
+
+        <div id="battle-peacekeeper-notice" style="display: none; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); border-radius: 8px; padding: 0.75rem; font-size: 0.78rem; color: #7dd3fc; margin-bottom: 1.25rem;">
+            🛡️ <strong>State Bank Peacekeepers Active:</strong> Elite banking forces have locked down the victim parcel for <strong>1 Full Hour</strong> to prevent further assaults.
+        </div>
+
+        <button class="btn btn-blue" style="width: 100%; font-weight: 800; padding: 0.75rem;" onclick="closeBattleResultModal()">
+            Return to High Command
+        </button>
+    </div>
+</div>
+
+<!-- Alliances Coalition Modal -->
+<div class="modal-overlay" id="alliances-modal" style="display: none;" onclick="closeAlliancesModal(event)">
+    <div class="modal-content table-surface" onclick="event.stopPropagation()" style="max-width: 740px; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span style="font-size: 1.5rem;">🤝</span>
+                <div>
+                    <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800;">Mutual Defense Coalition & Alliances</h3>
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">Forge defense treaties. Allies provide +35% defense aura and prevent friendly fire.</div>
+                </div>
+            </div>
+            <button class="btn btn-sm btn-pill-dark" onclick="closeAlliancesModal()">✕</button>
+        </div>
+
+        <!-- Alliance Sub-Tabs -->
+        <div style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.65rem; margin-bottom: 1rem;">
+            <button class="btn btn-sm btn-pill-dark active" id="tab-btn-allies-active" onclick="switchAlliancesTab('active', this)">
+                🛡️ Active Coalition (<span id="allies-active-count">0</span>)
+            </button>
+            <button class="btn btn-sm btn-pill-dark" id="tab-btn-allies-requests" onclick="switchAlliancesTab('requests', this)">
+                📩 Incoming Proposals <span id="allies-req-badge" class="badge-mini" style="display: none; background:#38bdf8; color:#0f172a; margin-left: 4px;">0</span>
+            </button>
+            <button class="btn btn-sm btn-pill-dark" id="tab-btn-allies-propose" onclick="switchAlliancesTab('propose', this)">
+                📜 Propose New Treaty
+            </button>
+        </div>
+
+        <!-- Tab 1: Active Allies -->
+        <div id="allies-tab-active">
+            <div id="allies-active-list" style="display: flex; flex-direction: column; gap: 0.65rem;">
+                <div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading allied coalition...</div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Incoming Requests -->
+        <div id="allies-tab-requests" style="display: none;">
+            <div id="allies-requests-list" style="display: flex; flex-direction: column; gap: 0.65rem;">
+                <div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading alliance proposals...</div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Propose Alliance -->
+        <div id="allies-tab-propose" style="display: none;">
+            <div style="background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.25); border-radius: 10px; padding: 1.25rem;">
+                <h4 style="margin: 0 0 0.4rem 0; font-size: 1rem;">📜 Propose a Mutual Defense Treaty</h4>
+                <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.5;">
+                    Select an active landowner in the territory or enter their Discord ID. When ratified, your military installations will reinforce each other during rival incursions.
+                </p>
+
+                <div style="margin-bottom: 1rem;">
+                    <label class="form-label">Select Active Landowner</label>
+                    <select id="select-ally-target" class="form-input" style="width: 100%; padding: 0.65rem; background: var(--bg-card-inner); color: var(--text-white); border: 1px solid var(--border); border-radius: 8px;">
+                        <option value="">-- Choose Landowner --</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                    <div style="flex: 1; border-top: 1px solid var(--border);"></div>
+                    <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">OR ENTER DISCORD ID</span>
+                    <div style="flex: 1; border-top: 1px solid var(--border);"></div>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <input type="text" id="input-ally-id" placeholder="Enter Discord User ID (e.g. 1291083270426988544)" class="form-input" style="width: 100%; padding: 0.65rem; background: var(--bg-card-inner); color: var(--text-white); border: 1px solid var(--border); border-radius: 8px;">
+                </div>
+
+                <button class="btn btn-blue" id="btn-send-ally-prop" onclick="submitAllianceProposal()" style="width: 100%; font-weight: 800; padding: 0.75rem;">
+                    🤝 Transmit Treaty Proposal
+                </button>
+            </div>
+
+            <!-- Outgoing Proposals -->
+            <div style="margin-top: 1.25rem;">
+                <h5 style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: var(--text-muted);">Pending Outgoing Proposals Sent by You:</h5>
+                <div id="allies-outgoing-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">None pending.</div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -2384,6 +2595,20 @@ async function loadEstateData(silent = false) {
                 if (refreshed) selectPlot(refreshed);
             }
 
+            // Update Alliances Pending Badge in background
+            fetch("/api/estate/military?_t=" + Date.now()).then(r => r.json()).then(mil => {
+                const pending = (mil.pending_requests || []).length;
+                const topBadge = document.getElementById("alliance-badge");
+                if (topBadge) {
+                    if (pending > 0) {
+                        topBadge.style.display = "inline-block";
+                        topBadge.innerText = pending;
+                    } else {
+                        topBadge.style.display = "none";
+                    }
+                }
+            }).catch(() => {});
+
             if (!silent) showToast("Territory map synced!");
         }
     } catch (err) {
@@ -2644,25 +2869,7 @@ function selectPlot(p) {
 
 async function executeAttackPlot() {
     if (!selectedPlot) return;
-    if (!confirm(`Launch an armed tactical strike on Plot #${selectedPlot.id}: ${selectedPlot.name}? (Requires an operational Military Base)`)) return;
-
-    const btn = document.getElementById("btn-attack-plot");
-    if (btn) btn.disabled = true;
-
-    try {
-        const res = await fetch("/api/estate/attack", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plot_id: selectedPlot.id })
-        });
-        const data = await res.json();
-        alert(data.message);
-        loadEstateData(true);
-    } catch (err) {
-        alert("Error launching raid: " + err);
-    } finally {
-        if (btn) btn.disabled = false;
-    }
+    executeAttackPlotId(selectedPlot.id, selectedPlot.name);
 }
 
 async function executeAllyRequest() {
@@ -2676,9 +2883,14 @@ async function executeAllyRequest() {
             body: JSON.stringify({ ally_id: selectedPlot.owner_id })
         });
         const data = await res.json();
-        alert(data.message);
+        if (res.ok && data.success) {
+            showToast("🤝 Alliance proposal transmitted!");
+            loadAlliancesData();
+        } else {
+            showToast(data.message || "Failed to propose alliance", "error");
+        }
     } catch (err) {
-        alert("Error sending alliance: " + err);
+        showToast("Error sending alliance: " + err.message, "error");
     }
 }
 
@@ -3085,5 +3297,479 @@ function showToast(msg, type = "success") {
         setTimeout(() => toast.remove(), 300);
     }, 3200);
 }
+
+// ─── War Room & Tactical Raids Logic ────────────────────────────────────────
+let warRoomData = null;
+
+function openWarRoomModal() {
+    const modal = document.getElementById("war-room-modal");
+    if (modal) modal.style.display = "flex";
+    loadWarRoomData();
+}
+
+function closeWarRoomModal(e) {
+    if (!e || e.target.id === "war-room-modal" || e.target.tagName === "BUTTON") {
+        const modal = document.getElementById("war-room-modal");
+        if (modal) modal.style.display = "none";
+    }
+}
+
+function switchWarRoomTab(tab, btn) {
+    document.querySelectorAll("#tab-btn-war-targets, #tab-btn-war-logs").forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+    const targetsTab = document.getElementById("war-tab-targets");
+    const logsTab = document.getElementById("war-tab-logs");
+    if (targetsTab) targetsTab.style.display = (tab === "targets") ? "block" : "none";
+    if (logsTab) logsTab.style.display = (tab === "logs") ? "block" : "none";
+}
+
+async function loadWarRoomData() {
+    try {
+        const res = await fetch("/api/estate/military?_t=" + Date.now());
+        if (!res.ok) throw new Error("Failed to load military overview");
+        warRoomData = await res.json();
+        renderWarRoomView(warRoomData);
+    } catch (err) {
+        console.error("War room error:", err);
+        const list = document.getElementById("war-targets-list");
+        if (list) list.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem;">Error connecting to High Command radar: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function renderWarRoomView(data) {
+    const stats = data.stats || {};
+    document.getElementById("war-atk-power").innerText = stats.attack_power || 0;
+    document.getElementById("war-def-power").innerText = stats.defense_power || 0;
+    document.getElementById("war-bases-count").innerText = (stats.military_bases || []).length;
+    document.getElementById("war-rigs-count").innerText = (stats.oil_rigs || []).length;
+
+    const noBaseWarn = document.getElementById("war-no-base-warning");
+    const hasBase = (stats.military_bases || []).length > 0;
+    if (noBaseWarn) noBaseWarn.style.display = hasBase ? "none" : "block";
+
+    // Render Targets
+    const targets = data.targets || [];
+    const targetsList = document.getElementById("war-targets-list");
+    if (targetsList) {
+        if (targets.length === 0) {
+            targetsList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">No attackable rival targets found. Either all plots are peaceful, unclaimed, or allied!</div>`;
+        } else {
+            targetsList.innerHTML = targets.map(t => {
+                const remMins = Math.max(1, Math.round((t.protection_seconds_left || 0) / 60));
+                const isProt = t.is_protected;
+                const canRaid = hasBase && !isProt;
+
+                return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(17, 24, 39, 0.7); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 1.1rem; flex-wrap: wrap; gap: 0.8rem;">
+                        <div style="display: flex; align-items: center; gap: 0.85rem; min-width: 220px;">
+                            <img src="${escapeHtml(t.owner_avatar)}" style="width: 42px; height: 42px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); object-fit: cover;">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <strong style="color: var(--text-white); font-size: 0.95rem;">${escapeHtml(t.name)}</strong>
+                                    <span style="font-size: 0.72rem; color: var(--blue-primary); background: rgba(56,189,248,0.1); padding: 1px 6px; border-radius: 4px;">#${t.id}</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                                    <span>${escapeHtml(t.building_emoji)} ${escapeHtml(t.building_name)} Lv ${t.building_level}</span>
+                                    <span>• ${escapeHtml(t.owner_name)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">UNCOLLECTED YIELD</div>
+                                <div style="font-size: 1rem; font-weight: 800; color: #10b981;">💰 ${Number(t.accrued_yield || 0).toLocaleString()} M</div>
+                            </div>
+
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">TACTICAL DEFENSE</div>
+                                <div style="font-size: 1rem; font-weight: 800; color: #38bdf8;">🛡️ ${t.defense_rating} Def</div>
+                            </div>
+
+                            <div>
+                                ${isProt ? `
+                                    <button class="btn btn-sm" disabled style="background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.4); color: #38bdf8; font-weight: 700; padding: 0.45rem 0.85rem; cursor: not-allowed;">
+                                        🛡️ Protected (${remMins}m)
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-sm" ${canRaid ? "" : "disabled"} style="background: ${canRaid ? '#ef4444' : 'rgba(239,68,68,0.3)'}; color: #fff; font-weight: 800; border: none; padding: 0.45rem 1rem; cursor: ${canRaid ? 'pointer' : 'not-allowed'}; box-shadow: ${canRaid ? '0 0 12px rgba(239,68,68,0.4)' : 'none'};" onclick="executeAttackPlotId(${t.id}, '${escapeHtml(t.name)}')">
+                                        ⚔️ Launch Strike
+                                    </button>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+    }
+
+    // Render Recent Raids
+    const raids = data.recent_raids || [];
+    const raidsList = document.getElementById("war-logs-list");
+    if (raidsList) {
+        if (raids.length === 0) {
+            raidsList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">No combat skirmishes recorded recently. Territory is peaceful.</div>`;
+        } else {
+            raidsList.innerHTML = raids.map(r => {
+                const dateStr = new Date(r.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                return `
+                    <div style="background: rgba(17, 24, 39, 0.7); border: 1px solid var(--border); border-left: 4px solid ${r.success ? '#10b981' : '#ef4444'}; border-radius: 8px; padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.65rem;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-weight: 800; color: ${r.success ? '#10b981' : '#ef4444'}; font-size: 0.85rem;">
+                                    ${r.success ? '🏆 BREACH SUCCESSFUL' : '🛡️ DEFENDERS HELD'}
+                                </span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">• ${dateStr}</span>
+                            </div>
+                            <div style="font-size: 0.82rem; color: var(--text-white); margin-top: 3px;">
+                                <strong>${escapeHtml(r.attacker_name)}</strong> attacked <strong>${escapeHtml(r.defender_name)}</strong>'s parcel (<em>${escapeHtml(r.plot_name)}</em>)
+                            </div>
+                            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+                                Attacker Roll: <strong>${r.attacker_power}</strong> vs Defense: <strong>${r.defender_power}</strong> ${r.allied_bonus > 0 ? `(+${r.allied_bonus} Allied)` : ''}
+                            </div>
+                        </div>
+
+                        <div style="text-align: right;">
+                            ${r.success ? `
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">PLUNDER SEIZED</div>
+                                <div style="font-weight: 800; color: #10b981; font-size: 0.95rem;">+${Number(r.loot || 0).toLocaleString()} M</div>
+                            ` : `
+                                <span style="font-size: 0.75rem; color: #fca5a5; background: rgba(239,68,68,0.15); padding: 3px 8px; border-radius: 4px;">Assault Repelled</span>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+    }
+}
+
+async function executeAttackPlotId(plotId, plotName) {
+    if (!confirm(`Launch an armed tactical strike on ${plotName} (Plot #${plotId})? Your strike roll will clash against the plot's defense score!`)) return;
+
+    try {
+        const res = await fetch("/api/estate/attack", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plot_id: plotId })
+        });
+        const data = await res.json();
+        
+        // Close war room modal if open
+        const warModal = document.getElementById("war-room-modal");
+        if (warModal) warModal.style.display = "none";
+
+        // Open Battle Resolution Modal
+        showBattleClashResult(data);
+        loadEstateData(true);
+    } catch (err) {
+        showToast("Error launching attack: " + err.message, "error");
+    }
+}
+
+function showBattleClashResult(data) {
+    const modal = document.getElementById("battle-result-modal");
+    if (!modal) return;
+
+    const b = data.battle || {};
+    const success = data.success && b.success;
+
+    const badge = document.getElementById("battle-outcome-badge");
+    badge.style.background = success ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)";
+    badge.style.color = success ? "#10b981" : "#ef4444";
+    badge.innerText = success ? "🏆 BREACH VICTORY" : "❌ ASSAULT REPULSED";
+
+    document.getElementById("battle-headline").innerText = success ? "Territory Defenses Overrun!" : "Garrison Defenses Held Firm!";
+    document.getElementById("battle-submessage").innerText = data.message || "";
+
+    document.getElementById("battle-atk-roll").innerText = b.attacker_roll || 0;
+    document.getElementById("battle-atk-power").innerText = "Base Power: " + (b.attacker_power || 0);
+
+    document.getElementById("battle-def-roll").innerText = b.defender_roll || 0;
+    document.getElementById("battle-def-power").innerText = "Base Def: " + (b.defender_power || 0) + (b.allied_bonus > 0 ? ` (+${b.allied_bonus} Allies)` : "");
+
+    const lootBox = document.getElementById("battle-loot-box");
+    const pkNotice = document.getElementById("battle-peacekeeper-notice");
+
+    if (success) {
+        if (lootBox) lootBox.style.display = "block";
+        if (pkNotice) pkNotice.style.display = "block";
+        document.getElementById("battle-loot-yield").innerText = Number(b.loot || 0).toLocaleString() + " M";
+        document.getElementById("battle-loot-bounty").innerText = Number(b.bounty || 0).toLocaleString() + " M";
+        document.getElementById("battle-loot-total").innerText = Number((b.loot || 0) + (b.bounty || 0)).toLocaleString() + " Medals";
+    } else {
+        if (lootBox) lootBox.style.display = "none";
+        if (pkNotice) pkNotice.style.display = "none";
+    }
+
+    modal.style.display = "flex";
+}
+
+function closeBattleResultModal(e) {
+    if (!e || e.target.id === "battle-result-modal" || e.target.tagName === "BUTTON") {
+        const modal = document.getElementById("battle-result-modal");
+        if (modal) modal.style.display = "none";
+    }
+}
+
+// ─── Alliances Coalition Logic ──────────────────────────────────────────────
+let alliancesData = null;
+
+function openAlliancesModal() {
+    const modal = document.getElementById("alliances-modal");
+    if (modal) modal.style.display = "flex";
+    loadAlliancesData();
+}
+
+function closeAlliancesModal(e) {
+    if (!e || e.target.id === "alliances-modal" || e.target.tagName === "BUTTON") {
+        const modal = document.getElementById("alliances-modal");
+        if (modal) modal.style.display = "none";
+    }
+}
+
+function switchAlliancesTab(tab, btn) {
+    document.querySelectorAll("#tab-btn-allies-active, #tab-btn-allies-requests, #tab-btn-allies-propose").forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+
+    const activeTab = document.getElementById("allies-tab-active");
+    const requestsTab = document.getElementById("allies-tab-requests");
+    const proposeTab = document.getElementById("allies-tab-propose");
+
+    if (activeTab) activeTab.style.display = (tab === "active") ? "block" : "none";
+    if (requestsTab) requestsTab.style.display = (tab === "requests") ? "block" : "none";
+    if (proposeTab) proposeTab.style.display = (tab === "propose") ? "block" : "none";
+}
+
+async function loadAlliancesData() {
+    try {
+        const res = await fetch("/api/estate/military?_t=" + Date.now());
+        if (!res.ok) throw new Error("Failed to load alliances data");
+        alliancesData = await res.json();
+        renderAlliancesView(alliancesData);
+    } catch (err) {
+        console.error("Alliances error:", err);
+        const list = document.getElementById("allies-active-list");
+        if (list) list.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem;">Error loading coalition data: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function renderAlliancesView(data) {
+    const allies = data.allies || [];
+    const pending = data.pending_requests || [];
+    const outgoing = data.outgoing_requests || [];
+    const landowners = data.other_landowners || [];
+
+    // Update Counts & Badges
+    document.getElementById("allies-active-count").innerText = allies.length;
+    const reqBadge = document.getElementById("allies-req-badge");
+    const topBadge = document.getElementById("alliance-badge");
+    if (reqBadge) {
+        if (pending.length > 0) {
+            reqBadge.style.display = "inline-block";
+            reqBadge.innerText = pending.length;
+        } else {
+            reqBadge.style.display = "none";
+        }
+    }
+    if (topBadge) {
+        if (pending.length > 0) {
+            topBadge.style.display = "inline-block";
+            topBadge.innerText = pending.length;
+        } else {
+            topBadge.style.display = "none";
+        }
+    }
+
+    // Render Active Allies
+    const activeList = document.getElementById("allies-active-list");
+    if (activeList) {
+        if (allies.length === 0) {
+            activeList.innerHTML = `
+                <div style="text-align: center; color: var(--text-muted); padding: 2.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                    🛡️ You currently have no active defense alliances.<br>
+                    <span style="font-size: 0.78rem;">Propose a defense treaty with fellow landowners to reinforce each other (+35% defense aura per ally)!</span>
+                </div>
+            `;
+        } else {
+            activeList.innerHTML = allies.map(a => `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(17, 24, 39, 0.7); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 1.1rem; flex-wrap: wrap; gap: 0.8rem;">
+                    <div style="display: flex; align-items: center; gap: 0.85rem;">
+                        <img src="${escapeHtml(a.avatar)}" style="width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(56,189,248,0.3); object-fit: cover;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <strong style="color: var(--text-white); font-size: 0.95rem;">${escapeHtml(a.name)}</strong>
+                                <span style="font-size: 0.7rem; color: #10b981; background: rgba(16,185,129,0.15); padding: 1px 6px; border-radius: 4px; font-weight: 700;">🤝 ACTIVE ALLY</span>
+                            </div>
+                            <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">
+                                <span>🪖 ${a.bases_count} Military Bases</span>
+                                <span>• Defense Rating: ${a.defense_power}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.7rem; color: var(--text-muted);">MUTUAL DEFENSE BOOST</div>
+                            <div style="font-size: 0.95rem; font-weight: 800; color: #38bdf8;">+35% (+${a.defense_contribution} Def)</div>
+                        </div>
+                        <button class="btn btn-sm" style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.35); color: #fca5a5; font-weight: 700;" onclick="breakAlliancePact(${a.user_id}, '${escapeHtml(a.name)}')">
+                            Break Treaty
+                        </button>
+                    </div>
+                </div>
+            `).join("");
+        }
+    }
+
+    // Render Incoming Requests
+    const reqList = document.getElementById("allies-requests-list");
+    if (reqList) {
+        if (pending.length === 0) {
+            reqList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">No pending alliance proposals from other landowners.</div>`;
+        } else {
+            reqList.innerHTML = pending.map(p => `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(17, 24, 39, 0.7); border: 1px solid rgba(56,189,248,0.3); border-radius: 10px; padding: 0.9rem 1.1rem; flex-wrap: wrap; gap: 0.8rem;">
+                    <div style="display: flex; align-items: center; gap: 0.85rem;">
+                        <img src="${escapeHtml(p.avatar)}" style="width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(56,189,248,0.3); object-fit: cover;">
+                        <div>
+                            <strong style="color: var(--text-white); font-size: 0.95rem;">${escapeHtml(p.name)}</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                                Defense Rating: ${p.defense_power} • Offers mutual combat assistance
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-sm btn-green-glow" style="font-weight: 800;" onclick="ratifyAlliancePact(${p.requester_id}, '${escapeHtml(p.name)}')">
+                            ✅ Ratify Defense Pact
+                        </button>
+                        <button class="btn btn-sm btn-pill-dark" style="color: #fca5a5;" onclick="declineAlliancePact(${p.requester_id})">
+                            ✕ Decline
+                        </button>
+                    </div>
+                </div>
+            `).join("");
+        }
+    }
+
+    // Populate Landowners Select
+    const select = document.getElementById("select-ally-target");
+    if (select) {
+        select.innerHTML = `<option value="">-- Choose Landowner (${landowners.length} available) --</option>` +
+            landowners.map(l => `<option value="${l.user_id}">${escapeHtml(l.name)} (ID: ${l.user_id})</option>`).join("");
+    }
+
+    // Render Outgoing Requests
+    const outList = document.getElementById("allies-outgoing-list");
+    if (outList) {
+        if (outgoing.length === 0) {
+            outList.innerHTML = `<div style="font-size: 0.75rem; color: var(--text-muted);">None pending.</div>`;
+        } else {
+            outList.innerHTML = outgoing.map(o => `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.8rem;">
+                    <span>Proposal transmitted to <strong>${escapeHtml(o.name)}</strong></span>
+                    <span style="color: #f59e0b; font-size: 0.72rem;">⏳ Awaiting Ratification</span>
+                </div>
+            `).join("");
+        }
+    }
+}
+
+async function ratifyAlliancePact(requesterId, requesterName) {
+    try {
+        const res = await fetch("/api/estate/ally/accept", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requester_id: requesterId })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(`🤝 Defense pact with ${requesterName} ratified!`);
+            loadAlliancesData();
+        } else {
+            showToast(data.message || "Failed to ratify alliance", "error");
+        }
+    } catch (err) {
+        showToast("Error: " + err.message, "error");
+    }
+}
+
+async function declineAlliancePact(requesterId) {
+    try {
+        const res = await fetch("/api/estate/ally/decline", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requester_id: requesterId })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast("Alliance proposal declined.");
+            loadAlliancesData();
+        } else {
+            showToast(data.message || "Failed to decline", "error");
+        }
+    } catch (err) {
+        showToast("Error: " + err.message, "error");
+    }
+}
+
+async function breakAlliancePact(allyId, allyName) {
+    if (!confirm(`Are you sure you want to dissolve the mutual defense alliance with ${allyName}? You will lose the +35% garrison defense boost!`)) return;
+
+    try {
+        const res = await fetch("/api/estate/ally/break", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ally_id: allyId })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(`Alliance with ${allyName} dissolved.`);
+            loadAlliancesData();
+        } else {
+            showToast(data.message || "Failed to break alliance", "error");
+        }
+    } catch (err) {
+        showToast("Error: " + err.message, "error");
+    }
+}
+
+async function submitAllianceProposal() {
+    const sel = document.getElementById("select-ally-target");
+    const inp = document.getElementById("input-ally-id");
+    const allyId = (sel && sel.value) ? sel.value : (inp ? inp.value.trim() : "");
+
+    if (!allyId) {
+        showToast("Please select a landowner or enter a Discord User ID.", "error");
+        return;
+    }
+
+    const btn = document.getElementById("btn-send-ally-prop");
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await fetch("/api/estate/ally/request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ally_id: allyId })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast("🤝 Alliance proposal transmitted!");
+            if (inp) inp.value = "";
+            if (sel) sel.value = "";
+            loadAlliancesData();
+        } else {
+            showToast(data.message || "Failed to propose alliance", "error");
+        }
+    } catch (err) {
+        showToast("Error: " + err.message, "error");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 </script>
 {% endblock %}

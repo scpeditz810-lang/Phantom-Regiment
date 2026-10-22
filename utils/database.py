@@ -3510,6 +3510,41 @@ class Database:
         await self._db.commit()
         return True, "🤝 Defense Alliance Formalized! Your military garrisons will now assist each other in defending your E-State territories."
 
+    async def decline_alliance(self, user_id: int, requester_id: int) -> tuple[bool, str]:
+        """Decline an incoming alliance request."""
+        if self._db is None:
+            await self.setup()
+        await self._db.execute("""
+            DELETE FROM estate_alliances 
+            WHERE user_id = ? AND ally_id = ? AND status = 'pending'
+        """, (requester_id, user_id))
+        await self._db.commit()
+        return True, "Alliance proposal declined."
+
+    async def get_pending_alliance_requests(self, user_id: int) -> list[dict]:
+        """Fetch pending alliance requests received by user_id."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT id, user_id as requester_id, created_at 
+            FROM estate_alliances 
+            WHERE ally_id = ? AND status = 'pending'
+            ORDER BY created_at DESC
+        """, (user_id,)) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def get_outgoing_alliance_requests(self, user_id: int) -> list[dict]:
+        """Fetch pending alliance requests sent by user_id."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT id, ally_id, created_at 
+            FROM estate_alliances 
+            WHERE user_id = ? AND status = 'pending'
+            ORDER BY created_at DESC
+        """, (user_id,)) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
     async def break_alliance(self, user_id: int, ally_id: int) -> tuple[bool, str]:
         """Dissolve a military defense alliance."""
         if self._db is None:
