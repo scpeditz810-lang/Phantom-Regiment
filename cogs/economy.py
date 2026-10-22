@@ -1013,23 +1013,23 @@ class ScratchCardView(discord.ui.View):
     def _generate_board(self):
         roll = random.random()
         pool = ["💎", "7️⃣", "💰", "🍒", "🥈", "💣"]
-        if roll < 0.05:
+        if roll < 0.015:
             outcome = "10x Mega Jackpot (Triple Diamonds 💎💎💎)"
             mult = 10.0
             triple_sym = "💎"
-        elif roll < 0.15:
+        elif roll < 0.050:
             outcome = "5x Big Win (Triple Sevens 7️⃣7️⃣7️⃣)"
             mult = 5.0
             triple_sym = "7️⃣"
-        elif roll < 0.30:
+        elif roll < 0.120:
             outcome = "3x Win (Triple Gold Bags 💰💰💰)"
             mult = 3.0
             triple_sym = "💰"
-        elif roll < 0.55:
+        elif roll < 0.220:
             outcome = "1.5x Win (Triple Cherries 🍒🍒🍒)"
             mult = 1.5
             triple_sym = "🍒"
-        elif roll < 0.75:
+        elif roll < 0.320:
             outcome = "0.5x Break-Even Refund (Triple Silver 🥈🥈🥈)"
             mult = 0.5
             triple_sym = "🥈"
@@ -1410,6 +1410,7 @@ class EconomyCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
 
         self.bot = bot
+        self._scratch_cooldowns = {}
 
 
 
@@ -2533,6 +2534,16 @@ class EconomyCog(commands.Cog):
         tier_info = SCRATCH_TIERS[tier_key]
         cost = tier_info["cost"]
 
+        now = time.time()
+        last = self._scratch_cooldowns.get(interaction.user.id, 0)
+        COOLDOWN = 12  # 12-second anti-spam cooldown
+        if now - last < COOLDOWN:
+            rem = int(COOLDOWN - (now - last))
+            return await interaction.response.send_message(
+                f"⏳ Please wait **{rem}s** before purchasing another scratchcard!",
+                ephemeral=True
+            )
+
         econ = await self.bot.db.get_global_economy(interaction.user.id)
         wallet = econ.get("medals", 0)
         if wallet < cost:
@@ -2541,6 +2552,7 @@ class EconomyCog(commands.Cog):
                 ephemeral=True
             )
 
+        self._scratch_cooldowns[interaction.user.id] = now
         # Deduct cost immediately
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -cost)
 
