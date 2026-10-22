@@ -3589,6 +3589,19 @@ class Database:
         """, (limit,)) as cur:
             return [dict(row) for row in await cur.fetchall()]
 
+    async def get_user_raids(self, user_id: int, limit: int = 5) -> list[dict]:
+        """Fetch latest military skirmishes where user was attacker or defender."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT r.*, p.name as plot_name, p.district
+            FROM estate_raids r
+            JOIN estate_plots p ON r.plot_id = p.id
+            WHERE r.attacker_id = ? OR r.defender_id = ?
+            ORDER BY r.timestamp DESC LIMIT ?
+        """, (user_id, user_id, limit)) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
     async def get_meta(self, key: str) -> str | None:
         if self._db is None:
             await self.setup()
