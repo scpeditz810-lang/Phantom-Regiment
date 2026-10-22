@@ -17,7 +17,7 @@ CATALYST_EVENTS = [
 ]
 
 class StockMarketEngine:
-    def __init__(self, db, bot_loop=None, tick_interval: int = 25):
+    def __init__(self, db, bot_loop=None, tick_interval: int = 45):
         self.db = db
         self.bot_loop = bot_loop
         self.tick_interval = tick_interval
@@ -56,9 +56,9 @@ class StockMarketEngine:
         if not stocks:
             return
 
-        # Random catalyst event every 6-9 ticks (~3 minutes)
+        # Random catalyst event every 20-30 ticks (~15-22 minutes)
         catalyst_stock_symbol = None
-        if self.tick_count % random.randint(6, 9) == 0:
+        if self.tick_count % random.randint(20, 30) == 0:
             sym, news = random.choice(CATALYST_EVENTS)
             catalyst_stock_symbol = sym
             self.latest_news = news
@@ -68,27 +68,27 @@ class StockMarketEngine:
             old_price = stock["price"]
 
             if catalyst_stock_symbol and stock["symbol"] == catalyst_stock_symbol:
-                # Big positive catalyst bump (+7% to +18%)
-                change_percent = random.uniform(0.07, 0.18)
+                # Moderate catalyst bump (+4% to +8%)
+                change_percent = random.uniform(0.04, 0.08)
             elif old_price <= 25:
-                # Automatic Support Bounce: If a stock is too low, trigger recovery buying
-                change_percent = random.uniform(0.06, 0.15)
+                # Automatic Support Bounce: Moderate recovery buying (+4% to +7%)
+                change_percent = random.uniform(0.04, 0.07)
                 self.latest_news = f"🛡️ [SUPPORT BOUNCE] Institutional buy-wall activated for {stock['symbol']}! Rebound in progress."
             else:
-                # Normal market volatility: -2.5% to +4.5% with healthy upward growth bias
-                change_percent = random.uniform(-0.025, 0.045)
+                # Balanced market volatility: -2.0% to +2.2%
+                change_percent = random.uniform(-0.020, 0.022)
 
             diff = int(round(old_price * change_percent))
             if diff == 0:
-                diff = random.choice([1, 2])
+                diff = random.choice([-1, 0, 1])
 
             # Strong floor of 20 Medals - stocks never crash below 20
             new_price = max(20, old_price + diff)
             if new_price != old_price:
                 await self.db.update_stock_price(stock["id"], new_price)
 
-        # Distribute Dividends every 10 ticks (~4 minutes)
-        if self.tick_count % 10 == 0:
+        # Distribute Dividends every 20 ticks (~15 minutes)
+        if self.tick_count % 20 == 0:
             await self._distribute_dividends()
 
         # Cleanup old history (keep last 300 records)
@@ -105,7 +105,7 @@ class StockMarketEngine:
             pass
 
     async def _distribute_dividends(self):
-        """Distribute 2.0% passive dividend payout to all active shareholders."""
+        """Distribute 0.4% passive dividend payout (capped at 250 Medals/stock) every 15 minutes."""
         try:
             async with self.db._db.execute("""
                 SELECT us.user_id, us.stock_id, us.shares, s.price, s.symbol
@@ -120,9 +120,10 @@ class StockMarketEngine:
 
             total_paid = 0
             for h in holders:
-                # 2% dividend based on current share price per share
-                div_per_share = max(1, int(round(h["price"] * 0.02)))
-                total_div = div_per_share * h["shares"]
+                # 0.4% dividend based on current share price per share
+                div_per_share = max(1, int(round(h["price"] * 0.004)))
+                # Capped at max 250 Medals per stock payout to prevent excessive AFK generation
+                total_div = min(250, div_per_share * h["shares"])
                 if total_div > 0:
                     await self.db.add_medals(h["user_id"], 0, total_div)
                     total_paid += total_div

@@ -89,7 +89,7 @@ function renderStockCards() {
                 </div>
                 <div class="stock-footer">
                     <span>Avail: ${s.available_shares} / ${s.total_supply}</span>
-                    <span>Max: 100/usr</span>
+                    <span>Max: 50/usr</span>
                 </div>
             </div>
         `;
@@ -256,7 +256,7 @@ async function loadChart(stockId) {
 function setQty(val) {
     const input = document.getElementById("trade-qty");
     if (!input) return;
-    input.value = Math.max(1, Math.min(100, parseInt(val) || 1));
+    input.value = Math.max(1, Math.min(50, parseInt(val) || 1));
     updateTradeTotal();
 }
 
@@ -264,7 +264,7 @@ function adjustQty(delta) {
     const input = document.getElementById("trade-qty");
     if (!input) return;
     let val = parseInt(input.value) || 1;
-    val = Math.max(1, Math.min(100, val + delta));
+    val = Math.max(1, Math.min(50, val + delta));
     input.value = val;
     updateTradeTotal();
 }
@@ -275,7 +275,7 @@ function updateTradeTotal() {
     if (!input || !totalEl) return;
 
     let qty = parseInt(input.value) || 1;
-    qty = Math.max(1, Math.min(100, qty));
+    qty = Math.max(1, Math.min(50, qty));
 
     const currentStock = allStocks.find(s => s.id === activeStockId);
     if (currentStock) {
@@ -371,7 +371,7 @@ async function loadPortfolio() {
                         <small class="text-muted">${h.name}</small>
                     </td>
                     <td>
-                        <strong>${h.shares}</strong> / 100
+                        <strong>${h.shares}</strong> / 50
                     </td>
                     <td>${h.avg_buy_price.toLocaleString()} Medals</td>
                     <td><strong class="text-blue">${h.current_price.toLocaleString()}</strong> Medals</td>

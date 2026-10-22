@@ -2510,11 +2510,11 @@ class EconomyCog(commands.Cog):
 
                 "• **Live Web Exchange:** Trade 7 corporate equities (`PRC`, `TSC`, `VNG`, `AERO`, `CRYP`, `TSLA`, `PANDA`) on the web portal: **https://phantom-regiment.onrender.com/medals**\n"
 
-                "• **Passive 2.0% Dividends:** Holding stocks pays **2.0% passive dividend revenue** directly into your wallet every 4 minutes!\n"
+                "• **Passive Dividends (Nerfed):** Holding stocks pays **0.4% passive dividends** (capped at 250 Medals per stock payout) every 15 minutes!\n"
 
                 "• **Real-Time Order Book:** Share purchases drive prices up, while sells lower prices with order curve protection.\n"
 
-                "• **Market Protections:** 10% brokerage tax on sales, 60s anti-arbitrage lock, and guaranteed **20-Medal floor** with automatic support bounce rallies (+6% to +15%)!\n"
+                "• **Market Protections:** 15% brokerage tax on sales, 3m anti-arbitrage lock, max 50 shares per user, and guaranteed **20-Medal floor** with automatic support bounce rallies!\n"
 
                 "• **`/stocks`:** View live stock quotes, supply, and price charts directly in Discord."
 
@@ -2674,7 +2674,7 @@ class EconomyCog(commands.Cog):
 
                 "Live market equities on the sovereign trading index.\n"
 
-                "Dividends pay **2.0%** every 4 minutes to active shareholders!\n"
+                "Dividends pay **0.4%** every 15 minutes to active shareholders (Max 250 M/payout)!\n"
 
                 "Minimum price floor: **20 Medals** (Institutional Backing)."
 
@@ -2714,7 +2714,7 @@ class EconomyCog(commands.Cog):
 
         view.add_item(discord.ui.Button(label="📈 Open Web Stock Exchange", url="https://phantom-regiment.onrender.com/medals", style=discord.ButtonStyle.link, emoji="📈"))
 
-        embed.set_footer(text="Trade instantly on the web portal • 10% Market Tax on Sales")
+        embed.set_footer(text="Trade instantly on the web portal • 15% Market Tax on Sales • Max 50 Shares/User")
 
         await interaction.response.send_message(embed=embed, view=view)
 
