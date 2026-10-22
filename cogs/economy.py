@@ -948,6 +948,243 @@ class BlackjackView(discord.ui.View):
 
 
 
+
+# ── Interactive Scratch-Off Lottery Cards ──────────────────────────────────────
+SCRATCH_TIERS = {
+    "bronze": {"name": "🥉 Bronze Scratch Ticket", "cost": 500, "jackpot": 5000, "color": 0xCD7F32},
+    "silver": {"name": "🥈 Silver Scratch Ticket", "cost": 2500, "jackpot": 25000, "color": 0xC0C0C0},
+    "gold": {"name": "🥇 Gold Scratch Ticket", "cost": 10000, "jackpot": 100000, "color": 0xF1C40F},
+}
+
+class ScratchTileButton(discord.ui.Button):
+    def __init__(self, index: int, symbol: str):
+        row = index // 3
+        super().__init__(label="❓", style=discord.ButtonStyle.secondary, row=row)
+        self.index = index
+        self.symbol = symbol
+        self.is_revealed = False
+
+    async def callback(self, interaction: discord.Interaction):
+        view = self.view
+        if interaction.user.id != view.user.id:
+            return await interaction.response.send_message("❌ This is not your scratch ticket!", ephemeral=True)
+        if self.is_revealed or view.finished:
+            return await interaction.response.defer()
+
+        self.label = self.symbol
+        self.is_revealed = True
+        self.disabled = True
+        if self.symbol in ("💎", "7️⃣"):
+            self.style = discord.ButtonStyle.success
+        elif self.symbol in ("💰", "🍒"):
+            self.style = discord.ButtonStyle.primary
+        elif self.symbol == "🥈":
+            self.style = discord.ButtonStyle.secondary
+        else:
+            self.style = discord.ButtonStyle.danger
+
+        await view.check_progress(interaction)
+
+
+class ScratchCardView(discord.ui.View):
+    def __init__(self, bot, user, tier_key: str):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.user = user
+        self.tier_key = tier_key
+        self.tier_info = SCRATCH_TIERS[tier_key]
+        self.cost = self.tier_info["cost"]
+        self.finished = False
+
+        self.board, self.outcome, self.multiplier, self.win_amount = self._generate_board()
+
+        self.tiles = []
+        for i in range(9):
+            btn = ScratchTileButton(i, self.board[i])
+            self.tiles.append(btn)
+            self.add_item(btn)
+
+        self.scratch_all_btn = discord.ui.Button(
+            label="⚡ Scratch All", style=discord.ButtonStyle.primary, row=3
+        )
+        self.scratch_all_btn.callback = self.scratch_all_callback
+        self.add_item(self.scratch_all_btn)
+
+    def _generate_board(self):
+        roll = random.random()
+        pool = ["💎", "7️⃣", "💰", "🍒", "🥈", "💣"]
+        if roll < 0.05:
+            outcome = "10x Mega Jackpot (Triple Diamonds 💎💎💎)"
+            mult = 10.0
+            triple_sym = "💎"
+        elif roll < 0.15:
+            outcome = "5x Big Win (Triple Sevens 7️⃣7️⃣7️⃣)"
+            mult = 5.0
+            triple_sym = "7️⃣"
+        elif roll < 0.30:
+            outcome = "3x Win (Triple Gold Bags 💰💰💰)"
+            mult = 3.0
+            triple_sym = "💰"
+        elif roll < 0.55:
+            outcome = "1.5x Win (Triple Cherries 🍒🍒🍒)"
+            mult = 1.5
+            triple_sym = "🍒"
+        elif roll < 0.75:
+            outcome = "0.5x Break-Even Refund (Triple Silver 🥈🥈🥈)"
+            mult = 0.5
+            triple_sym = "🥈"
+        else:
+            outcome = "Loss (No 3-Symbol Match)"
+            mult = 0.0
+            triple_sym = None
+
+        board = []
+        if triple_sym:
+            board.extend([triple_sym, triple_sym, triple_sym])
+            others = [s for s in pool if s != triple_sym]
+            while len(board) < 9:
+                s = random.choice(others)
+                if board.count(s) < 2:
+                    board.append(s)
+        else:
+            while len(board) < 9:
+                s = random.choice(pool)
+                if board.count(s) < 2:
+                    board.append(s)
+
+        random.shuffle(board)
+        win_amount = int(round(self.cost * mult))
+        return board, outcome, mult, win_amount
+
+    async def check_progress(self, interaction: discord.Interaction):
+        revealed_count = sum(1 for t in self.tiles if t.is_revealed)
+        if revealed_count == 9:
+            await self.finish_game(interaction)
+        else:
+            embed = self.build_embed(revealed=revealed_count)
+            await interaction.response.edit_message(embed=embed, view=self)
+
+    async def scratch_all_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user.id:
+            return await interaction.response.send_message("❌ This is not your scratch ticket!", ephemeral=True)
+        if self.finished:
+            return await interaction.response.defer()
+
+        for t in self.tiles:
+            t.label = t.symbol
+            t.is_revealed = True
+            t.disabled = True
+            if t.symbol in ("💎", "7️⃣"):
+                t.style = discord.ButtonStyle.success
+            elif t.symbol in ("💰", "🍒"):
+                t.style = discord.ButtonStyle.primary
+            elif t.symbol == "🥈":
+                t.style = discord.ButtonStyle.secondary
+            else:
+                t.style = discord.ButtonStyle.danger
+
+        await self.finish_game(interaction)
+
+    def build_embed(self, revealed=0, final=False):
+        if not final:
+            color = self.tier_info["color"]
+        else:
+            color = 0x2ECC71 if self.win_amount > self.cost else (0x95A5A6 if self.win_amount == self.cost else 0xE74C3C)
+
+        embed = discord.Embed(
+            title=f"🎰 {self.tier_info['name']}",
+            color=color
+        )
+        embed.set_author(name=f"{self.user.display_name}'s Scratchcard", icon_url=self.user.display_avatar.url)
+
+        if not final:
+            desc_lines = [
+                "**Match 3 identical symbols anywhere on the ticket to WIN!**",
+                "",
+                f"• **Ticket Cost:** `{self.cost:,} Medals`",
+                f"• **Top Jackpot:** `{self.tier_info['jackpot']:,} Medals` (10x Multiplier)",
+                "",
+                "Click the `[ ❓ ]` tiles below to scratch them one by one, or click **`[ ⚡ Scratch All ]`**!",
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                f"*Tiles Scratched: `{revealed} / 9`*"
+            ]
+            embed.description = "\n".join(desc_lines)
+        else:
+            profit = self.win_amount - self.cost
+            profit_str = f"+{profit:,}" if profit > 0 else f"{profit:,}"
+            if self.win_amount > self.cost:
+                res_desc = f"🎉 **WINNER! You hit {self.outcome}!**\n\n"
+            elif self.win_amount == self.cost:
+                res_desc = "🤝 **BREAK-EVEN! Push refund returned.**\n\n"
+            else:
+                res_desc = "💀 **No matching triple! Better luck on the next ticket.**\n\n"
+
+            desc_lines = [
+                res_desc,
+                f"• **Outcome:** `{self.outcome}`",
+                f"• **Payout Multiplier:** `{self.multiplier}x`",
+                f"• **Gross Winnings:** `{self.win_amount:,} Medals`",
+                f"• **Net Profit/Loss:** `{profit_str} Medals`"
+            ]
+            embed.description = "\n".join(desc_lines)
+
+        embed.add_field(
+            name="🏆 Prize Multiplier Table",
+            value=(
+                "💎💎💎 = **10x Mega Jackpot**\n"
+                "7️⃣7️⃣7️⃣ = **5x Big Win**\n"
+                "💰💰💰 = **3x Gold Win**\n"
+                "🍒🍒🍒 = **1.5x Win**\n"
+                "🥈🥈🥈 = **0.5x Break-Even**"
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Phantom Regiment Casino • Fair RNG Verified")
+        return embed
+
+    async def finish_game(self, interaction: discord.Interaction):
+        self.finished = True
+        self.scratch_all_btn.disabled = True
+        for t in self.tiles:
+            t.disabled = True
+
+        if self.win_amount > 0:
+            await self.bot.db.add_medals(self.user.id, interaction.guild_id, self.win_amount)
+            try:
+                await self.bot.db.record_gambling(
+                    self.user.id,
+                    wagered=self.cost,
+                    won=self.win_amount,
+                    lost=max(0, self.cost - self.win_amount)
+                )
+            except Exception:
+                pass
+        else:
+            try:
+                await self.bot.db.record_gambling(
+                    self.user.id,
+                    wagered=self.cost,
+                    won=0,
+                    lost=self.cost
+                )
+            except Exception:
+                pass
+
+        embed = self.build_embed(revealed=9, final=True)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+        # If 5x or 10x Jackpot, send Hakari celebration clip!
+        if self.multiplier >= 5.0:
+            vid = get_jackpot_file()
+            if vid:
+                try:
+                    await interaction.channel.send(
+                        content=f"🎰 **JACKPOT HIT!** {self.user.mention} won **{self.win_amount:,} Medals** on a {self.tier_info['name']}!",
+                        file=vid
+                    )
+                except Exception:
+                    pass
+
 TRIVIA_QUESTIONS = [
 
     {
@@ -2284,6 +2521,34 @@ class EconomyCog(commands.Cog):
 
 
 
+    @app_commands.command(name="scratch", description="Play interactive scratch-off lottery tickets for massive jackpot multipliers!")
+    @app_commands.describe(tier="Ticket tier: Bronze (500 M), Silver (2,500 M), or Gold (10,000 M)")
+    @app_commands.choices(tier=[
+        app_commands.Choice(name="🥉 Bronze (500 Medals) — Max Win: 5,000 M", value="bronze"),
+        app_commands.Choice(name="🥈 Silver (2,500 Medals) — Max Win: 25,000 M", value="silver"),
+        app_commands.Choice(name="🥇 Gold (10,000 Medals) — Max Win: 100,000 M", value="gold"),
+    ])
+    async def scratch(self, interaction: discord.Interaction, tier: app_commands.Choice[str] = None):
+        tier_key = tier.value if tier else "bronze"
+        tier_info = SCRATCH_TIERS[tier_key]
+        cost = tier_info["cost"]
+
+        econ = await self.bot.db.get_global_economy(interaction.user.id)
+        wallet = econ.get("medals", 0)
+        if wallet < cost:
+            return await interaction.response.send_message(
+                f"❌ You need **{cost:,} Medals** in your wallet to purchase a {tier_info['name']}! (You currently hold: `{wallet:,} Medals`). Withdraw from `/bank` if needed!",
+                ephemeral=True
+            )
+
+        # Deduct cost immediately
+        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -cost)
+
+        view = ScratchCardView(self.bot, interaction.user, tier_key)
+        embed = view.build_embed(revealed=0, final=False)
+        await interaction.response.send_message(embed=embed, view=view)
+
+
     @app_commands.command(name="roulette", description="Bet your Medals on Roulette!")
 
     @app_commands.choices(bet_type=[
@@ -2617,6 +2882,26 @@ class EconomyCog(commands.Cog):
         )
 
         
+
+        embed.add_field(
+            name="🎰 Scratch-Off Lottery Cards (/scratch)",
+            value=(
+                "• **Interactive Discord Scratchcards:** Try your luck with interactive scratch-off tickets in 3 tiers:\n"
+                "  - 🥉 **Bronze (500 M):** Up to **5,000 M** Jackpot\n"
+                "  - 🥈 **Silver (2,500 M):** Up to **25,000 M** Jackpot\n"
+                "  - 🥇 **Gold (10,000 M):** Up to **100,000 M** Mega Jackpot!\n"
+                "• **Interactive Gameplay:** Click the `[ ❓ ]` tiles one by one to reveal your symbols, or click `[ ⚡ Scratch All ]`!\n"
+                "• **Payout Multipliers:**\n"
+                "  - 💎💎💎 Triple Diamonds = **10x Mega Jackpot** (+ Hakari celebration clip!)\n"
+                "  - 7️⃣7️⃣7️⃣ Triple Sevens = **5x Big Win**\n"
+                "  - 💰💰💰 Triple Gold Bags = **3x Win**\n"
+                "  - 🍒🍒🍒 Triple Cherries = **1.5x Win**\n"
+                "  - 🥈🥈🥈 Triple Silver = **0.5x Break-Even Refund**\n"
+                "• **Quick Command:** `/scratch [tier]` (Default: Bronze)"
+            ),
+            inline=False
+        )
+
 
         embed.add_field(
 
