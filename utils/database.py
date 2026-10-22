@@ -3485,7 +3485,7 @@ class Database:
                     "battle_data": battle_data,
                     "start_time": now,
                     "duration": 8.5,
-                    "expires_at": now + 12.0
+                    "expires_at": now + 18.0
                 }
                 await self.set_meta("active_estate_battle", json.dumps(active_battle_info))
             except Exception:
@@ -3528,7 +3528,7 @@ class Database:
                     "battle_data": battle_data,
                     "start_time": now,
                     "duration": 8.5,
-                    "expires_at": now + 12.0
+                    "expires_at": now + 18.0
                 }
                 await self.set_meta("active_estate_battle", json.dumps(active_battle_info))
             except Exception:
