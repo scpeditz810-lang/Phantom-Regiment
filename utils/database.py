@@ -525,6 +525,28 @@ class Database:
                 FOREIGN KEY(plot_id) REFERENCES estate_plots(id)
             );
 
+            CREATE TABLE IF NOT EXISTS estate_alliances (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                ally_id INTEGER NOT NULL,
+                status TEXT DEFAULT 'pending',
+                created_at REAL NOT NULL,
+                UNIQUE(user_id, ally_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS estate_raids (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                attacker_id INTEGER NOT NULL,
+                defender_id INTEGER NOT NULL,
+                plot_id INTEGER NOT NULL,
+                attacker_power INTEGER NOT NULL,
+                defender_power INTEGER NOT NULL,
+                allied_bonus INTEGER DEFAULT 0,
+                success INTEGER NOT NULL,
+                loot INTEGER DEFAULT 0,
+                timestamp REAL NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS elections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -601,6 +623,8 @@ class Database:
 
             "ALTER TABLE users ADD COLUMN last_trivia REAL DEFAULT 0",
             "ALTER TABLE user_stocks ADD COLUMN last_buy_time REAL DEFAULT 0",
+            "ALTER TABLE estate_plots ADD COLUMN protected_until REAL DEFAULT 0",
+            "ALTER TABLE estate_plots ADD COLUMN last_attack_time REAL DEFAULT 0",
 
             "PRAGMA journal_mode=WAL"
 
@@ -2424,27 +2448,21 @@ class Database:
     # ─── E-State Virtual Real Estate & Tycoon ───────────────────────────────
 
     async def seed_default_estate_plots(self):
-        """Seed initial 36 virtual map plots if table is empty."""
+        """Seed default virtual map plots if missing."""
         from utils.constants import DEFAULT_ESTATE_PLOTS
-        async with self._db.execute("SELECT COUNT(*) FROM estate_plots") as cur:
-            count = (await cur.fetchone())[0]
-        if count > 0:
-            return
-
         now = time.time()
         for p in DEFAULT_ESTATE_PLOTS:
             await self._db.execute("""
                 INSERT OR IGNORE INTO estate_plots (
                     id, x, y, name, district, terrain, base_price, current_value, 
                     owner_id, building_type, building_level, last_yield_claim, 
-                    last_value_update, for_sale_price, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'empty', 0, ?, ?, NULL, ?)
+                    last_value_update, for_sale_price, created_at, protected_until, last_attack_time
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'empty', 0, ?, ?, NULL, ?, 0, 0)
             """, (
                 p["id"], p["x"], p["y"], p["name"], p["district"], p["terrain"],
                 p["price"], p["price"], now, now, now
             ))
         await self._db.commit()
-        print("[E-State] Seeded 36 virtual map plots across 4 districts.")
 
     async def get_estate_plots(self) -> list[dict]:
         """Fetch all map plots with live calculated tycoon yields and valuation."""
@@ -2486,6 +2504,10 @@ class Database:
             r["bank_payout_net"] = gross_bank - bank_tax
             r["bank_payout_gross"] = gross_bank
             r["bank_tax"] = bank_tax
+
+            prot_until = r.get("protected_until", 0) or 0
+            r["is_protected"] = prot_until > now
+            r["protection_seconds_left"] = max(0, int(prot_until - now))
 
         return rows
 
@@ -3233,6 +3255,301 @@ class Database:
             (user_id, guild_id)
         )
         await self._db.commit()
+    # ─── Military Tycoon, Raids & Defense Alliances ──────────────────────────
+
+    async def get_user_military_stats(self, user_id: int) -> dict:
+        """Calculate user's total offensive and defensive military tycoon power."""
+        plots = await self.get_estate_plots()
+        user_plots = [p for p in plots if str(p.get("owner_id")) == str(user_id)]
+
+        total_attack = 0
+        total_defense = 0
+        bases = []
+        bunkers = []
+        oil_rigs = []
+
+        for p in user_plots:
+            b_type = p.get("building_type", "empty")
+            lvl = p.get("building_level", 0) or 1
+            if b_type == "military":
+                atk = 100 + (lvl * 130)
+                dfn = 80 + (lvl * 110)
+                total_attack += atk
+                total_defense += dfn
+                bases.append({"plot_id": p["id"], "name": p["name"], "level": lvl, "attack": atk, "defense": dfn})
+            elif b_type == "bunker":
+                dfn = 250 + (lvl * 190)
+                total_defense += dfn
+                bunkers.append({"plot_id": p["id"], "name": p["name"], "level": lvl, "defense": dfn})
+            elif b_type == "oil_rig":
+                dfn = 50 + (lvl * 30)
+                total_defense += dfn
+                oil_rigs.append({"plot_id": p["id"], "name": p["name"], "level": lvl})
+            else:
+                dfn = 30 + (lvl * 20)
+                total_defense += dfn
+
+        return {
+            "attack_power": total_attack,
+            "defense_power": total_defense,
+            "military_bases": bases,
+            "bunkers": bunkers,
+            "oil_rigs": oil_rigs,
+            "owned_plots_count": len(user_plots)
+        }
+
+    async def get_plot_defense_stats(self, plot_id: int) -> dict:
+        """Calculate tactical defense rating of a plot including bunker aura & allied defense support."""
+        plot = await self.get_estate_plot(plot_id)
+        if not plot or not plot.get("owner_id"):
+            return {"total_defense": 0, "base_defense": 0, "bunker_bonus": 0, "allied_bonus": 0, "allies_involved": []}
+
+        owner_id = plot["owner_id"]
+        b_type = plot.get("building_type", "empty")
+        lvl = plot.get("building_level", 0) or 1
+
+        if b_type == "bunker":
+            base_def = 300 + (lvl * 200)
+        elif b_type == "military":
+            base_def = 120 + (lvl * 110)
+        else:
+            base_def = 50 + (lvl * 30)
+
+        # Bunker regional aura
+        owner_mil = await self.get_user_military_stats(owner_id)
+        bunker_bonus = len(owner_mil["bunkers"]) * 150
+
+        # Allied defense contributions
+        allies = await self.get_user_allies(owner_id)
+        allied_bonus = 0
+        allies_involved = []
+        for a_id in allies:
+            a_stats = await self.get_user_military_stats(a_id)
+            if a_stats["defense_power"] > 0:
+                contrib = int(round(a_stats["defense_power"] * 0.35))
+                allied_bonus += contrib
+                allies_involved.append({"user_id": a_id, "contribution": contrib})
+
+        total_defense = base_def + bunker_bonus + allied_bonus
+        return {
+            "total_defense": total_defense,
+            "base_defense": base_def,
+            "bunker_bonus": bunker_bonus,
+            "allied_bonus": allied_bonus,
+            "allies_involved": allies_involved
+        }
+
+    async def attack_estate_plot(self, attacker_id: int, target_plot_id: int) -> tuple[bool, str, dict]:
+        """Launch a military raid on an enemy territory parcel."""
+        target = await self.get_estate_plot(target_plot_id)
+        if not target:
+            return False, "Target plot does not exist.", {}
+
+        defender_id = target.get("owner_id")
+        if not defender_id:
+            return False, "This parcel is unowned state territory! You can only raid territories occupied by rival landowners.", {}
+
+        if str(defender_id) == str(attacker_id):
+            return False, "You cannot attack your own territory parcel!", {}
+
+        # Non-Aggression Pact check
+        if await self.is_allied(attacker_id, defender_id):
+            return False, "⛔ Non-Aggression Pact: You are officially allied with this landowner! Dissolve your military alliance with /estate break_ally first.", {}
+
+        # 1-Hour State Bank Peacekeeper Protection
+        now = time.time()
+        protected_until = target.get("protected_until", 0) or 0
+        if protected_until > now:
+            mins_left = max(1, int(round((protected_until - now) / 60)))
+            return False, f"🛡️ State Bank Peacekeepers Active: The Central State Bank deployed elite garrison forces following a recent raid. This territory is under armed banking protection for another {mins_left} minutes!", {}
+
+        # Attacker military power check
+        atk_stats = await self.get_user_military_stats(attacker_id)
+        if atk_stats["attack_power"] <= 0:
+            return False, "❌ Military Requisition Required: You must own an E-State parcel with an operational Military Base ('🪖 Military Base') to launch tactical strikes! Build or upgrade one using /estate upgrade or the web portal.", {}
+
+        # Attacker cooldown check (15 minutes)
+        last_attack = await self.get_meta(f"attack_cooldown_{attacker_id}")
+        if last_attack:
+            try:
+                elapsed = now - float(last_attack)
+                if elapsed < 900:
+                    wait_s = int(900 - elapsed)
+                    return False, f"⏳ Supply Line Cooldown: Your armed divisions are rearming and refueling. Ready to redeploy in {wait_s} seconds.", {}
+            except Exception:
+                pass
+
+        # Calculate combat
+        def_stats = await self.get_plot_defense_stats(target_plot_id)
+        import random
+        atk_roll = int(round(atk_stats["attack_power"] * random.uniform(0.85, 1.15)))
+        def_roll = int(round(def_stats["total_defense"] * random.uniform(0.85, 1.15)))
+
+        await self.set_meta(f"attack_cooldown_{attacker_id}", str(now))
+
+        battle_data = {
+            "target_id": target_plot_id,
+            "target_name": target["name"],
+            "attacker_id": attacker_id,
+            "defender_id": defender_id,
+            "attacker_power": atk_stats["attack_power"],
+            "attacker_roll": atk_roll,
+            "defender_defense": def_stats["total_defense"],
+            "defender_roll": def_roll,
+            "allied_bonus": def_stats["allied_bonus"],
+            "allies_count": len(def_stats["allies_involved"])
+        }
+
+        if atk_roll > def_roll:
+            # Attacker Wins!
+            # Plunder 40% of accrued yield
+            accrued = target.get("accrued_yield", 0) or 0
+            plundered_yield = int(round(accrued * 0.40))
+            # War reparation bounty from plot valuation (2.5%, max 40,000)
+            war_bounty = min(40000, max(2500, int(round(target["current_value"] * 0.025))))
+            total_loot = plundered_yield + war_bounty
+
+            # Reset accrued yield on target
+            await self._db.execute("UPDATE estate_plots SET last_yield_claim = ? WHERE id = ?", (now, target_plot_id))
+            # Credit attacker
+            await self.add_medals(attacker_id, 0, total_loot)
+
+            # Enforce 1-Hour State Bank Peacekeeper Protection
+            bank_guard_until = now + 3600.0
+            await self._db.execute(
+                "UPDATE estate_plots SET protected_until = ?, last_attack_time = ? WHERE id = ?",
+                (bank_guard_until, now, target_plot_id)
+            )
+
+            # Record raid log
+            await self._db.execute("""
+                INSERT INTO estate_raids (attacker_id, defender_id, plot_id, attacker_power, defender_power, allied_bonus, success, loot, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+            """, (attacker_id, defender_id, target_plot_id, atk_roll, def_roll, def_stats["allied_bonus"], total_loot, now))
+            await self._db.commit()
+
+            battle_data["loot"] = total_loot
+            battle_data["success"] = True
+            msg_lines = [
+                f"⚔️ **TACTICAL STRIKE SUCCESSFUL!** Your strike divisions breached the defenses of **Plot #{target_plot_id}: {target['name']}**!",
+                "",
+                f"• **Assault Roll:** `{atk_roll:,}` vs **Defense Roll:** `{def_roll:,}` (Allied Support: `+{def_stats['allied_bonus']:,}`)",
+                f"• **War Plunder Seized:** `+{total_loot:,} Medals` (Plundered Yield: `{plundered_yield:,}` + War Bounty: `{war_bounty:,}`)",
+                "• 🛡️ **State Bank Peacekeepers Deployed:** Central State Bank forces locked down the parcel for **1 Hour** to prevent further incursions."
+            ]
+            msg = "\n".join(msg_lines)
+            return True, msg, battle_data
+
+        else:
+            # Defender Wins! Repelled!
+            casualty_fee = min(15000, max(3000, int(round(target["current_value"] * 0.015))))
+            # Deduct casualty fee from attacker, award to defender
+            await self.add_medals(attacker_id, 0, -casualty_fee)
+            await self.add_medals(defender_id, 0, casualty_fee)
+
+            await self._db.execute("""
+                INSERT INTO estate_raids (attacker_id, defender_id, plot_id, attacker_power, defender_power, allied_bonus, success, loot, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?)
+            """, (attacker_id, defender_id, target_plot_id, atk_roll, def_roll, def_stats["allied_bonus"], now))
+            await self._db.commit()
+
+            battle_data["casualty_fee"] = casualty_fee
+            battle_data["success"] = False
+            fail_lines = [
+                f"💥 **TACTICAL ASSAULT REPELLED!** The garrison and allied forces at **Plot #{target_plot_id}: {target['name']}** held the defensive line!",
+                "",
+                f"• **Assault Roll:** `{atk_roll:,}` vs **Defense Roll:** `{def_roll:,}` (Allied Support: `+{def_stats['allied_bonus']:,}`)",
+                f"• **Casualty Reparations:** Your strike battalion suffered heavy casualties and paid `-{casualty_fee:,} Medals` in combat damages to the defender."
+            ]
+            msg = "\n".join(fail_lines)
+            return False, msg, battle_data
+
+    async def create_alliance_request(self, user_id: int, ally_id: int) -> tuple[bool, str]:
+        """Propose a mutual defense military alliance."""
+        if user_id == ally_id:
+            return False, "You cannot form an alliance with yourself!"
+        if self._db is None:
+            await self.setup()
+
+        # Check existing
+        async with self._db.execute("""
+            SELECT status FROM estate_alliances 
+            WHERE (user_id = ? AND ally_id = ?) OR (user_id = ? AND ally_id = ?)
+        """, (user_id, ally_id, ally_id, user_id)) as cur:
+            row = await cur.fetchone()
+            if row:
+                if row[0] == "active":
+                    return False, "You already have an active military defense pact with this citizen."
+                return False, "An alliance request is already pending between you."
+
+        now = time.time()
+        await self._db.execute(
+            "INSERT INTO estate_alliances (user_id, ally_id, status, created_at) VALUES (?, ?, 'pending', ?)",
+            (user_id, ally_id, now)
+        )
+        await self._db.commit()
+        return True, "Alliance proposal sent! The other landowner must accept using `/estate accept_ally` or via the web portal."
+
+    async def accept_alliance(self, user_id: int, requester_id: int) -> tuple[bool, str]:
+        """Accept an incoming military defense pact."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT id FROM estate_alliances 
+            WHERE user_id = ? AND ally_id = ? AND status = 'pending'
+        """, (requester_id, user_id)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "No pending alliance request found from that user."
+
+        await self._db.execute("UPDATE estate_alliances SET status = 'active' WHERE id = ?", (row[0],))
+        await self._db.commit()
+        return True, "🤝 Defense Alliance Formalized! Your military garrisons will now assist each other in defending your E-State territories."
+
+    async def break_alliance(self, user_id: int, ally_id: int) -> tuple[bool, str]:
+        """Dissolve a military defense alliance."""
+        if self._db is None:
+            await self.setup()
+        await self._db.execute("""
+            DELETE FROM estate_alliances 
+            WHERE (user_id = ? AND ally_id = ?) OR (user_id = ? AND ally_id = ?)
+        """, (user_id, ally_id, ally_id, user_id))
+        await self._db.commit()
+        return True, "Military alliance successfully dissolved."
+
+    async def get_user_allies(self, user_id: int) -> list[int]:
+        """Return list of user IDs with active defense alliances."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT CASE WHEN user_id = ? THEN ally_id ELSE user_id END
+            FROM estate_alliances
+            WHERE (user_id = ? OR ally_id = ?) AND status = 'active'
+        """, (user_id, user_id, user_id)) as cur:
+            return [r[0] for r in await cur.fetchall()]
+
+    async def is_allied(self, user1_id: int, user2_id: int) -> bool:
+        """Check if two users share an active military defense pact."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT 1 FROM estate_alliances 
+            WHERE ((user_id = ? AND ally_id = ?) OR (user_id = ? AND ally_id = ?)) AND status = 'active'
+        """, (user1_id, user2_id, user2_id, user1_id)) as cur:
+            return bool(await cur.fetchone())
+
+    async def get_recent_raids(self, limit: int = 10) -> list[dict]:
+        """Fetch latest military E-State skirmishes."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT r.*, p.name as plot_name, p.district
+            FROM estate_raids r
+            JOIN estate_plots p ON r.plot_id = p.id
+            ORDER BY r.timestamp DESC LIMIT ?
+        """, (limit,)) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
     async def get_meta(self, key: str) -> str | None:
         if self._db is None:
             await self.setup()

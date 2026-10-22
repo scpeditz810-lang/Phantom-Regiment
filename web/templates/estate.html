@@ -84,6 +84,7 @@
             <button class="filter-pill" onclick="setFilter('river', this)">💧 Riverside Commons (75k - 250k)</button>
             <button class="filter-pill" onclick="setFilter('industrial', this)">🏗️ Industrial Zone (350k - 1M)</button>
             <button class="filter-pill" onclick="setFilter('citadel', this)">👑 Citadel Spire (2M - 10M)</button>
+            <button class="filter-pill" onclick="setFilter('ocean', this)">🛢️ Deepwater & Oil Rigs (150k - 3.5M)</button>
             <button class="filter-pill" onclick="setFilter('my_plots', this)">⭐ My Land</button>
             <button class="filter-pill" onclick="setFilter('for_sale', this)">🏷️ Listed for Sale</button>
         </div>
@@ -287,6 +288,9 @@
                     <button class="insp-tab" id="tab-btn-offers" onclick="switchInspectorTab('offers')">
                         🤝 Trade & Offers
                     </button>
+                    <button class="insp-tab" id="tab-btn-military" onclick="switchInspectorTab('military')">
+                        ⚔️ Strike & Defense
+                    </button>
                 </div>
 
                 <!-- Tab 1: Build & Upgrade Facilities -->
@@ -361,6 +365,15 @@
                                 </div>
                                 <div class="upgrade-card-desc">Financial center. Premium dividends (+3.5%/day) & massive +60% valuation surge!</div>
                             </div>
+
+                            <!-- Offshore Oil Rig -->
+                            <div class="upgrade-card" onclick="selectUpgrade('oil_rig')">
+                                <div class="upgrade-card-head">
+                                    <span>🛢️ Offshore Oil Rig</span>
+                                    <span class="upgrade-cost" id="cost-oil_rig">... M</span>
+                                </div>
+                                <div class="upgrade-card-desc">Deepwater petroleum extraction rig. Supreme +4.0%/day dividend yield & +70% valuation boost!</div>
+                            </div>
                         </div>
 
                         <div id="upgrade-confirm-box" style="display:none; margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-card-inner); border-radius: 8px; border: 1px solid var(--border-blue);">
@@ -412,6 +425,37 @@
                             <button class="btn btn-crimson" style="width: 100%; margin-top: 0.85rem; font-weight: 700;" onclick="executeSellToBank()">
                                 🏦 Liquidate to Bank (+10% Price / 20% Tax)
                             </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Military Strike & Alliances -->
+                <div class="insp-tab-pane" id="tab-military" style="display: none;">
+                    <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-card-inner); border-radius: 8px; border: 1px solid var(--border);">
+                        <h4 style="margin: 0 0 0.4rem 0; font-size: 0.95rem;">⚔️ Tactical Strike & Alliances</h4>
+
+                        <div id="box-protected-notice" style="display: none; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.85rem; font-size: 0.78rem; color: #38bdf8;">
+                            🛡️ <strong>State Bank Peacekeepers Active:</strong> Central State Bank forces locked down this parcel following a recent raid (<span id="insp-prot-time">0</span>m remaining). Cannot be raided until protection concludes.
+                        </div>
+
+                        <div id="box-attack-actions" style="display: none;">
+                            <p style="font-size: 0.76rem; color: var(--text-muted); margin-bottom: 0.85rem; line-height: 1.45;">
+                                Launch a military strike from your Military Base to breach their defenses, plunder accrued yields, and seize combat bounties!
+                            </p>
+                            <button class="btn btn-blue" id="btn-attack-plot" onclick="executeAttackPlot()" style="width: 100%; background: #ef4444; color: #fff; font-weight: 800; border: none; margin-bottom: 0.65rem;">
+                                ⚔️ Launch Tactical Strike
+                            </button>
+                            <button class="btn btn-pill-dark" onclick="executeAllyRequest()" style="width: 100%; border-color: rgba(255,255,255,0.2);">
+                                🤝 Propose Mutual Defense Alliance
+                            </button>
+                        </div>
+
+                        <div id="box-own-plot-military" style="display: none; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45;">
+                            🛡️ <strong>Your Territory Garrison:</strong> Construct Bunkers or Military Bases on this parcel to boost your regional defense against enemy raids!
+                        </div>
+
+                        <div id="box-unowned-plot-military" style="display: none; font-size: 0.78rem; color: var(--text-muted);">
+                            ℹ️ This parcel is unowned state land. Purchase it to settle and construct military facilities!
                         </div>
                     </div>
                 </div>
@@ -1436,7 +1480,21 @@ const PLOT_COORDINATES = {
     33: { x: -15,  z: -10 },
     34: { x:   0,  z:  -5 },
     35: { x: -10,  z:  15 },
-    36: { x:   5,  z:  20 }
+    36: { x:   5,  z:  20 },
+
+    // 🛢️ Deepwater Basin & Ocean Oil Rigs (Plots 37 - 48)
+    37: { x: -160, z:  95 },
+    38: { x: -125, z: 105 },
+    39: { x:  -85, z: 100 },
+    40: { x:  -45, z: 110 },
+    41: { x:   -5, z: 105 },
+    42: { x:   35, z: 110 },
+    43: { x:   75, z: 100 },
+    44: { x:  115, z: 105 },
+    45: { x:  155, z:  95 },
+    46: { x:  185, z:  55 },
+    47: { x:  190, z:  15 },
+    48: { x:  185, z: -35 }
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1847,6 +1905,44 @@ function createBuilding3D(type, level = 0, isMine = false, isOther = false) {
         b2.position.set(1.4, 3.2, 5.5 + level * 0.5);
         group.add(b2);
 
+    } else if (type === "oil_rig") {
+        // ── 🛢️ Offshore Oil Rig ──
+        const legGeo = new THREE.CylinderGeometry(0.5, 0.5, 7, 8);
+        const steelMat = new THREE.MeshStandardMaterial({ color: palette.steel, metalness: 0.8, roughness: 0.3 });
+        [[-5, -5], [5, -5], [-5, 5], [5, 5]].forEach(([lx, lz]) => {
+            const leg = new THREE.Mesh(legGeo, steelMat);
+            leg.position.set(lx, 3.5, lz);
+            leg.castShadow = true;
+            group.add(leg);
+        });
+
+        const deckGeo = new THREE.BoxGeometry(14, 1.2, 14);
+        const deckMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7, roughness: 0.4 });
+        const deck = new THREE.Mesh(deckGeo, deckMat);
+        deck.position.y = 7.2;
+        deck.castShadow = true;
+        group.add(deck);
+
+        const derrickGeo = new THREE.CylinderGeometry(1.2, 3.2, 14 + (level * 2), 4);
+        const derrickMat = new THREE.MeshStandardMaterial({ color: palette.hazardYellow, wireframe: true });
+        const derrick = new THREE.Mesh(derrickGeo, derrickMat);
+        derrick.position.set(-2, 14 + level, -2);
+        derrick.castShadow = true;
+        group.add(derrick);
+
+        const heliGeo = new THREE.CylinderGeometry(3.5, 3.5, 0.4, 16);
+        const heliMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.5 });
+        const heli = new THREE.Mesh(heliGeo, heliMat);
+        heli.position.set(3.5, 8.2, 3.5);
+        group.add(heli);
+
+        const beaconGeo = new THREE.SphereGeometry(0.8, 12, 8);
+        const beaconMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
+        const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+        beacon.position.set(-2, 21 + (level * 2), -2);
+        group.add(beacon);
+        animatedItems.push({ mesh: beacon, type: 'light_blink' });
+
     } else if (type === "military") {
         // ── 🪖 Military Base ──
         // Camouflage HQ Bunker
@@ -1902,6 +1998,7 @@ function render3DPlots() {
     else if (currentFilter === "river") filtered = allPlots.filter(p => p.district === "Riverside Commons");
     else if (currentFilter === "industrial") filtered = allPlots.filter(p => p.district === "Ironworks District");
     else if (currentFilter === "citadel") filtered = allPlots.filter(p => p.district === "Shadow Citadel" || p.district === "Highland Outpost");
+    else if (currentFilter === "ocean") filtered = allPlots.filter(p => p.district === "Deepwater Basin" || p.terrain === "ocean" || p.building_type === "oil_rig");
     else if (currentFilter === "my_plots") filtered = allPlots.filter(p => isUserPlotOwner(p));
     else if (currentFilter === "for_sale") filtered = allPlots.filter(p => p.for_sale_price && p.for_sale_price > 0);
 
@@ -2325,6 +2422,7 @@ function renderMapGrid() {
     else if (currentFilter === "river") filtered = allPlots.filter(p => p.district === "Riverside Commons");
     else if (currentFilter === "industrial") filtered = allPlots.filter(p => p.district === "Ironworks District");
     else if (currentFilter === "citadel") filtered = allPlots.filter(p => p.district === "Shadow Citadel" || p.district === "Highland Outpost");
+    else if (currentFilter === "ocean") filtered = allPlots.filter(p => p.district === "Deepwater Basin" || p.terrain === "ocean" || p.building_type === "oil_rig");
     else if (currentFilter === "my_plots") filtered = allPlots.filter(p => isUserPlotOwner(p));
     else if (currentFilter === "for_sale") filtered = allPlots.filter(p => p.for_sale_price && p.for_sale_price > 0);
 
@@ -2507,6 +2605,79 @@ function selectPlot(p) {
         }
         makeOfferBox.style.display = "block";
     }
+
+    // Update Military Pane
+    const isProtected = p.is_protected;
+    const protBox = document.getElementById("box-protected-notice");
+    const atkActions = document.getElementById("box-attack-actions");
+    const ownMil = document.getElementById("box-own-plot-military");
+    const unownedMil = document.getElementById("box-unowned-plot-military");
+
+    if (isUnclaimed) {
+        if (protBox) protBox.style.display = "none";
+        if (atkActions) atkActions.style.display = "none";
+        if (ownMil) ownMil.style.display = "none";
+        if (unownedMil) unownedMil.style.display = "block";
+    } else if (isMine) {
+        if (protBox) protBox.style.display = "none";
+        if (atkActions) atkActions.style.display = "none";
+        if (ownMil) ownMil.style.display = "block";
+        if (unownedMil) unownedMil.style.display = "none";
+    } else {
+        if (ownMil) ownMil.style.display = "none";
+        if (unownedMil) unownedMil.style.display = "none";
+        if (isProtected) {
+            if (protBox) {
+                protBox.style.display = "block";
+                const remMins = Math.max(1, Math.round((p.protection_seconds_left || 0) / 60));
+                document.getElementById("insp-prot-time").innerText = remMins;
+            }
+            if (atkActions) atkActions.style.display = "none";
+        } else {
+            if (protBox) protBox.style.display = "none";
+            if (atkActions) atkActions.style.display = "block";
+        }
+    }
+}
+
+async function executeAttackPlot() {
+    if (!selectedPlot) return;
+    if (!confirm(`Launch an armed tactical strike on Plot #${selectedPlot.id}: ${selectedPlot.name}? (Requires an operational Military Base)`)) return;
+
+    const btn = document.getElementById("btn-attack-plot");
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await fetch("/api/estate/attack", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plot_id: selectedPlot.id })
+        });
+        const data = await res.json();
+        alert(data.message);
+        loadEstateData(true);
+    } catch (err) {
+        alert("Error launching raid: " + err);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function executeAllyRequest() {
+    if (!selectedPlot || !selectedPlot.owner_id) return;
+    if (!confirm(`Propose a mutual defense military alliance with ${selectedPlot.owner_name}?`)) return;
+
+    try {
+        const res = await fetch("/api/estate/ally/request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ally_id: selectedPlot.owner_id })
+        });
+        const data = await res.json();
+        alert(data.message);
+    } catch (err) {
+        alert("Error sending alliance: " + err);
+    }
 }
 
 function setFilter(filterType, btn) {
@@ -2534,6 +2705,10 @@ function setFilter(filterType, btn) {
         new TWEEN.Tween(controls.target).to({ x: 0, y: 0, z: -10 }, 900).start();
         new TWEEN.Tween(camera.position).to({ x: 25, y: 80, z: 50 }, 900).start();
         document.getElementById("camera-focus-district").innerText = "Shadow Citadel Spire";
+    } else if (filterType === "ocean") {
+        new TWEEN.Tween(controls.target).to({ x: 20, y: 0, z: 90 }, 900).start();
+        new TWEEN.Tween(camera.position).to({ x: 40, y: 130, z: 175 }, 900).start();
+        document.getElementById("camera-focus-district").innerText = "Deepwater Basin & Offshore Oil Platforms";
     } else if (filterType === "all") {
         reset3DCamera();
     }

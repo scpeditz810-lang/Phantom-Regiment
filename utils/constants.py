@@ -192,21 +192,36 @@ ROLES_SHOP = {
     "role_millionaire": {"name": "💎 Millionaire", "color": 0x9B59B6, "price": 25000},
     "role_billionaire": {"name": "👑 Billionaire", "color": 0xE74C3C, "price": 50000},
     "role_phantom": {"name": "👻 Phantom Regiment Elite", "color": 0x111111, "price": 100000},
-}
-
-# ─── Bank Vault Tiers ─────────────────────────────────────────────────────────
-BANK_TIERS = {
-    1: {"name": "Basic Vault", "cap": 1000, "upgrade_cost": 0},
-    2: {"name": "Iron Vault", "cap": 2500, "upgrade_cost": 2500},
-    3: {"name": "Steel Vault", "cap": 7500, "upgrade_cost": 7500},
-    4: {"name": "Reinforced Vault", "cap": 20000, "upgrade_cost": 20000},
-    5: {"name": "Titanium Vault", "cap": 50000, "upgrade_cost": 50000},
-    6: {"name": "Obsidian Vault", "cap": 100000, "upgrade_cost": 120000},
-    7: {"name": "Quantum Vault", "cap": 250000, "upgrade_cost": 250000},
-    8: {"name": "Cybernetic Vault", "cap": 500000, "upgrade_cost": 500000},
-    9: {"name": "Apex Vault", "cap": 750000, "upgrade_cost": 1000000},
-    10: {"name": "Phantom Sovereign Vault", "cap": 1000000, "upgrade_cost": 2000000},
-}
+}
+
+
+
+# ─── Bank Vault Tiers ─────────────────────────────────────────────────────────
+
+BANK_TIERS = {
+
+    1: {"name": "Basic Vault", "cap": 1000, "upgrade_cost": 0},
+
+    2: {"name": "Iron Vault", "cap": 2500, "upgrade_cost": 2500},
+
+    3: {"name": "Steel Vault", "cap": 7500, "upgrade_cost": 7500},
+
+    4: {"name": "Reinforced Vault", "cap": 20000, "upgrade_cost": 20000},
+
+    5: {"name": "Titanium Vault", "cap": 50000, "upgrade_cost": 50000},
+
+    6: {"name": "Obsidian Vault", "cap": 100000, "upgrade_cost": 120000},
+
+    7: {"name": "Quantum Vault", "cap": 250000, "upgrade_cost": 250000},
+
+    8: {"name": "Cybernetic Vault", "cap": 500000, "upgrade_cost": 500000},
+
+    9: {"name": "Apex Vault", "cap": 750000, "upgrade_cost": 1000000},
+
+    10: {"name": "Phantom Sovereign Vault", "cap": 1000000, "upgrade_cost": 2000000},
+
+}
+
 
 
 # ─── E-State Virtual Real Estate & Tycoon ──────────────────────────────────────
@@ -270,6 +285,16 @@ ESTATE_BUILDINGS = {
         "val_boost": 0.60,    # +60% valuation boost
         "daily_yield": 0.035, # 3.5% daily yield
         "growth_mult": 1.5,
+    },
+    "oil_rig": {
+        "key": "oil_rig",
+        "name": "Offshore Oil Rig",
+        "emoji": "🛢️",
+        "desc": "Deepwater petroleum extraction rig generating immense crude oil dividend yields.",
+        "cost_pct": 0.60,     # 60% of base price
+        "val_boost": 0.70,    # +70% valuation boost
+        "daily_yield": 0.040, # 4.0% daily passive yield (Highest in city!)
+        "growth_mult": 1.6,
     }
 }
 
@@ -316,4 +341,18 @@ DEFAULT_ESTATE_PLOTS = [
     {"id": 34, "x": 6, "y": 4, "name": "Monarch Square", "district": "Shadow Citadel", "terrain": "citadel", "price": 5000000},
     {"id": 35, "x": 6, "y": 5, "name": "Phantom Vanguard Keep", "district": "Shadow Citadel", "terrain": "citadel", "price": 8000000},
     {"id": 36, "x": 6, "y": 6, "name": "Zenith Citadel Peak", "district": "Shadow Citadel", "terrain": "citadel", "price": 10000000},
+    # Row 7 (Deepwater Basin & Offshore Waters - 150k to 3.5M)
+    {"id": 37, "x": 7, "y": 1, "name": "Deepwater Platform Alpha", "district": "Deepwater Basin", "terrain": "ocean", "price": 150000},
+    {"id": 38, "x": 7, "y": 2, "name": "Neptune Crude Rig", "district": "Deepwater Basin", "terrain": "ocean", "price": 220000},
+    {"id": 39, "x": 7, "y": 3, "name": "Kraken Offshore Station", "district": "Deepwater Basin", "terrain": "ocean", "price": 300000},
+    {"id": 40, "x": 7, "y": 4, "name": "Black Gold Shoals", "district": "Deepwater Basin", "terrain": "ocean", "price": 380000},
+    {"id": 41, "x": 7, "y": 5, "name": "Poseidon Drilling Array", "district": "Deepwater Basin", "terrain": "ocean", "price": 450000},
+    {"id": 42, "x": 7, "y": 6, "name": "Leviathan Extraction Deck", "district": "Deepwater Basin", "terrain": "ocean", "price": 600000},
+    # Row 8 (Deepwater Apex Zone - 750k to 3.5M)
+    {"id": 43, "x": 8, "y": 1, "name": "Abyssal Reef Station", "district": "Deepwater Basin", "terrain": "ocean", "price": 750000},
+    {"id": 44, "x": 8, "y": 2, "name": "Triton Marine Facility", "district": "Deepwater Basin", "terrain": "ocean", "price": 900000},
+    {"id": 45, "x": 8, "y": 3, "name": "Oceanic Refinery Platform", "district": "Deepwater Basin", "terrain": "ocean", "price": 1200000},
+    {"id": 46, "x": 8, "y": 4, "name": "Atlantic Apex Rig", "district": "Deepwater Basin", "terrain": "ocean", "price": 1500000},
+    {"id": 47, "x": 8, "y": 5, "name": "Sovereign Deepwater Spire", "district": "Deepwater Basin", "terrain": "ocean", "price": 2000000},
+    {"id": 48, "x": 8, "y": 6, "name": "Grand Leviathan Rig 01", "district": "Deepwater Basin", "terrain": "ocean", "price": 3500000},
 ]

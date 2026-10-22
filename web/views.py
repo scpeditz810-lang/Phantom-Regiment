@@ -1,6 +1,6 @@
 import asyncio
 from flask import Blueprint, render_template, session, current_app, request, redirect, url_for
-from web.auth import login_required, admin_required
+from web.auth import login_required, admin_required, mayor_required
 
 views_bp = Blueprint("views", __name__)
 
@@ -317,6 +317,45 @@ def estate_page():
         "estate.html",
         user=user,
         user_data=user_data
+    )
+
+@views_bp.route("/mayor")
+@mayor_required
+def mayor_page():
+    db = current_app.config["DB"]
+    user = session.get("user")
+    plots = run_async(db.get_estate_plots())
+    stocks = run_async(db.get_all_stocks())
+    raids = run_async(db.get_recent_raids(8))
+    try:
+        tax_pct = int(round(run_async(db.get_stock_tax_rate()) * 100))
+    except Exception:
+        tax_pct = 15
+
+    from web.auth import get_oauth_config
+    cfg = get_oauth_config()
+    latest_ele = run_async(db.get_latest_election(cfg["guild_id"]))
+    import time
+    term_end = latest_ele.get("term_end", 0) if latest_ele else 0
+    now = time.time()
+    term_days_left = max(0, int((term_end - now) // 86400))
+    term_hours_left = max(0, int(((term_end - now) % 86400) // 3600))
+
+    total_land_val = sum(p.get("current_value", 0) for p in plots)
+    owned_plots = [p for p in plots if p.get("owner_id")]
+
+    return render_template(
+        "mayor.html",
+        user=user,
+        plots=plots,
+        stocks=stocks,
+        raids=raids,
+        tax_pct=tax_pct,
+        term_days_left=term_days_left,
+        term_hours_left=term_hours_left,
+        total_land_val=total_land_val,
+        owned_count=len(owned_plots),
+        total_plots=len(plots)
     )
 
 @views_bp.route("/admin")
