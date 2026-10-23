@@ -5826,6 +5826,162 @@ class Database:
 
     # ??? Organic Slow Growth & Advanced Military Tools ??????????????????????????
 
+    async def train_earth_spy(self, user_id: int, country_id: int, spy_id: int, target_level: int) -> tuple[bool, str, dict]:
+        """Enroll an operative in the National Intelligence Academy to increase rank and mission effectiveness."""
+        if self._db is None:
+            await self.setup()
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "intelligence")
+        if not can_manage:
+            return False, "⛔ Only the President or Director of Intelligence can authorize spy training.", {}
+
+        COURSES = {
+            2: {"title": "Field Infiltration Tradecraft", "cost": 20000, "rank": "Field Operative"},
+            3: {"title": "Sabotage & Demolition Specialization", "cost": 45000, "rank": "Sabotage Specialist"},
+            4: {"title": "Cyber Warfare & Cipher Infiltration", "cost": 80000, "rank": "Cyber Infiltrator"},
+            5: {"title": "Master Phantom Ghost Infiltration", "cost": 130000, "rank": "Phantom Ghost"}
+        }
+
+        if target_level not in COURSES:
+            return False, f"Invalid training course level: {target_level}. Must be 2-5.", {}
+
+        course = COURSES[target_level]
+
+        # Verify spy exists and is idle
+        async with self._db.execute("SELECT id, codename, skill_level, status FROM earth_spies WHERE id = ? AND owner_country_id = ?", (spy_id, country_id)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Operative not found in your intelligence bureau.", {}
+            s_id, codename, current_level, status = row[0], row[1], row[2], row[3]
+
+        if status != "idle":
+            return False, f"Agent '{codename}' is currently {status.upper()} and cannot undergo academy training until idle.", {}
+
+        if current_level >= target_level:
+            return False, f"Agent '{codename}' has already completed this training level (Current Level: {current_level}).", {}
+
+        if current_level < target_level - 1:
+            return False, f"Agent '{codename}' must complete Level {target_level - 1} before qualifying for Level {target_level}.", {}
+
+        cost = course["cost"]
+        econ = await self.get_global_economy(user_id)
+        user_medals = econ.get("medals", 0)
+
+        country = await self.get_earth_country(country_id)
+        treasury = country.get("treasury", 0)
+
+        if user_medals >= cost:
+            await self.add_medals(user_id, -cost)
+        elif treasury >= cost:
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (cost, country_id))
+        else:
+            return False, f"Insufficient funds for Academy training. Course cost: {cost:,} Medals (Wallet: {user_medals:,} M, Treasury: {treasury:,} M).", {}
+
+        # Upgrade spy
+        await self._db.execute("UPDATE earth_spies SET skill_level = ? WHERE id = ?", (target_level, spy_id))
+        await self._db.commit()
+
+        return True, f"🎓 Training Complete! Agent '{codename}' graduated from {course['title']} and is now a **{course['rank']}** (Skill Level {target_level}/5)!", {
+            "spy_id": spy_id,
+            "codename": codename,
+            "new_level": target_level,
+            "rank_title": course["rank"]
+        }
+
+    async def buy_earth_intel_dossier(self, user_id: int, country_id: int, target_country_id: int, intel_type: str) -> tuple[bool, str, dict]:
+        """Procure classified intelligence dossiers on a foreign nation from intelligence brokers."""
+        if self._db is None:
+            await self.setup()
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "intelligence")
+        if not can_manage:
+            return False, "⛔ Only the President or Director of Intelligence can purchase intelligence dossiers.", {}
+
+        INTEL_PACKAGES = {
+            "covert_history": {"title": "Covert Operations & Sabotage History", "cost": 35000},
+            "military_readiness": {"title": "Military Arsenal & Tool Readiness", "cost": 50000},
+            "economic_vault": {"title": "Treasury Reserves & Yield Audit", "cost": 25000}
+        }
+
+        if intel_type not in INTEL_PACKAGES:
+            return False, f"Invalid intelligence package: {intel_type}.", {}
+
+        pkg = INTEL_PACKAGES[intel_type]
+        cost = pkg["cost"]
+
+        econ = await self.get_global_economy(user_id)
+        user_medals = econ.get("medals", 0)
+        country = await self.get_earth_country(country_id)
+        treasury = country.get("treasury", 0)
+
+        if user_medals >= cost:
+            await self.add_medals(user_id, -cost)
+        elif treasury >= cost:
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (cost, country_id))
+        else:
+            return False, f"Insufficient funds for Intelligence Briefing. Cost: {cost:,} Medals (Wallet: {user_medals:,} M, Treasury: {treasury:,} M).", {}
+
+        target_country = await self.get_earth_country(target_country_id)
+        if not target_country:
+            return False, "Target nation not found.", {}
+
+        now = time.time()
+        dossier_data = {}
+
+        if intel_type == "covert_history":
+            async with self._db.execute("""
+                SELECT s.codename, c.name as sponsor_nation, s.status, s.mission, s.created_at
+                FROM earth_spies s
+                JOIN earth_countries c ON s.owner_country_id = c.id
+                WHERE s.target_country_id = ?
+                ORDER BY s.created_at DESC LIMIT 5
+            """, (target_country_id,)) as cur:
+                recent_incursions = [dict(r) for r in await cur.fetchall()]
+
+            dossier_data = {
+                "category": "Covert Operations Audit",
+                "target_name": target_country["name"],
+                "target_flag": target_country["flag"],
+                "foreign_incursions": recent_incursions,
+                "unrest": target_country.get("unrest", 0),
+                "is_rioting": bool(target_country.get("is_rioting", 0)),
+                "summary": f"Decrypted {len(recent_incursions)} foreign spy operations targeting {target_country['name']}."
+            }
+
+        elif intel_type == "military_readiness":
+            tools = await self.get_country_tools(target_country_id)
+            dossier_data = {
+                "category": "Military & Arsenal Blueprint",
+                "target_name": target_country["name"],
+                "target_flag": target_country["flag"],
+                "active_wars": target_country.get("active_war_count", 0),
+                "installed_arsenal": [t.get("name", t.get("tool_key", "Tool")) for t in tools],
+                "bunker_defense": sum(b["level"] for b in target_country.get("buildings", []) if b["building_type"] == "bunker"),
+                "summary": f"Verified {len(tools)} advanced military systems and {target_country.get('active_war_count', 0)} active combat theaters."
+            }
+
+        elif intel_type == "economic_vault":
+            dossier_data = {
+                "category": "Treasury & Economic Audit",
+                "target_name": target_country["name"],
+                "target_flag": target_country["flag"],
+                "treasury": target_country.get("treasury", 0),
+                "gdp": target_country.get("gdp", 0),
+                "tax_rate": f"{target_country.get('tax_rate', 10)}%",
+                "gold_mines": sum(b["level"] for b in target_country.get("buildings", []) if b["building_type"] == "gold_mine"),
+                "oil_rigs": sum(b["level"] for b in target_country.get("buildings", []) if b["building_type"] == "oil_rig"),
+                "summary": f"Confirmed treasury vault balance of {target_country.get('treasury', 0):,} Medals and GDP of {target_country.get('gdp', 0):,} Medals."
+            }
+
+        import json
+        await self._db.execute("""
+            INSERT INTO earth_intelligence (gatherer_country_id, target_country_id, intel_type, intel_data, expires_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (country_id, target_country_id, intel_type, json.dumps(dossier_data), now + 86400 * 7, now))
+        await self._db.commit()
+
+        return True, f"📑 Intelligence Purchased! Decrypted {pkg['title']} on {target_country['flag']} **{target_country['name']}**!", dossier_data
+
     async def apply_organic_growth(self, country: dict) -> dict:
         """Process slow, natural growth of national GDP, stability, and treasury over time."""
         now = time.time()
