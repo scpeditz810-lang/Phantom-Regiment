@@ -14,6 +14,10 @@ import threading
 import asyncio
 
 BULL_CATALYSTS = [
+    ("VNG", "⚔️ [WARTIME PROCUREMENT] Vanguard Armaments awarded 45M emergency munitions contract for active Earth conflict!", (0.15, 0.30)),
+    ("AERO", "🛰️ [COMBAT SATELLITE DEMAND] Apex Aerospace orbital recon contracted by combatant powers! Stock breaking out.", (0.14, 0.26)),
+    ("PRC", "🛡️ [TACTICAL PMC CONTRACT] Phantom Regiment Corp deploys defensive battalions to active war theater!", (0.12, 0.25)),
+    ("GLOBAL", "⚔️ [GLOBAL WAR MOBILIZATION] Virtual Earth military escalations trigger defense sector super-cycle!", (0.10, 0.22)),
     ("PRC", "🚀 [GREEN ZONE SURGE] Phantom Regiment Corp secures 50M sovereign defense contract! Bull rally surging.", (0.12, 0.24)),
     ("TSC", "🚀 [GREEN ZONE SURGE] TS Clan Holdings smashes consensus profits! Heavy institutional buying.", (0.10, 0.22)),
     ("VNG", "⚔️ [GREEN ZONE SURGE] Vanguard Armaments unveils next-gen kinetic titan armor! Global demand peaks.", (0.12, 0.25)),
@@ -27,6 +31,7 @@ BULL_CATALYSTS = [
 ]
 
 CRASH_CATALYSTS = [
+    ("PANDA", "🚢 [STRAIT BLOCKADE] Commercial shipping corridors blocked by active naval warfare! PandaPo logistics paralyzed.", (-0.15, -0.28)),
     ("PRC", "💥 [STOCK CRASH] Phantom Regiment Corp hit with federal whistleblower audit! Panic selling ensues.", (-0.18, -0.32)),
     ("TSC", "📉 [STOCK CRASH] TS Clan Holdings quarterly earnings miss! Institutional investors dump massive blocks.", (-0.15, -0.28)),
     ("VNG", "💥 [RECALL CRASH] Vanguard Armaments issues catastrophic kinetic armor recall! Shares plummet.", (-0.20, -0.35)),
@@ -54,7 +59,9 @@ class StockMarketEngine:
         self.last_dividend_time = time.time()
 
     def get_regime_display_name(self) -> str:
-        if self.market_regime == "BULL_RALLY":
+        if self.market_regime == "WARTIME_ECONOMY":
+            return "⚔️ Wartime Economy (Defense Rally)"
+        elif self.market_regime == "BULL_RALLY":
             return "🟢 Green Zone (Bull Market)"
         elif self.market_regime == "BEAR_CRASH":
             return "🔴 Market Crash (Bear Market)"
@@ -86,6 +93,30 @@ class StockMarketEngine:
     async def _tick(self):
         self.tick_count += 1
         self.regime_ticks_left -= 1
+
+        # ── Virtual Earth Active War Integration ──
+        active_wars = []
+        try:
+            active_wars = await self.db.get_active_earth_wars()
+        except Exception:
+            active_wars = []
+
+        war_count = len(active_wars)
+        war_intensity = sum(
+            4.0 if w.get("war_scale") == "total_war" else (
+                2.5 if w.get("war_scale") == "theater" else (
+                    1.5 if w.get("war_scale") == "skirmish" else 1.0
+                )
+            ) for w in active_wars
+        ) if war_count > 0 else 0.0
+
+        if war_count > 0:
+            self.market_regime = "WARTIME_ECONOMY"
+            first_war = active_wars[0]
+            atk_n = first_war.get("attacker_name", "Attacker")
+            dfn_n = first_war.get("defender_name", "Defender")
+            if self.tick_count % 3 == 0:
+                self.latest_news = f"⚔️ [WARTIME MOBILIZATION] {war_count} Active War(s) on Virtual Earth ({atk_n} vs {dfn_n})! Defense contractors (VNG, AERO, PRC) surging on munitions demand!"
 
         # Rotate Market Regime when cycle expires (every 15 to 30 ticks ~15 to 30 mins)
         if self.regime_ticks_left <= 0:
@@ -135,6 +166,18 @@ class StockMarketEngine:
                 change_percent = catalyst_multiplier
 
             # 2. Market Regime Fluctuation
+            elif self.market_regime == "WARTIME_ECONOMY":
+                # Wartime Dynamics: Defense surging, logistics dragged, tech volatile
+                intensity_scale = min(2.5, max(1.0, war_intensity))
+                if sym in {"VNG", "AERO", "PRC"}:
+                    change_percent = random.uniform(0.020, 0.055) * intensity_scale
+                elif sym in {"PANDA"}:
+                    change_percent = -random.uniform(0.012, 0.032) * intensity_scale
+                elif sym in {"CRYP"}:
+                    change_percent = random.uniform(-0.02, 0.04) * intensity_scale
+                else:
+                    change_percent = random.uniform(-0.01, 0.02)
+
             elif self.market_regime == "BULL_RALLY":
                 # Green Zone: 68% green ticks, 32% red pullbacks
                 if random.random() < 0.68:

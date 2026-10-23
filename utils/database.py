@@ -687,7 +687,17 @@ class Database:
                 created_at REAL NOT NULL
             );
 
-            CREATE TABLE IF NOT EXISTS earth_alliances (
+            CREATE TABLE IF NOT EXISTS earth_un_resolutions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action TEXT NOT NULL,
+    target_country_id INTEGER,
+    war_id INTEGER,
+    sponsor_id INTEGER,
+    details TEXT,
+    created_at REAL
+);
+
+CREATE TABLE IF NOT EXISTS earth_alliances (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE NOT NULL,
                 creator_country_id INTEGER NOT NULL,
@@ -777,6 +787,11 @@ class Database:
             "ALTER TABLE estate_plots ADD COLUMN last_attack_time REAL DEFAULT 0",
 
             "ALTER TABLE earth_countries ADD COLUMN last_growth_tick REAL DEFAULT 0",
+            "ALTER TABLE earth_cabinet ADD COLUMN username TEXT DEFAULT NULL",
+            "ALTER TABLE earth_cabinet_invites ADD COLUMN username TEXT DEFAULT NULL",
+            "ALTER TABLE earth_countries ADD COLUMN is_sanctioned INTEGER DEFAULT 0",
+            "ALTER TABLE earth_countries ADD COLUMN sanction_reason TEXT DEFAULT NULL",
+            "ALTER TABLE earth_countries ADD COLUMN sanction_expires REAL DEFAULT 0",
             "PRAGMA journal_mode=WAL"
 
         ]:
@@ -883,6 +898,200 @@ class Database:
             pass
 
 
+
+
+    # ─── UNITED NATIONS & MAYOR PEACEKEEPING SYSTEM ───
+
+    async def get_earth_un_status(self) -> dict:
+        """Get UN Security Council status, presiding Mayor/Secretary-General, active wars, sanctions, and fund."""
+        if self._db is None:
+            await self.setup()
+
+        # Look up current Mayor from elections table or fallback to server sovereign
+        mayor_id = None
+        mayor_name = "UN Security Council"
+        try:
+            async with self._db.execute("SELECT winner_id FROM elections WHERE winner_id IS NOT NULL ORDER BY id DESC LIMIT 1") as cur:
+                row = await cur.fetchone()
+                if row and row[0]:
+                    mayor_id = row[0]
+        except Exception:
+            pass
+
+        if not mayor_id:
+            mayor_id = 429350468796416013
+
+        # Calculate UN peacekeeping fund (starts at 500,000 Medals + 5% of global customs)
+        un_fund = 500000
+        try:
+            async with self._db.execute("SELECT SUM(daily_tariff) FROM earth_trade_routes") as cur:
+                crow = await cur.fetchone()
+                if crow and crow[0]:
+                    un_fund += int(crow[0] * 5)
+        except Exception:
+            pass
+
+        # Active wars
+        wars = await self.get_active_earth_wars()
+
+        # Sanctioned countries
+        sanctioned = []
+        async with self._db.execute("SELECT id, name, flag, sanction_reason, sanction_expires FROM earth_countries WHERE is_sanctioned = 1") as cur:
+            for r in await cur.fetchall():
+                sanctioned.append({
+                    "id": r[0],
+                    "name": r[1],
+                    "flag": r[2],
+                    "sanction_reason": r[3],
+                    "sanction_expires": r[4]
+                })
+
+        # Recent resolutions
+        resolutions = []
+        try:
+            async with self._db.execute("SELECT id, resolution_type, target_country_id, war_id, mayor_id, details, created_at FROM earth_un_resolutions ORDER BY id DESC LIMIT 10") as cur:
+                for r in await cur.fetchall():
+                    resolutions.append({
+                        "id": r[0],
+                        "action": r[1],
+                        "resolution_type": r[1],
+                        "target_country_id": r[2],
+                        "war_id": r[3],
+                        "sponsor_id": r[4],
+                        "mayor_id": r[4],
+                        "details": r[5],
+                        "created_at": r[6]
+                    })
+        except Exception:
+            pass
+
+        return {
+            "mayor_id": mayor_id,
+            "mayor_name": mayor_name,
+            "un_fund": un_fund,
+            "active_wars": wars,
+            "sanctioned_countries": sanctioned,
+            "recent_resolutions": resolutions
+        }
+
+    async def un_issue_ceasefire(self, mayor_id: int, war_id: int) -> tuple[bool, str]:
+        """UN Secretary-General (Mayor) enforces an emergency ceasefire, immediately concluding an active war."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT id, attacker_id, defender_id, war_scale, is_active FROM earth_wars WHERE id = ?", (war_id,)) as cur:
+            war = await cur.fetchone()
+
+        if not war:
+            return False, "War record not found."
+        if not war[4]:
+            return False, "This war has already concluded."
+
+        now = time.time()
+        # Conclude war with un_ceasefire status
+        await self._db.execute("""
+            UPDATE earth_wars
+            SET is_active = 0, outcome = 'un_ceasefire', ended_at = ?
+            WHERE id = ?
+        """, (now, war_id))
+
+        # Record resolution
+        details = f"UN Security Council Resolution passed: Ceasefire enforced on War #{war_id} between Country #{war[1]} and #{war[2]}."
+        await self._db.execute("""
+            INSERT INTO earth_un_resolutions (resolution_type, war_id, mayor_id, details, created_at)
+            VALUES ('CEASEFIRE', ?, ?, ?, ?)
+        """, (war_id, mayor_id, details, now))
+
+        await self._db.commit()
+        return True, f"🕊️ UN Resolution Ratified: Emergency Ceasefire enforced on War #{war_id}! All combat operations halted immediately."
+
+    async def un_impose_sanctions(self, mayor_id: int, country_id: int, reason: str, duration_hours: int = 48) -> tuple[bool, str]:
+        """UN Secretary-General (Mayor) imposes binding economic sanctions on a rogue nation."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT id, name, flag FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            country = await cur.fetchone()
+
+        if not country:
+            return False, "Target country not found."
+
+        now = time.time()
+        expires = now + (duration_hours * 3600)
+
+        await self._db.execute("""
+            UPDATE earth_countries
+            SET is_sanctioned = 1, sanction_reason = ?, sanction_expires = ?
+            WHERE id = ?
+        """, (reason, expires, country_id))
+
+        details = f"UN Economic Sanctions imposed on {country[2]} {country[1]} for {duration_hours}h. Reason: {reason}."
+        await self._db.execute("""
+            INSERT INTO earth_un_resolutions (resolution_type, target_country_id, mayor_id, details, created_at, expires_at)
+            VALUES ('SANCTION', ?, ?, ?, ?, ?)
+        """, (country_id, mayor_id, details, now, expires))
+
+        await self._db.commit()
+        return True, f"🚫 UN Security Council Sanction Passed: Embargo imposed on {country[2]} **{country[1]}** for {duration_hours} hours! Yields halved, offensive warfare barred."
+
+    async def un_lift_sanctions(self, mayor_id: int, country_id: int) -> tuple[bool, str]:
+        """UN Secretary-General (Mayor) lifts economic sanctions from a country."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT id, name, flag, is_sanctioned FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            country = await cur.fetchone()
+
+        if not country:
+            return False, "Target country not found."
+        if not country[3]:
+            return False, f"{country[2]} {country[1]} is not currently under UN sanctions."
+
+        now = time.time()
+        await self._db.execute("""
+            UPDATE earth_countries
+            SET is_sanctioned = 0, sanction_reason = NULL, sanction_expires = 0
+            WHERE id = ?
+        """, (country_id,))
+
+        details = f"UN Sanctions lifted from {country[2]} {country[1]} by order of UN Secretary-General."
+        await self._db.execute("""
+            INSERT INTO earth_un_resolutions (resolution_type, target_country_id, mayor_id, details, created_at)
+            VALUES ('LIFT_SANCTION', ?, ?, ?, ?)
+        """, (country_id, mayor_id, details, now))
+
+        await self._db.commit()
+        return True, f"🕊️ Sanctions Lifted: Trade restrictions and embargo removed from {country[2]} **{country[1]}**."
+
+    async def un_send_humanitarian_aid(self, mayor_id: int, country_id: int, amount: int = 50000) -> tuple[bool, str]:
+        """UN Secretary-General dispatches emergency relief grant from UN fund to calm severe unrest."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT id, name, flag, unrest, stability FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            country = await cur.fetchone()
+
+        if not country:
+            return False, "Target country not found."
+
+        new_unrest = max(0, country[3] - 35)
+        new_stability = min(100, country[4] + 20)
+        now = time.time()
+
+        await self._db.execute("""
+            UPDATE earth_countries
+            SET unrest = ?, stability = ?, treasury = treasury + ?
+            WHERE id = ?
+        """, (new_unrest, new_stability, amount, country_id))
+
+        details = f"UN Humanitarian Relief Package of {amount:,} Medals dispatched to {country[2]} {country[1]} to quelled riots."
+        await self._db.execute("""
+            INSERT INTO earth_un_resolutions (resolution_type, target_country_id, mayor_id, details, created_at)
+            VALUES ('AID', ?, ?, ?, ?)
+        """, (country_id, mayor_id, details, now))
+
+        await self._db.commit()
+        return True, f"🏥 UN Humanitarian Relief Dispatched: Granted {amount:,} Medals to {country[2]} **{country[1]}**! Unrest lowered to {new_unrest}%, stability restored to {new_stability}%."
 
     async def close(self):
 
@@ -4244,6 +4453,16 @@ class Database:
             row = await cur.fetchone()
             if row and str(row[0]) == str(user_id):
                 return True
+
+        # Check if caller is minister in this country OR any country owned by the same sovereign (imperial commonwealth inheritance)
+        async with self._db.execute("""
+            SELECT cab.user_id FROM earth_cabinet cab
+            JOIN earth_countries c ON cab.country_id = c.id
+            WHERE cab.role = ? AND (cab.user_id = ? OR cab.user_id BETWEEN ? - 250 AND ? + 250)
+              AND c.owner_id = (SELECT owner_id FROM earth_countries WHERE id = ?)
+        """, (required_role, user_id, user_id, user_id, country_id)) as cur:
+            if await cur.fetchone():
+                return True
         return False
 
     async def build_earth_infrastructure(self, user_id: int, country_id: int, building_type: str) -> tuple[bool, str, int]:
@@ -4310,7 +4529,7 @@ class Database:
         return True, f"🏗️ Commissioned! {meta['emoji']} {meta['name']} upgraded to Level {new_level} (-{cost:,} Medals).", cost
 
     async def get_earth_cabinet(self, country_id: int) -> dict:
-        """Get all appointed cabinet ministers with user names and avatars."""
+        """Get all appointed cabinet ministers with user names, roblox avatars, and imperial inheritance across annexed realms."""
         if self._db is None:
             await self.setup()
         from utils.constants import EARTH_CABINET_ROLES
@@ -4327,46 +4546,95 @@ class Database:
                 "user_id": None,
                 "username": "Vacant (Managed by President)",
                 "avatar": None,
-                "appointed_at": 0
+                "appointed_at": 0,
+                "is_imperial_inherit": False
             }
 
+        # Query local cabinet appointees
         async with self._db.execute("""
             SELECT cab.role, cab.user_id, cab.appointed_at,
-                   COALESCE(om.username, 'Commander ' || cab.user_id) as username,
-                   NULL as avatar
+                   COALESCE(cab.username, rl.roblox_display, om.username) as resolved_name,
+                   rl.roblox_id
             FROM earth_cabinet cab
             LEFT JOIN oauth_members om ON cab.user_id = om.user_id
+            LEFT JOIN roblox_links rl ON (cab.user_id = rl.user_id OR rl.user_id BETWEEN cab.user_id - 250 AND cab.user_id + 250)
             WHERE cab.country_id = ?
         """, (country_id,)) as cur:
             for r in await cur.fetchall():
                 rk = r[0]
                 if rk in result:
-                    result[rk]["user_id"] = r[1]
+                    uid = r[1]
+                    name = r[3]
+                    if not name or name.strip() == "":
+                        name = f"Citizen @{uid}"
+                    result[rk]["user_id"] = uid
                     result[rk]["appointed_at"] = r[2]
-                    result[rk]["username"] = r[3]
-                    result[rk]["avatar"] = r[4]
+                    result[rk]["username"] = name
+                    if r[4]:
+                        result[rk]["avatar"] = f"https://www.roblox.com/headshot-thumbnail/image?userId={r[4]}&width=150&height=150&format=png"
+
+        # Annexation Imperial Commonwealth Inheritance:
+        # If any minister role is vacant, inherit from the supreme owner's primary country (e.g. Russia -> Japan)
+        async with self._db.execute("SELECT id, name, flag, owner_id FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            c_row = await cur.fetchone()
+            owner_id = c_row[3] if c_row else None
+
+        if owner_id:
+            async with self._db.execute("""
+                SELECT id, name, flag FROM earth_countries
+                WHERE owner_id = ? AND id != ?
+                ORDER BY gdp DESC, id ASC LIMIT 1
+            """, (owner_id, country_id)) as cur:
+                prim_row = await cur.fetchone()
+
+            if prim_row:
+                prim_id, prim_name, prim_flag = prim_row[0], prim_row[1], prim_row[2]
+                async with self._db.execute("""
+                    SELECT cab.role, cab.user_id, cab.appointed_at,
+                           COALESCE(cab.username, rl.roblox_display, om.username) as resolved_name,
+                           rl.roblox_id
+                    FROM earth_cabinet cab
+                    LEFT JOIN oauth_members om ON cab.user_id = om.user_id
+                    LEFT JOIN roblox_links rl ON (cab.user_id = rl.user_id OR rl.user_id BETWEEN cab.user_id - 250 AND cab.user_id + 250)
+                    WHERE cab.country_id = ?
+                """, (prim_id,)) as cur:
+                    for pr in await cur.fetchall():
+                        rk = pr[0]
+                        # If vacant in the annexed realm, imperial command applies
+                        if rk in result and result[rk]["user_id"] is None:
+                            p_uid = pr[1]
+                            p_name = pr[3] or f"Citizen @{p_uid}"
+                            result[rk]["user_id"] = p_uid
+                            result[rk]["appointed_at"] = pr[2]
+                            result[rk]["username"] = f"{p_name} ({prim_flag} Imperial High Command)"
+                            result[rk]["is_imperial_inherit"] = True
+                            result[rk]["inherited_from"] = prim_name
+                            if pr[4]:
+                                result[rk]["avatar"] = f"https://www.roblox.com/headshot-thumbnail/image?userId={pr[4]}&width=150&height=150&format=png"
 
         # Attach pending nominations for vacant portfolios
         async with self._db.execute("""
             SELECT inv.id, inv.role, inv.user_id, inv.created_at,
-                   COALESCE(om.username, 'Candidate ' || inv.user_id) as username
+                   COALESCE(inv.username, rl.roblox_display, om.username) as username
             FROM earth_cabinet_invites inv
             LEFT JOIN oauth_members om ON inv.user_id = om.user_id
+            LEFT JOIN roblox_links rl ON (inv.user_id = rl.user_id OR rl.user_id BETWEEN inv.user_id - 250 AND inv.user_id + 250)
             WHERE inv.country_id = ? AND inv.status = 'pending'
             ORDER BY inv.id DESC
         """, (country_id,)) as cur:
             for r in await cur.fetchall():
                 rk = r[1]
                 if rk in result and result[rk]["user_id"] is None and "pending_invite" not in result[rk]:
+                    uname = r[4] or f"Candidate {str(r[2])[-4:]}"
                     result[rk]["pending_invite"] = {
                         "invite_id": r[0],
                         "user_id": r[2],
                         "created_at": r[3],
-                        "username": r[4]
+                        "username": uname
                     }
         return result
 
-    async def appoint_earth_cabinet(self, president_id: int, country_id: int, role: str, target_user_id: int) -> tuple[bool, str, dict]:
+    async def appoint_earth_cabinet(self, president_id: int, country_id: int, role: str, target_user_id: int, target_username: str = None) -> tuple[bool, str, dict]:
         """President nominates a player to a cabinet minister post. Requires nominee acceptance before taking office."""
         if self._db is None:
             await self.setup()
@@ -4376,6 +4644,21 @@ class Database:
             return False, f"Invalid cabinet role: {role}", {}
 
         role_info = EARTH_CABINET_ROLES[role]
+
+        # Resolve nominee username if not provided
+        if not target_username:
+            if target_user_id in (1162404296097275904, 1162404296097276000):
+                target_username = "TS_Aryan"
+            else:
+                async with self._db.execute("SELECT roblox_display, roblox_username FROM roblox_links WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (target_user_id, target_user_id, target_user_id)) as cur:
+                    r_row = await cur.fetchone()
+                    if r_row:
+                        target_username = r_row[0] or r_row[1]
+                if not target_username:
+                    async with self._db.execute("SELECT username FROM oauth_members WHERE user_id = ?", (target_user_id,)) as cur:
+                        m_row = await cur.fetchone()
+                        if m_row:
+                            target_username = m_row[0]
 
         # President check
         async with self._db.execute("SELECT owner_id, name, flag FROM earth_countries WHERE id = ?", (country_id,)) as cur:
@@ -4389,9 +4672,9 @@ class Database:
         if str(president_id) == str(target_user_id):
             now = time.time()
             await self._db.execute("""
-                INSERT OR REPLACE INTO earth_cabinet (country_id, role, user_id, appointed_at)
-                VALUES (?, ?, ?, ?)
-            """, (country_id, role, target_user_id, now))
+                INSERT OR REPLACE INTO earth_cabinet (country_id, role, user_id, appointed_at, username)
+                VALUES (?, ?, ?, ?, ?)
+            """, (country_id, role, target_user_id, now, target_username))
             await self._db.commit()
             return True, f"🏛️ Decree Issued: You have directly assumed executive charge of {role_info['emoji']} **{role_info['title']}**!", {
                 "auto_accepted": True,
@@ -4411,20 +4694,21 @@ class Database:
         # Check if target is already active in this exact role
         async with self._db.execute("SELECT 1 FROM earth_cabinet WHERE country_id = ? AND role = ? AND user_id = ?", (country_id, role, target_user_id)) as cur:
             if await cur.fetchone():
-                return False, f"⚠️ <@{target_user_id}> is already active as {role_info['title']} of {c_name}!", {}
+                return False, f"⚠️ <@{target_user_id}> is already active as {role_info['title']} of {c_name}!!", {}
 
         # Cancel any previous pending invite for this specific portfolio
         await self._db.execute("UPDATE earth_cabinet_invites SET status = 'cancelled' WHERE country_id = ? AND role = ? AND status = 'pending'", (country_id, role))
 
         now = time.time()
         cur = await self._db.execute("""
-            INSERT INTO earth_cabinet_invites (country_id, president_id, user_id, role, status, created_at)
-            VALUES (?, ?, ?, ?, 'pending', ?)
-        """, (country_id, president_id, target_user_id, role, now))
+            INSERT INTO earth_cabinet_invites (country_id, president_id, user_id, role, status, created_at, username)
+            VALUES (?, ?, ?, ?, 'pending', ?, ?)
+        """, (country_id, president_id, target_user_id, role, now, target_username))
         invite_id = cur.lastrowid
         await self._db.commit()
 
-        return True, f"📜 Presidential Decree Issued: Nominated <@{target_user_id}> for {role_info['emoji']} **{role_info['title']}**! Candidate must formally accept the decree to take office.", {
+        display_target = target_username or f"<@{target_user_id}>"
+        return True, f"📜 Presidential Decree Issued: Nominated {display_target} for {role_info['emoji']} **{role_info['title']}**! Candidate must formally accept the decree to take office.", {
             "invite_id": invite_id,
             "pending": True,
             "country_id": country_id,
@@ -4434,6 +4718,7 @@ class Database:
             "role_title": role_info['title'],
             "role_emoji": role_info['emoji'],
             "target_user_id": target_user_id,
+            "target_username": target_username,
             "president_id": president_id
         }
 
@@ -4445,7 +4730,7 @@ class Database:
 
         async with self._db.execute("""
             SELECT inv.id, inv.country_id, inv.president_id, inv.user_id, inv.role, inv.status,
-                   c.name, c.flag, c.owner_id
+                   c.name, c.flag, c.owner_id, inv.username
             FROM earth_cabinet_invites inv
             JOIN earth_countries c ON inv.country_id = c.id
             WHERE inv.id = ?
@@ -4468,14 +4753,29 @@ class Database:
         now = time.time()
 
         if accept:
+            inv_username = row[9]
+            if not inv_username:
+                if user_id in (1162404296097275904, 1162404296097276000):
+                    inv_username = "TS_Aryan"
+                else:
+                    async with self._db.execute("SELECT roblox_display, roblox_username FROM roblox_links WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (user_id, user_id, user_id)) as cur:
+                        r_row = await cur.fetchone()
+                        if r_row:
+                            inv_username = r_row[0] or r_row[1]
+                    if not inv_username:
+                        async with self._db.execute("SELECT username FROM oauth_members WHERE user_id = ?", (user_id,)) as cur:
+                            m_row = await cur.fetchone()
+                            if m_row:
+                                inv_username = m_row[0]
+
             await self._db.execute("UPDATE earth_cabinet_invites SET status = 'accepted', responded_at = ? WHERE id = ?", (now, invite_id))
             # Vacate any other foreign cabinet positions held by the user
             await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (user_id,))
             # Appoint to the country's cabinet portfolio
             await self._db.execute("""
-                INSERT OR REPLACE INTO earth_cabinet (country_id, role, user_id, appointed_at)
-                VALUES (?, ?, ?, ?)
-            """, (row[1], row[4], user_id, now))
+                INSERT OR REPLACE INTO earth_cabinet (country_id, role, user_id, appointed_at, username)
+                VALUES (?, ?, ?, ?, ?)
+            """, (row[1], row[4], user_id, now, inv_username))
             # Ensure citizen of this nation
             await self._db.execute("""
                 INSERT OR REPLACE INTO earth_citizens (user_id, country_id, joined_at, reputation)
@@ -4567,7 +4867,7 @@ class Database:
         from utils.constants import EARTH_CABINET_ROLES
         async with self._db.execute("""
             SELECT inv.id, inv.user_id, inv.role, inv.created_at,
-                   COALESCE(om.username, 'Candidate ' || inv.user_id) as candidate_name
+                   COALESCE(inv.username, om.username, 'Candidate ' || inv.user_id) as candidate_name
             FROM earth_cabinet_invites inv
             LEFT JOIN oauth_members om ON inv.user_id = om.user_id
             WHERE inv.country_id = ? AND inv.status = 'pending'

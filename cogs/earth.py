@@ -863,5 +863,151 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         await interaction.followup.send(embed=embed)
 
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # 🇺🇳 UNITED NATIONS (UN) & MAYOR GLOBAL PEACEKEEPING COMMANDS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    async def _is_un_mayor(self, interaction: discord.Interaction) -> bool:
+        """Verify if caller is the active Mayor / UN Secretary-General or Server Owner."""
+        if interaction.user.id == 429350468796416013:
+            return True
+        if hasattr(interaction.user, "roles") and any(r.name == "🏛️ Mayor" for r in interaction.user.roles):
+            return True
+        if interaction.guild and interaction.guild.owner_id == interaction.user.id:
+            return True
+        curr = await self.bot.db.get_current_commander(interaction.guild_id or 0)
+        if curr and curr.get("winner_id") == interaction.user.id:
+            return True
+        return False
+
+    @earth_group.command(name="un_status", description="View United Nations (UN) Secretary-General status and active global sanctions.")
+    async def earth_un_status(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        status = await self.bot.db.get_earth_un_status()
+        mayor_id = status.get("mayor_id")
+        sanctions = status.get("active_sanctions", [])
+        ceasefires = status.get("recent_ceasefires", [])
+
+        sec_gen = f"<@{mayor_id}>" if mayor_id else "UN Security Council High Command"
+        embed = discord.Embed(
+            title="🇺🇳 United Nations Security Council • Global Peacekeeping Directorate",
+            description=(
+                f"**Secretary-General / High Office:** {sec_gen}\n"
+                f"**Mandate:** Supreme diplomatic authority to enforce ceasefires, impose economic sanctions, and dispatch humanitarian relief on Virtual Earth.\n"
+                f"**Peacekeeping Reserve:** `500,000 Medals`\n\n"
+                f"🌐 *Active International Sanctions:* **{len(sanctions)}**\n"
+                f"🕊️ *Enforced Ceasefires:* **{len(ceasefires)}**"
+            ),
+            color=0x38BDF8
+        )
+
+        if sanctions:
+            s_text = ""
+            for s in sanctions[:5]:
+                s_text += f"• {s['flag']} **{s['name']}**: *{s['reason']}* ({s['hours_left']}h left)\n"
+            embed.add_field(name="🚫 Active UN Economic Sanctions", value=s_text, inline=False)
+        else:
+            embed.add_field(name="🚫 Active UN Economic Sanctions", value="*No nations currently under international embargo.*", inline=False)
+
+        if ceasefires:
+            c_text = ""
+            for c in ceasefires[:3]:
+                c_text += f"• **War #{c['war_id']}**: {c['details']}\n"
+            embed.add_field(name="🕊️ Recent UN Armistice Decrees", value=c_text, inline=False)
+
+        embed.set_footer(text="Virtual Earth 3D • United Nations Diplomatic Suite")
+        await interaction.followup.send(embed=embed)
+
+    @earth_group.command(name="un_ceasefire", description="[Mayor / UN] Enforce an immediate binding UN Ceasefire decree halting an active war.")
+    @app_commands.describe(war_id="ID of the active war to halt")
+    async def earth_un_ceasefire(self, interaction: discord.Interaction, war_id: int):
+        await interaction.response.defer()
+        if not await self._is_un_mayor(interaction):
+            await interaction.followup.send("⛔ Supreme Authority Required: Only the UN Secretary-General (Mayor) or High Council can enforce international ceasefires.", ephemeral=True)
+            return
+
+        success, msg, res = await self.bot.db.un_issue_ceasefire(interaction.user.id, war_id)
+        if not success:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="🕊️ United Nations Emergency Ceasefire Enacted!",
+            description=(
+                f"**Issuing Authority:** UN Secretary-General {interaction.user.mention}\n"
+                f"**Active War Terminated:** #{war_id}\n\n"
+                f"{msg}"
+            ),
+            color=0x10B981
+        )
+        embed.set_footer(text="Virtual Earth 3D • UN Security Council Resolution")
+        await interaction.followup.send(embed=embed)
+
+    @earth_group.command(name="un_sanction", description="[Mayor / UN] Impose international trade embargo and warfare sanctions on a rogue country.")
+    @app_commands.describe(
+        country="Country code or name to sanction",
+        reason="Official reason for UN Security Council sanctions"
+    )
+    async def earth_un_sanction(self, interaction: discord.Interaction, country: str, reason: str):
+        await interaction.response.defer()
+        if not await self._is_un_mayor(interaction):
+            await interaction.followup.send("⛔ Supreme Authority Required: Only the UN Secretary-General (Mayor) can impose international sanctions.", ephemeral=True)
+            return
+
+        target_c = await self.bot.db.get_earth_country_by_code_or_name(country)
+        if not target_c:
+            await interaction.followup.send(f"❌ Country '{country}' not found in the global registry.", ephemeral=True)
+            return
+
+        success, msg = await self.bot.db.un_impose_sanctions(interaction.user.id, target_c["id"], reason)
+        if not success:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=f"🚫 UN Security Council Sanctions Imposed: {target_c['flag']} {target_c['name']}",
+            description=(
+                f"**Signatory Authority:** UN Secretary-General {interaction.user.mention}\n"
+                f"**Sanction Term:** 48 Hours\n"
+                f"**Official Justification:** *{reason}*\n\n"
+                f"⚠️ *Penalties Applied: National trade yields halved and all offensive warfare declarations suspended.*"
+            ),
+            color=0xEF4444
+        )
+        embed.set_footer(text="Virtual Earth 3D • United Nations Diplomatic Suite")
+        await interaction.followup.send(embed=embed)
+
+    @earth_group.command(name="un_aid", description="[Mayor / UN] Disburse 50,000 Medals in UN emergency relief to quell riots and rebuild stability.")
+    @app_commands.describe(country="Country code or name to receive humanitarian aid")
+    async def earth_un_aid(self, interaction: discord.Interaction, country: str):
+        await interaction.response.defer()
+        if not await self._is_un_mayor(interaction):
+            await interaction.followup.send("⛔ Supreme Authority Required: Only the UN Secretary-General (Mayor) can deploy UN Humanitarian Relief Grants.", ephemeral=True)
+            return
+
+        target_c = await self.bot.db.get_earth_country_by_code_or_name(country)
+        if not target_c:
+            await interaction.followup.send(f"❌ Country '{country}' not found in the global registry.", ephemeral=True)
+            return
+
+        success, msg = await self.bot.db.un_send_humanitarian_aid(interaction.user.id, target_c["id"])
+        if not success:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=f"📦 UN Humanitarian Relief Grant Delivered: {target_c['flag']} {target_c['name']}",
+            description=(
+                f"**Disbursing Authority:** UN Secretary-General {interaction.user.mention}\n"
+                f"**Relief Grant:** `50,000 Medals`\n"
+                f"**Stability Impact:** -25% Civil Unrest, All Rioting Extinguished\n\n"
+                f"{msg}"
+            ),
+            color=0x10B981
+        )
+        embed.set_footer(text="Virtual Earth 3D • UN Peacekeeping Mission")
+        await interaction.followup.send(embed=embed)
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(EarthCog(bot))
