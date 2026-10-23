@@ -407,6 +407,7 @@ class ElectionsCog(commands.Cog):
     async def election_vote(self, interaction: discord.Interaction, candidate: discord.User):
         await interaction.response.defer(ephemeral=True)
         user = interaction.user
+        guild = interaction.guild or self.bot.get_guild(MAIN_GUILD_ID)
 
         # Anti-self-vote rule
         if candidate.id == user.id:
@@ -423,12 +424,71 @@ class ElectionsCog(commands.Cog):
                 ephemeral=True
             )
 
+        # ── 🛡️ 5-LAYER ANTI-ALT ELECTION SECURITY SHIELD ──────────────────────
+
+        # Layer 1: Discord Account Age (Minimum 7 days old)
+        created_ts = user.created_at.timestamp()
+        acc_age_days = (now - created_ts) / 86400.0
+        if acc_age_days < 7.0:
+            return await interaction.followup.send(
+                f"🛡️ **Anti-Alt Protection:** Your Discord account is only **{acc_age_days*24:.1f} hours old**.\nTo prevent voter fraud, accounts must be at least **7 days old** to participate in Mayoral elections.",
+                ephemeral=True
+            )
+
+        # Layer 2: Server Membership Duration (Minimum 24 hours in server)
+        member = guild.get_member(user.id) if guild else None
+        if member and member.joined_at:
+            joined_ts = member.joined_at.timestamp()
+            membership_hours = (now - joined_ts) / 3600.0
+            if membership_hours < 24.0:
+                return await interaction.followup.send(
+                    f"🛡️ **Anti-Alt Protection:** You joined the server only **{membership_hours:.1f} hours ago**.\nNew members must be in the server for at least **24 hours** to vote in elections.",
+                    ephemeral=True
+                )
+
+        # Layer 3: Server Activity Requirement (Level 1 or 15+ messages)
+        gid = guild.id if guild else MAIN_GUILD_ID
+        user_data = await self.bot.db.get_user(user.id, gid)
+        user_msgs = user_data.get("messages", 0) if user_data else 0
+        user_lvl = user_data.get("level", 0) if user_data else 0
+        if user_lvl < 1 and user_msgs < 15:
+            return await interaction.followup.send(
+                f"🛡️ **Civic Activity Required:** You currently have **{user_msgs} chat messages** (Level {user_lvl}).\nTo ensure elections are decided by active citizens, you must reach **Level 1** (or 15 chat messages) to cast a ballot.",
+                ephemeral=True
+            )
+
+        # Layer 4: Linked Roblox Account Verification (/verify)
+        rlink = await self.bot.db.get_roblox_link(user.id)
+        if not rlink or not rlink.get("roblox_id"):
+            return await interaction.followup.send(
+                "🛡️ **Voter Verification Required:** You must link your Roblox account with `/verify <username>` before you can vote in civic elections.",
+                ephemeral=True
+            )
+
+        # Layer 5: Anti-Duplicate Roblox Account Check (1 vote per unique citizen)
+        roblox_id = rlink["roblox_id"]
+        roblox_name = rlink.get("roblox_username", "Citizen")
+        has_roblox_voted = await self.bot.db.has_roblox_voted(ele["id"], roblox_id)
+        if has_roblox_voted:
+            if await self.bot.db.has_user_voted(ele["id"], user.id):
+                return await interaction.followup.send(
+                    "❌ You have already cast your ballot in this election! Only 1 vote per citizen.",
+                    ephemeral=True
+                )
+            else:
+                return await interaction.followup.send(
+                    f"🛡️ **Duplicate Account Detected:** The linked Roblox account **@{roblox_name}** has already been used by another Discord account to vote in this election!\nMultiple votes from the same citizen are strictly forbidden.",
+                    ephemeral=True
+                )
+
+        # ─────────────────────────────────────────────────────────────────────
+
         success, msg = await self.bot.db.vote_candidate(ele["id"], user.id, candidate.id)
         if not success:
             return await interaction.followup.send(f"❌ {msg}", ephemeral=True)
 
         await interaction.followup.send(
-            f"✅ **Ballot Cast!** You have successfully voted for {candidate.mention} as Mayor! Thanks for voting!",
+            f"✅ **Ballot Cast!** You have successfully voted for {candidate.mention} as Mayor! Verified Citizen: **@{roblox_name}**.",
             ephemeral=True
         )
 
@@ -501,6 +561,99 @@ class ElectionsCog(commands.Cog):
                 "✅ **Election Concluded!** No candidates had registered; the mayoral seat remains vacant.",
                 ephemeral=False
             )
+
+    @election.command(name="audit", description="[Admin/Staff] Audit active election votes to detect alts and fraudulent ballots")
+    @app_commands.default_permissions(manage_guild=True)
+    async def election_audit(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.manage_guild and not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("⛔ You do not have permission to audit elections.", ephemeral=True)
+
+        await interaction.response.defer()
+        ele = await self._resolve_election(interaction)
+        if not ele:
+            return await interaction.followup.send("⚠️ No election found.", ephemeral=True)
+
+        audit = await self.bot.db.audit_election_votes(ele["id"])
+        cands = await self.bot.db.get_election_candidates(ele["id"])
+
+        desc_lines = [
+            f"**Election Cycle #{ele['id']}**",
+            f"• **Total Ballots Cast:** `{audit['total_votes']}`",
+            f"• 🛡️ **Verified Legitimate Votes:** `{audit['legitimate_count']}`",
+            f"• 🚨 **Flagged Alt / Inactive Votes:** `{audit['flagged_count']}`",
+            "",
+            "### 📊 Recount Breakdown by Candidate:"
+        ]
+
+        embed = discord.Embed(
+            title="🔍 ELECTION BALLOT SECURITY AUDIT REPORT",
+            description="\n".join(desc_lines),
+            color=0xE74C3C if audit['flagged_count'] > 0 else 0x2ECC71
+        )
+
+        for c in cands:
+            cid = c["candidate_id"]
+            user = self.bot.get_user(cid)
+            name = user.display_name if user else f"Candidate {cid}"
+            raw = audit["raw_totals"].get(cid, 0)
+            legit = audit["legit_totals"].get(cid, 0)
+            flagged_cnt = audit["flagged_totals"].get(cid, 0)
+            embed.add_field(
+                name=f"👤 {name}",
+                value=f"• **Raw Votes:** `{raw}`\n• **Clean Verified:** `{legit}`\n• **Flagged Alts:** `{flagged_cnt}`",
+                inline=True
+            )
+
+        if audit["flagged_count"] > 0:
+            embed.set_footer(text="Run /election purge_alts to remove fraudulent votes and restore election integrity.")
+        else:
+            embed.set_footer(text="Election integrity 100% clean. No alt accounts detected.")
+
+        await interaction.followup.send(embed=embed)
+
+    @election.command(name="purge_alts", description="[Admin/Staff] Automatically purge flagged alt votes and restore accurate candidate totals")
+    @app_commands.default_permissions(manage_guild=True)
+    async def election_purge_alts(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.manage_guild and not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("⛔ You do not have permission to purge alt votes.", ephemeral=True)
+
+        await interaction.response.defer()
+        ele = await self._resolve_election(interaction)
+        if not ele:
+            return await interaction.followup.send("⚠️ No election found.", ephemeral=True)
+
+        audit = await self.bot.db.audit_election_votes(ele["id"])
+        flagged = audit.get("flagged_voters", [])
+        if not flagged:
+            return await interaction.followup.send("✅ **Clean Ballot Box:** No alt votes were detected to purge!", ephemeral=True)
+
+        flagged_ids = [f["voter_id"] for f in flagged]
+        purged_count, removed_by_cand = await self.bot.db.purge_alt_votes(ele["id"], flagged_ids)
+
+        cands = await self.bot.db.get_election_candidates(ele["id"])
+        recount_lines = []
+        for c in cands:
+            cid = c["candidate_id"]
+            user = self.bot.get_user(cid)
+            name = user.display_name if user else f"Candidate {cid}"
+            rem = removed_by_cand.get(cid, 0)
+            recount_lines.append(f"• **{name}:** `{c['votes']}` votes *(-{rem} alts removed)*")
+
+        desc = (
+            f"**Anti-Fraud Election Commission Action**\n\n"
+            f"Successfully purged **`{purged_count}` fraudulent/alt ballots** from Election #{ele['id']}.\n\n"
+            f"### 🗳️ Official Verified Standings:\n" +
+            "\n".join(recount_lines) +
+            "\n\n*All future votes are protected by the 5-Layer Anti-Alt Security Shield.*"
+        )
+
+        embed = discord.Embed(
+            title="🛡️ ELECTION INTEGRITY ENFORCED: ALTS PURGED",
+            description=desc,
+            color=0x2ECC71
+        )
+        embed.set_footer(text="Phantom Regiment High Command • Fair Democratic Governance")
+        await interaction.followup.send(embed=embed)
 
     @election.command(name="broadcast_dm", description="[Admin Only] Safely DM server members with link to election announcement")
     @app_commands.default_permissions(administrator=True)

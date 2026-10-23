@@ -25,6 +25,14 @@
                         48-HR ELECTION: <strong class="text-blue">VOTING LIVE</strong> ({{ time_remaining_str }} remaining)
                     </span>
                 </div>
+                {% if session.get('user') and (session['user'].get('is_owner') or session['user'].get('is_manager')) %}
+                <button class="btn btn-sm" onclick="handleAdminPurgeAlts()" style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.5); color: #fcd34d; font-weight: 800; border-radius: 999px; padding: 0.45rem 1rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    🛡️ Audit & Purge Alts
+                </button>
+                <button class="btn btn-sm" onclick="handleAdminEndElection()" style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; font-weight: 800; border-radius: 999px; padding: 0.45rem 1rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    ⏹️ Force Conclude Election Now
+                </button>
+                {% endif %}
                 {% elif mayor_info %}
                 <div style="display: inline-flex; align-items: center; gap: 0.65rem; background: rgba(241, 196, 15, 0.12); border: 1px solid rgba(241, 196, 15, 0.4); padding: 0.5rem 1.15rem; border-radius: 999px;">
                     <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f1c40f; box-shadow: 0 0 10px #f1c40f;"></span>
@@ -295,6 +303,24 @@
 </div>
 
 <script>
+async function handleAdminPurgeAlts() {
+    if (!confirm("Run Anti-Alt Audit & Purge?\n\nThis will inspect all ballots against the 5-Layer Security Shield (Discord account age >= 7d, server activity >= Level 1 / 15 msgs, verified unique Roblox account) and automatically purge all invalid alt votes.")) {
+        return;
+    }
+    try {
+        const res = await fetch("/api/admin/election/purge_alts", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+            alert(data.message || "Audit complete!");
+            window.location.reload();
+        } else {
+            alert("Error: " + (data.message || "Failed to purge alts."));
+        }
+    } catch (err) {
+        alert("Network error: " + err.message);
+    }
+}
+
 async function handleAdminEndElection() {
     if (!confirm("Are you sure you want to conclude the election early?\n\nThis will close voting immediately, tally ballots, crown the candidate with the most votes as Mayor for 14 days, and announce the victor in Discord.")) {
         return;

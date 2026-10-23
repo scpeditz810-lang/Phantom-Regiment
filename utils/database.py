@@ -3107,6 +3107,142 @@ class Database:
         ) as cur:
             return bool(await cur.fetchone())
 
+    async def has_roblox_voted(self, election_id: int, roblox_id: int) -> bool:
+        """Check if a linked Roblox account has already cast a ballot in this election."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute(
+            """
+            SELECT 1 FROM election_votes ev
+            JOIN roblox_links rl ON ev.voter_id = rl.user_id
+            WHERE ev.election_id = ? AND rl.roblox_id = ?
+            """,
+            (election_id, roblox_id)
+        ) as cur:
+            return bool(await cur.fetchone())
+
+    async def audit_election_votes(self, election_id: int, min_age_days: float = 7.0, min_msgs: int = 15, min_level: int = 1) -> dict:
+        """Audit all votes cast in an election to identify alts and fraudulent votes."""
+        if self._db is None:
+            await self.setup()
+        
+        async with self._db.execute("SELECT * FROM election_votes WHERE election_id = ?", (election_id,)) as cur:
+            votes = [dict(r) for r in await cur.fetchall()]
+
+        DISCORD_EPOCH = 1420070400000
+        legitimate = []
+        flagged = []
+        seen_roblox_ids = {}
+
+        for v in votes:
+            uid = v["voter_id"]
+            cid = v["candidate_id"]
+            v_time = v["voted_at"]
+
+            # Discord account age
+            created_ts = ((uid >> 22) + DISCORD_EPOCH) / 1000.0
+            age_days = (v_time - created_ts) / 86400.0
+
+            # Leveling / activity check
+            async with self._db.execute("SELECT messages, level FROM users WHERE user_id = ?", (uid,)) as ucur:
+                urow = await ucur.fetchone()
+            msgs = urow[0] if urow else 0
+            lvl = urow[1] if urow else 0
+
+            # Roblox verification check
+            async with self._db.execute("SELECT roblox_id, roblox_username FROM roblox_links WHERE user_id = ?", (uid,)) as rcur:
+                rrow = await rcur.fetchone()
+            rid = rrow[0] if rrow else None
+            ruser = rrow[1] if rrow else None
+
+            reasons = []
+            if age_days < min_age_days:
+                reasons.append(f"Account age < {int(min_age_days)}d ({age_days*24:.1f}h)")
+            if msgs < min_msgs and lvl < min_level:
+                reasons.append(f"Inactive citizen (msgs: {msgs}, lvl: {lvl})")
+            if not rid:
+                reasons.append("Unverified Roblox")
+            elif rid in seen_roblox_ids:
+                reasons.append(f"Duplicate Roblox @{ruser} (already voted with voter {seen_roblox_ids[rid]})")
+            else:
+                seen_roblox_ids[rid] = uid
+
+            item = {
+                "voter_id": uid,
+                "candidate_id": cid,
+                "voted_at": v_time,
+                "roblox_username": ruser,
+                "messages": msgs,
+                "level": lvl,
+                "account_age_days": round(age_days, 1),
+                "reasons": reasons
+            }
+
+            if reasons:
+                flagged.append(item)
+            else:
+                legitimate.append(item)
+
+        raw_totals = {}
+        legit_totals = {}
+        flagged_totals = {}
+        for v in votes:
+            raw_totals[v["candidate_id"]] = raw_totals.get(v["candidate_id"], 0) + 1
+        for v in legitimate:
+            legit_totals[v["candidate_id"]] = legit_totals.get(v["candidate_id"], 0) + 1
+        for v in flagged:
+            flagged_totals[v["candidate_id"]] = flagged_totals.get(v["candidate_id"], 0) + 1
+
+        return {
+            "total_votes": len(votes),
+            "legitimate_count": len(legitimate),
+            "flagged_count": len(flagged),
+            "raw_totals": raw_totals,
+            "legit_totals": legit_totals,
+            "flagged_totals": flagged_totals,
+            "flagged_voters": flagged
+        }
+
+    async def purge_alt_votes(self, election_id: int, flagged_voter_ids: list[int]) -> tuple[int, dict]:
+        """Purge flagged alt votes and recalculate candidate counts."""
+        if self._db is None:
+            await self.setup()
+        if not flagged_voter_ids:
+            return 0, {}
+
+        placeholders = ",".join("?" for _ in flagged_voter_ids)
+        removed_by_cand = {}
+        async with self._db.execute(
+            f"SELECT candidate_id, COUNT(*) as cnt FROM election_votes WHERE election_id = ? AND voter_id IN ({placeholders}) GROUP BY candidate_id",
+            [election_id] + list(flagged_voter_ids)
+        ) as cur:
+            for row in await cur.fetchall():
+                removed_by_cand[row[0]] = row[1]
+
+        await self._db.execute(
+            f"DELETE FROM election_votes WHERE election_id = ? AND voter_id IN ({placeholders})",
+            [election_id] + list(flagged_voter_ids)
+        )
+
+        # Recalculate candidate votes
+        async with self._db.execute(
+            "SELECT candidate_id, COUNT(*) as cnt FROM election_votes WHERE election_id = ? GROUP BY candidate_id",
+            (election_id,)
+        ) as cur:
+            actual_counts = dict(await cur.fetchall())
+
+        cands = await self.get_election_candidates(election_id)
+        for c in cands:
+            cid = c["candidate_id"]
+            new_count = actual_counts.get(cid, 0)
+            await self._db.execute(
+                "UPDATE election_candidates SET votes = ? WHERE election_id = ? AND candidate_id = ?",
+                (new_count, election_id, cid)
+            )
+
+        await self._db.commit()
+        return len(flagged_voter_ids), removed_by_cand
+
     async def vote_candidate(self, election_id: int, voter_id: int, candidate_id: int) -> tuple[bool, str]:
         """Cast a ballot. Strictly enforces: cannot vote for self, only 1 vote per member."""
         if self._db is None:

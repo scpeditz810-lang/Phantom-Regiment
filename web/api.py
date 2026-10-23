@@ -947,6 +947,42 @@ def admin_restore_members():
     })
 
 
+@api_bp.route("/admin/election/audit", methods=["GET"])
+@admin_required
+def admin_audit_election():
+    db = get_db()
+    from web.auth import get_oauth_config
+    cfg = get_oauth_config()
+    gid = cfg["guild_id"]
+    active_ele = run_async(db.get_active_election(gid))
+    if not active_ele:
+        return jsonify({"success": False, "message": "No active election running."}), 400
+    audit = run_async(db.audit_election_votes(active_ele["id"]))
+    return jsonify({"success": True, "audit": audit})
+
+@api_bp.route("/admin/election/purge_alts", methods=["POST"])
+@admin_required
+def admin_purge_election_alts():
+    db = get_db()
+    from web.auth import get_oauth_config
+    cfg = get_oauth_config()
+    gid = cfg["guild_id"]
+    active_ele = run_async(db.get_active_election(gid))
+    if not active_ele:
+        return jsonify({"success": False, "message": "No active election running."}), 400
+    audit = run_async(db.audit_election_votes(active_ele["id"]))
+    flagged = audit.get("flagged_voters", [])
+    if not flagged:
+        return jsonify({"success": True, "message": "No alt votes detected to purge.", "purged_count": 0})
+    flagged_ids = [f["voter_id"] for f in flagged]
+    purged_count, removed_by_cand = run_async(db.purge_alt_votes(active_ele["id"], flagged_ids))
+    return jsonify({
+        "success": True,
+        "message": f"Successfully purged {purged_count} alt votes!",
+        "purged_count": purged_count,
+        "removed_by_cand": removed_by_cand
+    })
+
 @api_bp.route("/admin/election/end", methods=["POST"])
 @admin_required
 def admin_end_election():
