@@ -615,8 +615,10 @@ body {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let scene, camera, renderer, controls;
-let earthMesh, atmosphereMesh;
+let earthGroup, earthMesh, cloudsMesh, atmosphereMesh, innerAtmosMesh;
 let countryPinsGroup, warArcsGroup, tradeRoutesGroup;
+let isUserInteracting = false;
+let userInteractionTimeout = null;
 let countriesData = [];
 let warsData = [];
 let tradeRoutesData = [];
@@ -638,60 +640,159 @@ function init3DWorld() {
     camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 2000);
     camera.position.set(0, 35, 135);
 
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+    // High performance WebGL Renderer with ACES filmic tone mapping
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(container.clientWidth, container.clientHeight);
+    if (renderer.toneMapping !== undefined) {
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+    }
 
     // Orbit Controls
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 60;
-    controls.maxDistance = 220;
+    controls.minDistance = 58;
+    controls.maxDistance = 240;
     controls.rotateSpeed = 0.65;
     controls.zoomSpeed = 0.85;
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    controls.addEventListener("start", () => {
+        isUserInteracting = true;
+        if (userInteractionTimeout) clearTimeout(userInteractionTimeout);
+    });
+    controls.addEventListener("end", () => {
+        if (userInteractionTimeout) clearTimeout(userInteractionTimeout);
+        userInteractionTimeout = setTimeout(() => {
+            isUserInteracting = false;
+        }, 2200);
+    });
+
+    // Cinematic Space Lighting
+    // Ambient light - deep space navy preserves shadow contrast while keeping night-side landmasses legible
+    const ambientLight = new THREE.AmbientLight(0x1a243b, 0.45);
     scene.add(ambientLight);
 
-    const sunLight = new THREE.DirectionalLight(0xffffff, 1.25);
-    sunLight.position.set(150, 80, 120);
+    // Main key Sun light - crisp directional sunlight from side-top
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    sunLight.position.set(160, 65, 110);
     scene.add(sunLight);
+
+    // Earthshine rim fill - subtle cyan scattering light from opposite angle
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.35);
+    rimLight.position.set(-160, -40, -100);
+    scene.add(rimLight);
 
     // Starfield Background
     createStarfield();
 
-    // Earth Sphere with Procedural High-Res Texture
+    // Main Earth Group - holds earth, clouds, inner atmosphere, pins, arcs & routes for unified rotation
+    earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+
+    // Texture Loader with NASA Blue Marble Assets
+    const textureLoader = new THREE.TextureLoader();
+    const dayMap = textureLoader.load("{{ url_for('static', filename='img/earth_day.jpg') }}");
+    const normalMap = textureLoader.load("{{ url_for('static', filename='img/earth_normal.jpg') }}");
+    const specularMap = textureLoader.load("{{ url_for('static', filename='img/earth_specular.jpg') }}");
+    const cloudsMap = textureLoader.load("{{ url_for('static', filename='img/earth_clouds.png') }}");
+
+    dayMap.generateMipmaps = true;
+    dayMap.minFilter = THREE.LinearMipmapLinearFilter;
+    dayMap.magFilter = THREE.LinearFilter;
+
+    // 1. Earth Surface Mesh (NASA Blue Marble + Elevation Normal Map + Specular Ocean Reflection)
     const earthGeo = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
-    const earthTexture = createProceduralEarthTexture();
     const earthMat = new THREE.MeshPhongMaterial({
-        map: earthTexture,
-        shininess: 25,
-        specular: new THREE.Color(0x1e3a8a)
+        map: dayMap,
+        normalMap: normalMap,
+        normalScale: new THREE.Vector2(0.85, 0.85),
+        specularMap: specularMap,
+        specular: new THREE.Color(0x5599cc),
+        shininess: 32,
+        color: 0xffffff
     });
     earthMesh = new THREE.Mesh(earthGeo, earthMat);
-    scene.add(earthMesh);
+    earthGroup.add(earthMesh);
 
-    // Atmospheric Glow
-    const atmosGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.025, 64, 64);
-    const atmosMat = new THREE.MeshBasicMaterial({
-        color: 0x38bdf8,
+    // 2. Inner Atmospheric Rayleigh Horizon Scattering Shell
+    const innerAtmosGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.003, 64, 64);
+    const innerAtmosMat = new THREE.ShaderMaterial({
+        vertexShader: `
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+                vPosition = mvPos.xyz;
+                gl_Position = projectionMatrix * mvPos;
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            void main() {
+                vec3 viewDir = normalize(-vPosition);
+                float rim = 1.0 - max(0.0, dot(viewDir, vNormal));
+                float alpha = pow(rim, 3.2) * 0.72;
+                gl_FragColor = vec4(0.24, 0.68, 1.0, alpha);
+            }
+        `,
+        blending: THREE.AdditiveBlending,
+        side: THREE.FrontSide,
         transparent: true,
-        opacity: 0.12,
-        side: THREE.BackSide
+        depthWrite: false
     });
-    atmosphereMesh = new THREE.Mesh(atmosGeo, atmosMat);
+    innerAtmosMesh = new THREE.Mesh(innerAtmosGeo, innerAtmosMat);
+    earthGroup.add(innerAtmosMesh);
+
+    // 3. Realistic Dynamic Cloud Layer (Floating above terrain with independent rotation)
+    const cloudsGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.011, 64, 64);
+    const cloudsMat = new THREE.MeshStandardMaterial({
+        map: cloudsMap,
+        transparent: true,
+        opacity: 0.82,
+        roughness: 0.9,
+        metalness: 0.0,
+        depthWrite: false
+    });
+    cloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat);
+    earthGroup.add(cloudsMesh);
+
+    // 4. Outer Atmospheric Luminous Glow Halo (Radiates out into deep space)
+    const outerAtmosGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.10, 64, 64);
+    const outerAtmosMat = new THREE.ShaderMaterial({
+        vertexShader: `
+            varying vec3 vNormal;
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vNormal;
+            void main() {
+                float intensity = pow(0.68 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.8);
+                intensity = clamp(intensity, 0.0, 1.0);
+                gl_FragColor = vec4(0.22, 0.66, 1.0, 1.0) * intensity * 0.95;
+            }
+        `,
+        blending: THREE.AdditiveBlending,
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false
+    });
+    atmosphereMesh = new THREE.Mesh(outerAtmosGeo, outerAtmosMat);
     scene.add(atmosphereMesh);
 
-    // Groups
+    // Interactive Marker Groups (Attached to earthGroup for synchronized rotation)
     countryPinsGroup = new THREE.Group();
     warArcsGroup = new THREE.Group();
     tradeRoutesGroup = new THREE.Group();
-    scene.add(countryPinsGroup);
-    scene.add(warArcsGroup);
-    scene.add(tradeRoutesGroup);
+    earthGroup.add(countryPinsGroup);
+    earthGroup.add(warArcsGroup);
+    earthGroup.add(tradeRoutesGroup);
 
     // Events
     window.addEventListener("resize", onWindowResize);
@@ -702,72 +803,36 @@ function init3DWorld() {
 }
 
 function createStarfield() {
-    const starCount = 1200;
+    const starCount = 2000;
     const starGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount * 3; i += 3) {
-        positions[i] = (Math.random() - 0.5) * 1600;
-        positions[i + 1] = (Math.random() - 0.5) * 1600;
-        positions[i + 2] = (Math.random() - 0.5) * 1600;
+    const colors = new Float32Array(starCount * 3);
+
+    for (let i = 0; i < starCount; i++) {
+        const i3 = i * 3;
+        positions[i3] = (Math.random() - 0.5) * 1800;
+        positions[i3 + 1] = (Math.random() - 0.5) * 1800;
+        positions[i3 + 2] = (Math.random() - 0.5) * 1800;
+
+        const roll = Math.random();
+        if (roll < 0.65) {
+            colors[i3] = 0.92; colors[i3 + 1] = 0.95; colors[i3 + 2] = 1.0;
+        } else if (roll < 0.85) {
+            colors[i3] = 1.0; colors[i3 + 1] = 0.88; colors[i3 + 2] = 0.75;
+        } else {
+            colors[i3] = 0.55; colors[i3 + 1] = 0.8; colors[i3 + 2] = 1.0;
+        }
     }
     starGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const starMat = new THREE.PointsMaterial({ color: 0x94a3b8, size: 1.2, transparent: true, opacity: 0.7 });
+    starGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    const starMat = new THREE.PointsMaterial({
+        size: 1.25,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.85
+    });
     const stars = new THREE.Points(starGeo, starMat);
     scene.add(stars);
-}
-
-function createProceduralEarthTexture() {
-    const canvas = document.createElement("canvas");
-    canvas.width = 2048;
-    canvas.height = 1024;
-    const ctx = canvas.getContext("2d");
-
-    // Deep ocean base
-    const grad = ctx.createLinearGradient(0, 0, 0, 1024);
-    grad.addColorStop(0, "#081326");
-    grad.addColorStop(0.5, "#0b1d3a");
-    grad.addColorStop(1, "#081326");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 2048, 1024);
-
-    // Lat/Lng Coordinate Grid
-    ctx.strokeStyle = "rgba(56, 189, 248, 0.08)";
-    ctx.lineWidth = 1;
-    for (let x = 0; x <= 2048; x += 128) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, 1024);
-        ctx.stroke();
-    }
-    for (let y = 0; y <= 1024; y += 64) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(2048, y);
-        ctx.stroke();
-    }
-
-    // Stylized Continental Landmasses
-    ctx.fillStyle = "#1e293b";
-    ctx.strokeStyle = "#38bdf8";
-    ctx.lineWidth = 1.5;
-
-    function drawLand(cx, cy, rx, ry) {
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-    }
-
-    drawLand(450, 320, 240, 140);  // North America
-    drawLand(600, 680, 150, 220);  // South America
-    drawLand(1250, 280, 420, 170); // Eurasia
-    drawLand(1450, 420, 260, 150); // East Asia
-    drawLand(1280, 480, 120, 100); // India
-    drawLand(1050, 560, 180, 230); // Africa
-    drawLand(1650, 720, 160, 110); // Australia
-    drawLand(1024, 980, 850, 50);  // Antarctica
-
-    return new THREE.CanvasTexture(canvas);
 }
 
 function latLngToVector3(lat, lng, radius) {
@@ -788,7 +853,7 @@ function renderCountryPins() {
     countriesData.forEach(c => {
         if (!shouldShowCountry(c)) return;
 
-        const pos = latLngToVector3(c.lat, c.lng, GLOBE_RADIUS);
+        const pos = latLngToVector3(c.lat, c.lng, GLOBE_RADIUS * 1.014);
 
         let color = 0x94a3b8;
         if (userCountry && userCountry.id === c.id) color = 0x10b981;
@@ -853,8 +918,8 @@ function renderWarTrajectories() {
     }
 
     warsData.forEach(w => {
-        const vAtk = latLngToVector3(w.atk_lat, w.atk_lng, GLOBE_RADIUS);
-        const vDfn = latLngToVector3(w.dfn_lat, w.dfn_lng, GLOBE_RADIUS);
+        const vAtk = latLngToVector3(w.atk_lat, w.atk_lng, GLOBE_RADIUS * 1.014);
+        const vDfn = latLngToVector3(w.dfn_lat, w.dfn_lng, GLOBE_RADIUS * 1.014);
 
         const vMid = vAtk.clone().add(vDfn).multiplyScalar(0.5);
         const distance = vAtk.distanceTo(vDfn);
@@ -881,8 +946,8 @@ function renderOceanTradeRoutes() {
     }
 
     tradeRoutesData.forEach(tr => {
-        const vA = latLngToVector3(tr.a_lat, tr.a_lng, GLOBE_RADIUS);
-        const vB = latLngToVector3(tr.b_lat, tr.b_lng, GLOBE_RADIUS);
+        const vA = latLngToVector3(tr.a_lat, tr.a_lng, GLOBE_RADIUS * 1.014);
+        const vB = latLngToVector3(tr.b_lat, tr.b_lng, GLOBE_RADIUS * 1.014);
 
         const vMid = vA.clone().add(vB).multiplyScalar(0.5);
         const dist = vA.distanceTo(vB);
@@ -926,15 +991,19 @@ function setEarthFilter(filterKey, btn) {
 }
 
 function flyToCountry(c) {
-    const targetPos = latLngToVector3(c.lat, c.lng, 125);
+    if (!earthGroup) return;
+    const localPos = latLngToVector3(c.lat, c.lng, 1);
+    const currentRot = earthGroup.rotation.y;
+    const worldNorm = localPos.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), currentRot);
+    const targetPos = worldNorm.clone().multiplyScalar(122);
+
     new TWEEN.Tween(camera.position)
         .to({ x: targetPos.x, y: targetPos.y, z: targetPos.z }, 1200)
         .easing(TWEEN.Easing.Cubic.Out)
         .start();
 
-    const lookTarget = latLngToVector3(c.lat, c.lng, GLOBE_RADIUS);
     new TWEEN.Tween(controls.target)
-        .to({ x: lookTarget.x, y: lookTarget.y, z: lookTarget.z }, 1200)
+        .to({ x: 0, y: 0, z: 0 }, 1200)
         .easing(TWEEN.Easing.Cubic.Out)
         .start();
 }
@@ -980,9 +1049,11 @@ function animate() {
     TWEEN.update();
     controls.update();
 
-    if (!controls.state || controls.state === -1) {
-        earthMesh.rotation.y += 0.0004;
-        atmosphereMesh.rotation.y += 0.0004;
+    if (!isUserInteracting && earthGroup) {
+        earthGroup.rotation.y += 0.00035;
+    }
+    if (cloudsMesh) {
+        cloudsMesh.rotation.y += 0.0002;
     }
 
     warArcsGroup.children.forEach(child => {
