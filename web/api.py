@@ -1928,3 +1928,91 @@ def api_earth_members():
     oauth_m = run_async(db.get_all_oauth_members())
     result = [{"user_id": m["user_id"], "username": m.get("username", f"Member {m['user_id']}")} for m in oauth_m]
     return jsonify(result)
+
+
+@api_bp.route("/earth/join", methods=["POST"])
+@login_required
+def api_earth_join():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Country ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.join_earth_country(user_id, country_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/leave", methods=["POST"])
+@login_required
+def api_earth_leave():
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.leave_earth_country(user_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/citizens")
+def api_earth_citizens():
+    try:
+        country_id = int(request.args.get("country_id", 0))
+    except (ValueError, TypeError):
+        return jsonify([]), 400
+    db = get_db()
+    citizens = run_async(db.get_earth_country_citizens(country_id))
+    return jsonify(citizens)
+
+@api_bp.route("/earth/captured_spies")
+@login_required
+def api_earth_captured_spies():
+    try:
+        country_id = int(request.args.get("country_id", 0))
+    except (ValueError, TypeError):
+        return jsonify([]), 400
+    db = get_db()
+    spies = run_async(db.get_captured_foreign_spies(country_id))
+    return jsonify(spies)
+
+@api_bp.route("/earth/spy/interrogate", methods=["POST"])
+@login_required
+def api_earth_spy_interrogate():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        spy_id = int(data.get("spy_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, intel = run_async(db.interrogate_captured_spy(user_id, country_id, spy_id))
+    return jsonify({"success": success, "message": msg, "intel": intel}), 200 if success else 400
+
+@api_bp.route("/earth/spy/execute", methods=["POST"])
+@login_required
+def api_earth_spy_execute():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        spy_id = int(data.get("spy_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.execute_captured_spy(user_id, country_id, spy_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/counter_sweep", methods=["POST"])
+@login_required
+def api_earth_counter_sweep():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Country ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, report = run_async(db.counter_intel_sweep(user_id, country_id))
+    return jsonify({"success": success, "message": msg, "report": report}), 200 if success else 400

@@ -634,6 +634,14 @@ class Database:
                 FOREIGN KEY(country_id) REFERENCES earth_countries(id)
             );
 
+            CREATE TABLE IF NOT EXISTS earth_citizens (
+                user_id INTEGER PRIMARY KEY,
+                country_id INTEGER NOT NULL,
+                joined_at REAL NOT NULL,
+                reputation INTEGER DEFAULT 100,
+                FOREIGN KEY(country_id) REFERENCES earth_countries(id)
+            );
+
             CREATE TABLE IF NOT EXISTS earth_spies (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 owner_country_id INTEGER NOT NULL,
@@ -4148,6 +4156,15 @@ class Database:
                 c["role_title"] = EARTH_CABINET_ROLES.get(row[1], {}).get("title", "Cabinet Minister")
                 return c
 
+        # 3. Check if Registered Citizen
+        async with self._db.execute("SELECT country_id FROM earth_citizens WHERE user_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+            if row:
+                c = await self.get_earth_country(row[0])
+                c["user_role"] = "citizen"
+                c["role_title"] = "Citizen & Resident"
+                return c
+
         return None
 
     async def get_country_buildings(self, country_id: int) -> list[dict]:
@@ -4536,9 +4553,20 @@ class Database:
 
         async with self._db.execute("SELECT * FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
             row = await cur.fetchone()
-            if not row:
-                return 0, "You do not currently lead a sovereign country."
-            c = dict(row)
+            if row:
+                c = dict(row)
+                is_ruler = True
+            else:
+                is_ruler = False
+
+        if not is_ruler:
+            user_country = await self.get_user_earth_country(user_id)
+            if not user_country:
+                return 0, "You do not belong to a sovereign nation! You can buy/found a country or join an existing one as a citizen."
+            c = user_country
+            stipend = 3500 if c.get("user_role") == "citizen" else 8500
+            await self.add_medals(user_id, stipend)
+            return stipend, f"?? National Citizen Stipend Harvested! Received +{stipend:,} Medals from {c['flag']} {c['name']}." 
 
         now = time.time()
         last_claim = c.get("last_yield_claim", 0) or 0
@@ -4802,7 +4830,7 @@ class Database:
 
         if roll < capture_risk:
             # SPY CAUGHT!
-            await self._db.execute("UPDATE earth_spies SET status = 'captured' WHERE id = ?", (spy_id,))
+            await self._db.execute("UPDATE earth_spies SET status = 'captured', target_country_id = ? WHERE id = ?", (target_country_id, spy_id))
             await self._db.commit()
 
             # Victim receives urgent security bulletin with Casus Belli
@@ -5370,3 +5398,170 @@ class Database:
             ORDER BY o.created_at DESC
         """, (user_id, user_id)) as cur:
             return [dict(r) for r in await cur.fetchall()]
+
+    # ??? Citizenship & Allegiance ?????????????????????????????????????????????
+
+    async def join_earth_country(self, user_id: int, country_id: int) -> tuple[bool, str]:
+        """Pledge allegiance and join an existing sovereign nation as an official citizen."""
+        if self._db is None:
+            await self.setup()
+
+        # Check if already President
+        async with self._db.execute("SELECT id, name FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
+            r = await cur.fetchone()
+            if r:
+                return False, f"? You are the Supreme Sovereign of {r[1]}! You must abdicate or sell your country before pledging allegiance to another realm."
+
+        # Fetch target country
+        async with self._db.execute("SELECT id, name, flag, owner_id FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Target sovereign country not found."
+            c_name = row[1]
+            c_flag = row[2]
+
+        now = time.time()
+        await self._db.execute("""
+            INSERT OR REPLACE INTO earth_citizens (user_id, country_id, joined_at)
+            VALUES (?, ?, ?)
+        """, (user_id, country_id, now))
+        # Remove from cabinet of any other country
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? AND country_id != ?", (user_id, country_id))
+        await self._db.commit()
+
+        return True, f"??? Allegiance Pledged! You are now an official citizen of {c_flag} **{c_name}**. The President can appoint you as Prime Minister, Defense General, Diplomat, or Economy Director!"
+
+    async def leave_earth_country(self, user_id: int) -> tuple[bool, str]:
+        """Renounce citizenship and become a stateless leader/free agent."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT id, name FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
+            if await cur.fetchone():
+                return False, "You are the Supreme Sovereign of this country! To leave, list it on the market, accept a buyout, or relinquish rule."
+
+        await self._db.execute("DELETE FROM earth_citizens WHERE user_id = ?", (user_id,))
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (user_id,))
+        await self._db.commit()
+        return True, "You have renounced your allegiance and are now a stateless free agent. You can buy a new country or join another!"
+
+    async def get_earth_country_citizens(self, country_id: int) -> list[dict]:
+        """Fetch all registered citizens of a nation."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("""
+            SELECT cz.user_id, cz.joined_at, cz.reputation,
+                   COALESCE(m.username, 'Citizen ' || cz.user_id) as username,
+                   cab.role as cabinet_role
+            FROM earth_citizens cz
+            LEFT JOIN oauth_members m ON cz.user_id = m.user_id
+            LEFT JOIN earth_cabinet cab ON cz.user_id = cab.user_id AND cz.country_id = cab.country_id
+            WHERE cz.country_id = ?
+            ORDER BY cz.joined_at ASC
+        """, (country_id,)) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    # ??? Counter-Intelligence & Spy Detention ?????????????????????????????????
+
+    async def get_captured_foreign_spies(self, country_id: int) -> list[dict]:
+        """Fetch foreign spies captured and held in military detention facilities."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("""
+            SELECT s.*, c.name as origin_country_name, c.flag as origin_country_flag
+            FROM earth_spies s
+            JOIN earth_countries c ON s.owner_country_id = c.id
+            WHERE s.status = 'captured' AND s.target_country_id = ?
+            ORDER BY s.created_at DESC
+        """, (country_id,)) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def interrogate_captured_spy(self, user_id: int, country_id: int, spy_id: int) -> tuple[bool, str, dict]:
+        """Interrogate a captured foreign agent to extract confessions and enemy intelligence."""
+        if self._db is None:
+            await self.setup()
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "intelligence")
+        if not can_manage:
+            return False, "? Only the President or Director of Intelligence can interrogate foreign prisoners of war!", {}
+
+        async with self._db.execute("""
+            SELECT s.*, c.name as origin_country_name, c.flag as origin_country_flag, c.treasury as origin_treasury, c.gdp as origin_gdp
+            FROM earth_spies s
+            JOIN earth_countries c ON s.owner_country_id = c.id
+            WHERE s.id = ? AND s.status = 'captured' AND s.target_country_id = ?
+        """, (spy_id, country_id)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Captured agent not found in your detention facilities.", {}
+            s = dict(row)
+
+        intel = {
+            "codename": s["codename"],
+            "origin_country": s["origin_country_name"],
+            "origin_flag": s["origin_country_flag"],
+            "origin_treasury": s["origin_treasury"],
+            "origin_gdp": s["origin_gdp"],
+            "mission": s.get("mission", "covert_infiltration")
+        }
+
+        # Interrogation awards +5 national stability and full enemy dossier
+        await self._db.execute("UPDATE earth_countries SET stability = min(100, stability + 5) WHERE id = ?", (country_id,))
+        await self._db.commit()
+
+        return True, f"??? Interrogation Successful! Agent '{s['codename']}' cracked under questioning! Confessed they were commissioned by {s['origin_country_flag']} **{s['origin_country_name']}**! National Stability +5%.", intel
+
+    async def execute_captured_spy(self, user_id: int, country_id: int, spy_id: int) -> tuple[bool, str]:
+        """Execute a convicted foreign spy for treasonous espionage."""
+        if self._db is None:
+            await self.setup()
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "defense")
+        if not can_manage:
+            can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "intelligence")
+        if not can_manage:
+            return False, "? Only the Supreme Sovereign or Minister of Defense can sign execution warrants."
+
+        async with self._db.execute("""
+            SELECT s.codename, c.name FROM earth_spies s
+            JOIN earth_countries c ON s.owner_country_id = c.id
+            WHERE s.id = ? AND s.status = 'captured' AND s.target_country_id = ?
+        """, (spy_id, country_id)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Detained spy not found."
+            cname, origin_country = row[0], row[1]
+
+        await self._db.execute("DELETE FROM earth_spies WHERE id = ?", (spy_id,))
+        # Lowers civil unrest by -5%
+        await self._db.execute("UPDATE earth_countries SET unrest = max(0, unrest - 5) WHERE id = ?", (country_id,))
+        await self._db.commit()
+
+        return True, f"?? Military Tribunal Concluded: Foreign Agent '{cname}' from {origin_country} has been executed! National Unrest decreased by 5%."
+
+    async def counter_intel_sweep(self, user_id: int, country_id: int) -> tuple[bool, str, dict]:
+        """Conduct a nationwide security sweep to detect and intercept hostile foreign operatives."""
+        if self._db is None:
+            await self.setup()
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "intelligence")
+        if not can_manage:
+            return False, "? Only the President or Director of Intelligence can authorize security sweeps.", {}
+
+        # Fetch bunkers level
+        target_country = await self.get_earth_country(country_id)
+        bunkers = sum(b.get("level", 1) for b in target_country.get("buildings", []) if b["building_type"] == "bunker")
+        detained = await self.get_captured_foreign_spies(country_id)
+
+        # Base detection chance
+        detection_rating = 65 + (bunkers * 5)
+        sweep_result = {
+            "bunkers_count": bunkers,
+            "counter_intel_rating": f"{min(98, detection_rating)}%",
+            "detained_spies_count": len(detained),
+            "detained_spies": detained
+        }
+
+        return True, f"??? Counter-Intelligence Sweep Complete! Defense grid operating at {sweep_result['counter_intel_rating']} efficiency with {bunkers} Bunker installations. {len(detained)} hostile agents currently held in military detention.", sweep_result
