@@ -123,87 +123,91 @@ class ElectionsCog(commands.Cog):
                 return True
         return False
 
+    async def conclude_election_for_guild(self, guild: discord.Guild, ele: dict):
+        """Conclude an election, assign Mayor roles, remove candidate roles, and announce in Discord."""
+        success, finished_ele, msg = await self.bot.db.conclude_election(ele["id"])
+        if not success or not finished_ele:
+            return False, None, msg
+
+        mayor_role, candidate_role = await self.get_or_create_roles(guild)
+        winner_id = finished_ele.get("winner_id")
+
+        # Remove old mayor role from previous holders
+        if mayor_role:
+            for m in mayor_role.members:
+                if m.id != winner_id:
+                    try:
+                        await m.remove_roles(mayor_role, reason="Mayoral term ended.")
+                    except Exception:
+                        pass
+
+        # Clean up candidate roles from all candidates
+        if candidate_role:
+            for m in candidate_role.members:
+                try:
+                    await m.remove_roles(candidate_role, reason="Election cycle concluded.")
+                except Exception:
+                    pass
+
+        winner_member = guild.get_member(winner_id) if winner_id else None
+        if winner_member and mayor_role:
+            try:
+                await winner_member.add_roles(mayor_role, reason="Won Mayoral Election!")
+            except Exception:
+                pass
+
+        # Announce election results in server
+        channel = guild.system_channel or next(
+            (c for c in guild.text_channels if c.permissions_for(guild.me).send_messages), None
+        )
+        if channel:
+            if winner_member:
+                cands = await self.bot.db.get_election_candidates(ele["id"])
+                top_cand = next((c for c in cands if c["candidate_id"] == winner_id), None)
+                votes = top_cand["votes"] if top_cand else 0
+                embed = discord.Embed(
+                    title="🎉 THE VOTES ARE IN — OUR NEW MAYOR IS ELECTED!",
+                    description=(
+                        f"The election polls have closed!\n\n"
+                        f"🎩 **Congratulations to our new Mayor:** {winner_member.mention}!\n\n"
+                        f"• **Winning Ballots:** `{votes}` votes\n"
+                        f"• **Term Length:** 14 Days\n"
+                        f"• **Executive Mayoral Powers:**\n"
+                        f"  - ⚡ **2X Double XP Days:** Can activate server-wide 2X XP for 24h (3 times per term)!\n"
+                        f"  - 💰 **Executive Daily Salary:** Earns 12,500 M/day from the City Treasury!\n"
+                        f"  - 🎖️ **Key to the City:** Can grant +15,000 M honors to citizens!\n"
+                        f"  - 🏛️ **Mayoral Stimulus:** Release public medal grants in chat!\n"
+                        f"  - 🗺️ **E-State Zoning:** Zone & create new territory plots on the 3D map!\n"
+                        f"  - 📈 **Stock Market Control:** Set taxes (0-50%), adjust share float & list new IPO stocks!\n"
+                        f"  - ⚖️ **Mayoral Pardon:** Clear robbery cooldowns for citizens!\n\n"
+                        f"*\"Congratulations to our new civic leader!\"*"
+                    ),
+                    color=0xF1C40F
+                )
+                embed.set_thumbnail(url=winner_member.display_avatar.url)
+                embed.set_footer(text="Phantom Regiment City Hall")
+                await channel.send(content=f"🎉 Congratulations {winner_member.mention}!", embed=embed)
+            else:
+                embed = discord.Embed(
+                    title="🏛️ ELECTION CONCLUDED — NO CANDIDATES",
+                    description="The election cycle ended with zero registered candidates. The Mayoral seat remains vacant until the next election.",
+                    color=0x95A5A6
+                )
+                await channel.send(embed=embed)
+
+        return True, winner_member, msg
+
     @tasks.loop(seconds=60)
     async def election_loop(self):
-        """Automated background loop that concludes elections when the 48-hour timer expires."""
+        """Automated background loop that concludes elections when the timer expires."""
         try:
             active_elections = await self.bot.db.get_active_elections_all_guilds()
             now = time.time()
             for ele in active_elections:
                 if now >= ele["end_time"]:
-                    success, finished_ele, msg = await self.bot.db.conclude_election(ele["id"])
-                    if not success or not finished_ele:
-                        continue
-
                     guild = self.bot.get_guild(ele["guild_id"])
-                    if not guild:
-                        continue
-
-                    mayor_role, candidate_role = await self.get_or_create_roles(guild)
-                    winner_id = finished_ele.get("winner_id")
-
-                    # Remove old mayor role from previous holders
-                    if mayor_role:
-                        for m in mayor_role.members:
-                            if m.id != winner_id:
-                                try:
-                                    await m.remove_roles(mayor_role, reason="Mayoral term ended.")
-                                except Exception:
-                                    pass
-
-                    # Clean up candidate roles from all candidates
-                    if candidate_role:
-                        for m in candidate_role.members:
-                            try:
-                                await m.remove_roles(candidate_role, reason="Election cycle concluded.")
-                            except Exception:
-                                pass
-
-                    winner_member = guild.get_member(winner_id) if winner_id else None
-                    if winner_member and mayor_role:
-                        try:
-                            await winner_member.add_roles(mayor_role, reason="Won Mayoral Election!")
-                        except Exception:
-                            pass
-
-                    # Announce election results in server
-                    channel = guild.system_channel or next(
-                        (c for c in guild.text_channels if c.permissions_for(guild.me).send_messages), None
-                    )
-                    if channel:
-                        if winner_member:
-                            cands = await self.bot.db.get_election_candidates(ele["id"])
-                            top_cand = next((c for c in cands if c["candidate_id"] == winner_id), None)
-                            votes = top_cand["votes"] if top_cand else 0
-                            embed = discord.Embed(
-                                title="🎉 THE VOTES ARE IN — OUR NEW MAYOR IS ELECTED!",
-                                description=(
-                                    f"The 48-hour election polls have closed!\n\n"
-                                    f"🎩 **Congratulations to our new Mayor:** {winner_member.mention}!\n\n"
-                                    f"• **Winning Ballots:** `{votes}` votes\n"
-                                    f"• **Term Length:** 14 Days\n"
-                                    f"• **Executive Mayoral Powers:**\n"
-                                    f"  - ⚡ **2X Double XP Days:** Can activate server-wide 2X XP for 24h (3 times per term)!\n"
-                                    f"  - 💰 **Executive Daily Salary:** Earns 12,500 M/day from the City Treasury!\n"
-                                    f"  - 🎖️ **Key to the City:** Can grant +15,000 M honors to citizens!\n"
-                                    f"  - 🏛️ **Mayoral Stimulus:** Release public medal grants in chat!\n"
-                                    f"  - 🗺️ **E-State Zoning:** Zone & create new territory plots on the 3D map!\n"
-                                    f"  - 📈 **Stock Market Control:** Set taxes (0-50%), adjust share float & list new IPO stocks!\n"
-                                    f"  - ⚖️ **Mayoral Pardon:** Clear robbery cooldowns for citizens!\n\n"
-                                    f"*\"Congratulations to our new civic leader!\"*"
-                                ),
-                                color=0xF1C40F
-                            )
-                            embed.set_thumbnail(url=winner_member.display_avatar.url)
-                            embed.set_footer(text="Phantom Regiment City Hall")
-                            await channel.send(content=f"🎉 Congratulations {winner_member.mention}!", embed=embed)
-                        else:
-                            embed = discord.Embed(
-                                title="🏛️ ELECTION CONCLUDED — NO CANDIDATES",
-                                description="The 48-hour election cycle ended with zero registered candidates. The Mayoral seat remains vacant until the next election.",
-                                color=0x95A5A6
-                            )
-                            await channel.send(embed=embed)
+                    if guild:
+                        await self.conclude_election_for_guild(guild, ele)
         except Exception as e:
             print(f"⚠️ Error in election loop: {e}", flush=True)
 
@@ -467,6 +471,36 @@ class ElectionsCog(commands.Cog):
         )
         embed.set_footer(text="Phantom Regiment Elections")
         await interaction.followup.send(embed=embed)
+
+    @election.command(name="end", description="[Admin/Staff] Force-conclude the active election immediately and crown the winner")
+    @app_commands.default_permissions(manage_guild=True)
+    async def election_end(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.manage_guild and not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("⛔ You do not have permission to conclude city elections.", ephemeral=True)
+
+        await interaction.response.defer()
+        guild = interaction.guild or self.bot.get_guild(MAIN_GUILD_ID)
+        if not guild:
+            return await interaction.followup.send("❌ This command must be executed within a Discord server.", ephemeral=True)
+
+        ele = await self._resolve_election(interaction)
+        if not ele or ele.get("status") != "active":
+            return await interaction.followup.send("⚠️ There is currently no active election running to end.", ephemeral=True)
+
+        success, winner_member, msg = await self.conclude_election_for_guild(guild, ele)
+        if not success:
+            return await interaction.followup.send(f"❌ Failed to conclude election: {msg}", ephemeral=True)
+
+        if winner_member:
+            await interaction.followup.send(
+                f"✅ **Election Concluded Early!** Polls closed, votes tallied, and {winner_member.mention} has been officially sworn in as Mayor for a 14-day term!",
+                ephemeral=False
+            )
+        else:
+            await interaction.followup.send(
+                "✅ **Election Concluded!** No candidates had registered; the mayoral seat remains vacant.",
+                ephemeral=False
+            )
 
     @election.command(name="broadcast_dm", description="[Admin Only] Safely DM server members with link to election announcement")
     @app_commands.default_permissions(administrator=True)
