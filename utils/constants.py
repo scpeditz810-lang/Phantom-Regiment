@@ -1161,3 +1161,91 @@ EARTH_COUNTRIES = [
         "capital": "Jerusalem"
     }
 ]
+
+
+EARTH_ADVANCED_TOOLS = {
+    "sat_recon": {
+        "key": "sat_recon",
+        "name": "Orbital Reconnaissance Satellite Grid",
+        "emoji": "???",
+        "category": "intelligence",
+        "price": 250000,
+        "desc": "High-altitude surveillance satellites providing real-time strategic intelligence on foreign military movements.",
+        "military_power": 40,
+        "defense_power": 35,
+        "hourly_yield": 4000,
+        "perk": "+20% Infiltration Stealth & Early Attack Warnings"
+    },
+    "drone_swarm": {
+        "key": "drone_swarm",
+        "name": "Autonomous AI Strike Drone Swarm",
+        "emoji": "??",
+        "category": "military",
+        "price": 450000,
+        "desc": "Armada of low-observable loitering munitions capable of precision strikes against enemy frontline divisions.",
+        "military_power": 95,
+        "defense_power": 45,
+        "hourly_yield": 6000,
+        "perk": "Bypasses 25% of Enemy Bunker Fortifications in Wars"
+    },
+    "iron_dome": {
+        "key": "iron_dome",
+        "name": "Iron Dome & Aegis Ballistic Shield",
+        "emoji": "???",
+        "category": "defense",
+        "price": 550000,
+        "desc": "Multi-tier layered air and missile defense grid intercepting hostile artillery, rockets, and foreign saboteurs.",
+        "military_power": 30,
+        "defense_power": 130,
+        "hourly_yield": 5000,
+        "perk": "+130 National Defense Power & -50% Bombardment Damage"
+    },
+    "cyber_grid": {
+        "key": "cyber_grid",
+        "name": "Cyber-Warfare & Jamming Citadel",
+        "emoji": "??",
+        "category": "intelligence",
+        "price": 380000,
+        "desc": "Centralized cyber operations warfare center executing electronic jamming against foreign espionage networks.",
+        "military_power": 45,
+        "defense_power": 60,
+        "hourly_yield": 7500,
+        "perk": "+15% Spy Capture Rate & Protects Infrastructure from Sabotage"
+    },
+    "hypersonic_battery": {
+        "key": "hypersonic_battery",
+        "name": "Hypersonic Cruise Missile Battery",
+        "emoji": "??",
+        "category": "military",
+        "price": 950000,
+        "desc": "Mach 8+ glide missile launch batteries designed to neutralize heavy enemy armor formations and command bastions.",
+        "military_power": 210,
+        "defense_power": 70,
+        "hourly_yield": 10000,
+        "perk": "Devastating Frontline Offense (+210 Military Power)"
+    },
+    "tactical_nuke": {
+        "key": "tactical_nuke",
+        "name": "Tactical Nuclear Deterrence Complex",
+        "emoji": "??",
+        "category": "superweapon",
+        "price": 2500000,
+        "desc": "Supreme sovereign deterrence silo complex. Hostile invaders face catastrophic retaliation.",
+        "military_power": 380,
+        "defense_power": 260,
+        "hourly_yield": 20000,
+        "perk": "Ultimate Sovereign Deterrence (+380 Attack, +260 Defense)"
+    },
+    "industrial_core": {
+        "key": "industrial_core",
+        "name": "Automated Mega-Industrial Core",
+        "emoji": "??",
+        "category": "economy",
+        "price": 600000,
+        "desc": "Robotic super-factories that fast-track national construction, turbocharge GDP, and accelerate dividend production.",
+        "military_power": 50,
+        "defense_power": 40,
+        "hourly_yield": 38000,
+        "perk": "Fast-Track Economic Growth (+38k/hr Yield, +15M GDP)"
+    }
+}

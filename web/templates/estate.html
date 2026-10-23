@@ -586,6 +586,9 @@ body {
             <button class="dock-tab-btn" onclick="switchDockTab('trade', this)">
                 <i class="fa-solid fa-ship"></i> Trade
             </button>
+            <button class="dock-tab-btn" onclick="switchDockTab('tools', this)">
+                <i class="fa-solid fa-microchip"></i> Arsenal
+            </button>
             <button class="dock-tab-btn" onclick="switchDockTab('market', this)">
                 <i class="fa-solid fa-handshake"></i> Buy Land
             </button>
@@ -1116,6 +1119,8 @@ async function renderDockContent() {
         renderWarsTab(c, isLeader, isOwner, body);
     } else if (activeTab === 'trade') {
         renderTradeTab(c, isLeader, isOwner, body);
+    } else if (activeTab === 'tools') {
+        renderToolsTab(c, isLeader, isOwner, body);
     } else if (activeTab === 'market') {
         renderMarketTab(c, isLeader, isOwner, body);
     }
@@ -1148,6 +1153,13 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
     container.innerHTML = `
         ${riotAlertHtml}
+        <div class="info-tile" style="display:flex; align-items:center; justify-content:space-between; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.35); padding: 0.65rem 0.85rem; margin-bottom: 0.75rem;">
+            <div>
+                <div style="font-size: 0.82rem; font-weight: 700; color: #10b981;">?? Organic National Growth Active</div>
+                <div style="font-size: 0.72rem; color: #94a3b8;">Slow natural development: +0.3%/hr passive GDP growth ? Troops drilling ? Civic maturation</div>
+            </div>
+            ${isLeader ? `<button class="btn-action-sm" style="border-color:#f59e0b; color:#fbbf24;" onclick="switchDockTab('tools', this)">?? Fast-Track Tech</button>` : ''}
+        </div>
 
         <div class="info-tile">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.45rem;">
@@ -1502,15 +1514,20 @@ function renderMarketTab(c, isLeader, isOwner, container) {
     let html = "";
     if (!c.owner_id) {
         html = `
-            <div class="info-tile" style="text-align: center; padding: 1.5rem;">
+            <div class="info-tile" style="text-align: center; padding: 1.5rem; border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
                 <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">??</div>
-                <div style="font-weight: 800; font-size: 1.1rem; color: #f8fafc;">Claim Sovereign Rule</div>
-                <div style="font-size: 0.8rem; color: #94a3b8; margin: 0.5rem 0 0.8rem 0;">
-                    ${c.name} is currently unowned in the Sovereign State Trust. Acquire presidential authority for whatever medals you offer (<strong>0 to ? Medals, 0% Tax applied</strong>)!
+                <div style="font-weight: 800; font-size: 1.15rem; color: #10b981;">Vacant Nation Available</div>
+                <div style="font-size: 0.82rem; color: #cbd5e1; margin: 0.5rem 0 1rem 0;">
+                    ${c.name} is currently empty in the Sovereign State Trust. As a commander, you can <strong>claim this nation for FREE (0 Medals)</strong> and immediately become President!
                 </div>
-                <button class="hud-btn" style="margin: 0 auto; background: linear-gradient(135deg, rgba(16, 185, 129, 0.4) 0%, rgba(5, 150, 105, 0.25) 100%); border-color: rgba(16, 185, 129, 0.6);" onclick="openClaimCountryModal(${c.id}, '${c.name}', ${c.gdp})">
-                    Claim Sovereignty (Offer 0-? M)
-                </button>
+                <div style="display:flex; justify-content:center; gap:0.5rem; flex-wrap:wrap;">
+                    <button class="hud-btn" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.5) 0%, rgba(5, 150, 105, 0.35) 100%); border-color: #10b981; font-size: 0.92rem; padding: 0.65rem 1.3rem;" onclick="claimEmptyCountryFree(${c.id}, '${c.name}')">
+                        <span>???</span> Claim for FREE (0 Medals)
+                    </button>
+                    <button class="btn-action-sm" style="border-color: rgba(56, 189, 248, 0.5); color: #38bdf8;" onclick="openClaimCountryModal(${c.id}, '${c.name}', ${c.gdp})">
+                        Endow Custom Medals
+                    </button>
+                </div>
             </div>
 
             <div class="info-tile" style="text-align: center; padding: 1rem; border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.05); margin-top: 1rem;">
@@ -2808,6 +2825,109 @@ async function executeSpy(countryId, spyId) {
         loadVirtualEarthData();
     } catch(e) {
         showToast("Execution failed.");
+    }
+}
+
+async function claimEmptyCountryFree(countryId, countryName) {
+    if (!confirm(`Claim sovereign rule of ${countryName} for FREE (0 Medals)? You will immediately become the President.`)) return;
+    try {
+        const res = await fetch("/api/earth/buy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId, offer: 0 })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        if (data.success) {
+            await loadVirtualEarthData();
+            if (data.wallet !== undefined) {
+                const el = document.getElementById("hud-wallet-val");
+                if (el) el.innerText = data.wallet.toLocaleString();
+            }
+        }
+    } catch(err) {
+        showToast("Free claim request failed.");
+    }
+}
+
+async function renderToolsTab(c, isLeader, isOwner, container) {
+    container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Accessing Strategic Arsenal Database...</div>`;
+    try {
+        const res = await fetch(`/api/earth/tools?country_id=${c.id}`);
+        const data = await res.json();
+        const catalogue = data.catalogue || [];
+
+        let html = `
+            <div class="info-tile" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.35);">
+                <div style="font-weight: 800; font-size: 0.88rem; color: #fbbf24; margin-bottom: 0.25rem;">
+                    ?? Strategic Military Arsenal & High-Tech Assets
+                </div>
+                <div style="font-size: 0.74rem; color: #cbd5e1;">
+                    Nations grow slowly & naturally over time (+0.3%/hr GDP compound), or you can <strong>procure Advanced Military Tools with Medals</strong> to fast-track dominance!
+                </div>
+            </div>
+        `;
+
+        catalogue.forEach(t => {
+            const isOwned = t.owned;
+            html += `
+                <div class="selectable-card" style="margin-bottom: 0.75rem; border-color: ${isOwned ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 255, 255, 0.1)'}; background: ${isOwned ? 'rgba(16, 185, 129, 0.06)' : 'rgba(15, 23, 42, 0.5)'};">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.35rem;">
+                        <div style="font-weight: 800; font-size: 0.9rem; color: #f8fafc; display:flex; align-items:center; gap:0.4rem;">
+                            <span>${t.emoji}</span> <span>${t.name}</span>
+                        </div>
+                        ${isOwned ? `
+                            <span class="hud-tag" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4);">
+                                ? DEPLOYED
+                            </span>
+                        ` : `
+                            <span style="font-weight: 800; font-size: 0.82rem; color: var(--gold-accent);">
+                                ${t.price.toLocaleString()} M
+                            </span>
+                        `}
+                    </div>
+
+                    <div style="font-size: 0.74rem; color: #94a3b8; margin-bottom: 0.45rem;">
+                        ${t.desc}
+                    </div>
+
+                    <div style="font-size: 0.72rem; color: #38bdf8; margin-bottom: 0.6rem;">
+                        ? <strong>Perk:</strong> ${t.perk} ? ?? +${t.military_power} Atk ? ??? +${t.defense_power} Def
+                    </div>
+
+                    ${!isOwned && isLeader ? `
+                        <div style="display:flex; justify-content:flex-end;">
+                            <button class="hud-btn" style="font-size:0.75rem; padding:0.35rem 0.8rem;" onclick="procureTool(${c.id}, '${t.key}', '${t.name}', ${t.price})">
+                                Procure for ${t.price.toLocaleString()} Medals
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    } catch(e) {
+        container.innerHTML = `<div style="color:#ef4444; padding:1rem;">Failed to load military arsenal.</div>`;
+    }
+}
+
+async function procureTool(countryId, toolKey, toolName, price) {
+    if (!confirm(`Deploy ${toolName} to your national forces for ${price.toLocaleString()} Medals?`)) return;
+    try {
+        const res = await fetch("/api/earth/tool/buy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId, tool_key: toolKey })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        if (data.success) {
+            await loadVirtualEarthData();
+            renderToolsTab(selectedCountry, true, true, document.getElementById("dock-content"));
+        }
+    } catch(e) {
+        showToast("Procurement failed.");
     }
 }
 
