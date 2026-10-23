@@ -1319,38 +1319,82 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 function renderCabinetTab(c, isLeader, isOwner, container) {
     const cab = c.cabinet || {};
     const roles = statsData.cabinet_roles || {};
+    const currentUserId = statsData.user ? statsData.user.id : null;
 
     let html = `
         <div style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 0.5rem;">
-            President and Ministers direct national portfolios. Vacant portfolios are automatically exercised by the President.
+            President and Ministers direct national portfolios. Appointed candidates must formally accept decrees before taking office.
         </div>
     `;
+
+    // Render any pending decrees offered to the current logged-in user
+    if (statsData.user && statsData.user.pending_invites && statsData.user.pending_invites.length > 0) {
+        statsData.user.pending_invites.forEach(inv => {
+            html += `
+                <div style="border: 1px solid #f59e0b; background: rgba(245, 158, 11, 0.08); margin-bottom: 0.75rem; padding: 0.75rem; border-radius: 8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span style="font-size:1.15rem;">📜</span>
+                            <strong style="color:#f59e0b; font-size:0.84rem;">Ministerial Decree Awaiting Acceptance!</strong>
+                        </div>
+                        <span class="hud-tag" style="background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b55; font-size:0.62rem;">Action Required</span>
+                    </div>
+                    <div style="font-size:0.75rem; color:#cbd5e1; margin-top:0.35rem;">
+                        President <b>${inv.president_name}</b> has nominated you as <b>${inv.role_emoji} ${inv.role_title}</b> of <b>${inv.country_flag} ${inv.country_name}</b>.
+                    </div>
+                    <div style="display:flex; gap:0.45rem; margin-top:0.55rem;">
+                        <button class="btn-action-sm" style="background:#10b981; border-color:#10b981; color:#fff;" onclick="respondCabinetInvite(${inv.id}, 'accept')">✅ Accept Office</button>
+                        <button class="btn-danger-sm" onclick="respondCabinetInvite(${inv.id}, 'decline')">❌ Decline</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
 
     Object.keys(roles).forEach(rKey => {
         const rMeta = roles[rKey];
         const holder = cab[rKey] || {};
         const isVacant = !holder.user_id;
+        const pending = holder.pending_invite;
+        const isMeHolder = holder.user_id && currentUserId && (String(holder.user_id) === String(currentUserId));
+        const isMePending = pending && currentUserId && (String(pending.user_id) === String(currentUserId));
 
         html += `
-            <div class="minister-card">
+            <div class="minister-card" style="${pending ? 'border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.04);' : ''}">
                 <div style="display:flex; align-items:center; gap:0.65rem;">
                     <div style="font-size: 1.4rem;">${rMeta.emoji}</div>
                     <div>
-                        <div style="font-size: 0.82rem; font-weight: 800; color: #f8fafc;">${rMeta.short_title}</div>
-                        <div style="font-size: 0.72rem; color: ${isVacant ? '#94a3b8' : '#38bdf8'};">
-                            ${isVacant ? 'Vacant (Managed by President)' : holder.username}
+                        <div style="display:flex; align-items:center; gap:0.35rem;">
+                            <span style="font-size: 0.82rem; font-weight: 800; color: #f8fafc;">${rMeta.short_title}</span>
+                            ${pending ? '<span class="hud-tag" style="background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b55; font-size:0.58rem; padding:1px 4px;">⏳ Awaiting Acceptance</span>' : ''}
+                        </div>
+                        <div style="font-size: 0.72rem; color: ${pending ? '#f59e0b' : (isVacant ? '#94a3b8' : '#38bdf8')};">
+                            ${pending ? `⏳ Nominated: ${pending.username} (Pending Acceptance)` : (isVacant ? 'Vacant (Managed by President)' : holder.username)}
                         </div>
                     </div>
                 </div>
 
-                ${isOwner ? `
-                    <div style="display:flex; gap:0.35rem;">
-                        <button class="btn-action-sm" onclick="openAppointCabinetModal('${rKey}', '${rMeta.short_title}', '${rMeta.emoji}')">
-                            ${isVacant ? 'Hire' : 'Change'}
-                        </button>
-                        ${!isVacant ? `<button class="btn-danger-sm" onclick="dismissMinister('${rKey}')">Fire</button>` : ''}
-                    </div>
-                ` : ''}
+                <div style="display:flex; gap:0.35rem; align-items:center;">
+                    ${isMePending ? `
+                        <button class="btn-action-sm" style="background:#10b981; border-color:#10b981; color:#fff;" onclick="respondCabinetInvite(${pending.invite_id}, 'accept')">Accept</button>
+                        <button class="btn-danger-sm" onclick="respondCabinetInvite(${pending.invite_id}, 'decline')">Decline</button>
+                    ` : ''}
+
+                    ${isMeHolder && !isOwner ? `
+                        <button class="btn-danger-sm" onclick="resignMinisterOffice()">Resign</button>
+                    ` : ''}
+
+                    ${isOwner ? `
+                        ${pending ? `
+                            <button class="btn-danger-sm" onclick="cancelCabinetDecree(${pending.invite_id})">Cancel Decree</button>
+                        ` : `
+                            <button class="btn-action-sm" onclick="openAppointCabinetModal('${rKey}', '${rMeta.short_title}', '${rMeta.emoji}')">
+                                ${isVacant ? 'Nominate' : 'Change'}
+                            </button>
+                            ${!isVacant ? `<button class="btn-danger-sm" onclick="dismissMinister('${rKey}')">Fire</button>` : ''}
+                        `}
+                    ` : ''}
+                </div>
             </div>
         `;
     });
@@ -1717,6 +1761,52 @@ async function dismissMinister(roleKey) {
         loadVirtualEarthData();
     } catch (err) {
         showToast("Dismissal failed.");
+    }
+}
+
+async function respondCabinetInvite(inviteId, action) {
+    try {
+        const res = await fetch("/api/earth/cabinet/invite/respond", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ invite_id: inviteId, action: action })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch (e) {
+        showToast("Failed to respond to decree.");
+    }
+}
+
+async function cancelCabinetDecree(inviteId) {
+    if (!confirm("Rescind this nomination decree?")) return;
+    try {
+        const res = await fetch("/api/earth/cabinet/invite/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ invite_id: inviteId })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch (e) {
+        showToast("Failed to cancel decree.");
+    }
+}
+
+async function resignMinisterOffice() {
+    if (!confirm("Are you sure you want to step down from your ministerial post?")) return;
+    try {
+        const res = await fetch("/api/earth/cabinet/resign", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch (e) {
+        showToast("Resignation failed.");
     }
 }
 

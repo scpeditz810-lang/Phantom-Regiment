@@ -4,3 +4,5 @@ __pycache__/
 .env
 *.db-wal
 *.db-shm
+
+test_*.db
