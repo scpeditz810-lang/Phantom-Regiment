@@ -409,7 +409,14 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
         tgt = await self.bot.db.get_earth_country_by_code(target_country.strip().upper())
         if not tgt:
-            await interaction.followup.send(f"❌ Target country `{target_country}` not found.")
+            countries = await self.bot.db.get_earth_countries()
+            for cand in countries:
+                if target_country.lower() in cand["name"].lower():
+                    tgt = await self.bot.db.get_earth_country(cand["id"])
+                    break
+
+        if not tgt:
+            await interaction.followup.send(f"❌ Target country `{target_country}` not found.", ephemeral=True)
             return
 
         success, msg, war_data = await self.bot.db.declare_earth_war(interaction.user.id, c["id"], tgt["id"], scale.value)
@@ -427,6 +434,75 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             await interaction.followup.send(embed=embed, view=view)
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    # ─── Attack Unclaimed Lands Expedition ───────────────────────────────────
+
+    @earth_group.command(name="attack", description="Supreme Commander: Launch an armed military expedition to conquer & annex unclaimed lands!")
+    @app_commands.describe(
+        target_country="Code or name of the unclaimed territory to attack (e.g. AUS, BRA, Australia)",
+        divisions="Number of military combat divisions to commit to the expedition (default: 10)"
+    )
+    async def earth_attack(self, interaction: discord.Interaction, target_country: str, divisions: int = 10):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("❌ You must govern a sovereign nation or serve as Minister of Defense to lead military assaults!", ephemeral=True)
+            return
+
+        tgt = await self.bot.db.get_earth_country_by_code(target_country.strip().upper())
+        if not tgt:
+            countries = await self.bot.db.get_earth_countries()
+            for cand in countries:
+                if target_country.lower() in cand["name"].lower():
+                    tgt = await self.bot.db.get_earth_country(cand["id"])
+                    break
+
+        if not tgt:
+            await interaction.followup.send(f"❌ Target country `{target_country}` not found.", ephemeral=True)
+            return
+
+        if tgt.get("owner_id"):
+            await interaction.followup.send(
+                f"⚠️ **{tgt['flag']} {tgt['name']}** is already claimed and governed by <@{tgt['owner_id']}>!\n"
+                f"To attack a claimed sovereign nation, use `/earth war target_country:{tgt['code']} scale:...` to declare a multi-day war campaign.",
+                ephemeral=True
+            )
+            return
+
+        divisions = max(1, min(divisions, 100))
+        success, msg, battle_data = await self.bot.db.expedition_attack_unclaimed(
+            interaction.user.id, c["id"], tgt["id"], divisions
+        )
+
+        if success:
+            embed = discord.Embed(
+                title=f"🎖️ MILITARY EXPEDITION VICTORY: {tgt['flag']} {tgt['name']} CONQUERED!",
+                description=(
+                    f"**Supreme Army Commander** <@{interaction.user.id}> has led **{c['flag']} {c['name']}** forces in a victorious offensive!\n\n"
+                    f"• **Assault Power:** `{battle_data.get('atk_power')}` ({divisions} Divisions deployed)\n"
+                    f"• **Garrison Resistance:** `{battle_data.get('dfn_power')}`\n"
+                    f"• **Annexation Status:** 👑 **ANNEXED** into the sovereign realm of **{c['name']}**!\n"
+                    f"• **Treasury Plunder:** `+{battle_data.get('loot', 0):,} M` seized for national reserves!\n"
+                    f"• **Commander Reward:** `+{battle_data.get('medals_awarded', 250):,} Combat Medals` awarded to <@{interaction.user.id}>!"
+                ),
+                color=0x10B981
+            )
+        else:
+            embed = discord.Embed(
+                title=f"⚔️ EXPEDITION REPULSED: {tgt['flag']} {tgt['name']}",
+                description=(
+                    f"**Supreme Army Commander** <@{interaction.user.id}> launched an assault on **{tgt['flag']} {tgt['name']}**, but the local frontier garrison resisted!\n\n"
+                    f"• **Assault Power:** `{battle_data.get('atk_power')}` ({divisions} Divisions deployed)\n"
+                    f"• **Garrison Defense:** `{battle_data.get('dfn_power')}`\n"
+                    f"• **Outcome:** The expeditionary vanguard retreated to regroup.\n\n"
+                    f"💡 *Tip: Construct military factories and barracks, purchase advanced arsenal tools, or commit more divisions to overwhelm frontier defenses!*"
+                ),
+                color=0xEF4444
+            )
+
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="🌍 View 3D Globe War Room", url=WEB_URL, style=discord.ButtonStyle.link))
+        await interaction.followup.send(embed=embed, view=view)
 
     # ─── Quell Unrest & Riots ─────────────────────────────────────────────────
 

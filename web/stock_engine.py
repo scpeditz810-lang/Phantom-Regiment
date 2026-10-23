@@ -120,8 +120,8 @@ class StockMarketEngine:
 
         # Rotate Market Regime when cycle expires (every 15 to 30 ticks ~15 to 30 mins)
         if self.regime_ticks_left <= 0:
-            regimes = ["SIDEWAYS", "BULL_RALLY", "BEAR_CRASH"]
-            weights = [0.45, 0.275, 0.275]  # 45% sideways, 27.5% Green Zone, 27.5% Crash Zone
+            regimes = ["BULL_RALLY", "SIDEWAYS", "BEAR_CRASH"]
+            weights = [0.45, 0.40, 0.15]  # 45% Bull Rally, 40% Consolidation, 15% Mild Pullback
             self.market_regime = random.choices(regimes, weights=weights)[0]
             self.regime_ticks_left = random.randint(15, 30)
 
@@ -179,27 +179,30 @@ class StockMarketEngine:
                     change_percent = random.uniform(-0.01, 0.02)
 
             elif self.market_regime == "BULL_RALLY":
-                # Green Zone: 68% green ticks, 32% red pullbacks
-                if random.random() < 0.68:
-                    change_percent = random.uniform(0.012, 0.038)
+                # Green Zone: 75% green ticks, 25% mild consolidations
+                if random.random() < 0.75:
+                    change_percent = random.uniform(0.020, 0.055)
                 else:
-                    change_percent = random.uniform(-0.016, -0.005)
+                    change_percent = random.uniform(-0.012, 0.005)
 
             elif self.market_regime == "BEAR_CRASH":
-                # Crash Zone: 68% red drops, 32% green dead-cat bounces
-                if random.random() < 0.68:
-                    change_percent = random.uniform(-0.038, -0.012)
+                # Mild Pullback: 55% dip, 45% dip-buying recovery
+                if random.random() < 0.55:
+                    change_percent = random.uniform(-0.025, -0.008)
                 else:
-                    change_percent = random.uniform(0.005, 0.016)
+                    change_percent = random.uniform(0.010, 0.025)
 
             else:
-                # Sideways Normal Market: Perfectly balanced symmetrical zero-drift random walk
-                change_percent = random.uniform(-0.014, 0.014)
+                # Sideways Growth Market: Positive upward drift +0.5% average
+                change_percent = random.uniform(-0.010, 0.022)
 
-            # 3. Valuation Gravity / Profit-Taking Damping (Prevents 40M runaway inflation!)
-            # When stock price is hugely inflated (e.g. > 10,000 Medals), natural institutional profit taking exerts downward pressure
-            if old_price > 5000:
-                drag = min(0.025, 0.004 * (old_price / 10000.0))
+            # 3. Institutional Dip-Buying Support (Prevents relentless drops)
+            if change_percent < 0 and random.random() < 0.40:
+                change_percent = random.uniform(0.015, 0.040)
+
+            # Soft Ceiling only on astronomical valuations (> 150,000 Medals)
+            if old_price > 150000:
+                drag = min(0.015, 0.002 * (old_price / 100000.0))
                 change_percent -= drag
 
             # 4. Support Wall for Low Stocks
