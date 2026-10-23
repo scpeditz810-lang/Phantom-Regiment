@@ -305,18 +305,23 @@ def members_page():
     )
 
 @views_bp.route("/estate")
+@views_bp.route("/earth")
 def estate_page():
     user = session.get("user")
     user_data = None
+    user_country = None
+    db = current_app.config["DB"]
     if user:
-        db = current_app.config["DB"]
-        uid = user["id"]
+        raw_uid = user.get("id")
+        uid = int(raw_uid) if str(raw_uid).isdigit() else raw_uid
         user_data = run_async(db.get_global_economy(uid))
+        user_country = run_async(db.get_user_earth_country(uid))
 
     return render_template(
         "estate.html",
         user=user,
-        user_data=user_data
+        user_data=user_data,
+        user_country=user_country
     )
 
 @views_bp.route("/mayor")

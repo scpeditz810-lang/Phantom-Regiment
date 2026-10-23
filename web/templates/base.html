@@ -42,8 +42,8 @@
                 <a href="{{ url_for('views.medals_page') }}" class="nav-link {% if request.path == '/medals' %}active{% endif %}">
                     Medals & Stocks
                 </a>
-                <a href="{{ url_for('views.estate_page') }}" class="nav-link {% if request.path == '/estate' %}active{% endif %}">
-                    🏛️ E-State
+                <a href="{{ url_for('views.estate_page') }}" class="nav-link {% if request.path == '/estate' or request.path == '/earth' %}active{% endif %}">
+                    🌍 Virtual Earth
                 </a>
                 <a href="{{ url_for('views.members_page') }}" class="nav-link {% if request.path == '/members' %}active{% endif %}">
                     Our Members

@@ -586,6 +586,125 @@ class Database:
                 created_at REAL NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS earth_countries (
+                id INTEGER PRIMARY KEY,
+                code TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                flag TEXT NOT NULL,
+                lat REAL NOT NULL,
+                lng REAL NOT NULL,
+                owner_id INTEGER DEFAULT NULL,
+                gdp INTEGER NOT NULL,
+                treasury INTEGER DEFAULT 1000000,
+                stability INTEGER DEFAULT 80,
+                unrest INTEGER DEFAULT 15,
+                is_coastal INTEGER DEFAULT 1,
+                tax_rate INTEGER DEFAULT 10,
+                economic_doctrine TEXT DEFAULT 'free_market',
+                military_doctrine TEXT DEFAULT 'volunteer',
+                diplomatic_stance TEXT DEFAULT 'neutral',
+                for_sale_price INTEGER DEFAULT NULL,
+                last_yield_claim REAL DEFAULT 0,
+                last_riot_check REAL DEFAULT 0,
+                alliance_id INTEGER DEFAULT NULL,
+                capital TEXT DEFAULT '',
+                desc TEXT DEFAULT '',
+                created_at REAL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS earth_buildings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                country_id INTEGER NOT NULL,
+                building_type TEXT NOT NULL,
+                level INTEGER DEFAULT 1,
+                is_sabotaged INTEGER DEFAULT 0,
+                sabotaged_until REAL DEFAULT 0,
+                created_at REAL DEFAULT 0,
+                UNIQUE(country_id, building_type),
+                FOREIGN KEY(country_id) REFERENCES earth_countries(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS earth_cabinet (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                country_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                appointed_at REAL NOT NULL,
+                UNIQUE(country_id, role),
+                FOREIGN KEY(country_id) REFERENCES earth_countries(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS earth_spies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_country_id INTEGER NOT NULL,
+                codename TEXT NOT NULL,
+                skill_level INTEGER DEFAULT 1,
+                status TEXT DEFAULT 'idle',
+                target_country_id INTEGER DEFAULT NULL,
+                mission TEXT DEFAULT NULL,
+                mission_end_time REAL DEFAULT 0,
+                created_at REAL DEFAULT 0,
+                FOREIGN KEY(owner_country_id) REFERENCES earth_countries(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS earth_intelligence (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gatherer_country_id INTEGER NOT NULL,
+                target_country_id INTEGER NOT NULL,
+                intel_type TEXT NOT NULL,
+                intel_data TEXT NOT NULL,
+                expires_at REAL NOT NULL,
+                created_at REAL NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS earth_alliances (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                creator_country_id INTEGER NOT NULL,
+                banner_color TEXT DEFAULT '#3b82f6',
+                created_at REAL NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS earth_wars (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                attacker_country_id INTEGER NOT NULL,
+                defender_country_id INTEGER NOT NULL,
+                scale TEXT NOT NULL,
+                status TEXT DEFAULT 'active',
+                attacker_power INTEGER NOT NULL,
+                defender_power INTEGER NOT NULL,
+                attacker_divisions INTEGER DEFAULT 10,
+                defender_divisions INTEGER DEFAULT 10,
+                start_time REAL NOT NULL,
+                end_time REAL NOT NULL,
+                reparations INTEGER DEFAULT 0,
+                winner_country_id INTEGER DEFAULT NULL,
+                FOREIGN KEY(attacker_country_id) REFERENCES earth_countries(id),
+                FOREIGN KEY(defender_country_id) REFERENCES earth_countries(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS earth_trade_routes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                country_a_id INTEGER NOT NULL,
+                country_b_id INTEGER NOT NULL,
+                status TEXT DEFAULT 'active',
+                daily_tariff INTEGER DEFAULT 50000,
+                created_at REAL NOT NULL,
+                UNIQUE(country_a_id, country_b_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS earth_country_offers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                country_id INTEGER NOT NULL,
+                buyer_id INTEGER NOT NULL,
+                seller_id INTEGER NOT NULL,
+                offer_amount INTEGER NOT NULL,
+                status TEXT DEFAULT 'pending',
+                created_at REAL DEFAULT 0,
+                FOREIGN KEY(country_id) REFERENCES earth_countries(id)
+            );
+
+
         """)
 
 
@@ -719,6 +838,8 @@ class Database:
             pass
         await self.seed_default_stocks()
         await self.seed_default_estate_plots()
+        await self.seed_default_earth_countries()
+        await self.seed_default_earth_countries()
         try:
             await self._db.execute("""
                 UPDATE estate_alliances 
@@ -3823,3 +3944,1283 @@ class Database:
         except Exception:
             pass
         return None
+
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # 🌍 VIRTUAL EARTH: 3D GEOPOLITICS SIMULATION DATABASE LAYER
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    async def seed_default_earth_countries(self):
+        """Seed the 42 sovereign Earth countries and migrate top E-State landowners."""
+        from utils.constants import EARTH_COUNTRIES, EARTH_BUILDINGS
+        
+        async with self._db.execute("SELECT COUNT(*) FROM earth_countries") as cur:
+            row = await cur.fetchone()
+            count = row[0] if row else 0
+
+        now = time.time()
+        if count == 0:
+            for c in EARTH_COUNTRIES:
+                await self._db.execute("""
+                    INSERT OR IGNORE INTO earth_countries (
+                        id, code, name, flag, lat, lng, owner_id, gdp, treasury, stability, unrest, is_coastal, capital, desc, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    c["id"], c["code"], c["name"], c["flag"], c["lat"], c["lng"],
+                    c.get("initial_owner_id"), c["gdp"], int(c["gdp"] * 0.15), 85, 12,
+                    c["is_coastal"], c.get("capital", ""), c.get("desc", ""), now
+                ))
+            await self._db.commit()
+
+        # Explicit Guaranteed Ownership assignments (per user prompt instruction)
+        await self._db.execute("UPDATE earth_countries SET owner_id = 429350468796416013 WHERE code = 'RUS'")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 828513350883213342 WHERE code = 'IND'")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1134511531468525589 WHERE code = 'USA' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1291083270426988544 WHERE code = 'CHN' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1486122404102013050 WHERE code = 'GBR' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1280141055265865732 WHERE code = 'DEU' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1162404296097275904 WHERE code = 'JPN' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1370437656755834970 WHERE code = 'FRA' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1248327898901774356 WHERE code = 'BRA' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 829919098506444820 WHERE code = 'CAN' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1327273793650950216 WHERE code = 'AUS' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1423907121229074452 WHERE code = 'ITA' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1119603544635482163 WHERE code = 'SAU' AND owner_id IS NULL")
+        await self._db.execute("UPDATE earth_countries SET owner_id = 1289659139659792519 WHERE code = 'KOR' AND owner_id IS NULL")
+        await self._db.commit()
+
+        # Seed starter buildings for all sovereign nations that have owners
+        async with self._db.execute("SELECT id, is_coastal FROM earth_countries WHERE owner_id IS NOT NULL") as cur:
+            owned = [dict(r) for r in await cur.fetchall()]
+
+        starter_types = ["school", "hospital", "heavy_factory", "bunker", "gold_mine"]
+        for o in owned:
+            cid = o["id"]
+            for btype in starter_types:
+                await self._db.execute("""
+                    INSERT OR IGNORE INTO earth_buildings (country_id, building_type, level, created_at)
+                    VALUES (?, ?, 1, ?)
+                """, (cid, btype, now))
+            if o.get("is_coastal"):
+                await self._db.execute("""
+                    INSERT OR IGNORE INTO earth_buildings (country_id, building_type, level, created_at)
+                    VALUES (?, 'naval_port', 1, ?)
+                """, (cid, now))
+                await self._db.execute("""
+                    INSERT OR IGNORE INTO earth_buildings (country_id, building_type, level, created_at)
+                    VALUES (?, 'oil_rig', 1, ?)
+                """, (cid, now))
+        await self._db.commit()
+
+        # Pre-seed bilateral ocean trade route between Russia and India
+        try:
+            async with self._db.execute("SELECT id FROM earth_countries WHERE code = 'RUS'") as c1:
+                r_rus = await c1.fetchone()
+            async with self._db.execute("SELECT id FROM earth_countries WHERE code = 'IND'") as c2:
+                r_ind = await c2.fetchone()
+            if r_rus and r_ind:
+                await self._db.execute("""
+                    INSERT OR IGNORE INTO earth_trade_routes (country_a_id, country_b_id, status, daily_tariff, created_at)
+                    VALUES (?, ?, 'active', 75000, ?)
+                """, (r_rus[0], r_ind[0], now))
+                await self._db.commit()
+        except Exception:
+            pass
+
+    async def get_earth_countries(self) -> list[dict]:
+        """Fetch all 42 countries with owner profiles, stats, active wars, and stability."""
+        if self._db is None:
+            await self.setup()
+
+        # Trigger auto check for riots and revolutions
+        try:
+            await self.check_earth_riots_and_revolutions()
+        except Exception:
+            pass
+
+        async with self._db.execute("""
+            SELECT c.*, 
+                   COALESCE(om.username, 'Citizen Sovereign') as owner_username,
+                   NULL as owner_avatar,
+                   al.name as alliance_name,
+                   al.banner_color as alliance_color,
+                   (SELECT COUNT(*) FROM earth_buildings b WHERE b.country_id = c.id) as building_count,
+                   (SELECT COUNT(*) FROM earth_cabinet cab WHERE cab.country_id = c.id) as cabinet_count,
+                   (SELECT COUNT(*) FROM earth_wars w WHERE (w.attacker_country_id = c.id OR w.defender_country_id = c.id) AND w.status = 'active') as active_war_count
+            FROM earth_countries c
+            LEFT JOIN oauth_members om ON c.owner_id = om.user_id
+            LEFT JOIN earth_alliances al ON c.alliance_id = al.id
+            ORDER BY c.gdp DESC
+        """) as cur:
+            rows = await cur.fetchall()
+            result = []
+            for r in rows:
+                item = dict(r)
+                item["is_rioting"] = (item.get("unrest", 0) >= 60)
+                item["is_revolution_risk"] = (item.get("unrest", 0) >= 85)
+                # Compute total defense power
+                item["military_power"] = 50 + (item.get("building_count", 0) * 15)
+                result.append(item)
+            return result
+
+    async def get_earth_country(self, country_id: int) -> dict | None:
+        """Fetch full deep details of a country including buildings, cabinet, spies, and treaties."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("""
+            SELECT c.*,
+                   COALESCE(om.username, 'Citizen Sovereign') as owner_username,
+                   NULL as owner_avatar,
+                   al.name as alliance_name,
+                   al.banner_color as alliance_color
+            FROM earth_countries c
+            LEFT JOIN oauth_members om ON c.owner_id = om.user_id
+            LEFT JOIN earth_alliances al ON c.alliance_id = al.id
+            WHERE c.id = ?
+        """, (country_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return None
+            country = dict(row)
+
+        country["buildings"] = await self.get_country_buildings(country_id)
+        country["cabinet"] = await self.get_earth_cabinet(country_id)
+        country["trade_routes"] = await self.get_earth_trade_routes(country_id)
+        country["spies"] = await self.get_earth_spies(country_id)
+        country["intelligence"] = await self.get_earth_intelligence(country_id)
+
+        # Calculate combat power
+        mil_power = 20
+        def_power = 30
+        for b in country["buildings"]:
+            mil_power += b.get("military_power", 0) * b.get("level", 1)
+            def_power += b.get("defense_power", 0) * b.get("level", 1)
+
+        doc = country.get("military_doctrine", "volunteer")
+        from utils.constants import EARTH_DOCTRINES
+        doc_info = EARTH_DOCTRINES.get("military", {}).get(doc, {})
+        mult = doc_info.get("power_mult", 1.0)
+        country["total_military_power"] = int(round(mil_power * mult))
+        country["total_defense_power"] = int(round(def_power * mult))
+        return country
+
+    async def get_earth_country_by_code(self, code: str) -> dict | None:
+        """Fetch country by 3-letter code (e.g. RUS, IND, USA)."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT id FROM earth_countries WHERE UPPER(code) = UPPER(?)", (code,)) as cur:
+            row = await cur.fetchone()
+            if row:
+                return await self.get_earth_country(row[0])
+        return None
+
+    async def get_user_earth_country(self, user_id: int) -> dict | None:
+        """Fetch the country where the user is President/PM or a Cabinet Minister."""
+        if self._db is None:
+            await self.setup()
+
+        # 1. Check if President
+        async with self._db.execute("SELECT id FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+            if row:
+                c = await self.get_earth_country(row[0])
+                c["user_role"] = "president"
+                c["role_title"] = "President & Supreme Sovereign"
+                return c
+
+        # 2. Check if Cabinet Minister
+        async with self._db.execute("SELECT country_id, role FROM earth_cabinet WHERE user_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+            if row:
+                c = await self.get_earth_country(row[0])
+                c["user_role"] = row[1]
+                from utils.constants import EARTH_CABINET_ROLES
+                c["role_title"] = EARTH_CABINET_ROLES.get(row[1], {}).get("title", "Cabinet Minister")
+                return c
+
+        return None
+
+    async def get_country_buildings(self, country_id: int) -> list[dict]:
+        """Get all constructed buildings for a country enriched with constants metadata."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_BUILDINGS
+
+        async with self._db.execute("SELECT * FROM earth_buildings WHERE country_id = ? ORDER BY level DESC", (country_id,)) as cur:
+            rows = await cur.fetchall()
+            results = []
+            now = time.time()
+            for r in rows:
+                b = dict(r)
+                btype = b["building_type"]
+                meta = EARTH_BUILDINGS.get(btype, {})
+                b["name"] = meta.get("name", btype.title())
+                b["emoji"] = meta.get("emoji", "🏗️")
+                b["desc"] = meta.get("desc", "")
+                b["hourly_yield"] = meta.get("hourly_yield", 0) * b["level"]
+                b["military_power"] = meta.get("military_power", 0) * b["level"]
+                b["defense_power"] = meta.get("defense_power", 0) * b["level"]
+                cost_mult = meta.get("cost_multiplier", 1.5)
+                b["upgrade_cost"] = int(meta.get("base_cost", 100000) * (cost_mult ** b["level"]))
+                if b.get("sabotaged_until", 0) > now:
+                    b["is_sabotaged"] = 1
+                    b["sabotage_mins_left"] = int((b["sabotaged_until"] - now) / 60)
+                else:
+                    b["is_sabotaged"] = 0
+                results.append(b)
+            return results
+
+    async def has_earth_cabinet_permission(self, user_id: int, country_id: int, required_role: str) -> bool:
+        """Check if user is President (who can manage everything) OR appointed to required cabinet role."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT owner_id FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if row and str(row[0]) == str(user_id):
+                return True
+
+        async with self._db.execute("SELECT user_id FROM earth_cabinet WHERE country_id = ? AND role = ?", (country_id, required_role)) as cur:
+            row = await cur.fetchone()
+            if row and str(row[0]) == str(user_id):
+                return True
+        return False
+
+    async def build_earth_infrastructure(self, user_id: int, country_id: int, building_type: str) -> tuple[bool, str, int]:
+        """Construct or upgrade a national building (schools, hospitals, mines, oil rigs, factories, bunkers, ports)."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_BUILDINGS
+
+        if building_type not in EARTH_BUILDINGS:
+            return False, f"Invalid infrastructure type: {building_type}", 0
+
+        # Permission check: President or Minister of Economy
+        can_build = await self.has_earth_cabinet_permission(user_id, country_id, "economy")
+        if not can_build:
+            return False, "⛔ Authorization Denied: Only the President or the appointed Minister of Economy can commission national infrastructure!", 0
+
+        meta = EARTH_BUILDINGS[building_type]
+        base_cost = meta["base_cost"]
+        cost_mult = meta["cost_multiplier"]
+
+        # Check existing level
+        async with self._db.execute("SELECT level FROM earth_buildings WHERE country_id = ? AND building_type = ?", (country_id, building_type)) as cur:
+            row = await cur.fetchone()
+            current_lvl = row[0] if row else 0
+
+        cost = int(base_cost * (cost_mult ** current_lvl))
+
+        # Check user medals
+        user_econ = await self.get_global_economy(user_id)
+        if user_econ.get("medals", 0) < cost:
+            return False, f"Insufficient Medals: This project requires {cost:,} Medals (You have {user_econ.get('medals', 0):,}).", 0
+
+        # Coastal check for naval port
+        if building_type == "naval_port":
+            async with self._db.execute("SELECT is_coastal FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+                c_row = await cur.fetchone()
+                if not c_row or not c_row[0]:
+                    return False, "⛔ Landlocked Territory: Deepwater Naval Ports can only be constructed in coastal sovereign nations!", 0
+
+        # Deduct medals
+        await self.subtract_medals(user_id, cost)
+
+        now = time.time()
+        new_level = current_lvl + 1
+        if current_lvl > 0:
+            await self._db.execute("UPDATE earth_buildings SET level = level + 1 WHERE country_id = ? AND building_type = ?", (country_id, building_type))
+        else:
+            await self._db.execute("INSERT INTO earth_buildings (country_id, building_type, level, created_at) VALUES (?, ?, 1, ?)", (country_id, building_type, now))
+
+        # Boost country stats
+        stab_boost = meta.get("stability_bonus", 0)
+        unrest_drop = meta.get("unrest_reduction", 0)
+        gdp_growth = int(cost * 0.70)
+
+        await self._db.execute("""
+            UPDATE earth_countries 
+            SET stability = min(100, stability + ?),
+                unrest = max(0, unrest - ?),
+                gdp = gdp + ?
+            WHERE id = ?
+        """, (stab_boost, unrest_drop, gdp_growth, country_id))
+        await self._db.commit()
+
+        return True, f"🏗️ Commissioned! {meta['emoji']} {meta['name']} upgraded to Level {new_level} (-{cost:,} Medals).", cost
+
+    async def get_earth_cabinet(self, country_id: int) -> dict:
+        """Get all appointed cabinet ministers with user names and avatars."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_CABINET_ROLES
+
+        result = {}
+        for role_key, role_meta in EARTH_CABINET_ROLES.items():
+            result[role_key] = {
+                "role": role_key,
+                "title": role_meta["title"],
+                "short_title": role_meta["short_title"],
+                "emoji": role_meta["emoji"],
+                "desc": role_meta["desc"],
+                "icon": role_meta["icon"],
+                "user_id": None,
+                "username": "Vacant (Managed by President)",
+                "avatar": None,
+                "appointed_at": 0
+            }
+
+        async with self._db.execute("""
+            SELECT cab.role, cab.user_id, cab.appointed_at,
+                   COALESCE(om.username, 'Commander ' || cab.user_id) as username,
+                   NULL as avatar
+            FROM earth_cabinet cab
+            LEFT JOIN oauth_members om ON cab.user_id = om.user_id
+            WHERE cab.country_id = ?
+        """, (country_id,)) as cur:
+            for r in await cur.fetchall():
+                rk = r[0]
+                if rk in result:
+                    result[rk]["user_id"] = r[1]
+                    result[rk]["appointed_at"] = r[2]
+                    result[rk]["username"] = r[3]
+                    result[rk]["avatar"] = r[4]
+        return result
+
+    async def appoint_earth_cabinet(self, president_id: int, country_id: int, role: str, target_user_id: int) -> tuple[bool, str]:
+        """President appoints another Discord player to a cabinet minister post."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_CABINET_ROLES
+
+        if role not in EARTH_CABINET_ROLES:
+            return False, f"Invalid cabinet role: {role}"
+
+        # President check
+        async with self._db.execute("SELECT owner_id, name FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if not row or str(row[0]) != str(president_id):
+                return False, "⛔ Sovereign Privilege Required: Only the President/PM of this nation can appoint Cabinet Ministers!"
+            c_name = row[1]
+
+        now = time.time()
+        await self._db.execute("""
+            INSERT OR REPLACE INTO earth_cabinet (country_id, role, user_id, appointed_at)
+            VALUES (?, ?, ?, ?)
+        """, (country_id, role, target_user_id, now))
+        await self._db.commit()
+
+        role_info = EARTH_CABINET_ROLES[role]
+        return True, f"🏛️ Decree Issued: <@{target_user_id}> has been appointed as {role_info['emoji']} **{role_info['title']}** of {c_name}!"
+
+    async def dismiss_earth_cabinet(self, president_id: int, country_id: int, role: str) -> tuple[bool, str]:
+        """President dismisses a minister from cabinet portfolio."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_CABINET_ROLES
+
+        async with self._db.execute("SELECT owner_id, name FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if not row or str(row[0]) != str(president_id):
+                return False, "⛔ Sovereign Privilege Required: Only the President/PM can dismiss ministers from office!"
+            c_name = row[1]
+
+        await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ? AND role = ?", (country_id, role))
+        await self._db.commit()
+
+        role_info = EARTH_CABINET_ROLES.get(role, {"title": role})
+        return True, f"Dismissed minister from {role_info.get('title')}. Authority returned directly to the President."
+
+    async def buy_earth_country(self, user_id: int, country_id: int) -> tuple[bool, str]:
+        """Purchase an unowned sovereign nation from the State Trust with Medals."""
+        if self._db is None:
+            await self.setup()
+
+        # Check if user already owns a country
+        async with self._db.execute("SELECT id, name FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
+            existing = await cur.fetchone()
+            if existing:
+                return False, f"⛔ One Sovereign Rule: You already govern {existing[1]}! You cannot lead multiple nations simultaneously."
+
+        async with self._db.execute("SELECT * FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Country not found."
+            c = dict(row)
+
+        if c.get("owner_id"):
+            return False, f"This nation is already governed by <@{c['owner_id']}>. Make a diplomatic buyout offer instead!"
+
+        # Price = 25% of GDP
+        cost = max(3000000, int(c["gdp"] * 0.25))
+        econ = await self.get_global_economy(user_id)
+        if econ.get("medals", 0) < cost:
+            return False, f"Insufficient Capital: Acquiring {c['name']} requires {cost:,} Medals (You have {econ.get('medals', 0):,})."
+
+        await self.subtract_medals(user_id, cost)
+        now = time.time()
+        await self._db.execute("""
+            UPDATE earth_countries 
+            SET owner_id = ?, stability = 80, unrest = 15, last_yield_claim = ?
+            WHERE id = ?
+        """, (user_id, now, country_id))
+        await self._db.commit()
+
+        # Pre-seed starter buildings
+        starter_types = ["school", "hospital", "heavy_factory", "bunker", "gold_mine"]
+        for btype in starter_types:
+            await self._db.execute("""
+                INSERT OR IGNORE INTO earth_buildings (country_id, building_type, level, created_at)
+                VALUES (?, ?, 1, ?)
+            """, (country_id, btype, now))
+        if c.get("is_coastal"):
+            await self._db.execute("""
+                INSERT OR IGNORE INTO earth_buildings (country_id, building_type, level, created_at)
+                VALUES (?, 'naval_port', 1, ?)
+            """, (country_id, now))
+        await self._db.commit()
+
+        return True, f"🎉 Proclamation Signed! You are now the official President and Sovereign Leader of {c['flag']} **{c['name']}**!"
+
+    async def collect_earth_yield(self, user_id: int) -> tuple[int, str]:
+        """Harvest hourly passive dividends from all national mines, rigs, schools, and ocean trade."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_DOCTRINES
+
+        async with self._db.execute("SELECT * FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return 0, "You do not currently lead a sovereign country."
+            c = dict(row)
+
+        now = time.time()
+        last_claim = c.get("last_yield_claim", 0) or 0
+        if last_claim == 0:
+            last_claim = now - 3600
+
+        elapsed_hours = min(24.0, max(0.01, (now - last_claim) / 3600.0))
+        if elapsed_hours < (5.0 / 60.0): # 5 min cooldown
+            return 0, "Dividends compound hourly. Please check back shortly!"
+
+        # Sum building yields
+        buildings = await self.get_country_buildings(c["id"])
+        hourly_yield = sum(b.get("hourly_yield", 0) for b in buildings if not b.get("is_sabotaged"))
+
+        # Add trade route tariffs
+        trade_routes = await self.get_earth_trade_routes(c["id"])
+        hourly_yield += len(trade_routes) * 3500
+
+        # Apply economic doctrine multiplier
+        doc = c.get("economic_doctrine", "free_market")
+        doc_mult = EARTH_DOCTRINES.get("economic", {}).get(doc, {}).get("yield_mult", 1.0)
+        hourly_yield = int(round(hourly_yield * doc_mult))
+
+        # Check unrest penalty
+        unrest = c.get("unrest", 0)
+        riot_penalty = 1.0
+        riot_warning = ""
+        if unrest >= 60:
+            riot_penalty = 0.50 # 50% loss due to riots!
+            riot_warning = " ⚠️ (50% dividend loss due to active urban riots!)"
+        elif unrest >= 30:
+            riot_penalty = 0.85 # 15% loss due to civil strikes
+            riot_warning = " (15% loss due to civil strikes)"
+
+        total_payout = int(round(hourly_yield * elapsed_hours * riot_penalty))
+        if total_payout <= 0:
+            total_payout = 500
+
+        # Credit player medals
+        await self.add_medals(user_id, total_payout)
+        # Credit 20% into national treasury
+        treasury_deposit = int(total_payout * 0.20)
+        await self._db.execute("""
+            UPDATE earth_countries 
+            SET last_yield_claim = ?, treasury = treasury + ?
+            WHERE id = ?
+        """, (now, treasury_deposit, c["id"]))
+        await self._db.commit()
+
+        return total_payout, f"⚡ Harvested +{total_payout:,} Medals from national infrastructure! (+{treasury_deposit:,} deposited into Treasury){riot_warning}"
+
+    async def update_earth_policies(self, user_id: int, country_id: int, economic: str, military: str, diplomatic: str, tax_rate: int) -> tuple[bool, str]:
+        """Update national doctrines and tax rate."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_DOCTRINES
+
+        # Check permission: Owner or cabinet
+        async with self._db.execute("SELECT owner_id FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if not row or str(row[0]) != str(user_id):
+                return False, "⛔ Sovereign Privilege Required: Only the President can enact structural policy reforms!"
+
+        tax_rate = max(0, min(50, int(tax_rate)))
+        unrest_add = 0
+        if tax_rate > 25:
+            unrest_add += 15
+        elif tax_rate > 15:
+            unrest_add += 5
+
+        await self._db.execute("""
+            UPDATE earth_countries
+            SET economic_doctrine = ?,
+                military_doctrine = ?,
+                diplomatic_stance = ?,
+                tax_rate = ?,
+                unrest = min(100, unrest + ?)
+            WHERE id = ?
+        """, (economic, military, diplomatic, tax_rate, unrest_add, country_id))
+        await self._db.commit()
+
+        return True, f"📜 National Policy Reform Enacted! Tax Rate set to {tax_rate}%. Economic: {economic.replace('_', ' ').title()}."
+
+    async def quell_earth_unrest(self, user_id: int, country_id: int, method: str) -> tuple[bool, str]:
+        """Deploy state resources to quell unrest and suppress riots."""
+        if self._db is None:
+            await self.setup()
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "defense")
+        if not can_manage:
+            can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "economy")
+        if not can_manage:
+            return False, "⛔ Authorization Denied: Only the President or Defense/Economy Ministers can enact unrest relief measures!"
+
+        econ = await self.get_global_economy(user_id)
+
+        if method == "relief":
+            cost = 150000
+            if econ.get("medals", 0) < cost:
+                return False, f"Requires {cost:,} Medals for civilian emergency stimulus."
+            await self.subtract_medals(user_id, cost)
+            await self._db.execute("""
+                UPDATE earth_countries 
+                SET unrest = max(0, unrest - 25), stability = min(100, stability + 15)
+                WHERE id = ?
+            """, (country_id,))
+            await self._db.commit()
+            return True, "🏥 Civilian Emergency Stimulus deployed: -25% Unrest, +15% Stability!"
+
+        elif method == "police":
+            cost = 80000
+            if econ.get("medals", 0) < cost:
+                return False, f"Requires {cost:,} Medals for tactical police suppression."
+            await self.subtract_medals(user_id, cost)
+            await self._db.execute("""
+                UPDATE earth_countries 
+                SET unrest = max(0, unrest - 35), stability = max(20, stability - 8)
+                WHERE id = ?
+            """, (country_id,))
+            await self._db.commit()
+            return True, "🛡️ Tactical Police Suppression deployed: -35% Unrest, -8% Civil Liberty."
+
+        elif method == "festival":
+            cost = 60000
+            if econ.get("medals", 0) < cost:
+                return False, f"Requires {cost:,} Medals to host a National Sovereign Jubilee."
+            await self.subtract_medals(user_id, cost)
+            await self._db.execute("""
+                UPDATE earth_countries 
+                SET unrest = max(0, unrest - 15), stability = min(100, stability + 20)
+                WHERE id = ?
+            """, (country_id,))
+            await self._db.commit()
+            return True, "🎉 National Sovereign Jubilee celebrated: -15% Unrest, +20% Stability!"
+
+        return False, "Unknown pacification method."
+
+    async def check_earth_riots_and_revolutions(self) -> list[dict]:
+        """Scan countries for severe unrest and trigger regime changes / revolutions."""
+        if self._db is None:
+            await self.setup()
+
+        events = []
+        now = time.time()
+        async with self._db.execute("SELECT id, name, flag, owner_id, unrest, stability, tax_rate FROM earth_countries WHERE owner_id IS NOT NULL") as cur:
+            countries = [dict(r) for r in await cur.fetchall()]
+
+        for c in countries:
+            unrest = c.get("unrest", 0)
+            cid = c["id"]
+
+            # Tax rate pressure
+            if c.get("tax_rate", 10) > 20:
+                unrest = min(100, unrest + 2)
+
+            # Massive Revolution / Regime Change (Unrest >= 85%)
+            if unrest >= 85:
+                old_leader = c["owner_id"]
+                # Oust leader!
+                await self._db.execute("""
+                    UPDATE earth_countries 
+                    SET owner_id = NULL, stability = 50, unrest = 25 
+                    WHERE id = ?
+                """, (cid,))
+                await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (cid,))
+                await self._db.commit()
+                events.append({
+                    "type": "revolution",
+                    "country_id": cid,
+                    "name": c["name"],
+                    "flag": c["flag"],
+                    "ousted_leader_id": old_leader,
+                    "message": f"🚨 MASSIVE REVOLUTION: Due to unchecked unrest ({unrest}%), the citizens of {c['flag']} {c['name']} stormed the Presidential Palace and ousted the government! The nation has returned to the Sovereign Trust."
+                })
+
+        return events
+
+    # ─── Espionage & Intelligence System ──────────────────────────────────────
+
+    async def get_earth_spies(self, country_id: int) -> list[dict]:
+        """Fetch all secret agents in the nation's intelligence bureau."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT s.*, tc.name as target_country_name, tc.flag as target_country_flag
+            FROM earth_spies s
+            LEFT JOIN earth_countries tc ON s.target_country_id = tc.id
+            WHERE s.owner_country_id = ?
+            ORDER BY s.id DESC
+        """, (country_id,)) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def recruit_earth_spy(self, user_id: int, country_id: int, codename: str) -> tuple[bool, str]:
+        """Recruit a secret field operative for the nation's intelligence bureau."""
+        if self._db is None:
+            await self.setup()
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "intelligence")
+        if not can_manage:
+            return False, "⛔ Authorization Denied: Only the President or the Director of Intelligence can recruit secret agents!"
+
+        # Max 6 spies per country
+        async with self._db.execute("SELECT COUNT(*) FROM earth_spies WHERE owner_country_id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if row and row[0] >= 6:
+                return False, "Max operative capacity reached (6 Agents maximum per nation)."
+
+        cost = 120000
+        econ = await self.get_global_economy(user_id)
+        if econ.get("medals", 0) < cost:
+            return False, f"Recruiting an operative requires {cost:,} Medals."
+
+        await self.subtract_medals(user_id, cost)
+        now = time.time()
+        await self._db.execute("""
+            INSERT INTO earth_spies (owner_country_id, codename, skill_level, status, created_at)
+            VALUES (?, ?, 1, 'idle', ?)
+        """, (country_id, codename.strip(), now))
+        await self._db.commit()
+
+        return True, f"🕵️ Field Operative **Agent '{codename}'** inducted into Secret Intelligence Bureau (-{cost:,} Medals)."
+
+    async def dispatch_earth_spy(self, user_id: int, country_id: int, spy_id: int, target_country_id: int, mission: str) -> tuple[bool, str, dict]:
+        """Dispatch a secret agent to infiltrate a foreign sovereign nation."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_SPY_MISSIONS
+
+        if mission not in EARTH_SPY_MISSIONS:
+            return False, f"Invalid mission: {mission}", {}
+
+        if country_id == target_country_id:
+            return False, "You cannot dispatch espionage agents against your own nation!", {}
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "intelligence")
+        if not can_manage:
+            return False, "⛔ Authorization Denied: Only the President or Director of Intelligence can issue covert espionage orders!", {}
+
+        # Fetch spy
+        async with self._db.execute("SELECT * FROM earth_spies WHERE id = ? AND owner_country_id = ?", (spy_id, country_id)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Secret agent not found.", {}
+            spy = dict(row)
+
+        if spy.get("status") != "idle":
+            return False, f"Agent '{spy['codename']}' is currently unavailable (Status: {spy.get('status')}).", {}
+
+        meta = EARTH_SPY_MISSIONS[mission]
+        target_country = await self.get_earth_country(target_country_id)
+        if not target_country:
+            return False, "Target sovereign country does not exist.", {}
+
+        # Calculate capture risk
+        target_bunkers = sum(b.get("level", 1) for b in target_country.get("buildings", []) if b["building_type"] == "bunker")
+        capture_risk = meta["capture_risk"] + (target_bunkers * 0.03) - (spy["skill_level"] * 0.05)
+        capture_risk = max(0.10, min(0.75, capture_risk))
+
+        now = time.time()
+        roll = random.random()
+
+        if roll < capture_risk:
+            # SPY CAUGHT!
+            await self._db.execute("UPDATE earth_spies SET status = 'captured' WHERE id = ?", (spy_id,))
+            await self._db.commit()
+
+            # Victim receives urgent security bulletin with Casus Belli
+            intel_alert = {
+                "alert": "agent_captured",
+                "caught_codename": spy["codename"],
+                "origin_country_id": country_id,
+                "timestamp": now
+            }
+            await self._db.execute("""
+                INSERT INTO earth_intelligence (gatherer_country_id, target_country_id, intel_type, intel_data, expires_at, created_at)
+                VALUES (?, ?, 'incident', ?, ?, ?)
+            """, (target_country_id, country_id, json.dumps(intel_alert), now + 604800, now))
+            await self._db.commit()
+
+            return False, f"🚨 COMPROMISED: Agent '{spy['codename']}' was detected and CAPTURED by {target_country['name']} counter-intelligence! The host nation has declared an International Diplomatic Incident.", {"captured": True}
+
+        # SPY SUCCEEDED!
+        mission_result = {}
+        if mission == "intel":
+            intel_dossier = {
+                "target_name": target_country["name"],
+                "flag": target_country["flag"],
+                "gdp": target_country["gdp"],
+                "treasury": target_country["treasury"],
+                "stability": target_country["stability"],
+                "unrest": target_country["unrest"],
+                "total_military_power": target_country.get("total_military_power", 50),
+                "total_defense_power": target_country.get("total_defense_power", 50),
+                "buildings": [{"type": b["building_type"], "level": b["level"]} for b in target_country.get("buildings", [])],
+                "alliances": target_country.get("alliance_name"),
+                "gathered_at": now
+            }
+            await self._db.execute("""
+                INSERT INTO earth_intelligence (gatherer_country_id, target_country_id, intel_type, intel_data, expires_at, created_at)
+                VALUES (?, ?, 'full_dossier', ?, ?, ?)
+            """, (country_id, target_country_id, json.dumps(intel_dossier), now + 86400, now))
+            mission_result = intel_dossier
+
+        elif mission == "sabotage":
+            # Sabotage a building
+            async with self._db.execute("SELECT id, building_type FROM earth_buildings WHERE country_id = ? AND is_sabotaged = 0 ORDER BY RANDOM() LIMIT 1", (target_country_id,)) as cur:
+                target_b = await cur.fetchone()
+                if target_b:
+                    b_id, b_type = target_b
+                    sab_until = now + 43200 # 12 hours
+                    await self._db.execute("UPDATE earth_buildings SET is_sabotaged = 1, sabotaged_until = ? WHERE id = ?", (sab_until, b_id))
+                    mission_result = {"sabotaged_building": b_type}
+
+        elif mission == "incite_riot":
+            # Spike unrest by +25%
+            await self._db.execute("""
+                UPDATE earth_countries 
+                SET unrest = min(100, unrest + 25), stability = max(0, stability - 15)
+                WHERE id = ?
+            """, (target_country_id,))
+            mission_result = {"unrest_added": 25}
+
+        # Promote spy skill level
+        await self._db.execute("UPDATE earth_spies SET skill_level = min(5, skill_level + 1) WHERE id = ?", (spy_id,))
+        await self._db.commit()
+
+        return True, f"🛰️ Espionage Mission Succeeded! Agent '{spy['codename']}' executed {meta['name']} in {target_country['name']} without detection.", mission_result
+
+    async def get_earth_intelligence(self, country_id: int) -> list[dict]:
+        """Fetch all stolen foreign state intelligence dossiers and security alerts."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        async with self._db.execute("""
+            SELECT i.*, tc.name as target_name, tc.flag as target_flag
+            FROM earth_intelligence i
+            LEFT JOIN earth_countries tc ON i.target_country_id = tc.id
+            WHERE i.gatherer_country_id = ? AND i.expires_at > ?
+            ORDER BY i.created_at DESC
+        """, (country_id, now)) as cur:
+            rows = await cur.fetchall()
+            results = []
+            for r in rows:
+                item = dict(r)
+                try:
+                    item["data"] = json.loads(item["intel_data"])
+                except Exception:
+                    item["data"] = {}
+                results.append(item)
+            return results
+
+    # ─── Multi-Day Conquest & Warfare System ──────────────────────────────────
+
+    async def declare_earth_war(self, user_id: int, attacker_country_id: int, defender_country_id: int, scale: str) -> tuple[bool, str, dict]:
+        """Declare a multi-day military conquest campaign (1 to 5 days)."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_WAR_SCALES
+
+        if scale not in EARTH_WAR_SCALES:
+            return False, f"Invalid war scale: {scale}", {}
+
+        if attacker_country_id == defender_country_id:
+            return False, "You cannot declare war upon yourself!", {}
+
+        # Permission check: President or Army Commander
+        can_command = await self.has_earth_cabinet_permission(user_id, attacker_country_id, "defense")
+        if not can_command:
+            return False, "⛔ Authorization Denied: Only the President or the Supreme Army Commander can declare military conquests!", {}
+
+        meta = EARTH_WAR_SCALES[scale]
+        atk = await self.get_earth_country(attacker_country_id)
+        dfn = await self.get_earth_country(defender_country_id)
+        if not atk or not dfn:
+            return False, "Sovereign country not found.", {}
+
+        # Check existing active war
+        async with self._db.execute("""
+            SELECT id FROM earth_wars 
+            WHERE status = 'active' AND (
+                (attacker_country_id = ? AND defender_country_id = ?) OR
+                (attacker_country_id = ? AND defender_country_id = ?)
+            )
+        """, (attacker_country_id, defender_country_id, defender_country_id, attacker_country_id)) as cur:
+            if await cur.fetchone():
+                return False, "An active military campaign is already ongoing between these two sovereign powers!", {}
+
+        # Alliance check: Cannot attack ally
+        if atk.get("alliance_id") and dfn.get("alliance_id") and atk["alliance_id"] == dfn["alliance_id"]:
+            return False, "⛔ Treaty Violation: You cannot declare war on a fellow member of your sovereign alliance!", {}
+
+        now = time.time()
+        duration_s = meta["duration_seconds"]
+        end_time = now + duration_s
+
+        atk_power = atk.get("total_military_power", 50)
+        dfn_power = dfn.get("total_defense_power", 50)
+
+        # Apply allied defense bonus if defender has alliance
+        if dfn.get("alliance_id"):
+            async with self._db.execute("SELECT COUNT(*) FROM earth_countries WHERE alliance_id = ? AND id != ?", (dfn["alliance_id"], defender_country_id)) as cur:
+                ally_count = (await cur.fetchone())[0]
+                dfn_power += ally_count * 25 # +25 defense power per ally
+
+        async with self._db.execute("""
+            INSERT INTO earth_wars (
+                attacker_country_id, defender_country_id, scale, status,
+                attacker_power, defender_power, attacker_divisions, defender_divisions,
+                start_time, end_time, reparations
+            ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            attacker_country_id, defender_country_id, scale,
+            atk_power, dfn_power, meta["min_divisions"], meta["min_divisions"],
+            now, end_time, meta["reparations"]
+        )) as cur:
+            war_id = cur.lastrowid
+        await self._db.commit()
+
+        war_data = {
+            "war_id": war_id,
+            "attacker_name": atk["name"],
+            "attacker_flag": atk["flag"],
+            "defender_name": dfn["name"],
+            "defender_flag": dfn["flag"],
+            "scale": scale,
+            "scale_name": meta["name"],
+            "duration_hours": meta["duration_hours"],
+            "start_time": now,
+            "end_time": end_time
+        }
+        return True, f"⚔️ WAR DECLARED! {atk['flag']} {atk['name']} launched a {meta['duration_hours']}-Hour {meta['name']} against {dfn['flag']} {dfn['name']}!", war_data
+
+    async def get_active_earth_wars(self) -> list[dict]:
+        """Fetch all ongoing multi-day global wars with progress percentages and 3D coordinates."""
+        if self._db is None:
+            await self.setup()
+
+        # Conclude any expired wars
+        try:
+            await self.resolve_concluded_earth_wars()
+        except Exception:
+            pass
+
+        now = time.time()
+        async with self._db.execute("""
+            SELECT w.*, 
+                   ac.name as attacker_name, ac.flag as attacker_flag, ac.lat as atk_lat, ac.lng as atk_lng,
+                   dc.name as defender_name, dc.flag as defender_flag, dc.lat as dfn_lat, dc.lng as dfn_lng
+            FROM earth_wars w
+            JOIN earth_countries ac ON w.attacker_country_id = ac.id
+            JOIN earth_countries dc ON w.defender_country_id = dc.id
+            WHERE w.status = 'active'
+            ORDER BY w.start_time DESC
+        """) as cur:
+            rows = await cur.fetchall()
+            results = []
+            for r in rows:
+                item = dict(r)
+                total_duration = max(1, item["end_time"] - item["start_time"])
+                elapsed = max(0, now - item["start_time"])
+                item["progress_pct"] = min(100.0, round((elapsed / total_duration) * 100.0, 1))
+                item["hours_remaining"] = max(0.1, round((item["end_time"] - now) / 3600.0, 1))
+                results.append(item)
+            return results
+
+    async def reinforce_earth_war(self, user_id: int, war_id: int, divisions: int) -> tuple[bool, str]:
+        """Mobilize division reinforcements into an active war theater."""
+        if self._db is None:
+            await self.setup()
+
+        divisions = max(1, min(50, divisions))
+        cost = divisions * 25000
+
+        econ = await self.get_global_economy(user_id)
+        if econ.get("medals", 0) < cost:
+            return False, f"Mobilizing {divisions} divisions requires {cost:,} Medals."
+
+        async with self._db.execute("SELECT * FROM earth_wars WHERE id = ? AND status = 'active'", (war_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Active war campaign not found."
+            war = dict(row)
+
+        # Check which side user belongs to
+        user_c = await self.get_user_earth_country(user_id)
+        if not user_c:
+            return False, "You do not govern a sovereign nation."
+
+        cid = user_c["id"]
+        is_attacker = (cid == war["attacker_country_id"])
+        is_defender = (cid == war["defender_country_id"])
+
+        if not is_attacker and not is_defender:
+            return False, "Your nation is not directly involved in this military campaign."
+
+        await self.subtract_medals(user_id, cost)
+        if is_attacker:
+            await self._db.execute("UPDATE earth_wars SET attacker_divisions = attacker_divisions + ?, attacker_power = attacker_power + ? WHERE id = ?", (divisions, divisions * 5, war_id))
+        else:
+            await self._db.execute("UPDATE earth_wars SET defender_divisions = defender_divisions + ?, defender_power = defender_power + ? WHERE id = ?", (divisions, divisions * 5, war_id))
+        await self._db.commit()
+
+        side_name = "Assault divisions" if is_attacker else "Defensive garrison divisions"
+        return True, f"🪖 Mobilized +{divisions} {side_name} to the front line (-{cost:,} Medals)!"
+
+    async def resolve_concluded_earth_wars(self) -> list[dict]:
+        """Conclude wars that have elapsed their 1 to 5 day timeline."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_WAR_SCALES
+
+        now = time.time()
+        concluded = []
+        async with self._db.execute("SELECT * FROM earth_wars WHERE status = 'active' AND end_time <= ?", (now,)) as cur:
+            wars = [dict(r) for r in await cur.fetchall()]
+
+        for w in wars:
+            wid = w["id"]
+            atk_score = w["attacker_power"] + (w["attacker_divisions"] * 3) + random.randint(10, 50)
+            dfn_score = w["defender_power"] + (w["defender_divisions"] * 3) + random.randint(10, 50)
+
+            scale_meta = EARTH_WAR_SCALES.get(w["scale"], {})
+            plunder_pct = scale_meta.get("treasury_plunder_pct", 0.25)
+
+            if atk_score > dfn_score:
+                # Attacker won
+                winner_id = w["attacker_country_id"]
+                status = "attacker_won"
+                # Plunder defender treasury
+                async with self._db.execute("SELECT treasury, owner_id FROM earth_countries WHERE id = ?", (w["defender_country_id"],)) as cur:
+                    dfn_row = await cur.fetchone()
+                    dfn_treasury = dfn_row[0] if dfn_row else 1000000
+                    loot = int(dfn_treasury * plunder_pct) + w.get("reparations", 100000)
+
+                await self._db.execute("UPDATE earth_countries SET treasury = max(0, treasury - ?), unrest = min(100, unrest + 20) WHERE id = ?", (loot, w["defender_country_id"]))
+                await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loot, w["attacker_country_id"]))
+            else:
+                # Defender held the line
+                winner_id = w["defender_country_id"]
+                status = "defender_won"
+                loot = w.get("reparations", 100000)
+                await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loot, w["defender_country_id"]))
+
+            await self._db.execute("UPDATE earth_wars SET status = ?, winner_country_id = ? WHERE id = ?", (status, winner_id, wid))
+            await self._db.commit()
+            concluded.append({"war_id": wid, "status": status, "winner_id": winner_id})
+
+        return concluded
+
+    # ─── Ocean Trade Routes & Bilateral Commerce ──────────────────────────────
+
+    async def propose_trade_route(self, user_id: int, from_country_id: int, to_country_id: int) -> tuple[bool, str]:
+        """Inaugurate a bilateral maritime ocean trade shipping route."""
+        if self._db is None:
+            await self.setup()
+
+        if from_country_id == to_country_id:
+            return False, "Cannot establish ocean trade with yourself!"
+
+        can_trade = await self.has_earth_cabinet_permission(user_id, from_country_id, "diplomat")
+        if not can_trade:
+            can_trade = await self.has_earth_cabinet_permission(user_id, from_country_id, "economy")
+        if not can_trade:
+            return False, "⛔ Authorization Denied: Only the President, Chief Diplomat, or Finance Minister can sign Ocean Trade Treaties!"
+
+        c_a = await self.get_earth_country(from_country_id)
+        c_b = await self.get_earth_country(to_country_id)
+        if not c_a or not c_b:
+            return False, "Country not found."
+
+        if not c_a.get("is_coastal") or not c_b.get("is_coastal"):
+            return False, "⛔ Maritime Access Required: Both countries must possess open oceanic coastlines to establish Maritime Shipping Lanes!"
+
+        # Check naval ports
+        has_port = any(b["building_type"] == "naval_port" for b in c_a.get("buildings", [])) or \
+                   any(b["building_type"] == "naval_port" for b in c_b.get("buildings", []))
+        if not has_port:
+            return False, "⚓ Deepwater Naval Port Required: At least one nation must construct a Level 1 Deepwater Naval Port to operate cargo shipping lanes!"
+
+        # Check existing route
+        c1, c2 = min(from_country_id, to_country_id), max(from_country_id, to_country_id)
+        async with self._db.execute("SELECT id FROM earth_trade_routes WHERE country_a_id = ? AND country_b_id = ?", (c1, c2)) as cur:
+            if await cur.fetchone():
+                return False, "An active Ocean Trade Route already exists between these two sovereign powers!"
+
+        now = time.time()
+        await self._db.execute("""
+            INSERT INTO earth_trade_routes (country_a_id, country_b_id, status, daily_tariff, created_at)
+            VALUES (?, ?, 'active', 85000, ?)
+        """, (c1, c2, now))
+        await self._db.commit()
+
+        return True, f"🚢 Maritime Treaty Ratified! Ocean Trade Shipping Route active between {c_a['flag']} {c_a['name']} and {c_b['flag']} {c_b['name']} (+85k daily tariffs)!"
+
+    async def get_earth_trade_routes(self, country_id: int | None = None) -> list[dict]:
+        """Fetch active ocean trade routes with origin/destination lat/lng for 3D arcs."""
+        if self._db is None:
+            await self.setup()
+
+        query = """
+            SELECT tr.*, 
+                   ca.name as a_name, ca.flag as a_flag, ca.lat as a_lat, ca.lng as a_lng,
+                   cb.name as b_name, cb.flag as b_flag, cb.lat as b_lat, cb.lng as b_lng
+            FROM earth_trade_routes tr
+            JOIN earth_countries ca ON tr.country_a_id = ca.id
+            JOIN earth_countries cb ON tr.country_b_id = cb.id
+            WHERE tr.status = 'active'
+        """
+        params = ()
+        if country_id is not None:
+            query += " AND (tr.country_a_id = ? OR tr.country_b_id = ?)"
+            params = (country_id, country_id)
+
+        async with self._db.execute(query, params) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    # ─── Custom Global Alliances & Coalitions ──────────────────────────────────
+
+    async def create_earth_alliance(self, user_id: int, country_id: int, name: str, banner_color: str = "#3b82f6") -> tuple[bool, str, int]:
+        """Establish a new named global sovereign coalition/alliance."""
+        if self._db is None:
+            await self.setup()
+
+        can_lead = await self.has_earth_cabinet_permission(user_id, country_id, "diplomat")
+        if not can_lead:
+            return False, "⛔ Authorization Denied: Only the President or Chief Diplomat can charter international coalitions!", 0
+
+        name = name.strip()
+        if len(name) < 3 or len(name) > 32:
+            return False, "Alliance name must be between 3 and 32 characters.", 0
+
+        cost = 500000
+        econ = await self.get_global_economy(user_id)
+        if econ.get("medals", 0) < cost:
+            return False, f"Chartering a global alliance requires {cost:,} Medals.", 0
+
+        now = time.time()
+        try:
+            async with self._db.execute("""
+                INSERT INTO earth_alliances (name, creator_country_id, banner_color, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (name, country_id, banner_color, now)) as cur:
+                alliance_id = cur.lastrowid
+            await self._db.execute("UPDATE earth_countries SET alliance_id = ? WHERE id = ?", (alliance_id, country_id))
+            await self._db.commit()
+            await self.subtract_medals(user_id, cost)
+            return True, f"🌐 Treaty Established! Custom Coalition **'{name}'** officially chartered! Member nations gain mutual defensive pacts.", alliance_id
+        except Exception as e:
+            return False, f"Alliance name already taken or invalid: {e}", 0
+
+    async def join_earth_alliance(self, user_id: int, country_id: int, alliance_id: int) -> tuple[bool, str]:
+        """Join an existing international sovereign coalition."""
+        if self._db is None:
+            await self.setup()
+
+        can_lead = await self.has_earth_cabinet_permission(user_id, country_id, "diplomat")
+        if not can_lead:
+            return False, "⛔ Authorization Denied: Only the President or Chief Diplomat can sign alliance accession protocols!"
+
+        async with self._db.execute("SELECT name FROM earth_alliances WHERE id = ?", (alliance_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Coalition treaty not found."
+            al_name = row[0]
+
+        await self._db.execute("UPDATE earth_countries SET alliance_id = ? WHERE id = ?", (alliance_id, country_id))
+        await self._db.commit()
+        return True, f"🤝 Acceded to **{al_name}**! Your nation is now under collective defense guarantees."
+
+    async def leave_earth_alliance(self, user_id: int, country_id: int) -> tuple[bool, str]:
+        """Withdraw from your current international coalition."""
+        if self._db is None:
+            await self.setup()
+
+        can_lead = await self.has_earth_cabinet_permission(user_id, country_id, "diplomat")
+        if not can_lead:
+            return False, "⛔ Authorization Denied: Only the President or Chief Diplomat can renounce alliance membership!"
+
+        await self._db.execute("UPDATE earth_countries SET alliance_id = NULL WHERE id = ?", (country_id,))
+        await self._db.commit()
+        return True, "Withdrew from alliance. Your nation is now non-aligned."
+
+    async def get_earth_alliances(self) -> list[dict]:
+        """Fetch all custom global coalitions with member lists and statistics."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT * FROM earth_alliances ORDER BY id DESC") as cur:
+            alliances = [dict(r) for r in await cur.fetchall()]
+
+        for al in alliances:
+            alid = al["id"]
+            async with self._db.execute("SELECT id, name, flag, gdp, owner_id FROM earth_countries WHERE alliance_id = ?", (alid,)) as cur:
+                members = [dict(m) for m in await cur.fetchall()]
+            al["members"] = members
+            al["member_count"] = len(members)
+            al["total_gdp"] = sum(m.get("gdp", 0) for m in members)
+
+        return alliances
+
+    # ─── Land Trading & Global Diplomatic Exchange ────────────────────────────
+
+    async def set_country_market_price(self, user_id: int, country_id: int, price: int | None) -> tuple[bool, str]:
+        """List or delist a sovereign country on the Global Diplomatic Exchange."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT owner_id, name FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if not row or str(row[0]) != str(user_id):
+                return False, "You do not govern this country."
+            c_name = row[1]
+
+        if price is not None and price <= 0:
+            price = None
+
+        await self._db.execute("UPDATE earth_countries SET for_sale_price = ? WHERE id = ?", (price, country_id))
+        await self._db.commit()
+
+        if price:
+            return True, f"Listed {c_name} for sale on the Global Diplomatic Exchange for {price:,} Medals!"
+        return True, f"Delisted {c_name} from the Global Diplomatic Exchange."
+
+    async def create_country_offer(self, buyer_id: int, country_id: int, amount: int) -> tuple[bool, str]:
+        """Make a bilateral buyout offer for a sovereign country."""
+        if self._db is None:
+            await self.setup()
+
+        amount = int(amount)
+        if amount <= 0:
+            return False, "Offer amount must be greater than zero."
+
+        econ = await self.get_global_economy(buyer_id)
+        if econ.get("medals", 0) < amount:
+            return False, f"Insufficient funds: You only have {econ.get('medals', 0):,} Medals."
+
+        async with self._db.execute("SELECT owner_id, name FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if not row or not row[0]:
+                return False, "This country has no active ruler to receive offers. Purchase it directly from the State Trust!"
+            seller_id = row[0]
+            c_name = row[1]
+
+        if str(seller_id) == str(buyer_id):
+            return False, "You cannot make a buyout offer on your own country!"
+
+        now = time.time()
+        await self._db.execute("""
+            INSERT INTO earth_country_offers (country_id, buyer_id, seller_id, offer_amount, status, created_at)
+            VALUES (?, ?, ?, ?, 'pending', ?)
+        """, (country_id, buyer_id, seller_id, amount, now))
+        await self._db.commit()
+
+        return True, f"Diplomatic Buyout Offer of {amount:,} Medals submitted to the ruler of {c_name}!"
+
+    async def accept_country_offer(self, seller_id: int, offer_id: int) -> tuple[bool, str]:
+        """Accept a buyout offer and transfer sovereign ownership."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT * FROM earth_country_offers WHERE id = ? AND status = 'pending'", (offer_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Offer not found or already processed."
+            offer = dict(row)
+
+        if str(offer["seller_id"]) != str(seller_id):
+            return False, "You are not authorized to accept this offer."
+
+        cid = offer["country_id"]
+        bid = offer["buyer_id"]
+        amt = offer["offer_amount"]
+
+        # Check buyer funds
+        b_econ = await self.get_global_economy(bid)
+        if b_econ.get("medals", 0) < amt:
+            await self._db.execute("UPDATE earth_country_offers SET status = 'cancelled' WHERE id = ?", (offer_id,))
+            await self._db.commit()
+            return False, "The buyer no longer possesses sufficient Medals for this buyout."
+
+        # Deduct from buyer
+        await self.subtract_medals(bid, amt)
+        # Tax 10%
+        tax = int(round(amt * 0.10))
+        payout = amt - tax
+        await self.add_medals(seller_id, payout)
+
+        # Transfer country ownership
+        await self._db.execute("UPDATE earth_countries SET owner_id = ?, for_sale_price = NULL WHERE id = ?", (bid, cid))
+        # Clear old cabinet
+        await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (cid,))
+        await self._db.execute("UPDATE earth_country_offers SET status = 'accepted' WHERE id = ?", (offer_id,))
+        await self._db.commit()
+
+        return True, f"Deal finalized! Country sovereignty transferred to <@{bid}>. You received +{payout:,} Medals (-{tax:,} diplomatic treaty tax)."
+
+    async def reject_country_offer(self, seller_id: int, offer_id: int) -> tuple[bool, str]:
+        """Decline a sovereign buyout offer."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("SELECT * FROM earth_country_offers WHERE id = ? AND status = 'pending'", (offer_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Offer not found."
+            offer = dict(row)
+
+        if str(offer["seller_id"]) != str(seller_id):
+            return False, "You are not authorized to reject this offer."
+
+        await self._db.execute("UPDATE earth_country_offers SET status = 'rejected' WHERE id = ?", (offer_id,))
+        await self._db.commit()
+        return True, "Diplomatic Buyout Offer declined."
+
+    async def get_country_offers(self, user_id: int) -> list[dict]:
+        """Fetch all incoming and outgoing country buyout offers."""
+        if self._db is None:
+            await self.setup()
+
+        async with self._db.execute("""
+            SELECT o.*, c.name as country_name, c.flag as country_flag,
+                   COALESCE(omb.username, 'Commander ' || o.buyer_id) as buyer_name,
+                   COALESCE(oms.username, 'Commander ' || o.seller_id) as seller_name
+            FROM earth_country_offers o
+            JOIN earth_countries c ON o.country_id = c.id
+            LEFT JOIN oauth_members omb ON o.buyer_id = omb.user_id
+            LEFT JOIN oauth_members oms ON o.seller_id = oms.user_id
+            WHERE o.buyer_id = ? OR o.seller_id = ?
+            ORDER BY o.created_at DESC
+        """, (user_id, user_id)) as cur:
+            return [dict(r) for r in await cur.fetchall()]

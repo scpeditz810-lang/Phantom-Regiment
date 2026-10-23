@@ -358,3 +358,806 @@ DEFAULT_ESTATE_PLOTS = [
     {"id": 47, "x": 8, "y": 5, "name": "Sovereign Deepwater Spire", "district": "Deepwater Basin", "terrain": "ocean", "price": 2000000},
     {"id": 48, "x": 8, "y": 6, "name": "Grand Leviathan Rig 01", "district": "Deepwater Basin", "terrain": "ocean", "price": 3500000},
 ]
+
+
+# ===============================================================================
+# 🌍 VIRTUAL EARTH: 3D GLOBAL GEOPOLITICS SIMULATION CONSTANTS
+# ===============================================================================
+
+EARTH_CABINET_ROLES = {
+    "defense": {
+        "key": "defense",
+        "title": "Minister of Defense and Supreme Army Commander",
+        "short_title": "Army Commander",
+        "emoji": "⚔️",
+        "desc": "Commands national armed divisions, fortifies military defenses, deploys troops and directs conquests.",
+        "icon": "shield-halved"
+    },
+    "diplomat": {
+        "key": "diplomat",
+        "title": "Chief Diplomat and Minister of Foreign Affairs",
+        "short_title": "Chief Diplomat",
+        "emoji": "📜",
+        "desc": "Negotiates international treaties, forms custom sovereign coalitions, and signs ocean trade routes.",
+        "icon": "handshake"
+    },
+    "economy": {
+        "key": "economy",
+        "title": "Minister of Economy and National Treasury",
+        "short_title": "Finance Minister",
+        "emoji": "🏦",
+        "desc": "Directs domestic infrastructure development (schools, hospitals, mines, oil rigs) and tax policy.",
+        "icon": "coins"
+    },
+    "intelligence": {
+        "key": "intelligence",
+        "title": "Director of Secret Intelligence and Espionage",
+        "short_title": "Spy Chief",
+        "emoji": "🕵️",
+        "desc": "Recruits covert field operatives, coordinates espionage operations, and monitors foreign state secrets.",
+        "icon": "user-secret"
+    }
+}
+
+EARTH_BUILDINGS = {
+    "school": {
+        "key": "school",
+        "name": "Public School and University Campus",
+        "emoji": "🏫",
+        "desc": "Educates citizens, boosting national technological output, civic harmony, and sovereign stability.",
+        "base_cost": 100000,
+        "cost_multiplier": 1.5,
+        "stability_bonus": 6,
+        "unrest_reduction": 5,
+        "hourly_yield": 2500,
+        "military_power": 0,
+        "defense_power": 0
+    },
+    "hospital": {
+        "key": "hospital",
+        "name": "Regional Hospital and Medical Complex",
+        "emoji": "🏥",
+        "desc": "Provides universal medical infrastructure, drastically lowering citizen unrest, disease, and mortality.",
+        "base_cost": 150000,
+        "cost_multiplier": 1.5,
+        "stability_bonus": 8,
+        "unrest_reduction": 12,
+        "hourly_yield": 3000,
+        "military_power": 0,
+        "defense_power": 0
+    },
+    "gold_mine": {
+        "key": "gold_mine",
+        "name": "Sovereign Gold and Mineral Mine",
+        "emoji": "⛏️",
+        "desc": "Deep subterranean extraction shafts mining precious metals directly into the national treasury.",
+        "base_cost": 250000,
+        "cost_multiplier": 1.6,
+        "stability_bonus": 0,
+        "unrest_reduction": 0,
+        "hourly_yield": 8500,
+        "military_power": 0,
+        "defense_power": 0
+    },
+    "oil_rig": {
+        "key": "oil_rig",
+        "name": "Offshore and Inland Petroleum Rig",
+        "emoji": "🛢️",
+        "desc": "Extracts high-grade crude petroleum for massive commercial export revenues and strategic sovereignty.",
+        "base_cost": 450000,
+        "cost_multiplier": 1.7,
+        "stability_bonus": 0,
+        "unrest_reduction": 0,
+        "hourly_yield": 16000,
+        "military_power": 0,
+        "defense_power": 0
+    },
+    "heavy_factory": {
+        "key": "heavy_factory",
+        "name": "Heavy Industrial Complex and Yard",
+        "emoji": "🏭",
+        "desc": "Mass-produces mechanized armor, steel armaments, and accelerates national construction projects.",
+        "base_cost": 350000,
+        "cost_multiplier": 1.6,
+        "stability_bonus": 2,
+        "unrest_reduction": 0,
+        "hourly_yield": 7000,
+        "military_power": 25,
+        "defense_power": 15
+    },
+    "bunker": {
+        "key": "bunker",
+        "name": "Fortified Citadel Bunker and SAM Array",
+        "emoji": "🏰",
+        "desc": "Reinforced underground command bastion with surface-to-air missile defenses against foreign invasions.",
+        "base_cost": 300000,
+        "cost_multiplier": 1.5,
+        "stability_bonus": 4,
+        "unrest_reduction": 3,
+        "hourly_yield": 2000,
+        "military_power": 10,
+        "defense_power": 65
+    },
+    "naval_port": {
+        "key": "naval_port",
+        "name": "Deepwater Commercial and Naval Port",
+        "emoji": "⚓",
+        "desc": "World-class container port required to inaugurate high-yield bilateral Ocean Trade Routes across the seas.",
+        "base_cost": 400000,
+        "cost_multiplier": 1.6,
+        "stability_bonus": 3,
+        "unrest_reduction": 0,
+        "hourly_yield": 12000,
+        "military_power": 15,
+        "defense_power": 25
+    }
+}
+
+EARTH_WAR_SCALES = {
+    "border": {
+        "key": "border",
+        "name": "Border Skirmish",
+        "emoji": "⚔️",
+        "duration_hours": 24,
+        "duration_seconds": 86400,
+        "desc": "Tactical skirmish along national frontier. Low risk, fast resolution.",
+        "treasury_plunder_pct": 0.15,
+        "min_divisions": 5,
+        "reparations": 100000
+    },
+    "annexation": {
+        "key": "annexation",
+        "name": "Strategic Annexation Campaign",
+        "emoji": "🚩",
+        "duration_hours": 72,
+        "duration_seconds": 259200,
+        "desc": "Large-scale strategic campaign to seize key resource nodes and cripple enemy defenses.",
+        "treasury_plunder_pct": 0.40,
+        "min_divisions": 15,
+        "reparations": 500000
+    },
+    "world_war": {
+        "key": "world_war",
+        "name": "Total Sovereign Conquest",
+        "emoji": "💥",
+        "duration_hours": 120,
+        "duration_seconds": 432000,
+        "desc": "All-out existential war spanning five full days! Devastates target nation, seizing 75% treasury.",
+        "treasury_plunder_pct": 0.75,
+        "min_divisions": 30,
+        "reparations": 1500000
+    }
+}
+
+EARTH_SPY_MISSIONS = {
+    "intel": {
+        "key": "intel",
+        "name": "Infiltrate and Gather Intelligence",
+        "emoji": "🛰️",
+        "desc": "Infiltrate government ministries to uncover hidden army strength, treasury funds, and active war orders.",
+        "duration_seconds": 1800,
+        "capture_risk": 0.20
+    },
+    "sabotage": {
+        "key": "sabotage",
+        "name": "Covert Infrastructure Sabotage",
+        "emoji": "💣",
+        "desc": "Detonate tactical charges on rival gold mines, oil rigs, or factories to paralyze revenue for 12 hours.",
+        "duration_seconds": 3600,
+        "capture_risk": 0.35
+    },
+    "incite_riot": {
+        "key": "incite_riot",
+        "name": "Fund Dissidents and Incite Riots",
+        "emoji": "🔥",
+        "desc": "Fund radical dissident groups to spike target nation unrest by +25%, driving them toward revolution!",
+        "duration_seconds": 5400,
+        "capture_risk": 0.40
+    }
+}
+
+EARTH_DOCTRINES = {
+    "economic": {
+        "free_market": {
+            "name": "Free Market Capitalism",
+            "desc": "+25% trade route and resource yield, +5% unrest volatility.",
+            "yield_mult": 1.25,
+            "unrest_delta": 5
+        },
+        "mixed": {
+            "name": "Mixed Social Welfare",
+            "desc": "Balanced economic model. +10% yield, +5% stability bonus.",
+            "yield_mult": 1.10,
+            "unrest_delta": -5
+        },
+        "command": {
+            "name": "State Command Economy",
+            "desc": "+25% military division production, -10% trade tariff revenue.",
+            "yield_mult": 0.90,
+            "unrest_delta": 0
+        }
+    },
+    "military": {
+        "volunteer": {
+            "name": "Professional Standing Army",
+            "desc": "+15% division combat efficiency and discipline. Low civil strain.",
+            "power_mult": 1.15,
+            "unrest_delta": 0
+        },
+        "conscription": {
+            "name": "Universal Military Conscription",
+            "desc": "+40% total military division numbers, but +10% citizen unrest.",
+            "power_mult": 1.40,
+            "unrest_delta": 10
+        },
+        "mechanized": {
+            "name": "Advanced Mechanized Armor",
+            "desc": "+60% assault power in conquests, requires 5,000 Medals/hr equipment upkeep.",
+            "power_mult": 1.60,
+            "unrest_delta": 0
+        }
+    },
+    "diplomatic": {
+        "neutral": {
+            "name": "Non-Aligned Neutrality",
+            "desc": "Standard diplomatic relations with all global sovereign powers."
+        },
+        "interventionist": {
+            "name": "Global Interventionism",
+            "desc": "Can intervene directly to defend allied coalition members in multi-day conquests."
+        },
+        "isolationist": {
+            "name": "Sovereign Isolationism",
+            "desc": "Immune to foreign spy incitement. Cannot sign ocean trade routes."
+        }
+    }
+}
+
+EARTH_COUNTRIES = [
+    {
+        "id": 1,
+        "code": "RUS",
+        "name": "Russian Federation",
+        "flag": "🇷🇺",
+        "lat": 61.5240,
+        "lng": 105.3188,
+        "gdp": 120000000,
+        "is_coastal": 1,
+        "initial_owner_id": 429350468796416013,
+        "desc": "Vast transcontinental Eurasian superpower with massive mineral wealth and formidable armed forces.",
+        "capital": "Moscow"
+    },
+    {
+        "id": 2,
+        "code": "IND",
+        "name": "Republic of India",
+        "flag": "🇮🇳",
+        "lat": 20.5937,
+        "lng": 78.9629,
+        "gdp": 110000000,
+        "is_coastal": 1,
+        "initial_owner_id": 828513350883213342,
+        "desc": "Rapidly surging democratic giant and economic titan with extensive Indian Ocean maritime trade lanes.",
+        "capital": "New Delhi"
+    },
+    {
+        "id": 3,
+        "code": "USA",
+        "name": "United States of America",
+        "flag": "🇺🇸",
+        "lat": 37.0902,
+        "lng": -95.7129,
+        "gdp": 135000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1134511531468525589,
+        "desc": "Preeminent global financial and naval powerhouse with multi-ocean carrier fleets.",
+        "capital": "Washington, D.C."
+    },
+    {
+        "id": 4,
+        "code": "CHN",
+        "name": "People's Republic of China",
+        "flag": "🇨🇳",
+        "lat": 35.8617,
+        "lng": 104.1954,
+        "gdp": 125000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1291083270426988544,
+        "desc": "Global manufacturing juggernaut with sprawling technological and industrial infrastructure.",
+        "capital": "Beijing"
+    },
+    {
+        "id": 5,
+        "code": "GBR",
+        "name": "United Kingdom",
+        "flag": "🇬🇧",
+        "lat": 55.3781,
+        "lng": -3.4360,
+        "gdp": 85000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1486122404102013050,
+        "desc": "Historic maritime empire and global financial capital with elite intelligence networks.",
+        "capital": "London"
+    },
+    {
+        "id": 6,
+        "code": "DEU",
+        "name": "Federal Republic of Germany",
+        "flag": "🇩🇪",
+        "lat": 51.1657,
+        "lng": 10.4515,
+        "gdp": 80000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1280141055265865732,
+        "desc": "Industrial and technological powerhouse at the core of European continental trade.",
+        "capital": "Berlin"
+    },
+    {
+        "id": 7,
+        "code": "JPN",
+        "name": "State of Japan",
+        "flag": "🇯🇵",
+        "lat": 36.2048,
+        "lng": 138.2529,
+        "gdp": 75000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1162404296097275904,
+        "desc": "High-tech archipelago possessing advanced robotics, naval fleets, and dense mega-cities.",
+        "capital": "Tokyo"
+    },
+    {
+        "id": 8,
+        "code": "FRA",
+        "name": "French Republic",
+        "flag": "🇫🇷",
+        "lat": 46.2276,
+        "lng": 2.2137,
+        "gdp": 70000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1370437656755834970,
+        "desc": "Sovereign European diplomatic hub with formidable aerospace, nuclear energy, and cultural influence.",
+        "capital": "Paris"
+    },
+    {
+        "id": 9,
+        "code": "BRA",
+        "name": "Federative Republic of Brazil",
+        "flag": "🇧🇷",
+        "lat": -14.2350,
+        "lng": -51.9253,
+        "gdp": 60000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1248327898901774356,
+        "desc": "Dominant South American giant blessed with immense agricultural and natural resource reserves.",
+        "capital": "Brasília"
+    },
+    {
+        "id": 10,
+        "code": "CAN",
+        "name": "Dominion of Canada",
+        "flag": "🇨🇦",
+        "lat": 56.1304,
+        "lng": -106.3468,
+        "gdp": 55000000,
+        "is_coastal": 1,
+        "initial_owner_id": 829919098506444820,
+        "desc": "Northern realm of immense oil sands, mineral wealth, and extensive Arctic coastlines.",
+        "capital": "Ottawa"
+    },
+    {
+        "id": 11,
+        "code": "AUS",
+        "name": "Commonwealth of Australia",
+        "flag": "🇦🇺",
+        "lat": -25.2744,
+        "lng": 133.7751,
+        "gdp": 50000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1327273793650950216,
+        "desc": "Island continent endowed with rich mineral deposits and strategic Indo-Pacific naval ports.",
+        "capital": "Canberra"
+    },
+    {
+        "id": 12,
+        "code": "ITA",
+        "name": "Italian Republic",
+        "flag": "🇮🇹",
+        "lat": 41.8719,
+        "lng": 12.5674,
+        "gdp": 45000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1423907121229074452,
+        "desc": "Mediterranean maritime hub boasting high-precision manufacturing and ancient cultural prestige.",
+        "capital": "Rome"
+    },
+    {
+        "id": 13,
+        "code": "SAU",
+        "name": "Kingdom of Saudi Arabia",
+        "flag": "🇸🇦",
+        "lat": 23.8859,
+        "lng": 45.0792,
+        "gdp": 40000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1119603544635482163,
+        "desc": "Global energy titan with massive petroleum sovereign wealth reserves and ambitious megaprojects.",
+        "capital": "Riyadh"
+    },
+    {
+        "id": 14,
+        "code": "KOR",
+        "name": "Republic of Korea",
+        "flag": "🇰🇷",
+        "lat": 35.9078,
+        "lng": 127.7669,
+        "gdp": 38000000,
+        "is_coastal": 1,
+        "initial_owner_id": 1289659139659792519,
+        "desc": "Technological high-density republic with world-leading semiconductor foundries and defense industries.",
+        "capital": "Seoul"
+    },
+    {
+        "id": 15,
+        "code": "TUR",
+        "name": "Republic of Türkiye",
+        "flag": "🇹🇷",
+        "lat": 38.9637,
+        "lng": 35.2433,
+        "gdp": 25000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Geopolitical bridge linking Europe and Asia with control over crucial maritime straits.",
+        "capital": "Ankara"
+    },
+    {
+        "id": 16,
+        "code": "EGY",
+        "name": "Arab Republic of Egypt",
+        "flag": "🇪🇬",
+        "lat": 26.8206,
+        "lng": 30.8025,
+        "gdp": 18000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Custodian of the Suez Canal, a vital artery of global international maritime commerce.",
+        "capital": "Cairo"
+    },
+    {
+        "id": 17,
+        "code": "ZAF",
+        "name": "Republic of South Africa",
+        "flag": "🇿🇦",
+        "lat": -30.5595,
+        "lng": 22.9375,
+        "gdp": 16000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Mineral-rich nation commanding the strategic Cape maritime shipping routes.",
+        "capital": "Pretoria"
+    },
+    {
+        "id": 18,
+        "code": "MEX",
+        "name": "United Mexican States",
+        "flag": "🇲🇽",
+        "lat": 23.6345,
+        "lng": -102.5528,
+        "gdp": 22000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Thriving North American industrial manufacturing hub with access to both the Pacific and Atlantic.",
+        "capital": "Mexico City"
+    },
+    {
+        "id": 19,
+        "code": "IDN",
+        "name": "Republic of Indonesia",
+        "flag": "🇮🇩",
+        "lat": -0.7893,
+        "lng": 113.9213,
+        "gdp": 20000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Expansive Southeast Asian archipelago commanding the strategic Malacca shipping choke-points.",
+        "capital": "Jakarta"
+    },
+    {
+        "id": 20,
+        "code": "ESP",
+        "name": "Kingdom of Spain",
+        "flag": "🇪🇸",
+        "lat": 40.4637,
+        "lng": -3.7492,
+        "gdp": 24000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Iberian maritime gateway between the Atlantic Ocean and the Mediterranean Sea.",
+        "capital": "Madrid"
+    },
+    {
+        "id": 21,
+        "code": "ARG",
+        "name": "Argentine Republic",
+        "flag": "🇦🇷",
+        "lat": -38.4161,
+        "lng": -63.6167,
+        "gdp": 15000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Southern Cone agricultural breadbasket with extensive South Atlantic coastline.",
+        "capital": "Buenos Aires"
+    },
+    {
+        "id": 22,
+        "code": "UKR",
+        "name": "Ukraine",
+        "flag": "🇺🇦",
+        "lat": 48.3794,
+        "lng": 31.1656,
+        "gdp": 12000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Resilient Eastern European granary and metallurgy center on the Black Sea coast.",
+        "capital": "Kyiv"
+    },
+    {
+        "id": 23,
+        "code": "POL",
+        "name": "Republic of Poland",
+        "flag": "🇵🇱",
+        "lat": 51.9194,
+        "lng": 19.1451,
+        "gdp": 19000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Central European logistics and military bastion with rapid modernization programs.",
+        "capital": "Warsaw"
+    },
+    {
+        "id": 24,
+        "code": "NOR",
+        "name": "Kingdom of Norway",
+        "flag": "🇳🇴",
+        "lat": 60.4720,
+        "lng": 8.4689,
+        "gdp": 28000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Nordic oil and gas titan with deep fjords and world's largest sovereign wealth fund.",
+        "capital": "Oslo"
+    },
+    {
+        "id": 25,
+        "code": "CHE",
+        "name": "Swiss Confederation",
+        "flag": "🇨🇭",
+        "lat": 46.8182,
+        "lng": 8.2275,
+        "gdp": 30000000,
+        "is_coastal": 0,
+        "initial_owner_id": None,
+        "desc": "Alpine fortress of global neutrality and ultra-secure private financial banking vaults.",
+        "capital": "Bern"
+    },
+    {
+        "id": 26,
+        "code": "IRN",
+        "name": "Islamic Republic of Iran",
+        "flag": "🇮🇷",
+        "lat": 32.4279,
+        "lng": 53.6880,
+        "gdp": 17000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Ancient Persian plateau nation commanding the strategic Strait of Hormuz oil routes.",
+        "capital": "Tehran"
+    },
+    {
+        "id": 27,
+        "code": "PAK",
+        "name": "Islamic Republic of Pakistan",
+        "flag": "🇵🇰",
+        "lat": 30.3753,
+        "lng": 69.3451,
+        "gdp": 14000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "South Asian military powerhouse with deepwater Arabian Sea ports at Gwadar.",
+        "capital": "Islamabad"
+    },
+    {
+        "id": 28,
+        "code": "VNM",
+        "name": "Socialist Republic of Vietnam",
+        "flag": "🇻🇳",
+        "lat": 14.0583,
+        "lng": 108.2772,
+        "gdp": 13000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Fast-growing Indo-Pacific tech manufacturing base with a long tropical maritime coastline.",
+        "capital": "Hanoi"
+    },
+    {
+        "id": 29,
+        "code": "SGP",
+        "name": "Republic of Singapore",
+        "flag": "🇸🇬",
+        "lat": 1.3521,
+        "lng": 103.8198,
+        "gdp": 32000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Ultra-wealthy maritime city-state and apex global financial trading capital.",
+        "capital": "Singapore"
+    },
+    {
+        "id": 30,
+        "code": "NGA",
+        "name": "Federal Republic of Nigeria",
+        "flag": "🇳🇬",
+        "lat": 9.0820,
+        "lng": 8.6753,
+        "gdp": 11000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Demographic and petroleum powerhouse of West Africa on the Gulf of Guinea.",
+        "capital": "Abuja"
+    },
+    {
+        "id": 31,
+        "code": "ARE",
+        "name": "United Arab Emirates",
+        "flag": "🇦🇪",
+        "lat": 23.4241,
+        "lng": 53.8478,
+        "gdp": 35000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Hyper-modern desert oasis of skyscraper luxury, global aviation, and petroleum wealth.",
+        "capital": "Abu Dhabi"
+    },
+    {
+        "id": 32,
+        "code": "COL",
+        "name": "Republic of Colombia",
+        "flag": "🇨🇴",
+        "lat": 4.5709,
+        "lng": -74.2973,
+        "gdp": 10000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Equatorial republic touching both the Pacific Ocean and the Caribbean Sea.",
+        "capital": "Bogotá"
+    },
+    {
+        "id": 33,
+        "code": "CHL",
+        "name": "Republic of Chile",
+        "flag": "🇨🇱",
+        "lat": -35.6751,
+        "lng": -71.5430,
+        "gdp": 12000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Long Pacific coastal ribbon possessing the world's premier copper and lithium reserves.",
+        "capital": "Santiago"
+    },
+    {
+        "id": 34,
+        "code": "GRC",
+        "name": "Hellenic Republic",
+        "flag": "🇬🇷",
+        "lat": 39.0742,
+        "lng": 21.8243,
+        "gdp": 11000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Cradle of Western civilization commanding one of the world's largest merchant cargo fleets.",
+        "capital": "Athens"
+    },
+    {
+        "id": 35,
+        "code": "SWE",
+        "name": "Kingdom of Sweden",
+        "flag": "🇸🇪",
+        "lat": 60.1282,
+        "lng": 18.6435,
+        "gdp": 26000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Nordic innovation capital with world-class engineering, defense, and high-tech sectors.",
+        "capital": "Stockholm"
+    },
+    {
+        "id": 36,
+        "code": "NLD",
+        "name": "Kingdom of the Netherlands",
+        "flag": "🇳🇱",
+        "lat": 52.1326,
+        "lng": 5.2913,
+        "gdp": 29000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Low-countries commercial juggernaut hosting Rotterdam, the largest maritime port in Europe.",
+        "capital": "Amsterdam"
+    },
+    {
+        "id": 37,
+        "code": "THA",
+        "name": "Kingdom of Thailand",
+        "flag": "🇹🇭",
+        "lat": 15.8700,
+        "lng": 100.9925,
+        "gdp": 14000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Southeast Asian economic powerhouse and central automotive/electronics manufacturing center.",
+        "capital": "Bangkok"
+    },
+    {
+        "id": 38,
+        "code": "PHL",
+        "name": "Republic of the Philippines",
+        "flag": "🇵🇭",
+        "lat": 12.8797,
+        "lng": 121.7740,
+        "gdp": 12000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Archipelago of over 7,000 islands strategically positioned across western Pacific sealanes.",
+        "capital": "Manila"
+    },
+    {
+        "id": 39,
+        "code": "NZL",
+        "name": "New Zealand",
+        "flag": "🇳🇿",
+        "lat": -40.9006,
+        "lng": 174.8860,
+        "gdp": 15000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Isolated South Pacific haven blessed with pristine renewable resources and high civic trust.",
+        "capital": "Wellington"
+    },
+    {
+        "id": 40,
+        "code": "KEN",
+        "name": "Republic of Kenya",
+        "flag": "🇰🇪",
+        "lat": -0.0236,
+        "lng": 37.9062,
+        "gdp": 8000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "East African technological 'Silicon Savannah' hub anchored by the port of Mombasa.",
+        "capital": "Nairobi"
+    },
+    {
+        "id": 41,
+        "code": "MAR",
+        "name": "Kingdom of Morocco",
+        "flag": "🇲🇦",
+        "lat": 31.7917,
+        "lng": -7.0926,
+        "gdp": 9000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "North African kingdom controlling the world's largest phosphate reserves and Tanger Med port.",
+        "capital": "Rabat"
+    },
+    {
+        "id": 42,
+        "code": "ISR",
+        "name": "State of Israel",
+        "flag": "🇮🇱",
+        "lat": 31.0461,
+        "lng": 34.8516,
+        "gdp": 27000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Technological and cyber-defense powerhouse with elite military R&D capabilities.",
+        "capital": "Jerusalem"
+    }
+]

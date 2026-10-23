@@ -1362,3 +1362,437 @@ def api_estate_ally_break():
     db = get_db()
     success, msg = run_async(db.break_alliance(user_id, ally_id))
     return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 🌍 VIRTUAL EARTH: 3D GLOBAL GEOPOLITICS SIMULATION REST APIS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@api_bp.route("/earth/countries")
+def api_earth_countries():
+    db = get_db()
+    bot = current_app.config.get("DISCORD_BOT")
+    countries = run_async(db.get_earth_countries())
+    
+    curr_user = session.get("user")
+    user_id = int(curr_user["id"]) if curr_user and curr_user.get("id") and str(curr_user["id"]).isdigit() else None
+    
+    enriched = []
+    for c in countries:
+        item = dict(c)
+        owner_id = c.get("owner_id")
+        if owner_id:
+            name, av = _resolve_discord_user(owner_id, bot=bot, db=db)
+            item["owner_name"] = name
+            item["owner_avatar"] = av
+        else:
+            item["owner_name"] = "Sovereign State Trust (Unclaimed)"
+            item["owner_avatar"] = "https://cdn.discordapp.com/embed/avatars/0.png"
+            
+        item["is_my_country"] = bool(user_id and owner_id and int(owner_id) == user_id)
+        # Compatibility fields for legacy consumers
+        item["x"] = int(round(c.get("lat", 0)))
+        item["y"] = int(round(c.get("lng", 0)))
+        item["current_value"] = c.get("gdp", 10000000)
+        enriched.append(item)
+        
+    resp = jsonify(enriched)
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    return resp
+
+@api_bp.route("/earth/stats")
+def api_earth_stats():
+    db = get_db()
+    countries = run_async(db.get_earth_countries())
+    total_gdp = sum(c.get("gdp", 0) for c in countries)
+    total_claimed = sum(1 for c in countries if c.get("owner_id"))
+    
+    from utils.constants import EARTH_BUILDINGS, EARTH_CABINET_ROLES, EARTH_WAR_SCALES, EARTH_DOCTRINES, EARTH_SPY_MISSIONS
+    
+    user_stats = {
+        "wallet": 0,
+        "country": None,
+        "role": None,
+        "role_title": None,
+        "uncollected_yield": 0
+    }
+    
+    curr_user = session.get("user")
+    if curr_user and curr_user.get("id"):
+        raw_uid = curr_user["id"]
+        uid = int(raw_uid) if str(raw_uid).isdigit() else raw_uid
+        econ = run_async(db.get_global_economy(uid))
+        user_c = run_async(db.get_user_earth_country(uid))
+        user_stats["wallet"] = econ.get("medals", 0)
+        if user_c:
+            user_stats["country"] = user_c
+            user_stats["role"] = user_c.get("user_role", "president")
+            user_stats["role_title"] = user_c.get("role_title", "President")
+            now = time.time()
+            last_c = user_c.get("last_yield_claim", 0) or (now - 3600)
+            elapsed = min(24.0, max(0.01, (now - last_c) / 3600.0))
+            hourly = sum(b.get("hourly_yield", 0) for b in user_c.get("buildings", []))
+            user_stats["uncollected_yield"] = int(round(hourly * elapsed))
+
+    return jsonify({
+        "total_countries": len(countries),
+        "total_claimed": total_claimed,
+        "total_global_gdp": total_gdp,
+        "user": user_stats,
+        "buildings_info": EARTH_BUILDINGS,
+        "cabinet_roles": EARTH_CABINET_ROLES,
+        "war_scales": EARTH_WAR_SCALES,
+        "doctrines": EARTH_DOCTRINES,
+        "spy_missions": EARTH_SPY_MISSIONS
+    })
+
+@api_bp.route("/earth/country/<int:country_id>")
+def api_earth_country_detail(country_id):
+    db = get_db()
+    bot = current_app.config.get("DISCORD_BOT")
+    c = run_async(db.get_earth_country(country_id))
+    if not c:
+        return jsonify({"success": False, "message": "Country not found."}), 404
+        
+    if c.get("owner_id"):
+        name, av = _resolve_discord_user(c["owner_id"], bot=bot, db=db)
+        c["owner_name"] = name
+        c["owner_avatar"] = av
+    else:
+        c["owner_name"] = "Sovereign State Trust (Unclaimed)"
+        c["owner_avatar"] = "https://cdn.discordapp.com/embed/avatars/0.png"
+
+    # Enrich cabinet names and avatars
+    if c.get("cabinet"):
+        for r_key, r_info in c["cabinet"].items():
+            cab_uid = r_info.get("user_id")
+            if cab_uid:
+                cab_name, cab_av = _resolve_discord_user(cab_uid, bot=bot, db=db)
+                r_info["username"] = cab_name
+                r_info["avatar"] = cab_av
+
+    return jsonify(c)
+
+@api_bp.route("/earth/buy", methods=["POST"])
+@login_required
+def api_earth_buy():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Country ID."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.buy_earth_country(user_id, country_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/earth/build", methods=["POST"])
+@login_required
+def api_earth_build():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        b_type = str(data.get("building_type", "")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, cost = run_async(db.build_earth_infrastructure(user_id, country_id, b_type))
+    econ = run_async(db.get_global_economy(user_id))
+    updated_c = run_async(db.get_earth_country(country_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "cost": cost,
+        "wallet": econ.get("medals", 0),
+        "country": updated_c
+    }), 200 if success else 400
+
+@api_bp.route("/earth/cabinet/appoint", methods=["POST"])
+@login_required
+def api_earth_cabinet_appoint():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        role = str(data.get("role", "")).strip().lower()
+        target_user_id = int(data.get("target_user_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.appoint_earth_cabinet(user_id, country_id, role, target_user_id))
+    cab = run_async(db.get_earth_cabinet(country_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "cabinet": cab
+    }), 200 if success else 400
+
+@api_bp.route("/earth/cabinet/dismiss", methods=["POST"])
+@login_required
+def api_earth_cabinet_dismiss():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        role = str(data.get("role", "")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.dismiss_earth_cabinet(user_id, country_id, role))
+    cab = run_async(db.get_earth_cabinet(country_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "cabinet": cab
+    }), 200 if success else 400
+
+@api_bp.route("/earth/policies", methods=["POST"])
+@login_required
+def api_earth_policies():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        economic = str(data.get("economic_doctrine", "free_market")).strip().lower()
+        military = str(data.get("military_doctrine", "volunteer")).strip().lower()
+        diplomatic = str(data.get("diplomatic_stance", "neutral")).strip().lower()
+        tax_rate = int(data.get("tax_rate", 10))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.update_earth_policies(user_id, country_id, economic, military, diplomatic, tax_rate))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/quell_unrest", methods=["POST"])
+@login_required
+def api_earth_quell_unrest():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        method = str(data.get("method", "relief")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.quell_earth_unrest(user_id, country_id, method))
+    econ = run_async(db.get_global_economy(user_id))
+    c = run_async(db.get_earth_country(country_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "wallet": econ.get("medals", 0),
+        "stability": c.get("stability", 80) if c else 80,
+        "unrest": c.get("unrest", 10) if c else 10
+    }), 200 if success else 400
+
+@api_bp.route("/earth/spy/recruit", methods=["POST"])
+@login_required
+def api_earth_spy_recruit():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        codename = str(data.get("codename", "Operative")).strip()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.recruit_earth_spy(user_id, country_id, codename))
+    spies = run_async(db.get_earth_spies(country_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "spies": spies,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/earth/spy/dispatch", methods=["POST"])
+@login_required
+def api_earth_spy_dispatch():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        spy_id = int(data.get("spy_id", 0))
+        target_country_id = int(data.get("target_country_id", 0))
+        mission = str(data.get("mission", "intel")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, mission_data = run_async(db.dispatch_earth_spy(user_id, country_id, spy_id, target_country_id, mission))
+    spies = run_async(db.get_earth_spies(country_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "mission_data": mission_data,
+        "spies": spies
+    }), 200 if success else 400
+
+@api_bp.route("/earth/intel")
+@login_required
+def api_earth_intel():
+    user_id = session["user"]["id"]
+    db = get_db()
+    user_c = run_async(db.get_user_earth_country(user_id))
+    if not user_c:
+        return jsonify([])
+    intel = run_async(db.get_earth_intelligence(user_c["id"]))
+    return jsonify(intel)
+
+@api_bp.route("/earth/war/declare", methods=["POST"])
+@login_required
+def api_earth_war_declare():
+    data = request.get_json() or {}
+    try:
+        attacker_country_id = int(data.get("attacker_country_id", 0))
+        defender_country_id = int(data.get("defender_country_id", 0))
+        scale = str(data.get("scale", "border")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, war_data = run_async(db.declare_earth_war(user_id, attacker_country_id, defender_country_id, scale))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "war": war_data
+    }), 200 if success else 400
+
+@api_bp.route("/earth/war/reinforce", methods=["POST"])
+@login_required
+def api_earth_war_reinforce():
+    data = request.get_json() or {}
+    try:
+        war_id = int(data.get("war_id", 0))
+        divisions = int(data.get("divisions", 5))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.reinforce_earth_war(user_id, war_id, divisions))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/earth/wars")
+def api_earth_wars():
+    db = get_db()
+    wars = run_async(db.get_active_earth_wars())
+    return jsonify(wars)
+
+@api_bp.route("/earth/trade/propose", methods=["POST"])
+@login_required
+def api_earth_trade_propose():
+    data = request.get_json() or {}
+    try:
+        from_country_id = int(data.get("from_country_id", 0))
+        to_country_id = int(data.get("to_country_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.propose_trade_route(user_id, from_country_id, to_country_id))
+    routes = run_async(db.get_earth_trade_routes(from_country_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "routes": routes
+    }), 200 if success else 400
+
+@api_bp.route("/earth/trade/routes")
+def api_earth_trade_routes():
+    db = get_db()
+    routes = run_async(db.get_earth_trade_routes())
+    return jsonify(routes)
+
+@api_bp.route("/earth/alliance/create", methods=["POST"])
+@login_required
+def api_earth_alliance_create():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        name = str(data.get("name", "")).strip()
+        color = str(data.get("color", "#3b82f6")).strip()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, al_id = run_async(db.create_earth_alliance(user_id, country_id, name, color))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "alliance_id": al_id,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/earth/alliance/join", methods=["POST"])
+@login_required
+def api_earth_alliance_join():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        alliance_id = int(data.get("alliance_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.join_earth_alliance(user_id, country_id, alliance_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/alliance/leave", methods=["POST"])
+@login_required
+def api_earth_alliance_leave():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.leave_earth_alliance(user_id, country_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/alliances")
+def api_earth_alliances():
+    db = get_db()
+    alliances = run_async(db.get_earth_alliances())
+    return jsonify(alliances)
+
+@api_bp.route("/earth/collect_yield", methods=["POST"])
+@login_required
+def api_earth_collect_yield():
+    user_id = session["user"]["id"]
+    db = get_db()
+    yield_amount, msg = run_async(db.collect_earth_yield(user_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": yield_amount > 0,
+        "message": msg,
+        "yield": yield_amount,
+        "wallet": econ.get("medals", 0)
+    }), 200 if yield_amount > 0 else 400
