@@ -2062,6 +2062,38 @@ def api_earth_spy_execute():
     success, msg = run_async(db.execute_captured_spy(user_id, country_id, spy_id))
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
+@api_bp.route("/earth/spy/train", methods=["POST"])
+@login_required
+def api_earth_spy_train():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        spy_id = int(data.get("spy_id", 0))
+        target_level = int(data.get("target_level", 2))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, res = run_async(db.train_earth_spy(user_id, country_id, spy_id, target_level))
+    return jsonify({"success": success, "message": msg, "data": res}), 200 if success else 400
+
+@api_bp.route("/earth/intel/buy", methods=["POST"])
+@login_required
+def api_earth_intel_buy():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        target_country_id = int(data.get("target_country_id", 0))
+        intel_type = str(data.get("intel_type", "covert_history")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, res = run_async(db.buy_earth_intel_dossier(user_id, country_id, target_country_id, intel_type))
+    return jsonify({"success": success, "message": msg, "dossier": res}), 200 if success else 400
+
 @api_bp.route("/earth/counter_sweep", methods=["POST"])
 @login_required
 def api_earth_counter_sweep():

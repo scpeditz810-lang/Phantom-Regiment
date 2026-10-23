@@ -771,5 +771,97 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         await interaction.followup.send(embed=embed)
 
 
+    @earth_group.command(name="train_spy", description="Enroll an operative in the National Intelligence Academy to rank up.")
+    @app_commands.describe(
+        spy_id="ID of the idle operative to train",
+        target_level="Target rank level (2: Field Operative, 3: Sabotage Specialist, 4: Cyber Infiltrator, 5: Phantom Ghost)"
+    )
+    @app_commands.choices(target_level=[
+        app_commands.Choice(name="Level 2: Field Operative (20,000 M)", value=2),
+        app_commands.Choice(name="Level 3: Sabotage Specialist (45,000 M)", value=3),
+        app_commands.Choice(name="Level 4: Cyber Infiltrator (80,000 M)", value=4),
+        app_commands.Choice(name="Level 5: Master Phantom Ghost (130,000 M)", value=5),
+    ])
+    async def earth_train_spy(self, interaction: discord.Interaction, spy_id: int, target_level: app_commands.Choice[int]):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("⛔ You do not govern or lead an Earth nation!", ephemeral=True)
+            return
+
+        success, msg, res = await self.bot.db.train_earth_spy(interaction.user.id, c["id"], spy_id, target_level.value)
+        if not success:
+            await interaction.followup.send(f"{msg}", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="🎓 Intelligence Academy: Operative Graduated!",
+            description=(
+                f"**Operative Codename:** Agent '{res['codename']}'\n"
+                f"**New Sovereign Rank:** 🎖️ **{res['rank_title']}** (Level {res['new_level']}/5)\n"
+                f"**Clearance Authority:** {interaction.user.mention}\n"
+                f"**Host Nation:** {c['flag']} **{c['name']}**\n\n"
+                f"{msg}"
+            ),
+            color=0x38BDF8
+        )
+        embed.set_footer(text="Virtual Earth 3D • Covert Operations Bureau")
+        await interaction.followup.send(embed=embed)
+
+    @earth_group.command(name="buy_intel", description="Purchase classified foreign intelligence dossiers from intelligence brokers.")
+    @app_commands.describe(
+        target_country="3-letter code or name of target country",
+        intel_type="Type of classified intelligence dossier to procure"
+    )
+    @app_commands.choices(intel_type=[
+        app_commands.Choice(name="Covert Operations & Sabotage History (35,000 M)", value="covert_history"),
+        app_commands.Choice(name="Military Arsenal & Tool Readiness (50,000 M)", value="military_readiness"),
+        app_commands.Choice(name="Treasury Reserves & Yield Audit (25,000 M)", value="economic_vault"),
+    ])
+    async def earth_buy_intel(self, interaction: discord.Interaction, target_country: str, intel_type: app_commands.Choice[str]):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("⛔ You do not govern or lead an Earth nation!", ephemeral=True)
+            return
+
+        target_c = await self.bot.db.get_earth_country_by_code_or_name(target_country)
+        if not target_c:
+            await interaction.followup.send(f"❌ Country '{target_country}' was not found in the global registry.", ephemeral=True)
+            return
+
+        if target_c["id"] == c["id"]:
+            await interaction.followup.send("❌ You cannot buy intelligence dossiers on your own sovereign nation.", ephemeral=True)
+            return
+
+        success, msg, dossier = await self.bot.db.buy_earth_intel_dossier(interaction.user.id, c["id"], target_c["id"], intel_type.value)
+        if not success:
+            await interaction.followup.send(f"{msg}", ephemeral=True)
+            return
+
+        summary_text = dossier.get("summary", "")
+        embed = discord.Embed(
+            title=f"📑 Classified Intelligence Dossier: {target_c['flag']} {target_c['name']}",
+            description=f"**Category:** {dossier.get('category', 'Espionage Report')}\n**Briefing:** *{summary_text}*",
+            color=0xF59E0B
+        )
+
+        if intel_type.value == "military_readiness":
+            embed.add_field(name="Active War Theaters", value=str(dossier.get("active_wars", 0)), inline=True)
+            embed.add_field(name="Fortification Bunkers", value=f"Lvl {dossier.get('bunker_defense', 0)}", inline=True)
+            arsenal = dossier.get("installed_arsenal", [])
+            embed.add_field(name="Installed Weapon Systems", value=", ".join(arsenal) if arsenal else "None detected", inline=False)
+        elif intel_type.value == "economic_vault":
+            embed.add_field(name="Confirmed Treasury", value=f"{dossier.get('treasury', 0):,} Medals", inline=True)
+            embed.add_field(name="National GDP", value=f"{dossier.get('gdp', 0):,} Medals", inline=True)
+            embed.add_field(name="Domestic Tax Rate", value=str(dossier.get("tax_rate", "10%")), inline=True)
+        elif intel_type.value == "covert_history":
+            embed.add_field(name="Domestic Unrest", value=f"{dossier.get('unrest', 0)}%", inline=True)
+            embed.add_field(name="Civil Rioting", value="🔥 ACTIVE" if dossier.get("is_rioting") else "Peaceful", inline=True)
+
+        embed.set_footer(text="Virtual Earth 3D • Top Secret Clearance")
+        await interaction.followup.send(embed=embed)
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(EarthCog(bot))
