@@ -1482,16 +1482,66 @@ def api_earth_buy():
     data = request.get_json() or {}
     try:
         country_id = int(data.get("country_id", 0))
+        offer = max(0, int(data.get("offer", 0)))
     except (ValueError, TypeError):
-        return jsonify({"success": False, "message": "Invalid Country ID."}), 400
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
         
     user_id = session["user"]["id"]
     db = get_db()
-    success, msg = run_async(db.buy_earth_country(user_id, country_id))
+    success, msg = run_async(db.buy_earth_country(user_id, country_id, offer=offer))
     econ = run_async(db.get_global_economy(user_id))
     return jsonify({
         "success": success,
         "message": msg,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/earth/custom_country", methods=["POST"])
+@login_required
+def api_earth_custom_country():
+    data = request.get_json() or {}
+    name = str(data.get("name", "")).strip()
+    flag = str(data.get("flag", "???")).strip() or "???"
+    capital = str(data.get("capital", "Capital City")).strip() or "Capital City"
+    desc = str(data.get("desc", "")).strip()
+    replace_current = bool(data.get("replace_current", False))
+
+    try:
+        offer = max(0, int(data.get("offer", 0)))
+    except (ValueError, TypeError):
+        offer = 0
+
+    lat = data.get("lat")
+    lng = data.get("lng")
+    if lat is not None:
+        try:
+            lat = float(lat)
+        except (ValueError, TypeError):
+            lat = None
+    if lng is not None:
+        try:
+            lng = float(lng)
+        except (ValueError, TypeError):
+            lng = None
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, country = run_async(db.create_custom_country(
+        user_id=user_id,
+        name=name,
+        flag=flag,
+        capital=capital,
+        lat=lat,
+        lng=lng,
+        offered_medals=offer,
+        desc=desc,
+        replace_current=replace_current
+    ))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "country": country,
         "wallet": econ.get("medals", 0)
     }), 200 if success else 400
 
@@ -1806,7 +1856,7 @@ def api_earth_offer():
     data = request.get_json() or {}
     try:
         country_id = int(data.get("country_id", 0))
-        amount = int(data.get("amount", 0))
+        amount = max(0, int(data.get("amount", 0)))
     except (ValueError, TypeError):
         return jsonify({"success": False, "message": "Invalid parameters."}), 400
         

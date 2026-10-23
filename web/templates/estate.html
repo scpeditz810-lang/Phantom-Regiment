@@ -524,6 +524,11 @@ body {
         </div>
 
         <div class="hud-group">
+            <button class="hud-btn" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.35) 0%, rgba(217, 119, 6, 0.2) 100%); border-color: rgba(245, 158, 11, 0.6);" onclick="openFoundCustomCountryModal()">
+                <span>??</span>
+                <span>Found Custom Country (0-? M)</span>
+            </button>
+
             <button class="hud-btn" id="btn-collect-dividends" onclick="collectDividends()">
                 <span>⚡</span>
                 <span>Collect Yield: <strong id="hud-yield-val">0</strong> M</span>
@@ -537,6 +542,7 @@ body {
 
     <!-- Bottom Filter Pills -->
     <div class="earth-filters-bar">
+        <button class="earth-filter-pill" style="border-color: rgba(245, 158, 11, 0.6); color: #fbbf24; background: rgba(245, 158, 11, 0.15);" onclick="openFoundCustomCountryModal()">?? Found Custom Country (0-? M, 0% Tax)</button>
         <button class="earth-filter-pill active" onclick="setEarthFilter('all', this)">🌐 All Nations (42)</button>
         <button class="earth-filter-pill" onclick="setEarthFilter('my_country', this)">⭐ My Realm</button>
         <button class="earth-filter-pill" onclick="setEarthFilter('superpowers', this)">👑 Superpowers</button>
@@ -1459,16 +1465,25 @@ function renderTradeTab(c, isLeader, isOwner, container) {
 function renderMarketTab(c, isLeader, isOwner, container) {
     let html = "";
     if (!c.owner_id) {
-        const cost = Math.max(3000000, Math.round(c.gdp * 0.25));
         html = `
             <div class="info-tile" style="text-align: center; padding: 1.5rem;">
-                <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">👑</div>
+                <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">??</div>
                 <div style="font-weight: 800; font-size: 1.1rem; color: #f8fafc;">Claim Sovereign Rule</div>
-                <div style="font-size: 0.8rem; color: #94a3b8; margin: 0.5rem 0 1rem 0;">
-                    ${c.name} is currently governed by the Sovereign State Trust. Acquire full presidential authority and establish your realm!
+                <div style="font-size: 0.8rem; color: #94a3b8; margin: 0.5rem 0 0.8rem 0;">
+                    ${c.name} is currently unowned in the Sovereign State Trust. Acquire presidential authority for whatever medals you offer (<strong>0 to ? Medals, 0% Tax applied</strong>)!
                 </div>
-                <button class="hud-btn" style="margin: 0 auto;" onclick="buyCountry(${c.id}, '${c.name}', ${cost})">
-                    Acquire for ${Number(cost).toLocaleString()} Medals
+                <button class="hud-btn" style="margin: 0 auto; background: linear-gradient(135deg, rgba(16, 185, 129, 0.4) 0%, rgba(5, 150, 105, 0.25) 100%); border-color: rgba(16, 185, 129, 0.6);" onclick="openClaimCountryModal(${c.id}, '${c.name}', ${c.gdp})">
+                    Claim Sovereignty (Offer 0-? M)
+                </button>
+            </div>
+
+            <div class="info-tile" style="text-align: center; padding: 1rem; border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.05); margin-top: 1rem;">
+                <div style="font-weight: 800; font-size: 0.88rem; color: #fbbf24; margin-bottom: 0.25rem;">?? Charter Custom Country</div>
+                <div style="font-size: 0.76rem; color: #94a3b8; margin-bottom: 0.65rem;">
+                    Found a brand new custom country with your custom name, flag, coordinates & capital (0-? M, 0% Tax).
+                </div>
+                <button class="btn-action-sm" style="border-color: #fbbf24; color: #fbbf24;" onclick="openFoundCustomCountryModal()">
+                    Found Custom Nation
                 </button>
             </div>
         `;
@@ -1480,13 +1495,13 @@ function renderMarketTab(c, isLeader, isOwner, container) {
                     <button class="btn-action-sm" onclick="openBuyoutModal(${c.id}, '${c.name}', ${c.gdp})">Make Offer</button>
                 </div>
                 <div style="font-size: 0.78rem; color: #94a3b8;">
-                    Submit a formal diplomatic buyout bid to transfer sovereign leadership of ${c.name}.
+                    Submit a formal diplomatic buyout bid to transfer sovereign leadership of ${c.name}. Offer 0 to ? Medals (0% Treaty Tax applied).
                 </div>
             </div>
 
             <div class="info-tile">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.4rem;">
-                    <span style="font-weight: 800; font-size: 0.88rem;">📬 Diplomatic Offers Inbox</span>
+                    <span style="font-weight: 800; font-size: 0.88rem;">?? Diplomatic Offers Inbox</span>
                     <button class="btn-action-sm" onclick="openOffersInbox()">View Offers</button>
                 </div>
                 <div style="font-size: 0.78rem; color: #94a3b8;">
@@ -2181,21 +2196,26 @@ function openBuyoutModal(countryId, countryName, gdp) {
             <div class="custom-modal-card">
                 <div class="custom-modal-header">
                     <div class="custom-modal-title">
-                        <span>🏷️</span> Diplomatic Buyout Offer
+                        <span>???</span> Diplomatic Buyout Offer
                     </div>
-                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                    <button class="btn-action-sm" onclick="closeModal()">?</button>
                 </div>
 
-                <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 1rem;">
+                <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.75rem;">
                     Submit a formal diplomatic buyout bid for <strong>${countryName}</strong> (Current GDP: ${Number(gdp).toLocaleString()} Medals).
                 </p>
 
-                <div class="custom-form-group">
-                    <label class="custom-form-label">Offer Amount (Medals)</label>
-                    <input type="number" class="custom-form-input" id="modal-buyout-amount" value="${Math.round(gdp * 0.5)}">
+                <div style="font-size:0.75rem; color:#10b981; background:rgba(16, 185, 129, 0.12); padding:0.6rem 0.8rem; border-radius:10px; border:1px solid rgba(16, 185, 129, 0.35); margin-bottom:1rem;">
+                    ? <strong>0% Treaty Tax Applied:</strong> The sovereign ruler receives 100% of your offer. You can offer <strong>0 to infinity Medals</strong>.
                 </div>
 
-                <div style="display:flex; gap:0.35rem; margin-bottom: 1rem;">
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Offer Amount (0 to ? Medals)</label>
+                    <input type="number" class="custom-form-input" id="modal-buyout-amount" min="0" value="${Math.round(gdp * 0.5)}">
+                </div>
+
+                <div style="display:flex; flex-wrap:wrap; gap:0.35rem; margin-bottom: 1rem;">
+                    <button class="btn-action-sm" onclick="document.getElementById('modal-buyout-amount').value = 0">0 M (Gift / Unconditional)</button>
                     <button class="btn-action-sm" onclick="document.getElementById('modal-buyout-amount').value = ${Math.round(gdp * 0.25)}">25% GDP</button>
                     <button class="btn-action-sm" onclick="document.getElementById('modal-buyout-amount').value = ${Math.round(gdp * 0.50)}">50% GDP</button>
                     <button class="btn-action-sm" onclick="document.getElementById('modal-buyout-amount').value = ${gdp}">100% GDP</button>
@@ -2217,7 +2237,7 @@ async function submitBuyoutModal(countryId) {
         const res = await fetch("/api/earth/offer", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ country_id: countryId, amount: parseInt(amt) })
+            body: JSON.stringify({ country_id: countryId, amount: Math.max(0, parseInt(amt) || 0) })
         });
         const data = await res.json();
         showToast(data.message);
@@ -2403,23 +2423,244 @@ async function quellUnrest(method) {
     }
 }
 
-async function buyCountry(countryId, countryName, cost) {
-    if (!confirm(`Confirm acquisition of ${countryName} for ${cost.toLocaleString()} Medals?`)) return;
+function openClaimCountryModal(countryId, countryName, gdp) {
+    const container = document.getElementById("modal-container");
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>??</span> Claim Sovereign Rule: ${countryName}
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">?</button>
+                </div>
+
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.8rem;">
+                    Acquire presidential authority over <strong>${countryName}</strong> directly from the Sovereign State Trust.
+                </p>
+
+                <div style="font-size:0.75rem; color:#10b981; background:rgba(16, 185, 129, 0.12); padding:0.65rem 0.85rem; border-radius:10px; border:1px solid rgba(16, 185, 129, 0.35); margin-bottom:1rem;">
+                    ? <strong>Zero Tax Applied (0% Tax):</strong> You can offer <strong>0 to infinity Medals</strong>. If you offer 0 M, sovereignty is granted completely free! Any medals offered directly fund your nation's new Treasury.
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Offered Medals (0 to ?)</label>
+                    <input type="number" class="custom-form-input" id="modal-claim-offer" min="0" value="0">
+                </div>
+
+                <div style="display:flex; flex-wrap:wrap; gap:0.35rem; margin-bottom: 1.25rem;">
+                    <button class="btn-action-sm" onclick="document.getElementById('modal-claim-offer').value = 0">0 M (Free Claim)</button>
+                    <button class="btn-action-sm" onclick="document.getElementById('modal-claim-offer').value = 100000">100k M</button>
+                    <button class="btn-action-sm" onclick="document.getElementById('modal-claim-offer').value = 500000">500k M</button>
+                    <button class="btn-action-sm" onclick="document.getElementById('modal-claim-offer').value = ${Math.round(gdp * 0.25)}">25% GDP</button>
+                    <button class="btn-action-sm" onclick="document.getElementById('modal-claim-offer').value = ${gdp}">100% GDP</button>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.4) 0%, rgba(5, 150, 105, 0.25) 100%); border-color: rgba(16, 185, 129, 0.6);" onclick="submitClaimCountry(${countryId})">
+                        <span>??</span> Claim Sovereignty
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function submitClaimCountry(countryId) {
+    const offerInput = document.getElementById("modal-claim-offer");
+    const offerVal = Math.max(0, parseInt(offerInput.value) || 0);
+    closeModal();
     try {
         const res = await fetch("/api/earth/buy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ country_id: countryId })
+            body: JSON.stringify({ country_id: countryId, offer: offerVal })
         });
         const data = await res.json();
         showToast(data.message);
-        loadVirtualEarthData();
-    } catch (err) {
-        showToast("Purchase failed.");
+        if (data.success) {
+            await loadVirtualEarthData();
+            if (data.wallet !== undefined) {
+                const el = document.getElementById("hud-wallet-val");
+                if (el) el.innerText = data.wallet.toLocaleString();
+            }
+        }
+    } catch(e) {
+        showToast("Claim request failed.");
     }
 }
 
-// ─── INIT ───
+function openFoundCustomCountryModal() {
+    const container = document.getElementById("modal-container");
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card" style="width: min(94vw, 540px);">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>??</span> Buy & Found Custom Sovereign Country
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">?</button>
+                </div>
+
+                <div style="font-size:0.75rem; color:#fbbf24; background:rgba(245, 158, 11, 0.12); padding:0.65rem 0.85rem; border-radius:10px; border:1px solid rgba(245, 158, 11, 0.35); margin-bottom:1rem;">
+                    ? <strong>Zero Tax Applied (0% Tax):</strong> Charter your own custom nation for whatever you offer (<strong>0 to infinity Medals</strong>). 100% of your offer directly capitalizes your new Sovereign Treasury!
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Country Name</label>
+                    <input type="text" class="custom-form-input" id="custom-country-name" placeholder="e.g. Republic of Nova, TS Clan Empire, Panda Kingdom" maxlength="40">
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">National Flag / Icon (Emoji)</label>
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <input type="text" class="custom-form-input" id="custom-country-flag" value="??" style="width: 70px; text-align:center; font-size:1.2rem;">
+                        <div style="display:flex; flex-wrap:wrap; gap:0.25rem;">
+                            ${['??','?????','??','??','??','???','??','??','??','??','??','??'].map(em => `
+                                <button type="button" class="btn-action-sm" style="font-size:1rem; padding:0.25rem 0.45rem;" onclick="document.getElementById('custom-country-flag').value = '${em}'">${em}</button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Capital City</label>
+                    <input type="text" class="custom-form-input" id="custom-country-capital" placeholder="e.g. Neo Tokyo, Citadel Prime, Valhalla" maxlength="30">
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Geographic Territory / Ocean Haven</label>
+                    <select class="custom-form-select" id="custom-country-region" onchange="toggleCustomCoords(this.value)">
+                        <option value="atlantis">??? Atlantis Haven (Mid-Atlantic: 25.0? N, -40.0? W)</option>
+                        <option value="pacific">?? Pacific Sanctuary (Central Pacific: 14.5? N, -140.0? W)</option>
+                        <option value="indian">?? Indian Ocean Atoll (Chagos: -8.5? S, 72.0? E)</option>
+                        <option value="caribbean">?? Caribbean Republic (Bahama Banks: 21.5? N, -72.0? W)</option>
+                        <option value="polynesia">?? Polynesia Sovereignty (South Pacific: -17.5? S, -149.5? W)</option>
+                        <option value="mediterranean">??? Mediterranean Isle (Ionian Sea: 35.0? N, 18.0? E)</option>
+                        <option value="arctic">?? Borealis Realm (North Sea: 64.0? N, -20.0? W)</option>
+                        <option value="custom">?? Custom Coordinates (Slider / Input)</option>
+                    </select>
+                </div>
+
+                <div id="custom-coords-inputs" style="display:none; gap:0.5rem; margin-bottom:1rem;">
+                    <div style="flex:1;">
+                        <label class="custom-form-label">Latitude (-80 to 80)</label>
+                        <input type="number" class="custom-form-input" id="custom-country-lat" value="0.0" step="0.1" min="-80" max="80">
+                    </div>
+                    <div style="flex:1;">
+                        <label class="custom-form-label">Longitude (-180 to 180)</label>
+                        <input type="number" class="custom-form-input" id="custom-country-lng" value="0.0" step="0.1" min="-180" max="180">
+                    </div>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Medals Offered to Charter (0 to ?, 0% Tax)</label>
+                    <input type="number" class="custom-form-input" id="custom-country-offer" min="0" value="0">
+                </div>
+
+                <div style="display:flex; flex-wrap:wrap; gap:0.35rem; margin-bottom: 1.25rem;">
+                    <button type="button" class="btn-action-sm" onclick="document.getElementById('custom-country-offer').value = 0">0 M (Free Charter)</button>
+                    <button type="button" class="btn-action-sm" onclick="document.getElementById('custom-country-offer').value = 50000">50k M</button>
+                    <button type="button" class="btn-action-sm" onclick="document.getElementById('custom-country-offer').value = 250000">250k M</button>
+                    <button type="button" class="btn-action-sm" onclick="document.getElementById('custom-country-offer').value = 1000000">1M M</button>
+                    <button type="button" class="btn-action-sm" onclick="fillMaxWalletOffer()">Max Wallet</button>
+                </div>
+
+                <div style="margin-bottom: 1.25rem; display:flex; align-items:center; gap:0.5rem;">
+                    <input type="checkbox" id="custom-country-replace" style="accent-color:#38bdf8; width:16px; height:16px;">
+                    <label for="custom-country-replace" style="font-size:0.75rem; color:#cbd5e1; cursor:pointer;">
+                        Relinquish leadership of my current country (if I already lead one)
+                    </label>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.25) 100%); border-color: rgba(245, 158, 11, 0.6);" onclick="submitFoundCustomCountry()">
+                        <span>??</span> Proclaim & Found Nation
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function toggleCustomCoords(val) {
+    const el = document.getElementById("custom-coords-inputs");
+    if (el) el.style.display = (val === 'custom') ? 'flex' : 'none';
+}
+
+function fillMaxWalletOffer() {
+    const el = document.getElementById("hud-wallet-val");
+    if (!el) return;
+    const clean = el.innerText.replace(/[^0-9]/g, '');
+    const maxVal = parseInt(clean) || 0;
+    document.getElementById("custom-country-offer").value = maxVal;
+}
+
+async function submitFoundCustomCountry() {
+    const name = document.getElementById("custom-country-name").value.trim();
+    if (!name) {
+        showToast("Please enter a country name.");
+        return;
+    }
+    const flag = document.getElementById("custom-country-flag").value.trim() || "??";
+    const capital = document.getElementById("custom-country-capital").value.trim() || "Capital City";
+    const offer = Math.max(0, parseInt(document.getElementById("custom-country-offer").value) || 0);
+    const replace = document.getElementById("custom-country-replace").checked;
+
+    const region = document.getElementById("custom-country-region").value;
+    let lat = null, lng = null;
+    const presets = {
+        atlantis: [25.0, -40.0],
+        pacific: [14.5, -140.0],
+        indian: [-8.5, 72.0],
+        caribbean: [21.5, -72.0],
+        polynesia: [-17.5, -149.5],
+        mediterranean: [35.0, 18.0],
+        arctic: [64.0, -20.0]
+    };
+    if (region === 'custom') {
+        lat = parseFloat(document.getElementById("custom-country-lat").value);
+        lng = parseFloat(document.getElementById("custom-country-lng").value);
+    } else if (presets[region]) {
+        lat = presets[region][0];
+        lng = presets[region][1];
+    }
+
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/custom_country", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                name,
+                flag,
+                capital,
+                lat,
+                lng,
+                offer,
+                replace_current: replace
+            })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        if (data.success) {
+            await loadVirtualEarthData();
+            if (data.country) {
+                const countryId = data.country.id;
+                setTimeout(() => {
+                    const country = allCountriesData.find(x => x.id === countryId);
+                    if (country) selectCountry(country);
+                }, 600);
+            }
+        }
+    } catch(err) {
+        showToast("Nation founding request failed.");
+    }
+}
+
+// ??? INIT ???
 window.addEventListener("DOMContentLoaded", () => {
     init3DWorld();
     loadVirtualEarthData();
