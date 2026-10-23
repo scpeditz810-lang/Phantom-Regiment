@@ -642,6 +642,16 @@ class Database:
                 FOREIGN KEY(country_id) REFERENCES earth_countries(id)
             );
 
+            CREATE TABLE IF NOT EXISTS earth_tools (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                country_id INTEGER NOT NULL,
+                tool_key TEXT NOT NULL,
+                level INTEGER DEFAULT 1,
+                purchased_at REAL NOT NULL,
+                UNIQUE(country_id, tool_key),
+                FOREIGN KEY(country_id) REFERENCES earth_countries(id)
+            );
+
             CREATE TABLE IF NOT EXISTS earth_spies (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 owner_country_id INTEGER NOT NULL,
@@ -754,6 +764,7 @@ class Database:
             "ALTER TABLE estate_plots ADD COLUMN protected_until REAL DEFAULT 0",
             "ALTER TABLE estate_plots ADD COLUMN last_attack_time REAL DEFAULT 0",
 
+            "ALTER TABLE earth_countries ADD COLUMN last_growth_tick REAL DEFAULT 0",
             "PRAGMA journal_mode=WAL"
 
         ]:
@@ -4107,6 +4118,8 @@ class Database:
         country["spies"] = await self.get_earth_spies(country_id)
         country["intelligence"] = await self.get_earth_intelligence(country_id)
 
+        country["tools"] = await self.get_country_tools(country_id)
+
         # Calculate combat power
         mil_power = 20
         def_power = 30
@@ -4114,12 +4127,21 @@ class Database:
             mil_power += b.get("military_power", 0) * b.get("level", 1)
             def_power += b.get("defense_power", 0) * b.get("level", 1)
 
+        for t in country["tools"]:
+            mil_power += t.get("military_power", 0) * t.get("level", 1)
+            def_power += t.get("defense_power", 0) * t.get("level", 1)
+
         doc = country.get("military_doctrine", "volunteer")
         from utils.constants import EARTH_DOCTRINES
         doc_info = EARTH_DOCTRINES.get("military", {}).get(doc, {})
         mult = doc_info.get("power_mult", 1.0)
         country["total_military_power"] = int(round(mil_power * mult))
         country["total_defense_power"] = int(round(def_power * mult))
+
+        # Apply slow organic growth if country has a ruler
+        if country.get("owner_id"):
+            country = await self.apply_organic_growth(country)
+
         return country
 
     async def get_earth_country_by_code(self, code: str) -> dict | None:
@@ -4394,9 +4416,15 @@ class Database:
         new_treasury = max(1000000, c.get("treasury", 1000000) + offer)
         await self._db.execute("""
             UPDATE earth_countries 
-            SET owner_id = ?, stability = 80, unrest = 15, treasury = ?, last_yield_claim = ?
+            SET owner_id = ?, stability = 80, unrest = 15, treasury = ?, last_yield_claim = ?, last_growth_tick = ?
             WHERE id = ?
-        """, (user_id, new_treasury, now, country_id))
+        """, (user_id, new_treasury, now, now, country_id))
+        
+        # Register user as citizen/ruler of this country
+        await self._db.execute("""
+            INSERT OR REPLACE INTO earth_citizens (user_id, country_id, joined_at)
+            VALUES (?, ?, ?)
+        """, (user_id, country_id, now))
         await self._db.commit()
 
         # Pre-seed starter buildings
@@ -4413,6 +4441,8 @@ class Database:
             """, (country_id, now))
         await self._db.commit()
 
+        if offer == 0:
+            return True, f"?? Sovereign Proclamation Signed! You have claimed the vacant nation of {c['flag']} **{c['name']}** completely for **FREE (0 Medals)**! Welcome, Supreme Sovereign!"
         return True, f"?? Proclamation Signed! You are now the official President and Sovereign Leader of {c['flag']} **{c['name']}** for {offer:,} Medals (0% Tax applied)!"
 
     async def create_custom_country(
@@ -5565,3 +5595,127 @@ class Database:
         }
 
         return True, f"??? Counter-Intelligence Sweep Complete! Defense grid operating at {sweep_result['counter_intel_rating']} efficiency with {bunkers} Bunker installations. {len(detained)} hostile agents currently held in military detention.", sweep_result
+
+    # ??? Organic Slow Growth & Advanced Military Tools ??????????????????????????
+
+    async def apply_organic_growth(self, country: dict) -> dict:
+        """Process slow, natural growth of national GDP, stability, and treasury over time."""
+        now = time.time()
+        last_tick = country.get("last_growth_tick") or country.get("created_at") or now
+        if last_tick == 0:
+            last_tick = now - 3600
+        
+        elapsed_hours = (now - last_tick) / 3600.0
+        # Only tick if at least 15 minutes (0.25 hrs) have elapsed
+        if elapsed_hours >= 0.25:
+            capped_hours = min(48.0, elapsed_hours)
+            stab_factor = max(0.4, (country.get("stability", 80)) / 100.0)
+            
+            # Organic GDP growth: ~0.3% compound per hour of peace
+            gdp_growth = int(country["gdp"] * 0.003 * capped_hours * stab_factor)
+            # Organic civic treasury yield: based on tax rate & stability
+            tax_rate = country.get("tax_rate", 10)
+            treasury_gain = int(tax_rate * 250 * capped_hours * stab_factor)
+            # Unrest cooling: -1 unrest per 3 hours of peace
+            unrest_cool = min(10, int(capped_hours * 0.33))
+            
+            new_gdp = country["gdp"] + gdp_growth
+            new_treasury = country["treasury"] + treasury_gain
+            new_unrest = max(0, country.get("unrest", 10) - unrest_cool)
+            
+            await self._db.execute("""
+                UPDATE earth_countries
+                SET gdp = ?, treasury = ?, unrest = ?, last_growth_tick = ?
+                WHERE id = ?
+            """, (new_gdp, new_treasury, new_unrest, now, country["id"]))
+            await self._db.commit()
+            
+            country["gdp"] = new_gdp
+            country["treasury"] = new_treasury
+            country["unrest"] = new_unrest
+            country["last_growth_tick"] = now
+            country["recent_gdp_growth"] = gdp_growth
+        return country
+
+    async def get_country_tools(self, country_id: int) -> list[dict]:
+        """Fetch all advanced military, defense, and economic tools owned by a country."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_ADVANCED_TOOLS
+
+        async with self._db.execute("""
+            SELECT * FROM earth_tools WHERE country_id = ? ORDER BY purchased_at ASC
+        """, (country_id,)) as cur:
+            rows = await cur.fetchall()
+
+        tools = []
+        for r in rows:
+            d = dict(r)
+            meta = EARTH_ADVANCED_TOOLS.get(d["tool_key"], {})
+            tools.append({
+                **d,
+                "name": meta.get("name", d["tool_key"]),
+                "emoji": meta.get("emoji", "??"),
+                "desc": meta.get("desc", ""),
+                "category": meta.get("category", "military"),
+                "military_power": meta.get("military_power", 0),
+                "defense_power": meta.get("defense_power", 0),
+                "hourly_yield": meta.get("hourly_yield", 0),
+                "perk": meta.get("perk", "")
+            })
+        return tools
+
+    async def buy_country_tool(self, user_id: int, country_id: int, tool_key: str) -> tuple[bool, str, dict]:
+        """Purchase advanced high-tech military tools, missile shields, or drone swarms for Medals."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_ADVANCED_TOOLS
+
+        if tool_key not in EARTH_ADVANCED_TOOLS:
+            return False, "Invalid advanced tool selected.", {}
+
+        # Authorization check: president or defense minister
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "defense")
+        if not can_manage:
+            can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "intelligence")
+        if not can_manage:
+            return False, "? Authorization Denied: Only the Supreme Sovereign or Minister of Defense can procure advanced military assets!", {}
+
+        meta = EARTH_ADVANCED_TOOLS[tool_key]
+        price = meta["price"]
+
+        # Check existing tool
+        async with self._db.execute("""
+            SELECT level FROM earth_tools WHERE country_id = ? AND tool_key = ?
+        """, (country_id, tool_key)) as cur:
+            row = await cur.fetchone()
+            if row:
+                return False, f"Your forces already deployed the {meta['emoji']} **{meta['name']}**!", {}
+
+        econ = await self.get_global_economy(user_id)
+        if econ.get("medals", 0) < price:
+            return False, f"Insufficient Medals: Procuring {meta['name']} requires {price:,} Medals (You have {econ.get('medals', 0):,}).", {}
+
+        # Deduct medals
+        await self.subtract_medals(user_id, price)
+        now = time.time()
+
+        await self._db.execute("""
+            INSERT INTO earth_tools (country_id, tool_key, level, purchased_at)
+            VALUES (?, ?, 1, ?)
+        """, (country_id, tool_key, now))
+        
+        # If economic core, immediately boost GDP
+        if tool_key == "industrial_core":
+            await self._db.execute("""
+                UPDATE earth_countries SET gdp = gdp + 15000000 WHERE id = ?
+            """, (country_id,))
+        
+        await self._db.commit()
+
+        updated_country = await self.get_earth_country(country_id)
+        return True, f"?? Advanced Asset Procured! Deployed {meta['emoji']} **{meta['name']}** to your national forces! (+{meta['military_power']} Atk, +{meta['defense_power']} Def).", {
+            "tool": meta,
+            "wallet": econ.get("medals", 0) - price,
+            "country": updated_country
+        }

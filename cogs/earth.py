@@ -566,5 +566,75 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         await interaction.followup.send(f"{msg}" if success else f"? {msg}")
 
 
+    # ??? Advanced Military Tools & High-Tech Arsenal ?????????????????????????????
+
+    @earth_group.command(name="arsenal", description="View advanced high-tech tools, missile shields, drone swarms, and superweapons.")
+    async def earth_arsenal(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        from utils.constants import EARTH_ADVANCED_TOOLS
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        country_id = c["id"] if c else 0
+
+        owned_tools = await self.bot.db.get_country_tools(country_id) if country_id else []
+        owned_keys = {t["tool_key"] for t in owned_tools}
+
+        embed = discord.Embed(
+            title="?? Advanced Military Arsenal & Strategic Defense Suite",
+            description=(
+                "Nations grow slowly and naturally over time, or you can **procure Advanced Tools with Medals** "
+                "to fast-track military power, ballistic interception, and economic yields!\n\n"
+                "*Use `/earth buy_tool <tool_key>` or the website command deck to procure assets.*"
+            ),
+            color=0xF59E0B
+        )
+
+        for key, tool in EARTH_ADVANCED_TOOLS.items():
+            status = "? **DEPLOYED**" if key in owned_keys else f"?? **{tool['price']:,} Medals**"
+            stats = f"?? +{tool['military_power']} Atk ? ??? +{tool['defense_power']} Def"
+            if tool.get("hourly_yield"):
+                stats += f" ? ?? +{tool['hourly_yield']:,} M/hr"
+            embed.add_field(
+                name=f"{tool['emoji']} {tool['name']} (`{key}`)",
+                value=f"? **Status:** {status}\n? **Combat:** {stats}\n? **Perk:** *{tool['perk']}*\n? *{tool['desc']}*",
+                inline=False
+            )
+
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Open 3D High-Tech Deck", url=WEB_URL, style=discord.ButtonStyle.link, emoji="??"))
+        await interaction.followup.send(embed=embed, view=view)
+
+    @earth_group.command(name="buy_tool", description="Procure an advanced military tool, missile defense shield, or drone swarm with Medals.")
+    @app_commands.describe(tool_key="Asset key (e.g. drone_swarm, iron_dome, hypersonic_battery, tactical_nuke, sat_recon)")
+    async def earth_buy_tool(self, interaction: discord.Interaction, tool_key: str):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("? You do not govern an Earth nation! Claim an empty country for free or found a custom nation first.", ephemeral=True)
+            return
+
+        key = tool_key.strip().lower()
+        success, msg, res = await self.bot.db.buy_country_tool(interaction.user.id, c["id"], key)
+        if not success:
+            await interaction.followup.send(f"? {msg}", ephemeral=True)
+            return
+
+        tool = res["tool"]
+        embed = discord.Embed(
+            title=f"?? Advanced Asset Deployed: {tool['emoji']} {tool['name']}",
+            description=(
+                f"Supreme Sovereign: {interaction.user.mention}\n"
+                f"Host Nation: **{c['flag']} {c['name']}**\n"
+                f"Procurement Cost: **{tool['price']:,} Medals**\n\n"
+                f"? **Military Attack Boost:** `+{tool['military_power']}`\n"
+                f"? **National Defense Boost:** `+{tool['defense_power']}`\n"
+                f"? **Special Capability:** *{tool['perk']}*\n\n"
+                f"{msg}"
+            ),
+            color=0x10B981
+        )
+        embed.set_footer(text="Virtual Earth 3D Simulation ? High-Tech Warfare Suite")
+        await interaction.followup.send(embed=embed)
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(EarthCog(bot))

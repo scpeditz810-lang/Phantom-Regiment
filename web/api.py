@@ -2016,3 +2016,48 @@ def api_earth_counter_sweep():
     db = get_db()
     success, msg, report = run_async(db.counter_intel_sweep(user_id, country_id))
     return jsonify({"success": success, "message": msg, "report": report}), 200 if success else 400
+
+
+@api_bp.route("/earth/tools")
+@login_required
+def api_earth_tools():
+    try:
+        country_id = int(request.args.get("country_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid country_id"}), 400
+
+    from utils.constants import EARTH_ADVANCED_TOOLS
+    db = get_db()
+    owned_tools = run_async(db.get_country_tools(country_id))
+    owned_keys = {t["tool_key"] for t in owned_tools}
+
+    catalogue = []
+    for key, val in EARTH_ADVANCED_TOOLS.items():
+        catalogue.append({
+            **val,
+            "owned": key in owned_keys
+        })
+
+    return jsonify({
+        "catalogue": catalogue,
+        "owned": owned_tools
+    })
+
+@api_bp.route("/earth/tool/buy", methods=["POST"])
+@login_required
+def api_earth_tool_buy():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        tool_key = str(data.get("tool_key", "")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, res = run_async(db.buy_country_tool(user_id, country_id, tool_key))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "result": res
+    }), 200 if success else 400
