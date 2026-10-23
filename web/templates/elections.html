@@ -293,4 +293,24 @@
         </div>
     </div>
 </div>
+
+<script>
+async function handleAdminEndElection() {
+    if (!confirm("Are you sure you want to conclude the election early?\n\nThis will close voting immediately, tally ballots, crown the candidate with the most votes as Mayor for 14 days, and announce the victor in Discord.")) {
+        return;
+    }
+    try {
+        const res = await fetch("/api/admin/election/end", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+            alert(data.message || "Election successfully concluded!");
+            window.location.reload();
+        } else {
+            alert("Error: " + (data.message || "Failed to conclude election."));
+        }
+    } catch (err) {
+        alert("Network error: " + err.message);
+    }
+}
+</script>
 {% endblock %}

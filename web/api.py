@@ -947,6 +947,37 @@ def admin_restore_members():
     })
 
 
+@api_bp.route("/admin/election/end", methods=["POST"])
+@admin_required
+def admin_end_election():
+    db = get_db()
+    bot = current_app.config.get("DISCORD_BOT")
+    from web.auth import get_oauth_config
+    cfg = get_oauth_config()
+    gid = cfg["guild_id"]
+    
+    active_ele = run_async(db.get_active_election(gid))
+    if not active_ele:
+        return jsonify({"success": False, "message": "No active election currently running to end."}), 400
+
+    elections_cog = bot.get_cog("ElectionsCog") if bot else None
+    guild = bot.get_guild(gid) if bot else None
+
+    if elections_cog and guild:
+        success, winner_member, msg = run_async(elections_cog.conclude_election_for_guild(guild, active_ele))
+        winner_name = winner_member.display_name if winner_member else "None"
+    else:
+        success, finished_ele, msg = run_async(db.conclude_election(active_ele["id"]))
+        winner_name = f"Winner ID: {finished_ele.get('winner_id')}" if (finished_ele and finished_ele.get('winner_id')) else "None"
+
+    if not success:
+        return jsonify({"success": False, "message": msg}), 400
+
+    return jsonify({
+        "success": True,
+        "message": f"Election concluded successfully! New Mayor declared: {winner_name}."
+    })
+
 # ── Mayor Executive Endpoints ──────────────────────────────────────────────
 @api_bp.route("/mayor/plot/create", methods=["POST"])
 @mayor_required
