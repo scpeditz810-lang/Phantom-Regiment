@@ -20,6 +20,62 @@ from utils.constants import (
 WEB_URL = "https://phantom-regiment-1.onrender.com/estate"
 
 
+class CabinetInviteView(discord.ui.View):
+    def __init__(self, bot, invite_id: int, target_user_id: int, president_id: int, role_title: str, country_name: str, country_flag: str):
+        super().__init__(timeout=86400)
+        self.bot = bot
+        self.invite_id = invite_id
+        self.target_user_id = target_user_id
+        self.president_id = president_id
+        self.role_title = role_title
+        self.country_name = country_name
+        self.country_flag = country_flag
+
+    @discord.ui.button(label="Accept Appointment", style=discord.ButtonStyle.success, emoji="✅")
+    async def accept_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.target_user_id:
+            await interaction.response.send_message("❌ This ministerial appointment was offered to someone else!", ephemeral=True)
+            return
+        await interaction.response.defer()
+        success, msg = await self.bot.db.respond_earth_cabinet_invite(self.target_user_id, self.invite_id, accept=True)
+        if success:
+            for child in self.children:
+                child.disabled = True
+            embed = discord.Embed(
+                title="🏛️ Cabinet Decree Accepted",
+                description=(
+                    f"🎉 **<@{self.target_user_id}>** has formally accepted the appointment!\n\n"
+                    f"**Portfolio:** {self.role_title}\n"
+                    f"**Sovereign Nation:** {self.country_flag} {self.country_name}\n\n"
+                    f"*The minister now shares executive portfolio authority with the President.*"
+                ),
+                color=0x2ECC71
+            )
+            embed.set_footer(text="Virtual Earth Cabinet • Oath of office formally taken.")
+            await interaction.message.edit(embed=embed, view=self)
+            await interaction.followup.send(f"✅ You have officially assumed office as **{self.role_title}** of **{self.country_name}**!", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, emoji="❌")
+    async def decline_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.target_user_id:
+            await interaction.response.send_message("❌ This ministerial appointment was offered to someone else!", ephemeral=True)
+            return
+        await interaction.response.defer()
+        success, msg = await self.bot.db.respond_earth_cabinet_invite(self.target_user_id, self.invite_id, accept=False)
+        for child in self.children:
+            child.disabled = True
+        embed = discord.Embed(
+            title="🏛️ Cabinet Decree Declined",
+            description=f"**<@{self.target_user_id}>** has turned down the nomination for **{self.role_title}** of **{self.country_name}**.",
+            color=0x95A5A6
+        )
+        embed.set_footer(text="Virtual Earth Cabinet • Decree vacated.")
+        await interaction.message.edit(embed=embed, view=self)
+        await interaction.followup.send("Appointment decree declined.", ephemeral=True)
+
+
 class EarthCog(commands.Cog, name="Virtual Earth"):
     """Global sovereign governance, cabinet appointments, and military conquests."""
 
@@ -143,17 +199,43 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             await interaction.followup.send("❌ Only the President/PM of a sovereign nation can issue Cabinet appointments!", ephemeral=True)
             return
 
-        success, msg = await self.bot.db.appoint_earth_cabinet(interaction.user.id, c["id"], role.value, member.id)
-        if success:
+        success, msg, data = await self.bot.db.appoint_earth_cabinet(interaction.user.id, c["id"], role.value, member.id)
+        if not success:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+            return
+
+        if data.get("auto_accepted"):
             embed = discord.Embed(
-                title="🏛️ Presidential Decree Issued",
-                description=f"**President <@{interaction.user.id}>** has appointed **<@{member.id}>** to the national cabinet!\n\n**Portfolio:** {role.name}\n**Nation:** {c['flag']} {c['name']}",
+                title="🏛️ Executive Portfolio Assumed",
+                description=f"**President <@{interaction.user.id}>** has taken direct charge of **{role.name}** for **{c['flag']} {c['name']}**.",
                 color=0xF1C40F
             )
-            embed.set_footer(text="Virtual Earth Cabinet • Ministers exercise portfolio authority alongside the President.")
+            embed.set_footer(text="Virtual Earth Cabinet • Sitting President exercised sovereign authority.")
             await interaction.followup.send(embed=embed)
-        else:
-            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+            return
+
+        # Nomination decree pending candidate acceptance
+        view = CabinetInviteView(
+            bot=self.bot,
+            invite_id=data["invite_id"],
+            target_user_id=member.id,
+            president_id=interaction.user.id,
+            role_title=data.get("role_title", role.name),
+            country_name=c["name"],
+            country_flag=c["flag"]
+        )
+        embed = discord.Embed(
+            title="📜 Presidential Cabinet Decree Issued",
+            description=(
+                f"**President <@{interaction.user.id}>** has appointed **<@{member.id}>** to the national cabinet!\n\n"
+                f"**Portfolio:** {role.name}\n"
+                f"**Sovereign Nation:** {c['flag']} {c['name']}\n\n"
+                f"⚠️ **Nominee Action Required:** <@{member.id}> must click **[Accept Appointment]** below or run `/earth cabinet accept` to assume office."
+            ),
+            color=0xF1C40F
+        )
+        embed.set_footer(text="Virtual Earth Cabinet • Ministers exercise portfolio authority alongside the President.")
+        await interaction.followup.send(content=f"<@{member.id}>", embed=embed, view=view)
 
     @cabinet_group.command(name="dismiss", description="Dismiss a minister from your cabinet.")
     @app_commands.describe(role="Cabinet Portfolio to vacate")
@@ -172,6 +254,59 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
         success, msg = await self.bot.db.dismiss_earth_cabinet(interaction.user.id, c["id"], role.value)
         await interaction.followup.send(f"🏛️ {msg}" if success else f"❌ {msg}")
+
+    @cabinet_group.command(name="accept", description="Accept a pending appointment decree to a ministerial cabinet.")
+    async def cabinet_accept(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        invites = await self.bot.db.get_user_pending_cabinet_invites(interaction.user.id)
+        if not invites:
+            await interaction.followup.send("❌ You do not have any pending cabinet appointment decrees awaiting your acceptance.", ephemeral=True)
+            return
+        inv = invites[0]
+        success, msg = await self.bot.db.respond_earth_cabinet_invite(interaction.user.id, inv["id"], accept=True)
+        if success:
+            embed = discord.Embed(
+                title="🎉 Oath of Office Sworn",
+                description=f"You have officially assumed office as **{inv['role_emoji']} {inv['role_title']}** of **{inv['country_flag']} {inv['country_name']}**!\n\nYou now share executive ministerial authority with the President.",
+                color=0x2ECC71
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @cabinet_group.command(name="decline", description="Decline a pending appointment decree to a ministerial cabinet.")
+    async def cabinet_decline(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        invites = await self.bot.db.get_user_pending_cabinet_invites(interaction.user.id)
+        if not invites:
+            await interaction.followup.send("❌ You do not have any pending cabinet appointment decrees.", ephemeral=True)
+            return
+        inv = invites[0]
+        success, msg = await self.bot.db.respond_earth_cabinet_invite(interaction.user.id, inv["id"], accept=False)
+        await interaction.followup.send(f"🏛️ {msg}", ephemeral=True)
+
+    @cabinet_group.command(name="pending", description="View pending ministerial cabinet appointments offered to you.")
+    async def cabinet_pending(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        invites = await self.bot.db.get_user_pending_cabinet_invites(interaction.user.id)
+        if not invites:
+            await interaction.followup.send("📜 You have no pending cabinet appointments awaiting your acceptance.", ephemeral=True)
+            return
+        lines = []
+        for inv in invites:
+            lines.append(f"• **{inv['role_emoji']} {inv['role_title']}** — {inv['country_flag']} **{inv['country_name']}** (Appointed by <@{inv['president_id']}>)")
+        embed = discord.Embed(
+            title="📜 Pending Cabinet Decrees",
+            description="\n\n".join(lines) + "\n\nUse `/earth cabinet accept` to take office or `/earth cabinet decline` to refuse.",
+            color=0xF1C40F
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @cabinet_group.command(name="resign", description="Resign from your current ministerial cabinet portfolio.")
+    async def cabinet_resign(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        success, msg = await self.bot.db.resign_earth_cabinet(interaction.user.id)
+        await interaction.followup.send(f"🏛️ {msg}" if success else f"❌ {msg}", ephemeral=True)
 
     # ─── Infrastructure Construction ──────────────────────────────────────────
 

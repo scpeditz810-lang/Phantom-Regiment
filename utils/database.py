@@ -634,6 +634,18 @@ class Database:
                 FOREIGN KEY(country_id) REFERENCES earth_countries(id)
             );
 
+            CREATE TABLE IF NOT EXISTS earth_cabinet_invites (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                country_id INTEGER NOT NULL,
+                president_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                created_at REAL NOT NULL,
+                responded_at REAL DEFAULT 0,
+                FOREIGN KEY(country_id) REFERENCES earth_countries(id)
+            );
+
             CREATE TABLE IF NOT EXISTS earth_citizens (
                 user_id INTEGER PRIMARY KEY,
                 country_id INTEGER NOT NULL,
@@ -4333,33 +4345,249 @@ class Database:
                     result[rk]["appointed_at"] = r[2]
                     result[rk]["username"] = r[3]
                     result[rk]["avatar"] = r[4]
+
+        # Attach pending nominations for vacant portfolios
+        async with self._db.execute("""
+            SELECT inv.id, inv.role, inv.user_id, inv.created_at,
+                   COALESCE(om.username, 'Candidate ' || inv.user_id) as username
+            FROM earth_cabinet_invites inv
+            LEFT JOIN oauth_members om ON inv.user_id = om.user_id
+            WHERE inv.country_id = ? AND inv.status = 'pending'
+            ORDER BY inv.id DESC
+        """, (country_id,)) as cur:
+            for r in await cur.fetchall():
+                rk = r[1]
+                if rk in result and result[rk]["user_id"] is None and "pending_invite" not in result[rk]:
+                    result[rk]["pending_invite"] = {
+                        "invite_id": r[0],
+                        "user_id": r[2],
+                        "created_at": r[3],
+                        "username": r[4]
+                    }
         return result
 
-    async def appoint_earth_cabinet(self, president_id: int, country_id: int, role: str, target_user_id: int) -> tuple[bool, str]:
-        """President appoints another Discord player to a cabinet minister post."""
+    async def appoint_earth_cabinet(self, president_id: int, country_id: int, role: str, target_user_id: int) -> tuple[bool, str, dict]:
+        """President nominates a player to a cabinet minister post. Requires nominee acceptance before taking office."""
         if self._db is None:
             await self.setup()
         from utils.constants import EARTH_CABINET_ROLES
 
         if role not in EARTH_CABINET_ROLES:
-            return False, f"Invalid cabinet role: {role}"
-
-        # President check
-        async with self._db.execute("SELECT owner_id, name FROM earth_countries WHERE id = ?", (country_id,)) as cur:
-            row = await cur.fetchone()
-            if not row or str(row[0]) != str(president_id):
-                return False, "⛔ Sovereign Privilege Required: Only the President/PM of this nation can appoint Cabinet Ministers!"
-            c_name = row[1]
-
-        now = time.time()
-        await self._db.execute("""
-            INSERT OR REPLACE INTO earth_cabinet (country_id, role, user_id, appointed_at)
-            VALUES (?, ?, ?, ?)
-        """, (country_id, role, target_user_id, now))
-        await self._db.commit()
+            return False, f"Invalid cabinet role: {role}", {}
 
         role_info = EARTH_CABINET_ROLES[role]
-        return True, f"🏛️ Decree Issued: <@{target_user_id}> has been appointed as {role_info['emoji']} **{role_info['title']}** of {c_name}!"
+
+        # President check
+        async with self._db.execute("SELECT owner_id, name, flag FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+            if not row or str(row[0]) != str(president_id):
+                return False, "⛔ Sovereign Privilege Required: Only the President/PM of this nation can appoint Cabinet Ministers!", {}
+            c_name = row[1]
+            c_flag = row[2]
+
+        # Self-appointment by sitting President auto-accepts
+        if str(president_id) == str(target_user_id):
+            now = time.time()
+            await self._db.execute("""
+                INSERT OR REPLACE INTO earth_cabinet (country_id, role, user_id, appointed_at)
+                VALUES (?, ?, ?, ?)
+            """, (country_id, role, target_user_id, now))
+            await self._db.commit()
+            return True, f"🏛️ Decree Issued: You have directly assumed executive charge of {role_info['emoji']} **{role_info['title']}**!", {
+                "auto_accepted": True,
+                "country_id": country_id,
+                "country_name": c_name,
+                "country_flag": c_flag,
+                "role": role,
+                "role_title": role_info['title']
+            }
+
+        # Check if target is already President of another country
+        async with self._db.execute("SELECT id, name FROM earth_countries WHERE owner_id = ? AND id != ?", (target_user_id, country_id)) as cur:
+            pres_row = await cur.fetchone()
+            if pres_row:
+                return False, f"⛔ Candidate Conflict: <@{target_user_id}> is the sitting sovereign ruler of {pres_row[1]} and cannot serve as a foreign minister!", {}
+
+        # Check if target is already active in this exact role
+        async with self._db.execute("SELECT 1 FROM earth_cabinet WHERE country_id = ? AND role = ? AND user_id = ?", (country_id, role, target_user_id)) as cur:
+            if await cur.fetchone():
+                return False, f"⚠️ <@{target_user_id}> is already active as {role_info['title']} of {c_name}!", {}
+
+        # Cancel any previous pending invite for this specific portfolio
+        await self._db.execute("UPDATE earth_cabinet_invites SET status = 'cancelled' WHERE country_id = ? AND role = ? AND status = 'pending'", (country_id, role))
+
+        now = time.time()
+        cur = await self._db.execute("""
+            INSERT INTO earth_cabinet_invites (country_id, president_id, user_id, role, status, created_at)
+            VALUES (?, ?, ?, ?, 'pending', ?)
+        """, (country_id, president_id, target_user_id, role, now))
+        invite_id = cur.lastrowid
+        await self._db.commit()
+
+        return True, f"📜 Presidential Decree Issued: Nominated <@{target_user_id}> for {role_info['emoji']} **{role_info['title']}**! Candidate must formally accept the decree to take office.", {
+            "invite_id": invite_id,
+            "pending": True,
+            "country_id": country_id,
+            "country_name": c_name,
+            "country_flag": c_flag,
+            "role": role,
+            "role_title": role_info['title'],
+            "role_emoji": role_info['emoji'],
+            "target_user_id": target_user_id,
+            "president_id": president_id
+        }
+
+    async def respond_earth_cabinet_invite(self, user_id: int, invite_id: int, accept: bool) -> tuple[bool, str]:
+        """Candidate accepts or declines a ministerial cabinet nomination."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_CABINET_ROLES
+
+        async with self._db.execute("""
+            SELECT inv.id, inv.country_id, inv.president_id, inv.user_id, inv.role, inv.status,
+                   c.name, c.flag, c.owner_id
+            FROM earth_cabinet_invites inv
+            JOIN earth_countries c ON inv.country_id = c.id
+            WHERE inv.id = ?
+        """, (invite_id,)) as cur:
+            row = await cur.fetchone()
+
+        if not row:
+            return False, "Appointment decree not found or expired."
+
+        if str(row[3]) != str(user_id):
+            return False, "⛔ Unauthorized: This cabinet decree was issued to another player."
+
+        if row[5] != "pending":
+            return False, f"This decree is no longer pending (current status: {row[5]})."
+
+        if str(row[2]) != str(row[8]):
+            return False, "This decree is void: the issuing President no longer leads this nation."
+
+        role_info = EARTH_CABINET_ROLES.get(row[4], {"title": row[4], "emoji": "🏛️"})
+        now = time.time()
+
+        if accept:
+            await self._db.execute("UPDATE earth_cabinet_invites SET status = 'accepted', responded_at = ? WHERE id = ?", (now, invite_id))
+            # Vacate any other foreign cabinet positions held by the user
+            await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (user_id,))
+            # Appoint to the country's cabinet portfolio
+            await self._db.execute("""
+                INSERT OR REPLACE INTO earth_cabinet (country_id, role, user_id, appointed_at)
+                VALUES (?, ?, ?, ?)
+            """, (row[1], row[4], user_id, now))
+            # Ensure citizen of this nation
+            await self._db.execute("""
+                INSERT OR REPLACE INTO earth_citizens (user_id, country_id, joined_at, reputation)
+                VALUES (?, ?, ?, 100)
+            """, (user_id, row[1], now))
+            await self._db.commit()
+            return True, f"🎉 Oath of Office Sworn: You have officially accepted the appointment as {role_info['emoji']} **{role_info['title']}** of {row[7]} {row[6]}!"
+        else:
+            await self._db.execute("UPDATE earth_cabinet_invites SET status = 'declined', responded_at = ? WHERE id = ?", (now, invite_id))
+            await self._db.commit()
+            return True, f"Decree declined. You turned down the appointment for {role_info['title']} of {row[7]} {row[6]}."
+
+    async def cancel_earth_cabinet_invite(self, president_id: int, invite_id: int) -> tuple[bool, str]:
+        """President rescinds an appointment decree before candidate accepts."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT id, president_id, country_id, status FROM earth_cabinet_invites WHERE id = ?", (invite_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "Decree offer not found."
+            if str(row[1]) != str(president_id):
+                return False, "⛔ Only the appointing President can cancel this decree."
+            if row[3] != "pending":
+                return False, f"Decree is not pending (status: {row[3]})."
+
+        await self._db.execute("UPDATE earth_cabinet_invites SET status = 'cancelled' WHERE id = ?", (invite_id,))
+        await self._db.commit()
+        return True, "Nomination decree cancelled."
+
+    async def resign_earth_cabinet(self, user_id: int, country_id: int = None) -> tuple[bool, str]:
+        """A minister resigns from their cabinet portfolio."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_CABINET_ROLES
+        sql = "SELECT country_id, role FROM earth_cabinet WHERE user_id = ?"
+        params = [user_id]
+        if country_id:
+            sql += " AND country_id = ?"
+            params.append(country_id)
+        async with self._db.execute(sql, tuple(params)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False, "You do not currently hold any active ministerial cabinet portfolio."
+            cid, role = row[0], row[1]
+
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? AND country_id = ?", (user_id, cid))
+        await self._db.commit()
+        role_info = EARTH_CABINET_ROLES.get(role, {"title": role})
+        return True, f"Resignation tendered. You have stepped down as **{role_info.get('title', role)}**. Portfolio duties have reverted to the President."
+
+    async def get_user_pending_cabinet_invites(self, user_id: int) -> list[dict]:
+        """Get all pending cabinet appointment offers sent to a user."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_CABINET_ROLES
+        async with self._db.execute("""
+            SELECT inv.id, inv.country_id, inv.president_id, inv.role, inv.created_at,
+                   c.name, c.flag,
+                   COALESCE(om.username, 'President ' || inv.president_id) as president_name
+            FROM earth_cabinet_invites inv
+            JOIN earth_countries c ON inv.country_id = c.id
+            LEFT JOIN oauth_members om ON inv.president_id = om.user_id
+            WHERE inv.user_id = ? AND inv.status = 'pending'
+            ORDER BY inv.id DESC
+        """, (user_id,)) as cur:
+            rows = await cur.fetchall()
+            res = []
+            for r in rows:
+                rm = EARTH_CABINET_ROLES.get(r[3], {})
+                res.append({
+                    "id": r[0],
+                    "country_id": r[1],
+                    "president_id": r[2],
+                    "role": r[3],
+                    "created_at": r[4],
+                    "country_name": r[5],
+                    "country_flag": r[6],
+                    "president_name": r[7],
+                    "role_title": rm.get("title", r[3]),
+                    "short_title": rm.get("short_title", r[3]),
+                    "role_emoji": rm.get("emoji", "🏛️")
+                })
+            return res
+
+    async def get_country_pending_cabinet_invites(self, country_id: int) -> list[dict]:
+        """Get all pending outgoing cabinet decrees issued by a nation."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_CABINET_ROLES
+        async with self._db.execute("""
+            SELECT inv.id, inv.user_id, inv.role, inv.created_at,
+                   COALESCE(om.username, 'Candidate ' || inv.user_id) as candidate_name
+            FROM earth_cabinet_invites inv
+            LEFT JOIN oauth_members om ON inv.user_id = om.user_id
+            WHERE inv.country_id = ? AND inv.status = 'pending'
+            ORDER BY inv.id DESC
+        """, (country_id,)) as cur:
+            rows = await cur.fetchall()
+            res = []
+            for r in rows:
+                rm = EARTH_CABINET_ROLES.get(r[2], {})
+                res.append({
+                    "id": r[0],
+                    "user_id": r[1],
+                    "role": r[2],
+                    "created_at": r[3],
+                    "candidate_name": r[4],
+                    "role_title": rm.get("title", r[2]),
+                    "short_title": rm.get("short_title", r[2]),
+                    "role_emoji": rm.get("emoji", "🏛️")
+                })
+            return res
 
     async def dismiss_earth_cabinet(self, president_id: int, country_id: int, role: str) -> tuple[bool, str]:
         """President dismisses a minister from cabinet portfolio."""

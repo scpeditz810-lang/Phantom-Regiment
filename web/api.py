@@ -1426,7 +1426,9 @@ def api_earth_stats():
         uid = int(raw_uid) if str(raw_uid).isdigit() else raw_uid
         econ = run_async(db.get_global_economy(uid))
         user_c = run_async(db.get_user_earth_country(uid))
+        user_stats["id"] = uid
         user_stats["wallet"] = econ.get("medals", 0)
+        user_stats["pending_invites"] = run_async(db.get_user_pending_cabinet_invites(uid))
         if user_c:
             user_stats["country"] = user_c
             user_stats["role"] = user_c.get("user_role", "president")
@@ -1581,13 +1583,70 @@ def api_earth_cabinet_appoint():
         
     user_id = session["user"]["id"]
     db = get_db()
-    success, msg = run_async(db.appoint_earth_cabinet(user_id, country_id, role, target_user_id))
+    success, msg, res_data = run_async(db.appoint_earth_cabinet(user_id, country_id, role, target_user_id))
     cab = run_async(db.get_earth_cabinet(country_id))
     return jsonify({
         "success": success,
         "message": msg,
-        "cabinet": cab
+        "cabinet": cab,
+        "pending": res_data.get("pending", False),
+        "invite_id": res_data.get("invite_id")
     }), 200 if success else 400
+
+@api_bp.route("/earth/cabinet/invites", methods=["GET"])
+@login_required
+def api_earth_cabinet_invites():
+    user_id = session["user"]["id"]
+    db = get_db()
+    incoming = run_async(db.get_user_pending_cabinet_invites(user_id))
+    outgoing = []
+    user_c = run_async(db.get_user_earth_country(user_id))
+    if user_c and user_c.get("user_role") == "president":
+        outgoing = run_async(db.get_country_pending_cabinet_invites(user_c["id"]))
+    return jsonify({
+        "incoming": incoming,
+        "outgoing": outgoing
+    })
+
+@api_bp.route("/earth/cabinet/invite/respond", methods=["POST"])
+@login_required
+def api_earth_cabinet_invite_respond():
+    data = request.get_json() or {}
+    try:
+        invite_id = int(data.get("invite_id", 0))
+        action = str(data.get("action", "")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters"}), 400
+
+    if not invite_id or action not in ("accept", "decline"):
+        return jsonify({"success": False, "message": "Please specify invite ID and action (accept or decline)."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.respond_earth_cabinet_invite(user_id, invite_id, accept=(action == "accept")))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/cabinet/invite/cancel", methods=["POST"])
+@login_required
+def api_earth_cabinet_invite_cancel():
+    data = request.get_json() or {}
+    try:
+        invite_id = int(data.get("invite_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid invite ID"}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.cancel_earth_cabinet_invite(user_id, invite_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/cabinet/resign", methods=["POST"])
+@login_required
+def api_earth_cabinet_resign():
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.resign_earth_cabinet(user_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 @api_bp.route("/earth/cabinet/dismiss", methods=["POST"])
 @login_required
