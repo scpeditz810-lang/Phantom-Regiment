@@ -415,5 +415,156 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         await interaction.followup.send(embed=embed, view=view)
 
 
+    # ??? Citizenship, Allegiance & Counter-Intelligence ??????????????????????????
+
+    @earth_group.command(name="join", description="Pledge allegiance to an existing sovereign country as a citizen.")
+    @app_commands.describe(country="3-letter country code or name (e.g. RUS, IND, USA)")
+    async def earth_join(self, interaction: discord.Interaction, country: str):
+        await interaction.response.defer()
+        code = country.strip().upper()
+        c = await self.bot.db.get_earth_country_by_code(code)
+        if not c:
+            countries = await self.bot.db.get_earth_countries()
+            for cand in countries:
+                if country.lower() in cand["name"].lower():
+                    c = await self.bot.db.get_earth_country(cand["id"])
+                    break
+
+        if not c:
+            await interaction.followup.send(f"? Country `{country}` not found.")
+            return
+
+        success, msg = await self.bot.db.join_earth_country(interaction.user.id, c["id"])
+        if not success:
+            await interaction.followup.send(f"? {msg}")
+            return
+
+        embed = discord.Embed(
+            title=f"??? Allegiance Pledged: {c['flag']} {c['name']}",
+            description=(
+                f"{interaction.user.mention} has officially joined **{c['name']}** as a registered citizen!\n\n"
+                f"? **National GDP:** {c['gdp']:,} Medals\n"
+                f"? **Ruler:** <@{c['owner_id']}>\n"
+                f"? **Career:** Eligible for Presidential appointment as Prime Minister, Defense General, Diplomat, or Economy Director."
+            ),
+            color=0x3B82F6
+        )
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Open 3D Realm Console", url=WEB_URL, style=discord.ButtonStyle.link, emoji="??"))
+        await interaction.followup.send(embed=embed, view=view)
+
+    @earth_group.command(name="leave", description="Renounce your citizenship and become a stateless free agent.")
+    async def earth_leave(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        success, msg = await self.bot.db.leave_earth_country(interaction.user.id)
+        await interaction.followup.send(f"{msg}" if success else f"? {msg}")
+
+    @earth_group.command(name="citizens", description="View all registered citizens of a sovereign country.")
+    @app_commands.describe(country="3-letter code or country name (defaults to your country)")
+    async def earth_citizens(self, interaction: discord.Interaction, country: str = None):
+        await interaction.response.defer()
+        if country:
+            code = country.strip().upper()
+            c = await self.bot.db.get_earth_country_by_code(code)
+            if not c:
+                countries = await self.bot.db.get_earth_countries()
+                for cand in countries:
+                    if country.lower() in cand["name"].lower():
+                        c = await self.bot.db.get_earth_country(cand["id"])
+                        break
+        else:
+            c = await self.bot.db.get_user_earth_country(interaction.user.id)
+
+        if not c:
+            await interaction.followup.send("? Sovereign country not found or you have not joined a realm!")
+            return
+
+        citizens = await self.bot.db.get_earth_country_citizens(c["id"])
+        embed = discord.Embed(
+            title=f"??? Citizens & Patriots of {c['flag']} {c['name']}",
+            description=f"Total Registered Citizens: **{len(citizens)}**",
+            color=0x38BDF8
+        )
+        if citizens:
+            lines = []
+            for cz in citizens[:15]:
+                role_badge = f" ? *{cz['cabinet_role'].title()}*" if cz.get("cabinet_role") else ""
+                lines.append(f"? <@{cz['user_id']}> ({cz['username']}){role_badge}")
+            embed.add_field(name="Citizen Roster", value="\n".join(lines), inline=False)
+        else:
+            embed.description += "\n\n*No citizens registered yet. Other players can use `/earth join` or the website to enlist.*"
+
+        await interaction.followup.send(embed=embed)
+
+    @earth_group.command(name="sweep", description="Run a Counter-Intelligence Security Sweep to detect spies and review detained operatives.")
+    async def earth_sweep(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("? You do not govern an Earth nation!", ephemeral=True)
+            return
+
+        success, msg, report = await self.bot.db.counter_intel_sweep(interaction.user.id, c["id"])
+        if not success:
+            await interaction.followup.send(f"? {msg}", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=f"??? Counter-Intelligence Security Report: {c['flag']} {c['name']}",
+            description=(
+                f"? **Counter-Intel Detection Grid:** `{report['counter_intel_rating']}`\n"
+                f"? **Bunker Fortifications:** `{report['bunkers_count']} Installations` (+3% spy catch risk per level)\n"
+                f"? **Detained Hostile Operatives:** `{report['detained_spies_count']} In Custody`\n\n"
+                f"{msg}"
+            ),
+            color=0x10B981
+        )
+        detained = report.get("detained_spies", [])
+        if detained:
+            lines = [f"? **Agent {s['codename']}** (From {s['origin_country_flag']} {s['origin_country_name']}) ? ID: `{s['id']}`" for s in detained[:5]]
+            embed.add_field(name="Detained Prisoners of War", value="\n".join(lines) + "\n*Use `/earth interrogate <id>` or the website to question them.*", inline=False)
+
+        await interaction.followup.send(embed=embed)
+
+    @earth_group.command(name="interrogate", description="Interrogate a captured foreign spy held in military custody.")
+    @app_commands.describe(spy_id="ID of the captured foreign agent")
+    async def earth_interrogate(self, interaction: discord.Interaction, spy_id: int):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("? You do not govern an Earth nation!", ephemeral=True)
+            return
+
+        success, msg, intel = await self.bot.db.interrogate_captured_spy(interaction.user.id, c["id"], spy_id)
+        if not success:
+            await interaction.followup.send(f"? {msg}", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=f"??? Interrogation Record: Confession Extracted",
+            description=(
+                f"? **Operative Codename:** `{intel['codename']}`\n"
+                f"? **Sponsoring Nation:** {intel['origin_flag']} **{intel['origin_country']}**\n"
+                f"? **Enemy Treasury Intercepted:** `{intel['origin_treasury']:,} Medals`\n"
+                f"? **Enemy GDP:** `{intel['origin_gdp']:,} Medals`\n\n"
+                f"? Confession logged! Your nation's stability increased by +5%."
+            ),
+            color=0xF59E0B
+        )
+        await interaction.followup.send(embed=embed)
+
+    @earth_group.command(name="execute", description="Execute a convicted foreign spy held in custody.")
+    @app_commands.describe(spy_id="ID of the captured foreign agent")
+    async def earth_execute(self, interaction: discord.Interaction, spy_id: int):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("? You do not govern an Earth nation!", ephemeral=True)
+            return
+
+        success, msg = await self.bot.db.execute_captured_spy(interaction.user.id, c["id"], spy_id)
+        await interaction.followup.send(f"{msg}" if success else f"? {msg}")
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(EarthCog(bot))
