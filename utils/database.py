@@ -1039,7 +1039,16 @@ class Database:
 
 
 
-    async def add_medals(self, user_id: int, guild_id: int, amount: int):
+    async def subtract_medals(self, user_id: int, amount: int):
+        await self.add_medals(user_id, 0, -abs(int(amount)))
+
+    async def add_medals(self, user_id: int, guild_id: int = 0, amount: int | None = None):
+        if amount is None:
+            amount = int(guild_id)
+            guild_id = 0
+        else:
+            amount = int(amount)
+            guild_id = int(guild_id) if guild_id else 0
 
         await self.ensure_user(user_id, guild_id)
 

@@ -48,6 +48,8 @@ def get_stocks():
         item["dividend_per_share"] = max(1, int(round(s["price"] * 0.004)))
         engine = current_app.config.get("STOCK_ENGINE")
         item["market_news"] = engine.latest_news if engine and hasattr(engine, "latest_news") else "Market operating at normal liquidity."
+        item["market_regime"] = engine.market_regime if engine and hasattr(engine, "market_regime") else "SIDEWAYS"
+        item["regime_name"] = engine.get_regime_display_name() if engine and hasattr(engine, "get_regime_display_name") else "Sideways (Consolidation)"
         try:
             item["tax_rate_pct"] = int(round(run_async(db.get_stock_tax_rate()) * 100))
         except Exception:
