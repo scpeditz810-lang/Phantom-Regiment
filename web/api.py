@@ -48,6 +48,8 @@ def get_stocks():
         item["dividend_per_share"] = max(1, int(round(s["price"] * 0.004)))
         engine = current_app.config.get("STOCK_ENGINE")
         item["market_news"] = engine.latest_news if engine and hasattr(engine, "latest_news") else "Market operating at normal liquidity."
+        item["market_regime"] = engine.market_regime if engine and hasattr(engine, "market_regime") else "SIDEWAYS"
+        item["regime_name"] = engine.get_regime_display_name() if engine and hasattr(engine, "get_regime_display_name") else "Sideways (Consolidation)"
         try:
             item["tax_rate_pct"] = int(round(run_async(db.get_stock_tax_rate()) * 100))
         except Exception:
@@ -1796,3 +1798,83 @@ def api_earth_collect_yield():
         "yield": yield_amount,
         "wallet": econ.get("medals", 0)
     }), 200 if yield_amount > 0 else 400
+
+
+@api_bp.route("/earth/offer", methods=["POST"])
+@login_required
+def api_earth_offer():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        amount = int(data.get("amount", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.create_country_offer(user_id, country_id, amount))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/offers")
+@login_required
+def api_earth_offers():
+    user_id = session["user"]["id"]
+    db = get_db()
+    offers = run_async(db.get_country_offers(user_id))
+    return jsonify(offers)
+
+@api_bp.route("/earth/offer/accept", methods=["POST"])
+@login_required
+def api_earth_offer_accept():
+    data = request.get_json() or {}
+    try:
+        offer_id = int(data.get("offer_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Offer ID."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.accept_country_offer(user_id, offer_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+@api_bp.route("/earth/offer/reject", methods=["POST"])
+@login_required
+def api_earth_offer_reject():
+    data = request.get_json() or {}
+    try:
+        offer_id = int(data.get("offer_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid Offer ID."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.reject_country_offer(user_id, offer_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/market_listing", methods=["POST"])
+@login_required
+def api_earth_market_listing():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        price_raw = data.get("price")
+        price = int(price_raw) if price_raw is not None and str(price_raw).isdigit() else None
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+        
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.set_country_market_price(user_id, country_id, price))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+@api_bp.route("/earth/members")
+def api_earth_members():
+    db = get_db()
+    oauth_m = run_async(db.get_all_oauth_members())
+    result = [{"user_id": m["user_id"], "username": m.get("username", f"Member {m['user_id']}")} for m in oauth_m]
+    return jsonify(result)

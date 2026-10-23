@@ -12,7 +12,7 @@
 /* ─── VIRTUAL EARTH 3D THEME & LAYOUT ─── */
 :root {
     --earth-bg: #070a13;
-    --panel-bg: rgba(13, 19, 33, 0.88);
+    --panel-bg: rgba(13, 19, 33, 0.90);
     --panel-border: rgba(59, 130, 246, 0.25);
     --panel-border-glow: rgba(59, 130, 246, 0.5);
     --cyan-accent: #06b6d4;
@@ -207,13 +207,13 @@ body {
 
 .dock-tab-btn {
     flex: 1;
-    min-width: 72px;
-    padding: 0.65rem 0.45rem;
+    min-width: 68px;
+    padding: 0.65rem 0.35rem;
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
     color: #94a3b8;
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     font-weight: 700;
     cursor: pointer;
     display: flex;
@@ -222,7 +222,7 @@ body {
     gap: 0.25rem;
     transition: all 0.2s ease;
 }
-.dock-tab-btn i { font-size: 1rem; }
+.dock-tab-btn i { font-size: 0.95rem; }
 .dock-tab-btn:hover { color: #e2e8f0; background: rgba(255, 255, 255, 0.03); }
 .dock-tab-btn.active {
     color: #38bdf8;
@@ -256,7 +256,7 @@ body {
         left: 0;
         right: 0;
         width: 100%;
-        max-height: 80dvh;
+        max-height: 82dvh;
         border-radius: 20px 20px 0 0;
         box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.75);
         transform: translateY(calc(100% - 62px));
@@ -381,6 +381,91 @@ body {
     gap: 0.45rem;
 }
 
+/* ─── FORM SELECTORS & MODAL STYLES ─── */
+.custom-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(3, 7, 18, 0.82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 1rem;
+}
+.custom-modal-card {
+    background: var(--panel-bg);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 18px;
+    padding: 1.5rem;
+    width: min(94vw, 500px);
+    max-height: 88vh;
+    overflow-y: auto;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85);
+    color: #f8fafc;
+}
+.custom-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.custom-modal-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.custom-form-group {
+    margin-bottom: 1rem;
+}
+.custom-form-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin-bottom: 0.35rem;
+}
+.custom-form-input, .custom-form-select {
+    width: 100%;
+    background: rgba(10, 15, 30, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+    color: #fff;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+.custom-form-input:focus, .custom-form-select:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+.selectable-card {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 10px;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 0.5rem;
+}
+.selectable-card:hover { border-color: rgba(56, 189, 248, 0.4); }
+.selectable-card.active {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+}
+
 /* ─── 3D TOAST NOTIFICATIONS ─── */
 .earth-toast {
     position: fixed;
@@ -396,7 +481,7 @@ body {
     font-size: 0.85rem;
     font-weight: 600;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-    z-index: 9999;
+    z-index: 99999;
     opacity: 0;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     pointer-events: none;
@@ -501,7 +586,6 @@ body {
         </div>
 
         <div class="dock-body" id="dock-content">
-            <!-- Dynamic tab content injected via JS -->
             <div style="text-align: center; padding: 2rem; color: #94a3b8;">
                 <div class="spinner-border text-primary" role="status"></div>
                 <div style="margin-top: 0.5rem;">Synchronizing Satellite Telemetry...</div>
@@ -510,8 +594,8 @@ body {
     </div>
 </div>
 
-<!-- Modal Dialogs for Cabinet Appointment, War Declaration, Spy Missions -->
-<div id="modal-container" style="display: none;"></div>
+<!-- Modal Container for Custom Modals -->
+<div id="modal-container"></div>
 
 <!-- In-Game Toast -->
 <div class="earth-toast" id="earth-toast">Telemetry updated</div>
@@ -522,16 +606,17 @@ body {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let scene, camera, renderer, controls;
-let earthMesh, atmosphereMesh, cloudsMesh;
+let earthMesh, atmosphereMesh;
 let countryPinsGroup, warArcsGroup, tradeRoutesGroup;
 let countriesData = [];
 let warsData = [];
 let tradeRoutesData = [];
 let statsData = {};
+let serverMembers = [];
 let selectedCountry = null;
 let userCountry = null;
 let currentFilter = 'all';
-let isDrawerExpanded = false;
+let activeTab = 'dossier';
 
 const GLOBE_RADIUS = 50;
 
@@ -559,7 +644,7 @@ function init3DWorld() {
     controls.zoomSpeed = 0.85;
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
     const sunLight = new THREE.DirectionalLight(0xffffff, 1.25);
@@ -591,7 +676,7 @@ function init3DWorld() {
     atmosphereMesh = new THREE.Mesh(atmosGeo, atmosMat);
     scene.add(atmosphereMesh);
 
-    // Groups for pins, arcs, and routes
+    // Groups
     countryPinsGroup = new THREE.Group();
     warArcsGroup = new THREE.Group();
     tradeRoutesGroup = new THREE.Group();
@@ -599,7 +684,7 @@ function init3DWorld() {
     scene.add(warArcsGroup);
     scene.add(tradeRoutesGroup);
 
-    // Event Listeners
+    // Events
     window.addEventListener("resize", onWindowResize);
     canvas.addEventListener("click", onCanvasClick);
     canvas.addEventListener("touchend", onCanvasTouch);
@@ -657,7 +742,6 @@ function createProceduralEarthTexture() {
     ctx.strokeStyle = "#38bdf8";
     ctx.lineWidth = 1.5;
 
-    // Helper for land blob
     function drawLand(cx, cy, rx, ry) {
         ctx.beginPath();
         ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
@@ -665,20 +749,14 @@ function createProceduralEarthTexture() {
         ctx.stroke();
     }
 
-    // North America
-    drawLand(450, 320, 240, 140);
-    // South America
-    drawLand(600, 680, 150, 220);
-    // Eurasia (Europe + Asia + Russia + India + China)
-    drawLand(1250, 280, 420, 170);
-    drawLand(1450, 420, 260, 150);
+    drawLand(450, 320, 240, 140);  // North America
+    drawLand(600, 680, 150, 220);  // South America
+    drawLand(1250, 280, 420, 170); // Eurasia
+    drawLand(1450, 420, 260, 150); // East Asia
     drawLand(1280, 480, 120, 100); // India
-    // Africa
-    drawLand(1050, 560, 180, 230);
-    // Australia
-    drawLand(1650, 720, 160, 110);
-    // Antarctica
-    drawLand(1024, 980, 850, 50);
+    drawLand(1050, 560, 180, 230); // Africa
+    drawLand(1650, 720, 160, 110); // Australia
+    drawLand(1024, 980, 850, 50);  // Antarctica
 
     return new THREE.CanvasTexture(canvas);
 }
@@ -699,19 +777,16 @@ function renderCountryPins() {
     }
 
     countriesData.forEach(c => {
-        // Filter check
         if (!shouldShowCountry(c)) return;
 
         const pos = latLngToVector3(c.lat, c.lng, GLOBE_RADIUS);
 
-        // Determine color
-        let color = 0x94a3b8; // neutral
-        if (userCountry && userCountry.id === c.id) color = 0x10b981; // Player's nation: Green
-        else if (c.is_rioting) color = 0xf59e0b; // Riot: Orange flame
-        else if (c.active_war_count > 0) color = 0xef4444; // War: Red
-        else if (c.gdp >= 100000000) color = 0x38bdf8; // Superpower: Cyan
+        let color = 0x94a3b8;
+        if (userCountry && userCountry.id === c.id) color = 0x10b981;
+        else if (c.is_rioting) color = 0xf59e0b;
+        else if (c.active_war_count > 0) color = 0xef4444;
+        else if (c.gdp >= 100000000) color = 0x38bdf8;
 
-        // Pin Container Mesh
         const pinGeo = new THREE.CylinderGeometry(0.5, 0.15, 4.5, 8);
         pinGeo.translate(0, 2.25, 0);
         pinGeo.rotateX(Math.PI / 2);
@@ -722,7 +797,6 @@ function renderCountryPins() {
         pin.lookAt(new THREE.Vector3(0, 0, 0));
         pin.userData = { countryId: c.id, countryData: c };
 
-        // Glowing base ring
         const ringGeo = new THREE.RingGeometry(1.2, 2.2, 16);
         const ringMat = new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide, transparent: true, opacity: 0.65 });
         const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -730,7 +804,6 @@ function renderCountryPins() {
         ring.lookAt(new THREE.Vector3(0, 0, 0));
         pin.add(ring);
 
-        // Text sprite label with flag emoji
         const sprite = createTextSprite(`${c.flag} ${c.name}`);
         sprite.position.copy(pos.clone().multiplyScalar(1.12));
         pin.add(sprite);
@@ -774,7 +847,6 @@ function renderWarTrajectories() {
         const vAtk = latLngToVector3(w.atk_lat, w.atk_lng, GLOBE_RADIUS);
         const vDfn = latLngToVector3(w.dfn_lat, w.dfn_lng, GLOBE_RADIUS);
 
-        // Midpoint pushed outward for ballistic parabolic curve
         const vMid = vAtk.clone().add(vDfn).multiplyScalar(0.5);
         const distance = vAtk.distanceTo(vDfn);
         vMid.normalize().multiplyScalar(GLOBE_RADIUS + Math.min(35, distance * 0.4));
@@ -786,7 +858,6 @@ function renderWarTrajectories() {
         const arcLine = new THREE.Line(arcGeo, arcMat);
         warArcsGroup.add(arcLine);
 
-        // Moving artillery missile projectile
         const projectileGeo = new THREE.SphereGeometry(0.8, 8, 8);
         const projectileMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const projectile = new THREE.Mesh(projectileGeo, projectileMat);
@@ -852,7 +923,6 @@ function flyToCountry(c) {
         .easing(TWEEN.Easing.Cubic.Out)
         .start();
 
-    // Look at country position
     const lookTarget = latLngToVector3(c.lat, c.lng, GLOBE_RADIUS);
     new TWEEN.Tween(controls.target)
         .to({ x: lookTarget.x, y: lookTarget.y, z: lookTarget.z }, 1200)
@@ -901,13 +971,11 @@ function animate() {
     TWEEN.update();
     controls.update();
 
-    // Slow ambient globe rotation when not dragging
     if (!controls.state || controls.state === -1) {
         earthMesh.rotation.y += 0.0004;
         atmosphereMesh.rotation.y += 0.0004;
     }
 
-    // Update war projectile pulses
     warArcsGroup.children.forEach(child => {
         if (child.userData && child.userData.curve) {
             child.userData.progress += child.userData.speed;
@@ -924,23 +992,22 @@ function animate() {
 // 🌐 UI & REST API INTEGRATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let activeTab = 'dossier';
-
 async function loadVirtualEarthData() {
     try {
-        const [cRes, sRes, wRes, trRes] = await Promise.all([
+        const [cRes, sRes, wRes, trRes, mRes] = await Promise.all([
             fetch("/api/earth/countries?_t=" + Date.now()),
             fetch("/api/earth/stats?_t=" + Date.now()),
             fetch("/api/earth/wars?_t=" + Date.now()),
-            fetch("/api/earth/trade/routes?_t=" + Date.now())
+            fetch("/api/earth/trade/routes?_t=" + Date.now()),
+            fetch("/api/earth/members?_t=" + Date.now())
         ]);
 
         countriesData = await cRes.json();
         statsData = await sRes.json();
         warsData = await wRes.json();
         tradeRoutesData = await trRes.json();
+        try { serverMembers = await mRes.json(); } catch(e) { serverMembers = []; }
 
-        // Update HUD
         if (statsData.user) {
             document.getElementById("hud-wallet-val").innerText = Number(statsData.user.wallet || 0).toLocaleString();
             document.getElementById("hud-yield-val").innerText = Number(statsData.user.uncollected_yield || 0).toLocaleString();
@@ -1013,13 +1080,17 @@ function showToast(msg) {
     setTimeout(() => toast.classList.remove("show"), 3200);
 }
 
+function closeModal() {
+    const container = document.getElementById("modal-container");
+    container.innerHTML = "";
+}
+
 // ─── DOCK TAB RENDERERS ───
 
 async function renderDockContent() {
     if (!selectedCountry) return;
     const body = document.getElementById("dock-content");
     
-    // Fetch refreshed detail
     const res = await fetch(`/api/earth/country/${selectedCountry.id}?_t=` + Date.now());
     const c = await res.json();
     selectedCountry = c;
@@ -1114,21 +1185,23 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
         ${isLeader ? `
             <div class="info-tile">
-                <div style="font-size: 0.8rem; font-weight: 700; margin-bottom: 0.5rem;">🚨 Quell Civil Unrest & Suppress Riots</div>
-                <div style="display: flex; gap: 0.45rem; flex-wrap: wrap;">
-                    <button class="btn-action-sm" onclick="quellUnrest('relief')">🏥 Stimulus (-25% Unrest / 150k M)</button>
-                    <button class="btn-danger-sm" onclick="quellUnrest('police')">🛡️ Police Crackdown (-35% Unrest / 80k M)</button>
-                    <button class="btn-action-sm" onclick="quellUnrest('festival')">🎉 Jubilee (-15% Unrest / 60k M)</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.4rem;">
+                    <span style="font-size: 0.8rem; font-weight: 700;">🚨 Quell Civil Unrest & Riots</span>
+                    <button class="btn-action-sm" onclick="openQuellModal()">Manage</button>
                 </div>
+                <div style="font-size: 0.72rem; color: #94a3b8;">Deploy civilian subsidies, police crackdowns, or sovereign jubilees.</div>
             </div>
 
             <div class="info-tile">
-                <div style="font-size: 0.8rem; font-weight: 700; margin-bottom: 0.5rem;">📜 National Doctrines & Policies</div>
-                <div style="display:flex; flex-direction:column; gap:0.45rem; font-size:0.75rem;">
-                    <div><strong>Economic:</strong> ${c.economic_doctrine?.replace('_', ' ').toUpperCase() || 'FREE MARKET'}</div>
-                    <div><strong>Military:</strong> ${c.military_doctrine?.toUpperCase() || 'VOLUNTEER'}</div>
-                    <div><strong>Diplomatic:</strong> ${c.diplomatic_stance?.toUpperCase() || 'NEUTRAL'}</div>
-                    <div><strong>Tax Rate:</strong> ${c.tax_rate || 10}%</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.4rem;">
+                    <span style="font-size: 0.8rem; font-weight: 700;">📜 National Policies & Doctrines</span>
+                    <button class="btn-action-sm" onclick="openPoliciesModal()">Reform</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.75rem; color:#cbd5e1;">
+                    <div>• <strong>Economic:</strong> ${c.economic_doctrine?.replace('_', ' ').toUpperCase() || 'FREE MARKET'}</div>
+                    <div>• <strong>Military:</strong> ${c.military_doctrine?.toUpperCase() || 'VOLUNTEER'}</div>
+                    <div>• <strong>Diplomatic:</strong> ${c.diplomatic_stance?.toUpperCase() || 'NEUTRAL'}</div>
+                    <div>• <strong>Tax Rate:</strong> ${c.tax_rate || 10}%</div>
                 </div>
             </div>
         ` : ''}
@@ -1164,7 +1237,7 @@ function renderCabinetTab(c, isLeader, isOwner, container) {
 
                 ${isOwner ? `
                     <div style="display:flex; gap:0.35rem;">
-                        <button class="btn-action-sm" onclick="promptAppoint('${rKey}', '${rMeta.short_title}')">
+                        <button class="btn-action-sm" onclick="openAppointCabinetModal('${rKey}', '${rMeta.short_title}', '${rMeta.emoji}')">
                             ${isVacant ? 'Hire' : 'Change'}
                         </button>
                         ${!isVacant ? `<button class="btn-danger-sm" onclick="dismissMinister('${rKey}')">Fire</button>` : ''}
@@ -1194,7 +1267,6 @@ function renderInfraTab(c, isLeader, isOwner, container) {
         const costMult = meta.cost_multiplier || 1.5;
         const upgradeCost = Math.round(meta.base_cost * Math.pow(costMult, lvl));
 
-        // Sabotage warning
         let sabTag = "";
         if (existing && existing.is_sabotaged) {
             sabTag = `<span style="color: #ef4444; font-size: 0.7rem; font-weight: 700;">⚠️ SABOTAGED (${existing.sabotage_mins_left}m)</span>`;
@@ -1234,7 +1306,7 @@ function renderIntelTab(c, isLeader, isOwner, container) {
         <div class="info-tile">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-size: 0.8rem; font-weight: 700;">🕵️ Operatives (${spies.length} / 6)</span>
-                ${isLeader ? `<button class="btn-action-sm" onclick="recruitSpy()">+ Recruit Operative (120k M)</button>` : ''}
+                ${isLeader ? `<button class="btn-action-sm" onclick="openRecruitSpyModal()">+ Recruit Operative</button>` : ''}
             </div>
         </div>
     `;
@@ -1253,7 +1325,7 @@ function renderIntelTab(c, isLeader, isOwner, container) {
                     </div>
 
                     ${(isLeader && s.status === 'idle') ? `
-                        <button class="btn-action-sm" onclick="dispatchSpyModal(${s.id}, '${s.codename}')">
+                        <button class="btn-action-sm" onclick="openDispatchSpyModal(${s.id}, '${s.codename}', ${s.skill_level})">
                             Dispatch Mission
                         </button>
                     ` : ''}
@@ -1272,12 +1344,13 @@ function renderIntelTab(c, isLeader, isOwner, container) {
         intel.forEach(i => {
             const d = i.data || {};
             html += `
-                <div class="info-tile" style="border-left: 3px solid #38bdf8;">
-                    <div style="font-weight: 800; font-size: 0.82rem;">${i.target_flag || '🌐'} ${i.target_name || 'Rival Power'}</div>
+                <div class="info-tile" style="border-left: 3px solid #38bdf8; cursor: pointer;" onclick="openIntelModal('${escapeHtml(JSON.stringify(i))}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight: 800; font-size: 0.82rem;">${i.target_flag || '🌐'} ${i.target_name || 'Rival Power'}</span>
+                        <span class="hud-tag" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">Decrypted</span>
+                    </div>
                     <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.35rem;">
-                        • Treasury: ${Number(d.treasury || 0).toLocaleString()} M<br>
-                        • Military Power: ${d.total_military_power || 'Classified'}<br>
-                        • Stability: ${d.stability || 'Unknown'}% | Unrest: ${d.unrest || 'Unknown'}%
+                        • Treasury: ${Number(d.treasury || 0).toLocaleString()} M • Military Power: ${d.total_military_power || 'Classified'}
                     </div>
                 </div>
             `;
@@ -1295,7 +1368,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-size: 0.8rem; font-weight: 700;">⚔️ Sovereign Conquest Operations</span>
                 ${(userCountry && userCountry.id !== c.id) ? `
-                    <button class="btn-danger-sm" onclick="declareWarModal(${c.id}, '${c.name}', '${c.flag}')">
+                    <button class="btn-danger-sm" onclick="openDeclareWarModal(${c.id}, '${c.name}', '${c.flag}')">
                         Declare Conquest!
                     </button>
                 ` : ''}
@@ -1314,15 +1387,15 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                         <span style="font-size: 0.72rem; color: #ef4444;">${w.hours_remaining}h left</span>
                     </div>
                     <div style="font-size: 0.72rem; margin-top: 0.25rem;">
-                        Scale: <strong>${w.scale.toUpperCase()}</strong> • Assault Roll: ${w.attacker_power} vs Defense: ${w.defender_power}
+                        Scale: <strong>${w.scale.toUpperCase()}</strong> • Assault Power: ${w.attacker_power} (${w.attacker_divisions} Divs) vs Defense: ${w.defender_power} (${w.defender_divisions} Divs)
                     </div>
                     <div class="stat-progress-bar" style="margin-top: 0.4rem;">
                         <div class="stat-progress-fill" style="width: ${w.progress_pct}%; background: #ef4444;"></div>
                     </div>
                     <div style="display:flex; justify-content:space-between; width:100%; margin-top:0.4rem;">
                         <span style="font-size: 0.7rem; color: #94a3b8;">Campaign Progress: ${w.progress_pct}%</span>
-                        <button class="btn-action-sm" style="padding: 0.2rem 0.5rem; font-size:0.7rem;" onclick="reinforceWar(${w.id})">
-                            🪖 Reinforce (+5 Divs)
+                        <button class="btn-action-sm" style="padding: 0.2rem 0.5rem; font-size:0.7rem;" onclick="openReinforceModal(${w.id}, '${w.attacker_name}', '${w.defender_name}')">
+                            🪖 Reinforce Front
                         </button>
                     </div>
                 </div>
@@ -1341,8 +1414,22 @@ function renderTradeTab(c, isLeader, isOwner, container) {
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-size: 0.8rem; font-weight: 700;">🚢 Maritime Ocean Trade Lanes</span>
                 ${(isLeader && c.is_coastal) ? `
-                    <button class="btn-action-sm" onclick="proposeTradeModal(${c.id})">+ Inaugurate Sealane</button>
+                    <button class="btn-action-sm" onclick="openProposeTradeModal(${c.id})">+ Inaugurate Sealane</button>
                 ` : ''}
+            </div>
+        </div>
+
+        <div class="info-tile" style="margin-top: 0.5rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size: 0.8rem; font-weight: 700;">🌐 International Coalition</span>
+                ${isLeader ? `
+                    <button class="btn-action-sm" onclick="openAllianceModal(${c.id}, '${c.alliance_name || ''}')">
+                        ${c.alliance_name ? 'Manage Coalition' : 'Charter / Join'}
+                    </button>
+                ` : ''}
+            </div>
+            <div style="font-size: 0.75rem; color: #cbd5e1; margin-top: 0.35rem;">
+                Current Treaty: <strong>${c.alliance_name || 'Non-Aligned'}</strong>
             </div>
         </div>
     `;
@@ -1380,7 +1467,7 @@ function renderMarketTab(c, isLeader, isOwner, container) {
                 <div style="font-size: 0.8rem; color: #94a3b8; margin: 0.5rem 0 1rem 0;">
                     ${c.name} is currently governed by the Sovereign State Trust. Acquire full presidential authority and establish your realm!
                 </div>
-                <button class="hud-btn" style="margin: 0 auto;" onclick="buyCountry(${c.id})">
+                <button class="hud-btn" style="margin: 0 auto;" onclick="buyCountry(${c.id}, '${c.name}', ${cost})">
                     Acquire for ${Number(cost).toLocaleString()} Medals
                 </button>
             </div>
@@ -1388,18 +1475,887 @@ function renderMarketTab(c, isLeader, isOwner, container) {
     } else {
         html = `
             <div class="info-tile">
-                <div style="font-weight: 800; font-size: 0.88rem; margin-bottom: 0.4rem;">Diplomatic Buyout Offer</div>
-                <div style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.75rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.4rem;">
+                    <span style="font-weight: 800; font-size: 0.88rem;">Diplomatic Buyout Offer</span>
+                    <button class="btn-action-sm" onclick="openBuyoutModal(${c.id}, '${c.name}', ${c.gdp})">Make Offer</button>
+                </div>
+                <div style="font-size: 0.78rem; color: #94a3b8;">
                     Submit a formal diplomatic buyout bid to transfer sovereign leadership of ${c.name}.
                 </div>
-                <div style="display:flex; gap:0.45rem;">
-                    <input type="number" id="buyout-amount-input" class="form-control" placeholder="Medals amount (e.g. 10000000)" style="background: rgba(10,15,30,0.8); border: 1px solid rgba(255,255,255,0.1); color:#fff; font-size:0.8rem;">
-                    <button class="btn-action-sm" onclick="submitBuyoutOffer(${c.id})">Send Offer</button>
+            </div>
+
+            <div class="info-tile">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.4rem;">
+                    <span style="font-weight: 800; font-size: 0.88rem;">📬 Diplomatic Offers Inbox</span>
+                    <button class="btn-action-sm" onclick="openOffersInbox()">View Offers</button>
+                </div>
+                <div style="font-size: 0.78rem; color: #94a3b8;">
+                    Review incoming and outgoing sovereign buyout proposals.
                 </div>
             </div>
         `;
     }
     container.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🏛️ INTERACTIVE WEBSITE MODALS & CONTROLS (Replacing prompts with real UI!)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function openAppointCabinetModal(roleKey, roleTitle, roleEmoji) {
+    const container = document.getElementById("modal-container");
+    let optionsHtml = `<option value="">-- Choose Server Citizen --</option>`;
+    serverMembers.forEach(m => {
+        optionsHtml += `<option value="${m.user_id}">@${m.username} (ID: ${m.user_id})</option>`;
+    });
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>${roleEmoji}</span> Appoint ${roleTitle}
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 1rem;">
+                    Appoint a citizen from the server to manage the <strong>${roleTitle}</strong> portfolio. Ministers share governance authority with the President.
+                </p>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Select Server Member</label>
+                    <select class="custom-form-select" id="appoint-member-select" onchange="document.getElementById('appoint-custom-id').value = this.value">
+                        ${optionsHtml}
+                    </select>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Or Enter Discord User ID</label>
+                    <input type="text" class="custom-form-input" id="appoint-custom-id" placeholder="e.g. 1134511531468525589">
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" onclick="submitCabinetAppoint('${roleKey}')">Issue Decree</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function submitCabinetAppoint(roleKey) {
+    const uid = document.getElementById("appoint-custom-id").value.trim();
+    if (!uid) {
+        showToast("Please select or enter a valid Discord User ID.");
+        return;
+    }
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/cabinet/appoint", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: selectedCountry.id, role: roleKey, target_user_id: uid })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Appointment failed.");
+    }
+}
+
+async function dismissMinister(roleKey) {
+    if (!confirm("Dismiss minister from cabinet portfolio?")) return;
+    try {
+        const res = await fetch("/api/earth/cabinet/dismiss", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: selectedCountry.id, role: roleKey })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch (err) {
+        showToast("Dismissal failed.");
+    }
+}
+
+function openPoliciesModal() {
+    const container = document.getElementById("modal-container");
+    const c = selectedCountry;
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>📜</span> National Policy & Doctrine Reforms
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <div class="custom-form-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label class="custom-form-label">National Tax Rate: <strong id="tax-slider-val">${c.tax_rate || 10}%</strong></label>
+                        <span id="tax-warning-badge" style="font-size:0.7rem; color:#10b981;">Low Unrest</span>
+                    </div>
+                    <input type="range" min="0" max="45" value="${c.tax_rate || 10}" class="form-range w-100" id="policy-tax-slider" oninput="updateTaxLabel(this.value)">
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Economic Doctrine</label>
+                    <select class="custom-form-select" id="policy-econ-select">
+                        <option value="free_market" ${c.economic_doctrine === 'free_market' ? 'selected' : ''}>📈 Free Market (+25% Yield, +5% Unrest Volatility)</option>
+                        <option value="mixed" ${c.economic_doctrine === 'mixed' ? 'selected' : ''}>⚖️ Mixed Social Welfare (+10% Yield, +5% Stability)</option>
+                        <option value="command" ${c.economic_doctrine === 'command' ? 'selected' : ''}>🏭 State Command (+25% Military Output, -10% Trade)</option>
+                    </select>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Military Doctrine</label>
+                    <select class="custom-form-select" id="policy-mil-select">
+                        <option value="volunteer" ${c.military_doctrine === 'volunteer' ? 'selected' : ''}>🎖️ Professional Volunteer (+15% Combat Efficiency)</option>
+                        <option value="conscription" ${c.military_doctrine === 'conscription' ? 'selected' : ''}>🪖 Universal Conscription (+40% Divisions, +10% Unrest)</option>
+                        <option value="mechanized" ${c.military_doctrine === 'mechanized' ? 'selected' : ''}>🛡️ Mechanized Armor (+60% Power / 5k M/hr Upkeep)</option>
+                    </select>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Diplomatic Stance</label>
+                    <select class="custom-form-select" id="policy-dip-select">
+                        <option value="neutral" ${c.diplomatic_stance === 'neutral' ? 'selected' : ''}>🕊️ Non-Aligned Neutrality</option>
+                        <option value="interventionist" ${c.diplomatic_stance === 'interventionist' ? 'selected' : ''}>🌐 Global Interventionism (Defend Allies in Wars)</option>
+                        <option value="isolationist" ${c.diplomatic_stance === 'isolationist' ? 'selected' : ''}>🏰 Sovereign Isolationism (Immune to Foreign Spies)</option>
+                    </select>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" onclick="submitPolicies()">Enact Reforms</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function updateTaxLabel(val) {
+    document.getElementById("tax-slider-val").innerText = val + "%";
+    const badge = document.getElementById("tax-warning-badge");
+    if (val > 25) {
+        badge.innerText = "⚠️ Extreme Riots Risk";
+        badge.style.color = "#ef4444";
+    } else if (val > 15) {
+        badge.innerText = "⚡ Moderate Unrest";
+        badge.style.color = "#f59e0b";
+    } else {
+        badge.innerText = "🌿 Stable & Content";
+        badge.style.color = "#10b981";
+    }
+}
+
+async function submitPolicies() {
+    const tax = document.getElementById("policy-tax-slider").value;
+    const econ = document.getElementById("policy-econ-select").value;
+    const mil = document.getElementById("policy-mil-select").value;
+    const dip = document.getElementById("policy-dip-select").value;
+
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/policies", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                country_id: selectedCountry.id,
+                tax_rate: parseInt(tax),
+                economic_doctrine: econ,
+                military_doctrine: mil,
+                diplomatic_stance: dip
+            })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Policy reform failed.");
+    }
+}
+
+function openQuellModal() {
+    const container = document.getElementById("modal-container");
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🚨</span> Pacification & Riot Control
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <div class="selectable-card" onclick="quellUnrest('relief'); closeModal();">
+                    <div style="font-weight: 800; color: #10b981;">🏥 Civilian Emergency Stimulus (150,000 M)</div>
+                    <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.25rem;">
+                        Distribute food and financial relief to quash dissent: <strong>-25% Unrest</strong>, <strong>+15% Stability</strong>.
+                    </div>
+                </div>
+
+                <div class="selectable-card" onclick="quellUnrest('police'); closeModal();">
+                    <div style="font-weight: 800; color: #ef4444;">🛡️ Tactical Police Suppression (80,000 M)</div>
+                    <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.25rem;">
+                        Deploy armed security forces to violently clear streets: <strong>-35% Unrest</strong>, <strong>-8% Civil Liberty</strong>.
+                    </div>
+                </div>
+
+                <div class="selectable-card" onclick="quellUnrest('festival'); closeModal();">
+                    <div style="font-weight: 800; color: #f59e0b;">🎉 Sovereign National Jubilee (60,000 M)</div>
+                    <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.25rem;">
+                        Host patriotic celebrations to lift public morale: <strong>-15% Unrest</strong>, <strong>+20% Stability</strong>.
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; margin-top: 1rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function openRecruitSpyModal() {
+    const container = document.getElementById("modal-container");
+    const codenames = ["ShadowRaven", "Viper-07", "PhantomEye", "Spectre-9", "GhostWolf", "BlackBriar", "CipherZero", "IronHawk"];
+    const rndName = codenames[Math.floor(Math.random() * codenames.length)];
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🕵️</span> Recruit Secret Field Operative
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 1rem;">
+                    Induct an undercover agent into the national intelligence bureau. Operatives execute covert missions and steal enemy intelligence.
+                </p>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Operative Codename</label>
+                    <div style="display:flex; gap:0.45rem;">
+                        <input type="text" class="custom-form-input" id="spy-codename-input" value="${rndName}">
+                        <button class="btn-action-sm" type="button" onclick="document.getElementById('spy-codename-input').value = 'Agent-' + Math.floor(100+Math.random()*900)">🎲 Rnd</button>
+                    </div>
+                </div>
+
+                <div class="info-tile" style="margin-bottom: 1rem;">
+                    <div style="font-size: 0.75rem; color: #94a3b8;">Recruitment & Clearance Cost:</div>
+                    <div style="font-weight: 800; font-size: 1.1rem; color: #38bdf8;">120,000 Medals</div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" onclick="submitRecruitSpy()">Confirm Induction</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function submitRecruitSpy() {
+    const codename = document.getElementById("spy-codename-input").value.trim();
+    if (!codename) return;
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/spy/recruit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: selectedCountry.id, codename: codename })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Recruitment failed.");
+    }
+}
+
+function openDispatchSpyModal(spyId, codename, skillLevel) {
+    const container = document.getElementById("modal-container");
+    const foreign = countriesData.filter(c => !userCountry || c.id !== userCountry.id);
+    let optionsHtml = "";
+    foreign.forEach(f => {
+        optionsHtml += `<option value="${f.id}">${f.flag} ${f.name} (Ruler: ${f.owner_username})</option>`;
+    });
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🛰️</span> Dispatch Agent '${codename}'
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Target Sovereign Nation</label>
+                    <select class="custom-form-select" id="dispatch-target-select">
+                        ${optionsHtml}
+                    </select>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Mission Objective</label>
+                    <div class="selectable-card active" id="mission-card-intel" onclick="selectMissionType('intel')">
+                        <div style="font-weight:800; color:#38bdf8;">🛰️ Infiltrate & Gather Intelligence</div>
+                        <div style="font-size:0.72rem; color:#cbd5e1;">Decrypt hidden enemy military power, treasury reserves, and pending war orders. (20% risk)</div>
+                    </div>
+
+                    <div class="selectable-card" id="mission-card-sabotage" onclick="selectMissionType('sabotage')">
+                        <div style="font-weight:800; color:#f59e0b;">💣 Covert Infrastructure Sabotage</div>
+                        <div style="font-size:0.72rem; color:#cbd5e1;">Detonate tactical charges to paralyze a rival gold mine, oil rig, or factory for 12 hours. (35% risk)</div>
+                    </div>
+
+                    <div class="selectable-card" id="mission-card-riot" onclick="selectMissionType('incite_riot')">
+                        <div style="font-weight:800; color:#ef4444;">🔥 Fund Dissidents & Incite Riots</div>
+                        <div style="font-size:0.72rem; color:#cbd5e1;">Inject +25% civil unrest into the target nation to trigger violent riots and coup risks! (40% risk)</div>
+                    </div>
+                </div>
+
+                <input type="hidden" id="selected-mission-val" value="intel">
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" onclick="submitDispatchSpy(${spyId})">Launch Mission</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function selectMissionType(type) {
+    document.getElementById("selected-mission-val").value = type;
+    document.getElementById("mission-card-intel").classList.toggle("active", type === 'intel');
+    document.getElementById("mission-card-sabotage").classList.toggle("active", type === 'sabotage');
+    document.getElementById("mission-card-riot").classList.toggle("active", type === 'incite_riot');
+}
+
+async function submitDispatchSpy(spyId) {
+    const tgt = document.getElementById("dispatch-target-select").value;
+    const mission = document.getElementById("selected-mission-val").value;
+    closeModal();
+
+    try {
+        const res = await fetch("/api/earth/spy/dispatch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                country_id: selectedCountry.id,
+                spy_id: spyId,
+                target_country_id: parseInt(tgt),
+                mission: mission
+            })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Operation failed.");
+    }
+}
+
+function openDeclareWarModal(targetId, targetName, targetFlag) {
+    if (!userCountry) {
+        showToast("You must govern a sovereign nation to declare war!");
+        return;
+    }
+    const container = document.getElementById("modal-container");
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title" style="color: #ef4444;">
+                        <span>⚔️</span> Declare Sovereign Conquest
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <div class="info-tile" style="margin-bottom: 1rem; text-align: center; border-color: rgba(239, 68, 68, 0.4);">
+                    <div style="font-size: 1.15rem; font-weight: 800;">
+                        ${userCountry.flag} ${userCountry.name} ⚔️ ${targetFlag} ${targetName}
+                    </div>
+                    <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.25rem;">
+                        Armed military conquest campaign across sovereign frontiers.
+                    </div>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Campaign Scale & Duration</label>
+                    
+                    <div class="selectable-card active" id="war-scale-border" onclick="selectWarScale('border')">
+                        <div style="font-weight: 800; color: #f8fafc;">⚔️ Border Skirmish (1 Day / 24 Hours)</div>
+                        <div style="font-size: 0.72rem; color: #94a3b8;">5 Min Divisions • 15% Treasury Loot • 100k Reparations</div>
+                    </div>
+
+                    <div class="selectable-card" id="war-scale-annexation" onclick="selectWarScale('annexation')">
+                        <div style="font-weight: 800; color: #f59e0b;">🚩 Strategic Annexation (3 Days / 72 Hours)</div>
+                        <div style="font-size: 0.72rem; color: #94a3b8;">15 Min Divisions • 40% Treasury Loot • 500k Reparations</div>
+                    </div>
+
+                    <div class="selectable-card" id="war-scale-world_war" onclick="selectWarScale('world_war')">
+                        <div style="font-weight: 800; color: #ef4444;">💥 Total Sovereign Conquest (5 Days / 120 Hours)</div>
+                        <div style="font-size: 0.72rem; color: #94a3b8;">30 Min Divisions • 75% Treasury Loot • 1,500,000 Reparations</div>
+                    </div>
+                </div>
+
+                <input type="hidden" id="selected-war-scale" value="border">
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="btn-danger-sm" style="padding: 0.55rem 1.1rem;" onclick="submitDeclareWar(${targetId})">Issue Declaration of War</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function selectWarScale(scale) {
+    document.getElementById("selected-war-scale").value = scale;
+    document.getElementById("war-scale-border").classList.toggle("active", scale === 'border');
+    document.getElementById("war-scale-annexation").classList.toggle("active", scale === 'annexation');
+    document.getElementById("war-scale-world_war").classList.toggle("active", scale === 'world_war');
+}
+
+async function submitDeclareWar(targetId) {
+    const scale = document.getElementById("selected-war-scale").value;
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/war/declare", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                attacker_country_id: userCountry.id,
+                defender_country_id: targetId,
+                scale: scale
+            })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("War declaration failed.");
+    }
+}
+
+function openReinforceModal(warId, atkName, dfnName) {
+    const container = document.getElementById("modal-container");
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🪖</span> Mobilize Division Reinforcements
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 1rem;">
+                    Deploy frontline reinforcements to bolster combat rolls in <strong>${atkName} vs ${dfnName}</strong>.
+                </p>
+
+                <div class="custom-form-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label class="custom-form-label">Divisions to Deploy: <strong id="reinforce-div-label">5 Divisions</strong></label>
+                        <span style="font-size:0.75rem; color:#38bdf8;" id="reinforce-cost-label">Cost: 125,000 M</span>
+                    </div>
+                    <input type="range" min="1" max="30" value="5" class="form-range w-100" id="reinforce-slider" oninput="updateReinforceCost(this.value)">
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" onclick="submitReinforceWar(${warId})">Deploy to Front</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function updateReinforceCost(divs) {
+    document.getElementById("reinforce-div-label").innerText = divs + " Divisions";
+    const cost = divs * 25000;
+    document.getElementById("reinforce-cost-label").innerText = "Cost: " + cost.toLocaleString() + " M";
+}
+
+async function submitReinforceWar(warId) {
+    const divs = parseInt(document.getElementById("reinforce-slider").value);
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/war/reinforce", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ war_id: warId, divisions: divs })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Reinforce failed.");
+    }
+}
+
+function openProposeTradeModal(countryId) {
+    const container = document.getElementById("modal-container");
+    const coastal = countriesData.filter(c => c.id !== countryId && c.is_coastal);
+    let optionsHtml = "";
+    coastal.forEach(c => {
+        optionsHtml += `<option value="${c.id}">${c.flag} ${c.name} (${c.owner_username || 'Unclaimed'})</option>`;
+    });
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🚢</span> Inaugurate Maritime Ocean Sealane
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 1rem;">
+                    Sign a bilateral maritime shipping treaty with an overseas coastal nation. Generates passive daily tariffs for both sovereign treasuries.
+                </p>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Partner Coastal Nation</label>
+                    <select class="custom-form-select" id="trade-partner-select">
+                        ${optionsHtml}
+                    </select>
+                </div>
+
+                <div class="info-tile" style="margin-bottom: 1rem;">
+                    <div style="font-size: 0.75rem; color: #94a3b8;">Estimated Daily Commercial Tariffs:</div>
+                    <div style="font-weight: 800; font-size: 1.1rem; color: #06b6d4;">+85,000 Medals / Day</div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" onclick="submitProposeTrade(${countryId})">Ratify Sealane</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function submitProposeTrade(countryId) {
+    const partnerId = document.getElementById("trade-partner-select").value;
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/trade/propose", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ from_country_id: countryId, to_country_id: parseInt(partnerId) })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Trade treaty failed.");
+    }
+}
+
+async function openAllianceModal(countryId, currentAllianceName) {
+    const container = document.getElementById("modal-container");
+    const alRes = await fetch("/api/earth/alliances");
+    const alliances = await alRes.json();
+
+    let allListHtml = "";
+    alliances.forEach(al => {
+        allListHtml += `
+            <div class="minister-card" style="border-left: 3px solid ${al.banner_color || '#3b82f6'};">
+                <div>
+                    <div style="font-weight: 800; font-size: 0.85rem;">${al.name}</div>
+                    <div style="font-size: 0.7rem; color: #94a3b8;">${al.member_count} Member Nations • Combined GDP: ${Number(al.total_gdp || 0).toLocaleString()} M</div>
+                </div>
+                ${(!currentAllianceName || currentAllianceName !== al.name) ? `
+                    <button class="btn-action-sm" onclick="joinAlliance(${al.id})">Join</button>
+                ` : `<span class="hud-tag" style="background:rgba(34,197,94,0.15); color:#22c55e;">Member</span>`}
+            </div>
+        `;
+    });
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🌐</span> International Coalition Bureau
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label class="custom-form-label">Charter a New Custom Coalition</label>
+                    <div style="display:flex; gap:0.45rem;">
+                        <input type="text" class="custom-form-input" id="new-alliance-name" placeholder="Alliance Name (e.g. NATO, BRICS, Pacific Treaty)">
+                        <button class="hud-btn" onclick="submitCreateAlliance(${countryId})">Charter (500k M)</button>
+                    </div>
+                </div>
+
+                <label class="custom-form-label">Existing Global Coalitions</label>
+                <div style="display:flex; flex-direction:column; gap:0.45rem; max-height: 200px; overflow-y:auto;">
+                    ${allListHtml || '<div style="color:#94a3b8; font-size:0.75rem; text-align:center; padding:1rem;">No coalitions chartered yet. Be the first to establish one!</div>'}
+                </div>
+
+                ${currentAllianceName ? `
+                    <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:0.75rem; color:#ef4444;">Current Alliance: <strong>${currentAllianceName}</strong></span>
+                        <button class="btn-danger-sm" onclick="leaveAlliance(${countryId})">Withdraw from Alliance</button>
+                    </div>
+                ` : ''}
+
+                <div style="display:flex; justify-content:flex-end; margin-top: 1rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function submitCreateAlliance(countryId) {
+    const name = document.getElementById("new-alliance-name").value.trim();
+    if (!name) return;
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/alliance/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId, name: name, color: "#38bdf8" })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Alliance creation failed.");
+    }
+}
+
+async function joinAlliance(alId) {
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/alliance/join", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: selectedCountry.id, alliance_id: alId })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Join failed.");
+    }
+}
+
+async function leaveAlliance(countryId) {
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/alliance/leave", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Withdrawal failed.");
+    }
+}
+
+function openBuyoutModal(countryId, countryName, gdp) {
+    const container = document.getElementById("modal-container");
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🏷️</span> Diplomatic Buyout Offer
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 1rem;">
+                    Submit a formal diplomatic buyout bid for <strong>${countryName}</strong> (Current GDP: ${Number(gdp).toLocaleString()} Medals).
+                </p>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Offer Amount (Medals)</label>
+                    <input type="number" class="custom-form-input" id="modal-buyout-amount" value="${Math.round(gdp * 0.5)}">
+                </div>
+
+                <div style="display:flex; gap:0.35rem; margin-bottom: 1rem;">
+                    <button class="btn-action-sm" onclick="document.getElementById('modal-buyout-amount').value = ${Math.round(gdp * 0.25)}">25% GDP</button>
+                    <button class="btn-action-sm" onclick="document.getElementById('modal-buyout-amount').value = ${Math.round(gdp * 0.50)}">50% GDP</button>
+                    <button class="btn-action-sm" onclick="document.getElementById('modal-buyout-amount').value = ${gdp}">100% GDP</button>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" onclick="submitBuyoutModal(${countryId})">Send Offer</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function submitBuyoutModal(countryId) {
+    const amt = document.getElementById("modal-buyout-amount").value;
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/offer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId, amount: parseInt(amt) })
+        });
+        const data = await res.json();
+        showToast(data.message);
+    } catch(e) {
+        showToast("Offer submission failed.");
+    }
+}
+
+async function openOffersInbox() {
+    const container = document.getElementById("modal-container");
+    const res = await fetch("/api/earth/offers");
+    const offers = await res.json();
+
+    let listHtml = "";
+    offers.forEach(o => {
+        listHtml += `
+            <div class="info-tile" style="margin-bottom: 0.5rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight: 800; font-size: 0.85rem;">${o.country_flag} ${o.country_name}</span>
+                    <span class="hud-tag" style="background:rgba(59,130,246,0.15); color:#38bdf8;">${o.status.toUpperCase()}</span>
+                </div>
+                <div style="font-size: 0.72rem; color:#cbd5e1; margin: 0.35rem 0;">
+                    From: @${o.buyer_name} • Offer: <strong>${Number(o.offer_amount).toLocaleString()} Medals</strong>
+                </div>
+                ${o.status === 'pending' && userCountry && userCountry.id === o.country_id ? `
+                    <div style="display:flex; gap:0.45rem; justify-content:flex-end; margin-top:0.35rem;">
+                        <button class="btn-danger-sm" onclick="rejectOffer(${o.id})">Decline</button>
+                        <button class="btn-action-sm" onclick="acceptOffer(${o.id})">Accept Deal</button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    });
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>📬</span> Diplomatic Buyout Proposals
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <div style="max-height: 350px; overflow-y:auto;">
+                    ${listHtml || '<div style="color:#94a3b8; font-size:0.8rem; text-align:center; padding:2rem;">No pending offers.</div>'}
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; margin-top: 1rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function acceptOffer(offerId) {
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/offer/accept", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ offer_id: offerId })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Accept offer failed.");
+    }
+}
+
+async function rejectOffer(offerId) {
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/offer/reject", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ offer_id: offerId })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Decline offer failed.");
+    }
+}
+
+function openIntelModal(escapedJson) {
+    const raw = JSON.parse(unescapeHtml(escapedJson));
+    const d = raw.data || {};
+    const container = document.getElementById("modal-container");
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🛰️</span> ${raw.target_flag || '🌐'} Classified Dossier: ${raw.target_name}
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <div class="info-tile">
+                        <div style="font-size:0.68rem; color:#94a3b8;">TREASURY RESERVES</div>
+                        <div style="font-weight:800; font-size:1.1rem; color:#38bdf8;">${Number(d.treasury || 0).toLocaleString()} M</div>
+                    </div>
+                    <div class="info-tile">
+                        <div style="font-size:0.68rem; color:#94a3b8;">GDP VALUATION</div>
+                        <div style="font-weight:800; font-size:1.1rem; color:#f8fafc;">${Number(d.gdp || 0).toLocaleString()} M</div>
+                    </div>
+                </div>
+
+                <div class="info-tile" style="margin-bottom: 0.75rem;">
+                    <div style="font-size:0.75rem; color:#cbd5e1;">
+                        • <strong>Military Assault Power:</strong> ${d.total_military_power || 'Classified'}<br>
+                        • <strong>Fortified Defense:</strong> ${d.total_defense_power || 'Classified'}<br>
+                        • <strong>Stability:</strong> ${d.stability || 80}% | <strong>Civil Unrest:</strong> ${d.unrest || 10}%<br>
+                        • <strong>Active Coalition:</strong> ${d.alliances || 'Non-Aligned'}
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end;">
+                    <button class="btn-action-sm" onclick="closeModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+function unescapeHtml(str) {
+    const doc = new DOMParser().parseFromString(str, "text/html");
+    return doc.documentElement.textContent;
 }
 
 // ─── ACTION HANDLERS ───
@@ -1408,12 +2364,8 @@ async function collectDividends() {
     try {
         const res = await fetch("/api/earth/collect_yield", { method: "POST" });
         const data = await res.json();
-        if (data.success) {
-            showToast(data.message);
-            loadVirtualEarthData();
-        } else {
-            showToast(data.message || "No yields ready to claim.");
-        }
+        showToast(data.message);
+        loadVirtualEarthData();
     } catch (err) {
         showToast("Error harvesting yields.");
     }
@@ -1451,122 +2403,8 @@ async function quellUnrest(method) {
     }
 }
 
-async function recruitSpy() {
-    if (!selectedCountry) return;
-    const codename = prompt("Enter secret agent codename (e.g. ShadowHawk, Cipher):", "Agent-" + Math.floor(100 + Math.random() * 900));
-    if (!codename) return;
-    try {
-        const res = await fetch("/api/earth/spy/recruit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ country_id: selectedCountry.id, codename: codename })
-        });
-        const data = await res.json();
-        showToast(data.message);
-        loadVirtualEarthData();
-    } catch (err) {
-        showToast("Recruitment failed.");
-    }
-}
-
-function dispatchSpyModal(spyId, codename) {
-    const targets = countriesData.filter(c => !userCountry || c.id !== userCountry.id);
-    let targetOptions = targets.map(t => `<option value="${t.id}">${t.flag} ${t.name}</option>`).join("");
-
-    const targetId = prompt(`Select target country ID to infiltrate for Agent '${codename}':\n` + targets.slice(0, 10).map(t => `${t.id}: ${t.flag} ${t.name}`).join("\n"));
-    if (!targetId) return;
-
-    const mission = prompt("Select Mission Type:\n1: intel (Gather Intelligence)\n2: sabotage (Disable Gold Mine / Oil Rig)\n3: incite_riot (Fund Dissidents +25% Unrest)", "intel");
-    if (!mission) return;
-
-    fetch("/api/earth/spy/dispatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            country_id: selectedCountry.id,
-            spy_id: spyId,
-            target_country_id: parseInt(targetId),
-            mission: mission.trim()
-        })
-    }).then(r => r.json()).then(data => {
-        showToast(data.message);
-        loadVirtualEarthData();
-    });
-}
-
-function declareWarModal(targetId, targetName, targetFlag) {
-    if (!userCountry) {
-        alert("You must govern an Earth nation to declare conquests!");
-        return;
-    }
-    const scale = prompt(`Declare Conquest against ${targetFlag} ${targetName}!\nChoose Scale:\n- border (1 Day / 24 Hours)\n- annexation (3 Days / 72 Hours)\n- world_war (5 Days / 120 Hours)`, "border");
-    if (!scale) return;
-
-    fetch("/api/earth/war/declare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            attacker_country_id: userCountry.id,
-            defender_country_id: targetId,
-            scale: scale.trim().toLowerCase()
-        })
-    }).then(r => r.json()).then(data => {
-        showToast(data.message);
-        loadVirtualEarthData();
-    });
-}
-
-async function reinforceWar(warId) {
-    try {
-        const res = await fetch("/api/earth/war/reinforce", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ war_id: warId, divisions: 5 })
-        });
-        const data = await res.json();
-        showToast(data.message);
-        loadVirtualEarthData();
-    } catch (err) {
-        showToast("Reinforce failed.");
-    }
-}
-
-function promptAppoint(roleKey, roleTitle) {
-    const uid = prompt(`Enter Discord User ID to appoint as ${roleTitle}:`);
-    if (!uid) return;
-
-    fetch("/api/earth/cabinet/appoint", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            country_id: selectedCountry.id,
-            role: roleKey,
-            target_user_id: uid.trim()
-        })
-    }).then(r => r.json()).then(data => {
-        showToast(data.message);
-        loadVirtualEarthData();
-    });
-}
-
-async function dismissMinister(roleKey) {
-    if (!confirm("Dismiss minister from cabinet?")) return;
-    try {
-        const res = await fetch("/api/earth/cabinet/dismiss", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ country_id: selectedCountry.id, role: roleKey })
-        });
-        const data = await res.json();
-        showToast(data.message);
-        loadVirtualEarthData();
-    } catch (err) {
-        showToast("Dismissal failed.");
-    }
-}
-
-async function buyCountry(countryId) {
-    if (!confirm("Confirm purchase of sovereign nation?")) return;
+async function buyCountry(countryId, countryName, cost) {
+    if (!confirm(`Confirm acquisition of ${countryName} for ${cost.toLocaleString()} Medals?`)) return;
     try {
         const res = await fetch("/api/earth/buy", {
             method: "POST",
@@ -1585,7 +2423,7 @@ async function buyCountry(countryId) {
 window.addEventListener("DOMContentLoaded", () => {
     init3DWorld();
     loadVirtualEarthData();
-    setInterval(loadVirtualEarthData, 30000); // 30s live poll
+    setInterval(loadVirtualEarthData, 30000);
 });
 </script>
 {% endblock %}

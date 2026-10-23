@@ -37,9 +37,28 @@ async function loadStocks(silent = false) {
         if (!res.ok) return;
         allStocks = await res.json();
 
-        if (allStocks.length > 0 && allStocks[0].market_news) {
+        if (allStocks.length > 0) {
+            const first = allStocks[0];
             const newsEl = document.getElementById("stock-news-text");
-            if (newsEl) newsEl.innerText = allStocks[0].market_news;
+            const bannerEl = document.getElementById("stock-news-banner");
+            if (newsEl && first.market_news) {
+                newsEl.innerText = first.market_news;
+            }
+            if (bannerEl && first.market_regime) {
+                if (first.market_regime === "BULL_RALLY") {
+                    bannerEl.style.background = "linear-gradient(90deg, rgba(34, 197, 94, 0.25) 0%, rgba(16, 185, 129, 0.1) 100%)";
+                    bannerEl.style.borderColor = "#22c55e";
+                    bannerEl.style.boxShadow = "0 0 15px rgba(34, 197, 94, 0.3)";
+                } else if (first.market_regime === "BEAR_CRASH") {
+                    bannerEl.style.background = "linear-gradient(90deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.1) 100%)";
+                    bannerEl.style.borderColor = "#ef4444";
+                    bannerEl.style.boxShadow = "0 0 15px rgba(239, 68, 68, 0.35)";
+                } else {
+                    bannerEl.style.background = "rgba(56, 189, 248, 0.1)";
+                    bannerEl.style.borderColor = "var(--border-blue)";
+                    bannerEl.style.boxShadow = "none";
+                }
+            }
         }
 
         renderStockCards();
