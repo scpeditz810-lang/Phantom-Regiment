@@ -244,6 +244,7 @@ COGS = [
 
     "cogs.banking",
     "cogs.elections",
+    "cogs.earth",
 
 ]
 
@@ -255,6 +256,7 @@ PARTNER_COGS = [
 
     "cogs.banking",
     "cogs.elections",
+    "cogs.earth",
 
     "cogs.roblox",
 
