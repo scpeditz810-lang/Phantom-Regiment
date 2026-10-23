@@ -3139,41 +3139,18 @@ class Database:
             cid = v["candidate_id"]
             v_time = v["voted_at"]
 
-            # Discord account age
+            # Measurement 1: Discord account age (minimum 7 days)
             created_ts = ((uid >> 22) + DISCORD_EPOCH) / 1000.0
             age_days = (v_time - created_ts) / 86400.0
 
-            # Leveling / activity check
-            async with self._db.execute("SELECT messages, level FROM users WHERE user_id = ?", (uid,)) as ucur:
-                urow = await ucur.fetchone()
-            msgs = urow[0] if urow else 0
-            lvl = urow[1] if urow else 0
-
-            # Roblox verification check
-            async with self._db.execute("SELECT roblox_id, roblox_username FROM roblox_links WHERE user_id = ?", (uid,)) as rcur:
-                rrow = await rcur.fetchone()
-            rid = rrow[0] if rrow else None
-            ruser = rrow[1] if rrow else None
-
             reasons = []
             if age_days < min_age_days:
-                reasons.append(f"Account age < {int(min_age_days)}d ({age_days*24:.1f}h)")
-            if msgs < min_msgs and lvl < min_level:
-                reasons.append(f"Inactive citizen (msgs: {msgs}, lvl: {lvl})")
-            if not rid:
-                reasons.append("Unverified Roblox")
-            elif rid in seen_roblox_ids:
-                reasons.append(f"Duplicate Roblox @{ruser} (already voted with voter {seen_roblox_ids[rid]})")
-            else:
-                seen_roblox_ids[rid] = uid
+                reasons.append(f"Account age < {int(min_age_days)}d ({age_days*24:.1f}h old)")
 
             item = {
                 "voter_id": uid,
                 "candidate_id": cid,
                 "voted_at": v_time,
-                "roblox_username": ruser,
-                "messages": msgs,
-                "level": lvl,
                 "account_age_days": round(age_days, 1),
                 "reasons": reasons
             }

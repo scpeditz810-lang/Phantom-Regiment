@@ -304,7 +304,7 @@
 
 <script>
 async function handleAdminPurgeAlts() {
-    if (!confirm("Run Anti-Alt Audit & Purge?\n\nThis will inspect all ballots against the 5-Layer Security Shield (Discord account age >= 7d, server activity >= Level 1 / 15 msgs, verified unique Roblox account) and automatically purge all invalid alt votes.")) {
+    if (!confirm("Run Anti-Alt Audit & Purge?\n\nThis will inspect all ballots against Measurement 1 (Discord account age >= 7 days) and automatically purge all throwaway alt votes.")) {
         return;
     }
     try {
