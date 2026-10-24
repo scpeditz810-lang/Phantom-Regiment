@@ -1419,57 +1419,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         
 
-        if amount > 0:
-
-            # 1. Divert to overdue Bank Loans (checked across all servers for user_id)
-
-            async with self._db.execute("SELECT id, total_owed, repaid FROM bank_loans WHERE user_id = ? AND repaid < total_owed AND due_at < ?", (user_id, time.time())) as cur:
-
-                bank_loan = await cur.fetchone()
-
-                
-
-            if bank_loan and amount > 0:
-
-                loan_id, owed, repaid = bank_loan
-
-                rem = owed - repaid
-
-                take = min(amount, rem)
-
-                amount -= take
-
-                await self._db.execute("UPDATE bank_loans SET repaid = repaid + ? WHERE id = ?", (take, loan_id))
-
-                
-
-            # 2. Divert to overdue Player Loans (checked across all servers for borrower_id)
-
-            async with self._db.execute("SELECT id, total_owed, repaid, lender_id FROM player_loans WHERE borrower_id = ? AND status = 'active' AND due_at < ?", (user_id, time.time())) as cur:
-
-                player_loan = await cur.fetchone()
-
-                
-
-            if player_loan and amount > 0:
-
-                loan_id, owed, repaid, lender_id = player_loan
-
-                rem = owed - repaid
-
-                take = min(amount, rem)
-
-                amount -= take
-
-                await self._db.execute("UPDATE player_loans SET repaid = repaid + ? WHERE id = ?", (take, loan_id))
-
-                await self.add_medals(lender_id, guild_id, take)
-
-                if repaid + take >= owed:
-
-                    await self._db.execute("UPDATE player_loans SET status = 'repaid' WHERE id = ?", (loan_id,))
-
-
+        # Loan repayment is explicit via /bank repay or /loan repay. Rewards and
+        # transfers must never disappear silently when a debt is overdue.
 
         if amount != 0:
 
