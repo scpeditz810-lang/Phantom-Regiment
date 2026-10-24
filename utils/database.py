@@ -5844,10 +5844,13 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
     # ─── Ocean Trade Routes & Bilateral Commerce ──────────────────────────────
 
     async def propose_trade_route(self, user_id: int, from_country_id: int, to_country_id: int) -> tuple[bool, str]:
-        """Inaugurate a bilateral maritime ocean trade shipping route."""
+        """Create one validated bilateral maritime route without duplicate or phantom endpoints."""
         if self._db is None:
             await self.setup()
-
+        try:
+            from_country_id, to_country_id = int(from_country_id), int(to_country_id)
+        except (TypeError, ValueError):
+            return False, "Invalid trade-route countries."
         if from_country_id == to_country_id:
             return False, "Cannot establish ocean trade with yourself!"
 
@@ -5857,33 +5860,34 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if not can_trade:
             return False, "⛔ Authorization Denied: Only the President, Chief Diplomat, or Finance Minister can sign Ocean Trade Treaties!"
 
-        c_a = await self.get_earth_country(from_country_id)
-        c_b = await self.get_earth_country(to_country_id)
+        async with self._db.execute(
+            "SELECT * FROM earth_countries WHERE id IN (?, ?)", (from_country_id, to_country_id)
+        ) as cur:
+            rows = {int(row["id"]): dict(row) for row in await cur.fetchall()}
+        c_a, c_b = rows.get(from_country_id), rows.get(to_country_id)
         if not c_a or not c_b:
             return False, "Country not found."
-
+        if c_a.get("owner_id") is None or c_b.get("owner_id") is None:
+            return False, "Both endpoints must be sovereign countries with current rulers."
         if not c_a.get("is_coastal") or not c_b.get("is_coastal"):
-            return False, "⛔ Maritime Access Required: Both countries must possess open oceanic coastlines to establish Maritime Shipping Lanes!"
-
-        # Check naval ports
-        has_port = any(b["building_type"] == "naval_port" for b in c_a.get("buildings", [])) or \
-                   any(b["building_type"] == "naval_port" for b in c_b.get("buildings", []))
-        if not has_port:
-            return False, "⚓ Deepwater Naval Port Required: At least one nation must construct a Level 1 Deepwater Naval Port to operate cargo shipping lanes!"
-
-        # Check existing route
-        c1, c2 = min(from_country_id, to_country_id), max(from_country_id, to_country_id)
-        async with self._db.execute("SELECT id FROM earth_trade_routes WHERE country_a_id = ? AND country_b_id = ?", (c1, c2)) as cur:
-            if await cur.fetchone():
-                return False, "An active Ocean Trade Route already exists between these two sovereign powers!"
-
+            return False, "⛔ Maritime Access Required: Both countries must possess open oceanic coastlines."
+        async with self._db.execute(
+            "SELECT 1 FROM earth_buildings WHERE country_id IN (?, ?) AND building_type='naval_port' LIMIT 1",
+            (from_country_id, to_country_id)
+        ) as cur:
+            if not await cur.fetchone():
+                return False, "⚓ At least one endpoint must have a Deepwater Naval Port."
+        c1, c2 = sorted((from_country_id, to_country_id))
         now = time.time()
-        await self._db.execute("""
-            INSERT INTO earth_trade_routes (country_a_id, country_b_id, status, daily_tariff, created_at)
-            VALUES (?, ?, 'active', 85000, ?)
-        """, (c1, c2, now))
-        await self._db.commit()
-
+        try:
+            await self._db.execute(
+                "INSERT INTO earth_trade_routes (country_a_id, country_b_id, status, daily_tariff, created_at) VALUES (?, ?, 'active', 85000, ?)",
+                (c1, c2, now)
+            )
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            return False, "An active Ocean Trade Route already exists between these two countries."
         return True, f"🚢 Maritime Treaty Ratified! Ocean Trade Shipping Route active between {c_a['flag']} {c_a['name']} and {c_b['flag']} {c_b['name']} (+85k daily tariffs)!"
 
     async def get_earth_trade_routes(self, country_id: int | None = None) -> list[dict]:
