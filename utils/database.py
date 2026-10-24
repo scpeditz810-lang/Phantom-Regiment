@@ -723,6 +723,19 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 created_at REAL NOT NULL,
                 FOREIGN KEY(stock_id) REFERENCES stocks(id)
             );
+            CREATE TABLE IF NOT EXISTS player_company_offers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id INTEGER NOT NULL,
+                seller_id INTEGER NOT NULL,
+                buyer_id INTEGER NOT NULL,
+                gross_price INTEGER NOT NULL CHECK(gross_price > 0),
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at REAL NOT NULL,
+                expires_at REAL NOT NULL,
+                FOREIGN KEY(company_id) REFERENCES player_companies(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_company_offers_buyer_status
+                ON player_company_offers(buyer_id, status, expires_at);
             CREATE TABLE IF NOT EXISTS earth_nuclear_strikes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 war_id INTEGER NOT NULL,
@@ -2581,6 +2594,196 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         return True
 
+    async def create_company_sale_offer(self, seller_id: int, buyer_username: str, gross_price: int) -> tuple[bool, str, dict | None]:
+        """Create a direct purchase offer. Buyer must accept before any balance or ownership changes."""
+        if self._db is None:
+            await self.setup()
+        seller_id = int(seller_id)
+        buyer_username = " ".join(str(buyer_username).strip().split())[:80]
+        try:
+            gross_price = int(gross_price)
+        except (TypeError, ValueError):
+            return False, "Enter a whole Medal amount.", None
+        if seller_id <= 0 or not buyer_username or not 1 <= gross_price <= 2_000_000_000:
+            return False, "Enter a valid buyer and sale price (1–2,000,000,000 Medals).", None
+
+        async with self._db.execute(
+            "SELECT user_id, username FROM oauth_members WHERE LOWER(username) = LOWER(?) LIMIT 1",
+            (buyer_username,)
+        ) as cur:
+            buyer = await cur.fetchone()
+        if not buyer:
+            return False, "That player has not signed into the web app yet.", None
+        buyer_id = int(buyer["user_id"])
+        if buyer_id == seller_id:
+            return False, "You cannot sell the company to yourself.", None
+        async with self._db.execute("SELECT id, name, symbol FROM player_companies WHERE owner_id = ?", (seller_id,)) as cur:
+            company = await cur.fetchone()
+        if not company:
+            return False, "You do not own a listed company.", None
+
+        now = time.time()
+        await self.get_global_economy(seller_id)
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute(
+                "SELECT 1 FROM player_companies WHERE id = ? AND owner_id = ?",
+                (company["id"], seller_id)
+            ) as cur:
+                if not await cur.fetchone():
+                    await self._db.rollback()
+                    return False, "You no longer own this company.", None
+            async with self._db.execute(
+                "SELECT 1 FROM player_company_offers WHERE company_id = ? AND buyer_id = ? AND status = 'pending' AND expires_at > ?",
+                (company["id"], buyer_id, now)
+            ) as cur:
+                if await cur.fetchone():
+                    await self._db.rollback()
+                    return False, "You already have a pending offer with that player.", None
+            await self._db.execute("""
+                INSERT INTO player_company_offers
+                    (company_id, seller_id, buyer_id, gross_price, status, created_at, expires_at)
+                VALUES (?, ?, ?, ?, 'pending', ?, ?)
+            """, (company["id"], seller_id, buyer_id, gross_price, now, now + 7 * 24 * 60 * 60))
+            await self._db.commit()
+            return True, f"Purchase offer sent to {buyer['username']}. They must accept it; the price includes tax.", {
+                "company_id": int(company["id"]), "company_name": company["name"],
+                "symbol": company["symbol"], "buyer_username": buyer["username"],
+                "gross_price": gross_price, "expires_at": now + 7 * 24 * 60 * 60
+            }
+        except Exception:
+            await self._db.rollback()
+            raise
+
+    async def get_company_sale_offers(self, buyer_id: int) -> list[dict]:
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        async with self._db.execute("""
+            SELECT o.id, o.company_id, o.seller_id, o.buyer_id, o.gross_price, o.created_at, o.expires_at,
+                   pc.name AS company_name, pc.symbol, om.username AS seller_username
+            FROM player_company_offers o
+            JOIN player_companies pc ON pc.id = o.company_id
+            LEFT JOIN oauth_members om ON om.user_id = o.seller_id
+            WHERE o.buyer_id = ? AND o.status = 'pending' AND o.expires_at > ?
+              AND pc.owner_id = o.seller_id
+            ORDER BY o.created_at DESC
+        """, (int(buyer_id), now)) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def accept_company_sale_offer(self, buyer_id: int, offer_id: int) -> tuple[bool, str]:
+        if self._db is None:
+            await self.setup()
+        buyer_id, offer_id = int(buyer_id), int(offer_id)
+        await self.get_global_economy(buyer_id)
+        async with self._db.execute(
+            "SELECT seller_id FROM player_company_offers WHERE id = ? AND buyer_id = ? AND status = 'pending'",
+            (offer_id, buyer_id)
+        ) as cur:
+            seller_row = await cur.fetchone()
+        if seller_row:
+            await self.get_global_economy(int(seller_row["seller_id"]))
+        now = time.time()
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute("""
+                SELECT o.*, pc.owner_id AS current_owner, pc.name AS company_name
+                FROM player_company_offers o JOIN player_companies pc ON pc.id = o.company_id
+                WHERE o.id = ? AND o.buyer_id = ? AND o.status = 'pending'
+            """, (offer_id, buyer_id)) as cur:
+                offer = await cur.fetchone()
+            if not offer or offer["expires_at"] <= now or offer["current_owner"] != offer["seller_id"]:
+                await self._db.rollback()
+                return False, "This company offer expired or is no longer valid."
+            async with self._db.execute(
+                "SELECT 1 FROM player_companies WHERE owner_id = ?",
+                (buyer_id,)
+            ) as cur:
+                if await cur.fetchone():
+                    await self._db.rollback()
+                    return False, "You must sell your existing company before buying another."
+            async with self._db.execute("SELECT medals FROM global_economy WHERE user_id = ?", (buyer_id,)) as cur:
+                buyer_wallet = await cur.fetchone()
+            gross = int(offer["gross_price"])
+            if not buyer_wallet or int(buyer_wallet[0] or 0) < gross:
+                await self._db.rollback()
+                return False, f"Not enough wallet Medals. The purchase costs {gross:,} including tax."
+            tax_rate = await self.get_stock_tax_rate()
+            tax = min(gross, int(round(gross * tax_rate)))
+            net = gross - tax
+            await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (gross, buyer_id))
+            await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (gross, buyer_id))
+            await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (net, offer["seller_id"]))
+            await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ?", (net, offer["seller_id"]))
+            await self._credit_company_market_balance(tax)
+            await self._db.execute("UPDATE player_companies SET owner_id = ? WHERE id = ?", (buyer_id, offer["company_id"]))
+            await self._db.execute(
+                "UPDATE player_company_offers SET status = CASE WHEN id = ? THEN 'accepted' ELSE 'cancelled' END WHERE company_id = ? AND status = 'pending'",
+                (offer_id, offer["company_id"])
+            )
+            await self._db.commit()
+            return True, f"You bought {offer['company_name']} for {gross:,} Medals. Seller received {net:,}; {tax:,} ({int(round(tax_rate * 100))}%) tax went to the market bank."
+        except Exception:
+            await self._db.rollback()
+            raise
+
+    async def reject_company_sale_offer(self, buyer_id: int, offer_id: int) -> tuple[bool, str]:
+        if self._db is None:
+            await self.setup()
+        cur = await self._db.execute("""
+            UPDATE player_company_offers SET status = 'rejected'
+            WHERE id = ? AND buyer_id = ? AND status = 'pending'
+        """, (int(offer_id), int(buyer_id)))
+        await self._db.commit()
+        if cur.rowcount:
+            return True, "Company purchase offer declined."
+        return False, "Offer not found or already closed."
+
+    async def sell_company_to_bank(self, seller_id: int, gross_price: int) -> tuple[bool, str]:
+        """Sell control to the finite, tax-funded market bank; no Medals are minted."""
+        if self._db is None:
+            await self.setup()
+        seller_id = int(seller_id)
+        try:
+            gross_price = int(gross_price)
+        except (TypeError, ValueError):
+            return False, "Enter a whole Medal amount."
+        if seller_id <= 0 or not 1 <= gross_price <= 2_000_000_000:
+            return False, "Enter a valid sale price (1–2,000,000,000 Medals)."
+        await self.get_global_economy(seller_id)
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute("SELECT id, name FROM player_companies WHERE owner_id = ?", (seller_id,)) as cur:
+                company = await cur.fetchone()
+            if not company:
+                await self._db.rollback()
+                return False, "You do not own a listed company."
+            async with self._db.execute("SELECT value FROM meta WHERE key = 'company_market_balance'") as cur:
+                row = await cur.fetchone()
+            bank_balance = max(0, int(row[0])) if row and str(row[0]).isdigit() else 0
+            if bank_balance < gross_price:
+                await self._db.rollback()
+                return False, f"The market bank has {bank_balance:,} Medals available, less than your {gross_price:,} asking price."
+            tax_rate = await self.get_stock_tax_rate()
+            tax = min(gross_price, int(round(gross_price * tax_rate)))
+            net = gross_price - tax
+            await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (net, seller_id))
+            await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ?", (net, seller_id))
+            await self._db.execute(
+                "UPDATE meta SET value = CAST(CAST(value AS INTEGER) - ? + ? AS TEXT) WHERE key = 'company_market_balance'",
+                (gross_price, tax)
+            )
+            await self._db.execute("UPDATE player_companies SET owner_id = ? WHERE id = ?", (-int(company["id"]), company["id"]))
+            await self._db.execute(
+                "UPDATE player_company_offers SET status = 'cancelled' WHERE company_id = ? AND status = 'pending'",
+                (company["id"],)
+            )
+            await self._db.commit()
+            return True, f"Sold {company['name']} to the market bank. You received {net:,} Medals after {int(round(tax_rate * 100))}% tax ({tax:,})."
+        except Exception:
+            await self._db.rollback()
+            raise
+
     async def get_player_company(self, user_id: int) -> dict | None:
         if self._db is None:
             await self.setup()
@@ -2925,6 +3128,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 last_buy_time = ?
         """, (user_id, stock_id, new_total_shares, new_avg, now_ts, new_total_shares, new_avg, now_ts))
 
+        await self._credit_company_market_balance(tax_amount)
         await self.update_stock_price(stock_id, new_price)
         await self._db.commit()
 
@@ -2983,6 +3187,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         else:
             await self._db.execute("UPDATE user_stocks SET shares = ? WHERE user_id = ? AND stock_id = ?", (new_shares, user_id, stock_id))
 
+        await self._credit_company_market_balance(tax_amount)
         await self.update_stock_price(stock_id, new_price)
         await self._db.commit()
 
@@ -3515,6 +3720,22 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         )
         await self._db.commit()
 
+    async def _credit_company_market_balance(self, amount: int):
+        amount = max(0, int(amount))
+        if amount:
+            await self._db.execute("""
+                INSERT INTO meta (key, value) VALUES ('company_market_balance', ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = CAST(CAST(meta.value AS INTEGER) + CAST(excluded.value AS INTEGER) AS TEXT)
+            """, (str(amount),))
+
+    async def get_company_market_balance(self) -> int:
+        raw = await self.get_meta("company_market_balance")
+        try:
+            return max(0, int(raw or 0))
+        except (ValueError, TypeError):
+            return 0
+
     async def get_meta(self, key: str) -> str | None:
         if self._db is None:
             await self.setup()
@@ -3550,9 +3771,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.execute(f"DELETE FROM {table}")
 
             # Shares and trading history are reseeded from the default catalogue.
-            for table in ("player_companies", "user_stocks", "stock_history", "stocks"):
+            for table in ("player_company_offers", "player_companies", "user_stocks", "stock_history", "stocks"):
                 await self._db.execute(f"DELETE FROM {table}")
-            await self._db.execute("DELETE FROM meta WHERE key = 'stock_tax_rate'")
+            await self._db.execute("DELETE FROM meta WHERE key IN ('stock_tax_rate', 'company_market_balance')")
 
             # Virtual Earth: reset the map and all player-created state to the base roster.
             for table in (
