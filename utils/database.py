@@ -4695,6 +4695,16 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.rollback()
                 return False, f"One Sovereign Rule: You already govern {existing['name']}! You cannot claim another starting country."
 
+            if ip_fingerprint:
+                async with self._db.execute(
+                    "SELECT first_user_id FROM earth_claim_fingerprints WHERE fingerprint = ?",
+                    (ip_fingerprint,)
+                ) as cur:
+                    fingerprint_owner = await cur.fetchone()
+                if fingerprint_owner and int(fingerprint_owner[0]) != user_id:
+                    await self._db.rollback()
+                    return False, "Duplicate claim blocked: this public network already claimed a starting country."
+
             async with self._db.execute(
                 "SELECT id, name, flag, owner_id FROM earth_countries WHERE id = ?", (country_id,)
             ) as cur:
