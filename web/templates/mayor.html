@@ -234,6 +234,31 @@
     <!-- TAB 2: 📈 Central Bank & Stock Market Desk -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
     <div id="market-tab" class="tab-content" style="display: none;">
+        <div class="surface-box" style="margin-bottom:1.25rem;padding:1.25rem;">
+            <div class="eyebrow-text">UNITED NATIONS // COMPANY STABILIZATION FUND</div>
+            <h3 style="margin:0.3rem 0;">Company Treasury Assistance</h3>
+            <p style="font-size:0.8rem;color:#94a3b8;">
+                Grants transfer Medals from the Mayor’s wallet, so aid does not mint currency. Each grant is fixed at {{ company_aid_grant|default(25000) }} Medals. A company treasury is capped at {{ company_treasury_cap|default(250000) }} Medals.
+            </p>
+            <div style="font-size:0.78rem;color:#38bdf8;margin-bottom:0.8rem;">Mayor wallet: {{ "{:,}".format(mayor_wallet|default(0)) }} Medals</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.75rem;">
+                {% for company in companies %}
+                <div class="info-tile" style="padding:0.85rem;">
+                    <div style="font-weight:800;color:#fff;">{{ company.symbol }} · {{ company.name }}</div>
+                    <div style="font-size:0.74rem;color:#94a3b8;margin:0.3rem 0;">
+                        Treasury: {{ "{:,}".format(company.treasury or 0) }} / {{ company_treasury_cap|default(250000) }} M
+                    </div>
+                    <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:0.55rem;">AI status: {{ company.ai_status }} · reported sector: {{ company.sector }}</div>
+                    <button class="btn-action-sm" onclick="handleCompanyAid({{ company.id }})"
+                        {% if (company.treasury or 0) >= company_treasury_cap|default(250000) or mayor_wallet < company_aid_grant|default(25000) %}disabled{% endif %}>
+                        Transfer {{ company_aid_grant|default(25000) }} Medals
+                    </button>
+                </div>
+                {% else %}
+                <div style="font-size:0.78rem;color:#94a3b8;">No player companies are listed yet.</div>
+                {% endfor %}
+            </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem;">
             <!-- Tax & Supply Control -->
             <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
@@ -526,6 +551,22 @@ async function handleCreateStock(e) {
         }
     } catch (err) {
         alert("Error creating stock: " + err);
+    }
+}
+
+async function handleCompanyAid(companyId) {
+    if (!confirm("Transfer a fixed 25,000 Medals from the Mayor wallet into this company's capped treasury?")) return;
+    try {
+        const response = await fetch("/api/mayor/company-aid", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ company_id: companyId })
+        });
+        const data = await response.json();
+        alert(data.message || "Company aid request completed.");
+        if (data.success) window.location.reload();
+    } catch (error) {
+        alert("Company aid transfer failed: " + error);
     }
 }
 
