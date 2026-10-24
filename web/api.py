@@ -1971,12 +1971,15 @@ def api_earth_offer():
     try:
         country_id = int(data.get("country_id", 0))
         amount = max(0, int(data.get("amount", 0)))
+        offer_scope = str(data.get("offer_scope", "state")).strip().lower()
+        if offer_scope not in ("state", "whole_country", "empire"):
+            offer_scope = "state"
     except (ValueError, TypeError):
         return jsonify({"success": False, "message": "Invalid parameters."}), 400
         
-    user_id = session["user"]["id"]
+    user_id = int(session["user"]["id"]) if str(session["user"]["id"]).isdigit() else session["user"]["id"]
     db = get_db()
-    success, msg = run_async(db.create_country_offer(user_id, country_id, amount))
+    success, msg = run_async(db.create_country_offer(user_id, country_id, amount, offer_scope))
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 @api_bp.route("/earth/offers")
@@ -2253,7 +2256,7 @@ def api_earth_un_status():
 def api_earth_un_ceasefire():
     from web.auth import is_current_mayor
     user_id = session["user"]["id"]
-    if not is_current_mayor(user_id) and user_id != 429350468796416013:
+    if not is_current_mayor(user_id):
         return jsonify({"success": False, "message": "⛔ Supreme Authority Required: Only the UN Secretary-General (Mayor) or High Council can enforce international ceasefires."}), 403
 
     data = request.get_json() or {}
@@ -2271,7 +2274,7 @@ def api_earth_un_ceasefire():
 def api_earth_un_sanction():
     from web.auth import is_current_mayor
     user_id = session["user"]["id"]
-    if not is_current_mayor(user_id) and user_id != 429350468796416013:
+    if not is_current_mayor(user_id):
         return jsonify({"success": False, "message": "⛔ Supreme Authority Required: Only the UN Secretary-General (Mayor) can impose international sanctions."}), 403
 
     data = request.get_json() or {}
@@ -2290,7 +2293,7 @@ def api_earth_un_sanction():
 def api_earth_un_lift_sanction():
     from web.auth import is_current_mayor
     user_id = session["user"]["id"]
-    if not is_current_mayor(user_id) and user_id != 429350468796416013:
+    if not is_current_mayor(user_id):
         return jsonify({"success": False, "message": "⛔ Supreme Authority Required: Only the UN Secretary-General (Mayor) can lift sanctions."}), 403
 
     data = request.get_json() or {}
@@ -2308,7 +2311,7 @@ def api_earth_un_lift_sanction():
 def api_earth_un_aid():
     from web.auth import is_current_mayor
     user_id = session["user"]["id"]
-    if not is_current_mayor(user_id) and user_id != 429350468796416013:
+    if not is_current_mayor(user_id):
         return jsonify({"success": False, "message": "⛔ Supreme Authority Required: Only the UN Secretary-General (Mayor) can deploy UN Humanitarian Relief Grants."}), 403
 
     data = request.get_json() or {}

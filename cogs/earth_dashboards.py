@@ -819,6 +819,7 @@ class DefenseDashboardView(discord.ui.View):
         self.bot = bot
         self.country = country
         self.user_id = user_id
+        self.add_item(MinistryHubSelect(bot, country, user_id))
 
     @discord.ui.button(label="Declare War", style=discord.ButtonStyle.danger, emoji="⚔️", row=0)
     async def declare_war_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -938,6 +939,7 @@ class EconomyDashboardView(discord.ui.View):
         self.user_id = user_id
         self.add_item(InfrastructureSelect(bot, country, user_id))
         self.add_item(QuellUnrestSelect(bot, country, user_id))
+        self.add_item(MinistryHubSelect(bot, country, user_id))
 
     @discord.ui.button(label="Collect Yield", style=discord.ButtonStyle.success, emoji="💰", row=2)
     async def collect_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -986,6 +988,7 @@ class DiplomacyDashboardView(discord.ui.View):
         self.bot = bot
         self.country = country
         self.user_id = user_id
+        self.add_item(MinistryHubSelect(bot, country, user_id))
 
     @discord.ui.button(label="Charter Coalition", style=discord.ButtonStyle.primary, emoji="🤝", row=0)
     async def charter_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1105,6 +1108,7 @@ class IntelligenceDashboardView(discord.ui.View):
         self.bot = bot
         self.country = country
         self.user_id = user_id
+        self.add_item(MinistryHubSelect(bot, country, user_id))
 
     @discord.ui.button(label="Recruit Agent", style=discord.ButtonStyle.primary, emoji="🕵️", row=0)
     async def recruit_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1181,12 +1185,13 @@ class DismissMinisterSelect(discord.ui.Select):
         super().__init__(placeholder="🚫 Dismiss Cabinet Minister / Vacate Portfolio...", min_values=1, max_values=1, options=options, row=0)
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ Only the sitting President can dismiss ministers.", ephemeral=True)
+        is_president = (str(self.country.get("owner_id")) == str(interaction.user.id))
+        if not is_president:
+            await interaction.response.send_message("❌ Sovereign executive privilege required: Only the sitting President can dismiss ministers.", ephemeral=True)
             return
         await interaction.response.defer()
         role_to_dismiss = self.values[0]
-        success, msg = await self.bot.db.dismiss_earth_cabinet(self.user_id, self.country["id"], role_to_dismiss)
+        success, msg = await self.bot.db.dismiss_earth_cabinet(interaction.user.id, self.country["id"], role_to_dismiss)
         if success:
             c = await self.bot.db.get_earth_country(self.country["id"])
             embed = await build_president_embed(self.bot, c or self.country, self.user_id)
@@ -1204,11 +1209,13 @@ class PresidentDashboardView(discord.ui.View):
         self.country = country
         self.user_id = user_id
         self.add_item(DismissMinisterSelect(bot, country, user_id))
+        self.add_item(MinistryHubSelect(bot, country, user_id))
 
     @discord.ui.button(label="Appoint Minister", style=discord.ButtonStyle.primary, emoji="🏛️", row=1)
     async def appoint_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ Sovereign executive privilege required.", ephemeral=True)
+        is_president = (str(self.country.get("owner_id")) == str(interaction.user.id))
+        if not is_president:
+            await interaction.response.send_message("❌ Sovereign executive privilege required: Only the sitting President can appoint ministers.", ephemeral=True)
             return
         await interaction.response.send_modal(PresidentAppointModal(self.bot, self.country))
 
@@ -1250,40 +1257,24 @@ class MinistryHubSelect(discord.ui.Select):
         await interaction.response.defer()
         choice = self.values[0]
 
-        # Permission verification
-        if choice == "president":
-            is_president = (str(self.country.get("owner_id")) == str(interaction.user.id))
-            if not is_president:
-                await interaction.followup.send("⛔ Sovereign Privilege Required: Only the sitting President/PM can access Presidential High Command!", ephemeral=True)
-                return
-            c = await self.bot.db.get_earth_country(self.country["id"])
-            embed = await build_president_embed(self.bot, c or self.country, interaction.user.id)
-            view = PresidentDashboardView(self.bot, c or self.country, interaction.user.id)
-            await interaction.edit_original_response(embed=embed, view=view)
-            return
-
-        has_perm = await self.bot.db.has_earth_cabinet_permission(interaction.user.id, self.country["id"], choice)
-        if not has_perm:
-            role_meta = EARTH_CABINET_ROLES.get(choice, {"title": choice})
-            await interaction.followup.send(
-                f"⛔ Executive Authorization Required: You must be appointed as **{role_meta.get('title')}** or be the Sovereign President to manage this department!",
-                ephemeral=True
-            )
-            return
-
         c = await self.bot.db.get_earth_country(self.country["id"])
-        if choice == "defense":
-            embed = await build_defense_embed(self.bot, c or self.country, interaction.user.id)
-            view = DefenseDashboardView(self.bot, c or self.country, interaction.user.id)
+        target_c = c or self.country
+
+        if choice == "president":
+            embed = await build_president_embed(self.bot, target_c, interaction.user.id)
+            view = PresidentDashboardView(self.bot, target_c, interaction.user.id)
+        elif choice == "defense":
+            embed = await build_defense_embed(self.bot, target_c, interaction.user.id)
+            view = DefenseDashboardView(self.bot, target_c, interaction.user.id)
         elif choice == "economy":
-            embed = await build_economy_embed(self.bot, c or self.country, interaction.user.id)
-            view = EconomyDashboardView(self.bot, c or self.country, interaction.user.id)
+            embed = await build_economy_embed(self.bot, target_c, interaction.user.id)
+            view = EconomyDashboardView(self.bot, target_c, interaction.user.id)
         elif choice == "diplomat":
-            embed = await build_diplomacy_embed(self.bot, c or self.country, interaction.user.id)
-            view = DiplomacyDashboardView(self.bot, c or self.country, interaction.user.id)
+            embed = await build_diplomacy_embed(self.bot, target_c, interaction.user.id)
+            view = DiplomacyDashboardView(self.bot, target_c, interaction.user.id)
         elif choice == "intelligence":
-            embed = await build_intelligence_embed(self.bot, c or self.country, interaction.user.id)
-            view = IntelligenceDashboardView(self.bot, c or self.country, interaction.user.id)
+            embed = await build_intelligence_embed(self.bot, target_c, interaction.user.id)
+            view = IntelligenceDashboardView(self.bot, target_c, interaction.user.id)
         else:
             return
 

@@ -4,7 +4,9 @@
 
 {% block content %}
 <!-- Three.js 3D & Animation Libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎓 SPY TRAINING ACADEMY & INTEL DOSSIER PURCHASE MODALS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -368,7 +370,7 @@ body {
     bottom: 1.25rem;
     right: 1.25rem;
     width: clamp(380px, 27vw, 470px);
-    height: auto;
+    height: calc(100% - 2.25rem);
     max-height: calc(100% - 2.25rem);
     background: var(--panel-bg);
     backdrop-filter: blur(20px);
@@ -604,8 +606,13 @@ body {
     }
 
     .dock-body {
-        max-height: calc(82dvh - 105px) !important;
-        padding-bottom: 7rem !important;
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding-bottom: 5rem !important;
     }
 
     .mobile-drawer-bar {
@@ -961,19 +968,19 @@ body {
                 <i class="fa-solid fa-flag"></i> Dossier
             </button>
             <button class="dock-tab-btn" onclick="switchDockTab('cabinet', this)">
-                <i class="fa-solid fa-users-gear"></i> Cabinet
+                <i class="fa-solid fa-users-gear"></i> Commanders
             </button>
             <button class="dock-tab-btn" onclick="switchDockTab('infra', this)">
-                <i class="fa-solid fa-industry"></i> Industry
+                <i class="fa-solid fa-industry"></i> Economy
             </button>
             <button class="dock-tab-btn" onclick="switchDockTab('intel', this)">
-                <i class="fa-solid fa-user-secret"></i> Espionage
+                <i class="fa-solid fa-user-secret"></i> Intelligence
             </button>
             <button class="dock-tab-btn" onclick="switchDockTab('wars', this)">
                 <i class="fa-solid fa-crosshairs"></i> Conquest
             </button>
             <button class="dock-tab-btn" onclick="switchDockTab('trade', this)">
-                <i class="fa-solid fa-ship"></i> Trade
+                <i class="fa-solid fa-ship"></i> Alliance & Trade
             </button>
             <button class="dock-tab-btn" onclick="switchDockTab('tools', this)">
                 <i class="fa-solid fa-microchip"></i> Arsenal
@@ -1637,33 +1644,55 @@ function closeModal() {
 
 // ─── DOCK TAB RENDERERS ───
 
+async function renderActiveTabContent(c, body) {
+    if (!c || !body) return;
+    const isLeader = Boolean(userCountry && userCountry.id === c.id);
+    const isOwner = Boolean(statsData && statsData.user && statsData.user.country && statsData.user.country.id === c.id && statsData.user.role === 'president');
+
+    try {
+        if (activeTab === 'dossier') {
+            renderDossierTab(c, isLeader, isOwner, body);
+        } else if (activeTab === 'cabinet') {
+            renderCabinetTab(c, isLeader, isOwner, body);
+        } else if (activeTab === 'infra') {
+            renderInfraTab(c, isLeader, isOwner, body);
+        } else if (activeTab === 'intel') {
+            renderIntelTab(c, isLeader, isOwner, body);
+        } else if (activeTab === 'wars') {
+            renderWarsTab(c, isLeader, isOwner, body);
+        } else if (activeTab === 'trade') {
+            renderTradeTab(c, isLeader, isOwner, body);
+        } else if (activeTab === 'tools') {
+            renderToolsTab(c, isLeader, isOwner, body);
+        } else if (activeTab === 'market' || activeTab === 'acquire') {
+            renderMarketTab(c, isLeader, isOwner, body);
+        }
+    } catch(err) {
+        console.error("renderActiveTabContent error:", err);
+    }
+}
+
 async function renderDockContent() {
     if (!selectedCountry) return;
     const body = document.getElementById("dock-content");
-    
-    const res = await fetch(`/api/earth/country/${selectedCountry.id}?_t=` + Date.now());
-    const c = await res.json();
-    selectedCountry = c;
+    if (!body) return;
 
-    const isLeader = Boolean(userCountry && userCountry.id === c.id);
-    const isOwner = Boolean(statsData.user && statsData.user.country && statsData.user.country.id === c.id && statsData.user.role === 'president');
+    // 1. Instant 0ms cached render
+    renderActiveTabContent(selectedCountry, body);
 
-    if (activeTab === 'dossier') {
-        renderDossierTab(c, isLeader, isOwner, body);
-    } else if (activeTab === 'cabinet') {
-        renderCabinetTab(c, isLeader, isOwner, body);
-    } else if (activeTab === 'infra') {
-        renderInfraTab(c, isLeader, isOwner, body);
-    } else if (activeTab === 'intel') {
-        renderIntelTab(c, isLeader, isOwner, body);
-    } else if (activeTab === 'wars') {
-        renderWarsTab(c, isLeader, isOwner, body);
-    } else if (activeTab === 'trade') {
-        renderTradeTab(c, isLeader, isOwner, body);
-    } else if (activeTab === 'tools') {
-        renderToolsTab(c, isLeader, isOwner, body);
-    } else if (activeTab === 'market') {
-        renderMarketTab(c, isLeader, isOwner, body);
+    // 2. Refresh telemetry in background
+    try {
+        const countryId = selectedCountry.id;
+        const res = await fetch(`/api/earth/country/${countryId}?_t=` + Date.now());
+        if (res.ok) {
+            const fresh = await res.json();
+            if (selectedCountry && selectedCountry.id === countryId) {
+                selectedCountry = fresh;
+                renderActiveTabContent(selectedCountry, body);
+            }
+        }
+    } catch(err) {
+        console.warn("Background country refresh error:", err);
     }
 }
 
@@ -1804,7 +1833,13 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
 function renderCabinetTab(c, isLeader, isOwner, container) {
     const cab = c.cabinet || {};
-    const roles = statsData.cabinet_roles || {};
+    const defaultRoles = {
+        defense: { title: "Minister of Defense (Army Commander)", emoji: "⚔️", desc: "Military command, army mobilizations, war campaigns, frontier conquests" },
+        economy: { title: "Minister of Economy (Treasury & Trade)", emoji: "🏦", desc: "National treasury reserves, infrastructure development, economic dividend yields" },
+        diplomat: { title: "Chief Diplomat (Foreign Affairs)", emoji: "📜", desc: "International coalitions, bilateral maritime sealanes, state buyout negotiations" },
+        intelligence: { title: "Director of Intelligence (Spy Chief)", emoji: "🕵️", desc: "Secret intelligence bureau, field operative training, counter-espionage sweeps" }
+    };
+    const roles = (statsData && statsData.cabinet_roles && Object.keys(statsData.cabinet_roles).length > 0) ? statsData.cabinet_roles : defaultRoles;
     const currentUserId = statsData.user ? statsData.user.id : null;
 
     let html = `
@@ -1894,7 +1929,15 @@ function renderCabinetTab(c, isLeader, isOwner, container) {
 
 function renderInfraTab(c, isLeader, isOwner, container) {
     const buildings = c.buildings || [];
-    const bInfo = statsData.buildings_info || {};
+    const defaultBuildings = {
+        "school": { "name": "Public School & University Campus", "emoji": "🏫", "base_cost": 100000, "cost_multiplier": 1.5, "hourly_yield": 2500, "desc": "Boosts national stability and civic harmony." },
+        "hospital": { "name": "Regional Hospital Complex", "emoji": "🏥", "base_cost": 150000, "cost_multiplier": 1.5, "hourly_yield": 3500, "desc": "Drastically lowers citizen unrest." },
+        "mine": { "name": "Deep Gold & Mineral Mine", "emoji": "⛏️", "base_cost": 250000, "cost_multiplier": 1.6, "hourly_yield": 8000, "desc": "Extracts precious metals, generating revenue." },
+        "oil_rig": { "name": "Offshore Oil Rig & Refinery", "emoji": "🛢️", "base_cost": 500000, "cost_multiplier": 1.7, "hourly_yield": 18000, "desc": "Powers national industry with massive yields." },
+        "bunker": { "name": "Fortified Defense Bunker", "emoji": "🛡️", "base_cost": 300000, "cost_multiplier": 1.5, "hourly_yield": 0, "desc": "Fortifies national frontiers (+25 defense)." },
+        "naval_port": { "name": "Deepwater Ocean Port", "emoji": "⚓", "base_cost": 400000, "cost_multiplier": 1.6, "hourly_yield": 12000, "desc": "Enables bilateral maritime shipping routes." }
+    };
+    const bInfo = (statsData && statsData.buildings_info && Object.keys(statsData.buildings_info).length > 0) ? statsData.buildings_info : defaultBuildings;
 
     let html = `
         <div style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 0.5rem;">
@@ -2076,11 +2119,11 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                         </button>
                     </div>
                 ` : (userCountry && c.owner_id ? `
-                    <button class="btn-danger-sm" onclick="openDeclareWarModal(${c.id}, '${escapeHtml(c.name)}', '${escapeHtml(c.flag)}')">
+                    <button class="btn-danger-sm" onclick="openDeclareWarModal(${c.id})">
                         Declare Conquest!
                     </button>
                 ` : (userCountry && !c.owner_id ? `
-                    <button class="hud-btn" style="padding:0.35rem 0.65rem; font-size:0.74rem;" onclick="openAttackFrontierModal(${c.id}, '${escapeHtml(c.name)}', '${escapeHtml(c.flag)}')">
+                    <button class="hud-btn" style="padding:0.35rem 0.65rem; font-size:0.74rem;" onclick="openAttackFrontierModal(${c.id})">
                         🎖️ Conquer Frontier!
                     </button>
                 ` : ''))}
@@ -2689,6 +2732,12 @@ function openDeclareWarModal(targetId, targetName, targetFlag) {
         return;
     }
 
+    const tgtObj = targetId ? countriesData.find(x => x.id === parseInt(targetId)) : null;
+    if (tgtObj) {
+        targetName = tgtObj.name;
+        targetFlag = tgtObj.flag;
+    }
+
     let targetCountrySelectHtml = '';
     if (!targetId) {
         const eligibleTargets = countriesData.filter(x => x.id !== userCountry.id && x.owner_id);
@@ -2780,9 +2829,15 @@ function selectWarScale(scale) {
 }
 
 async function submitDeclareWarFromModal() {
-    const targetId = document.getElementById("selected-war-target-id").value;
-    const scale = document.getElementById("selected-war-scale").value;
+    const selEl = document.getElementById("declare-war-target-select");
+    const targetIdEl = document.getElementById("selected-war-target-id");
+    const targetId = selEl ? selEl.value : (targetIdEl ? targetIdEl.value : null);
+    const scale = document.getElementById("selected-war-scale") ? document.getElementById("selected-war-scale").value : 'border';
     closeModal();
+    if (!targetId) {
+        showToast("Please select a target country.");
+        return;
+    }
     try {
         const res = await fetch("/api/earth/war/declare", {
             method: "POST",
@@ -3198,12 +3253,14 @@ function openBuyoutModal(countryId, countryName, gdp) {
 
 async function submitBuyoutModal(countryId) {
     const amt = document.getElementById("modal-buyout-amount").value;
+    const scopeRadio = document.querySelector('input[name="modal-buyout-scope"]:checked');
+    const offerScope = scopeRadio ? scopeRadio.value : 'state';
     closeModal();
     try {
         const res = await fetch("/api/earth/offer", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ country_id: countryId, amount: Math.max(0, parseInt(amt) || 0) })
+            body: JSON.stringify({ country_id: countryId, amount: Math.max(0, parseInt(amt) || 0), offer_scope: offerScope })
         });
         const data = await res.json();
         showToast(data.message);
@@ -3870,7 +3927,7 @@ function openUNSecurityCouncilModal() {
     const mayorAvatar = unData.mayor_avatar || "https://cdn.discordapp.com/embed/avatars/0.png";
     const fund = Number(unData.un_fund || 0).toLocaleString();
     const currentUserId = statsData.user ? String(statsData.user.id) : null;
-    const isMayor = currentUserId && (currentUserId === String(unData.mayor_id) || currentUserId === "429350468796416013");
+    const isMayor = currentUserId && (currentUserId === String(unData.mayor_id));
     
     // Wars section
     const activeWars = unData.active_wars || [];
