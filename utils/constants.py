@@ -623,7 +623,7 @@ EARTH_COUNTRIES = [
         "lng": 105.3188,
         "gdp": 120000000,
         "is_coastal": 1,
-        "initial_owner_id": 429350468796416013,
+        "initial_owner_id": None,
         "desc": "Vast transcontinental Eurasian superpower with massive mineral wealth and formidable armed forces.",
         "capital": "Moscow"
     },
@@ -636,7 +636,7 @@ EARTH_COUNTRIES = [
         "lng": 78.9629,
         "gdp": 110000000,
         "is_coastal": 1,
-        "initial_owner_id": 828513350883213342,
+        "initial_owner_id": None,
         "desc": "Rapidly surging democratic giant and economic titan with extensive Indian Ocean maritime trade lanes.",
         "capital": "New Delhi"
     },
@@ -649,7 +649,7 @@ EARTH_COUNTRIES = [
         "lng": -95.7129,
         "gdp": 135000000,
         "is_coastal": 1,
-        "initial_owner_id": 1134511531468525589,
+        "initial_owner_id": None,
         "desc": "Preeminent global financial and naval powerhouse with multi-ocean carrier fleets.",
         "capital": "Washington, D.C."
     },
@@ -662,7 +662,7 @@ EARTH_COUNTRIES = [
         "lng": 104.1954,
         "gdp": 125000000,
         "is_coastal": 1,
-        "initial_owner_id": 1291083270426988544,
+        "initial_owner_id": None,
         "desc": "Global manufacturing juggernaut with sprawling technological and industrial infrastructure.",
         "capital": "Beijing"
     },
@@ -675,7 +675,7 @@ EARTH_COUNTRIES = [
         "lng": -3.4360,
         "gdp": 85000000,
         "is_coastal": 1,
-        "initial_owner_id": 1486122404102013050,
+        "initial_owner_id": None,
         "desc": "Historic maritime empire and global financial capital with elite intelligence networks.",
         "capital": "London"
     },
@@ -688,7 +688,7 @@ EARTH_COUNTRIES = [
         "lng": 10.4515,
         "gdp": 80000000,
         "is_coastal": 1,
-        "initial_owner_id": 1280141055265865732,
+        "initial_owner_id": None,
         "desc": "Industrial and technological powerhouse at the core of European continental trade.",
         "capital": "Berlin"
     },
@@ -701,7 +701,7 @@ EARTH_COUNTRIES = [
         "lng": 138.2529,
         "gdp": 75000000,
         "is_coastal": 1,
-        "initial_owner_id": 1162404296097275904,
+        "initial_owner_id": None,
         "desc": "High-tech archipelago possessing advanced robotics, naval fleets, and dense mega-cities.",
         "capital": "Tokyo"
     },
@@ -714,7 +714,7 @@ EARTH_COUNTRIES = [
         "lng": 2.2137,
         "gdp": 70000000,
         "is_coastal": 1,
-        "initial_owner_id": 1370437656755834970,
+        "initial_owner_id": None,
         "desc": "Sovereign European diplomatic hub with formidable aerospace, nuclear energy, and cultural influence.",
         "capital": "Paris"
     },
@@ -727,7 +727,7 @@ EARTH_COUNTRIES = [
         "lng": -51.9253,
         "gdp": 60000000,
         "is_coastal": 1,
-        "initial_owner_id": 1248327898901774356,
+        "initial_owner_id": None,
         "desc": "Dominant South American giant blessed with immense agricultural and natural resource reserves.",
         "capital": "Brasília"
     },
@@ -740,7 +740,7 @@ EARTH_COUNTRIES = [
         "lng": -106.3468,
         "gdp": 55000000,
         "is_coastal": 1,
-        "initial_owner_id": 829919098506444820,
+        "initial_owner_id": None,
         "desc": "Northern realm of immense oil sands, mineral wealth, and extensive Arctic coastlines.",
         "capital": "Ottawa"
     },
@@ -753,7 +753,7 @@ EARTH_COUNTRIES = [
         "lng": 133.7751,
         "gdp": 50000000,
         "is_coastal": 1,
-        "initial_owner_id": 1327273793650950216,
+        "initial_owner_id": None,
         "desc": "Island continent endowed with rich mineral deposits and strategic Indo-Pacific naval ports.",
         "capital": "Canberra"
     },
@@ -766,7 +766,7 @@ EARTH_COUNTRIES = [
         "lng": 12.5674,
         "gdp": 45000000,
         "is_coastal": 1,
-        "initial_owner_id": 1423907121229074452,
+        "initial_owner_id": None,
         "desc": "Mediterranean maritime hub boasting high-precision manufacturing and ancient cultural prestige.",
         "capital": "Rome"
     },
@@ -779,7 +779,7 @@ EARTH_COUNTRIES = [
         "lng": 45.0792,
         "gdp": 40000000,
         "is_coastal": 1,
-        "initial_owner_id": 1119603544635482163,
+        "initial_owner_id": None,
         "desc": "Global energy titan with massive petroleum sovereign wealth reserves and ambitious megaprojects.",
         "capital": "Riyadh"
     },
@@ -792,7 +792,7 @@ EARTH_COUNTRIES = [
         "lng": 127.7669,
         "gdp": 38000000,
         "is_coastal": 1,
-        "initial_owner_id": 1289659139659792519,
+        "initial_owner_id": None,
         "desc": "Technological high-density republic with world-leading semiconductor foundries and defense industries.",
         "capital": "Seoul"
     },
@@ -1237,6 +1237,162 @@ EARTH_COUNTRIES = [
         "initial_owner_id": None,
         "desc": "European financial and multinational tech hub bridging Atlantic commerce with the Continent.",
         "capital": "Dublin"
+    },
+    {
+        "id": 49,
+        "code": "DZA",
+        "name": "People's Democratic Republic of Algeria",
+        "flag": "🇩🇿",
+        "lat": 28.0339,
+        "lng": 1.6596,
+        "gdp": 22000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "North African energy producer with Mediterranean access.",
+        "capital": "Algiers"
+    },
+    {
+        "id": 50,
+        "code": "ETH",
+        "name": "Federal Democratic Republic of Ethiopia",
+        "flag": "🇪🇹",
+        "lat": 9.03,
+        "lng": 38.74,
+        "gdp": 18000000,
+        "is_coastal": 0,
+        "initial_owner_id": None,
+        "desc": "Horn of Africa nation with a major regional population and highland trade routes.",
+        "capital": "Addis Ababa"
+    },
+    {
+        "id": 51,
+        "code": "GHA",
+        "name": "Republic of Ghana",
+        "flag": "🇬🇭",
+        "lat": 5.6037,
+        "lng": -0.187,
+        "gdp": 15000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "West African coastal nation with gold, cocoa, and Atlantic trade.",
+        "capital": "Accra"
+    },
+    {
+        "id": 52,
+        "code": "BGD",
+        "name": "People's Republic of Bangladesh",
+        "flag": "🇧🇩",
+        "lat": 23.8103,
+        "lng": 90.4125,
+        "gdp": 26000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "South Asian manufacturing and maritime trade center on the Bay of Bengal.",
+        "capital": "Dhaka"
+    },
+    {
+        "id": 53,
+        "code": "PER",
+        "name": "Republic of Peru",
+        "flag": "🇵🇪",
+        "lat": -12.0464,
+        "lng": -77.0428,
+        "gdp": 21000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Andean nation with Pacific ports and mineral resources.",
+        "capital": "Lima"
+    },
+    {
+        "id": 54,
+        "code": "AUT",
+        "name": "Republic of Austria",
+        "flag": "🇦🇹",
+        "lat": 48.2082,
+        "lng": 16.3738,
+        "gdp": 24000000,
+        "is_coastal": 0,
+        "initial_owner_id": None,
+        "desc": "Central European state linking alpine transport and continental commerce.",
+        "capital": "Vienna"
+    },
+    {
+        "id": 55,
+        "code": "BEL",
+        "name": "Kingdom of Belgium",
+        "flag": "🇧🇪",
+        "lat": 50.8503,
+        "lng": 4.3517,
+        "gdp": 26000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "European trade hub with dense transport links and North Sea access.",
+        "capital": "Brussels"
+    },
+    {
+        "id": 56,
+        "code": "ROU",
+        "name": "Romania",
+        "flag": "🇷🇴",
+        "lat": 44.4268,
+        "lng": 26.1025,
+        "gdp": 22000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Black Sea and Danube gateway with agriculture and energy resources.",
+        "capital": "Bucharest"
+    },
+    {
+        "id": 57,
+        "code": "CZE",
+        "name": "Czech Republic",
+        "flag": "🇨🇿",
+        "lat": 50.0755,
+        "lng": 14.4378,
+        "gdp": 22000000,
+        "is_coastal": 0,
+        "initial_owner_id": None,
+        "desc": "Central European industrial economy with strong overland connections.",
+        "capital": "Prague"
+    },
+    {
+        "id": 58,
+        "code": "CUB",
+        "name": "Republic of Cuba",
+        "flag": "🇨🇺",
+        "lat": 23.1136,
+        "lng": -82.3666,
+        "gdp": 12000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Caribbean island state controlling important regional sea lanes.",
+        "capital": "Havana"
+    },
+    {
+        "id": 59,
+        "code": "TZA",
+        "name": "United Republic of Tanzania",
+        "flag": "🇹🇿",
+        "lat": -6.7924,
+        "lng": 39.2083,
+        "gdp": 14000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "East African coastal nation with ports, minerals, and regional trade routes.",
+        "capital": "Dodoma"
+    },
+    {
+        "id": 60,
+        "code": "VEN",
+        "name": "Bolivarian Republic of Venezuela",
+        "flag": "🇻🇪",
+        "lat": 10.4806,
+        "lng": -66.9036,
+        "gdp": 19000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Northern South American nation with Caribbean ports and energy reserves.",
+        "capital": "Caracas"
     }
 ]
 
