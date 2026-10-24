@@ -3165,12 +3165,12 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             current_shares = row[0] if row else 0
             current_avg = row[1] if row else 0.0
 
-        MAX_HOLDING = 250
+        MAX_HOLDING = 100
         if current_shares + shares > MAX_HOLDING:
             return False, f"Holding limit reached. You can only hold a maximum of {MAX_HOLDING} shares per stock (Currently hold: {current_shares})."
 
-        # Dampened price impact: 0.015% per share (capped at 4% maximum shift per order)
-        pct_impact = min(0.04, 0.00015 * shares)
+        # Balanced price impact: 0.005% per share (capped at 1.5% per order)
+        pct_impact = min(0.015, 0.00005 * shares)
         price_bump = max(1, int(round(stock["price"] * pct_impact)))
         new_price = stock["price"] + price_bump
 
@@ -3231,14 +3231,14 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if current_shares < shares:
             return False, f"You only own {current_shares} shares of {stock['symbol']}."
 
-        # Anti-arbitrage lock: Must hold for at least 180 seconds (3 minutes)
+        # Anti-arbitrage lock: Must hold for at least 10 minutes.
         elapsed = time.time() - last_buy_time
-        if last_buy_time > 0 and elapsed < 180:
-            remaining = int(180 - elapsed)
+        if last_buy_time > 0 and elapsed < 600:
+            remaining = int(600 - elapsed)
             return False, f"Anti-Arbitrage Lock: You recently purchased this stock. You must hold shares for at least 3 minutes before selling ({remaining}s remaining)."
 
-        # Dampened price drop: 0.015% per share (capped at 4% maximum drop)
-        pct_impact = min(0.04, 0.00015 * shares)
+        # Balanced price drop: 0.005% per share (capped at 1.5% maximum drop)
+        pct_impact = min(0.015, 0.00005 * shares)
         price_drop = max(1, int(round(stock["price"] * pct_impact)))
         new_price = max(20, stock["price"] - price_drop)
 

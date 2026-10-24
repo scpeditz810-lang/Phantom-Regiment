@@ -101,9 +101,9 @@ def get_stocks():
 
         item["is_up"] = diff >= 0
 
-        item["dividend_yield_pct"] = 0.4
+        item["dividend_yield_pct"] = 0.1
 
-        item["dividend_per_share"] = max(1, int(round(s["price"] * 0.004)))
+        item["dividend_per_share"] = max(1, int(round(s["price"] * 0.001)))
 
         engine = current_app.config.get("STOCK_ENGINE")
 
