@@ -14,59 +14,6 @@ def get_jackpot_file() -> discord.File | None:
         return discord.File(path, filename="jackpot.mp4")
     return None
 
-async def send_raid_alert_dm(bot, attacker_name: str, defender_id: int, plot: dict, battle_data: dict):
-    """Notify landowner via Discord DM when their territory parcel is raided."""
-    if not bot:
-        return
-    try:
-        user = bot.get_user(defender_id)
-        if not user:
-            user = await bot.fetch_user(defender_id)
-        if not user:
-            return
-
-        success = battle_data.get("success", False)
-        loot = battle_data.get("loot", 0)
-        plot_name = plot.get("name", f"Plot #{battle_data.get('target_id')}")
-        plot_id = battle_data.get("target_id")
-
-        if success:
-            lines = [
-                f"Commander **{attacker_name}** deployed an armed tactical raid on your territory **Plot #{plot_id}: {plot_name}**!",
-                "",
-                f"• **Assault Roll:** `{battle_data.get('attacker_roll', 0):,}` vs **Your Defense:** `{battle_data.get('defender_roll', 0):,}`",
-                f"• **Loot Plundered:** `-{loot:,} Medals` seized from your accrued land dividends!",
-                "• 🛡️ **State Bank Peacekeepers Active:** The Central State Bank deployed elite garrison forces to lock down and protect this parcel for **1 Full Hour** (cannot be attacked again until protection expires)!",
-                "",
-                "👉 Upgrade your defenses or seal alliances on the web map: [Open E-State Map](https://phantom-regiment-1.onrender.com/estate)"
-            ]
-            embed = discord.Embed(
-                title="🚨 TACTICAL ALERT: YOUR E-STATE PARCEL WAS BREACHED!",
-                description="\n".join(lines),
-                color=0xE74C3C
-            )
-            embed.set_footer(text="E-State Defense System • Construct Bunkers & form Alliances to repel raids!")
-        else:
-            lines = [
-                f"Commander **{attacker_name}** attempted an armed raid on your territory **Plot #{plot_id}: {plot_name}**, but **your garrison held the line!**",
-                "",
-                f"• **Enemy Assault Roll:** `{battle_data.get('attacker_roll', 0):,}` vs **Your Defense:** `{battle_data.get('defender_roll', 0):,}`",
-                f"• **Reparations Won:** You were awarded **+{battle_data.get('loot', 0):,} Medals** from attacker casualty fees!",
-                "• 🏰 Your fortifications and allied garrison reinforcements successfully defended the realm."
-            ]
-            embed = discord.Embed(
-                title="🛡️ TACTICAL DEFENSE REPORT: ENEMY ASSAULT REPELLED!",
-                description="\n".join(lines),
-                color=0x2ECC71
-            )
-            embed.set_footer(text="E-State Defense System • Sovereign Territory Protected")
-
-        await user.send(embed=embed)
-    except Exception:
-        pass
-
-
-
 from discord.ext import commands
 
 from discord import app_commands
@@ -2218,7 +2165,7 @@ class EconomyCog(commands.Cog):
 
         view.add_item(discord.ui.Button(label="📈 Open Stock Market", url="https://phantom-regiment.onrender.com/medals", style=discord.ButtonStyle.link, emoji="📈"))
 
-        view.add_item(discord.ui.Button(label="🌐 Launch 3D E-State", url="https://phantom-regiment.onrender.com/estate", style=discord.ButtonStyle.link, emoji="🌐"))
+        view.add_item(discord.ui.Button(label="🌍 Launch Virtual Earth", url="https://phantom-regiment.onrender.com/earth", style=discord.ButtonStyle.link, emoji="🌍"))
 
         await interaction.response.send_message(embed=embed, view=view)
 
@@ -2278,7 +2225,7 @@ class EconomyCog(commands.Cog):
 
         view.add_item(discord.ui.Button(label="📈 Open Stock Market", url="https://phantom-regiment.onrender.com/medals", style=discord.ButtonStyle.link, emoji="📈"))
 
-        view.add_item(discord.ui.Button(label="🌐 Launch 3D E-State", url="https://phantom-regiment.onrender.com/estate", style=discord.ButtonStyle.link, emoji="🌐"))
+        view.add_item(discord.ui.Button(label="🌐 Launch Virtual Earth", url="https://phantom-regiment.onrender.com/earth", style=discord.ButtonStyle.link, emoji="🌐"))
 
         await interaction.response.send_message(embed=embed, view=view)
 
@@ -2396,7 +2343,7 @@ class EconomyCog(commands.Cog):
 
         view.add_item(discord.ui.Button(label="📈 Open Stock Market", url="https://phantom-regiment.onrender.com/medals", style=discord.ButtonStyle.link, emoji="📈"))
 
-        view.add_item(discord.ui.Button(label="🌐 Launch 3D E-State", url="https://phantom-regiment.onrender.com/estate", style=discord.ButtonStyle.link, emoji="🌐"))
+        view.add_item(discord.ui.Button(label="🌐 Launch Virtual Earth", url="https://phantom-regiment.onrender.com/earth", style=discord.ButtonStyle.link, emoji="🌐"))
 
         await interaction.response.send_message(embed=embed, view=view)
 
@@ -2829,7 +2776,7 @@ class EconomyCog(commands.Cog):
 
             title=f"{header_title} — Economy & Medal Guide",
 
-            description="**Made by Phantom Regiment**\n\nWelcome to the official economy guide! Here is everything you need to know about earning, storing, stocks, 3D E-State, upgrading vaults, robbing, and protection.",
+            description="**Made by Phantom Regiment**\n\nWelcome to the official economy guide! Here is everything you need to know about earning, storing, stocks, Virtual Earth, upgrading vaults, robbing, and protection.",
 
             color=0x3498DB
 
@@ -2906,7 +2853,7 @@ class EconomyCog(commands.Cog):
 
                 "• **Real-Time Order Book:** Share purchases drive prices up, while sells lower prices with order curve protection.\n"
 
-                "• **Market Protections:** 15% brokerage tax on sales, 3m anti-arbitrage lock, max 50 shares per user, and guaranteed **20-Medal floor** with automatic support bounce rallies!\n"
+                "• **Market Protections:** server-set fee on buys and sells, 3m anti-arbitrage lock, max 250 shares per stock, and guaranteed **20-Medal floor** with automatic support bounce rallies!\n"
 
                 "• **`/stocks`:** View live stock quotes, supply, and price charts directly in Discord."
 
@@ -2919,52 +2866,13 @@ class EconomyCog(commands.Cog):
         
 
         embed.add_field(
-            name="🌐 3D E-State & Sovereign Territory",
-            value=(
-                "• **3D Interactive Map:** Explore real-time 3D tactical territory maps at: **https://phantom-regiment-1.onrender.com/estate**\n"
-                "• **Territory Expansion:** 48+ parcels across Outskirts, Riverfront, Citadel, Industrial, and Deepwater Basin!\n"
-                "• **Parcel Cap:** Hold up to **6 territory parcels** simultaneously (increased from 4)!\n"
-                "• **Passive Tycoon Yields:** Construct Factories, Hospitals, Bunkers, Military Bases, or Offshore Oil Rigs (**4.0% daily yield** in Deepwater Basin)!\n"
-                "• **`/estate`:** Inspect your real estate portfolio, district statistics, and total territory valuation.\n"
-                "• **`/collectyield`:** Collect accrued hourly land dividends from your owned E-State plots."
-            ),
-            inline=False
-        )
-
-        embed.add_field(
-            name="🪖 Military Tycoon, Raids & State Bank Protection",
-            value=(
-                "• **Military Bases (Lv 1–5):** Construct command posts to generate offensive strike power and garrison defense.\n"
-                "• **Fortified Bunkers:** Provide massive regional defense auras protecting all your owned plots from enemy strikes.\n"
-                "• **`/raid <plot_id>` (or Web War Room):** Deploy military strikes on rival plots to breach defenses and plunder land yields!\n"
-                "• **Plunder & Bounties:** Successful breaches seize **40% of the victim's uncollected dividends** plus a Central War Bounty!\n"
-                "• **Assault Repelled:** If the defender's fortifications hold, the attacker pays up to 15,000 Medals in casualty reparations directly to the defender's wallet!\n"
-                "• **🛡️ 1-Hour State Bank Peacekeepers:** Following any successful breach, Central State Bank elite forces lock down and protect the victim parcel for **1 full hour** (cannot be attacked again until protection concludes).\n"
-                "• **🚨 Instant Alerts:** Landowners automatically receive real-time Discord DM notifications whenever their territory is attacked!"
-            ),
-            inline=False
-        )
-
-        embed.add_field(
-            name="🤝 Mutual Defense Coalition & Alliances",
-            value=(
-                "• **`/ally <member>` / `/acceptally <member>`:** Form permanent mutual defense pacts (or manage via the Web Alliances Suite).\n"
-                "• **🛡️ +35% Defense Bonus Per Ally:** Allies' military bases automatically reinforce your plots when you are attacked, granting **+35% of their total military defense score**! Multiple allies' bonuses stack together.\n"
-                "• **⛔ Non-Aggression Treaties:** Allies are strictly barred from raiding each other's territories.\n"
-                "• **`/allies`:** View your active defense coalition and allied garrison bonuses.\n"
-                "• **`/breakally <member>`:** Dissolve an alliance anytime."
-            ),
-            inline=False
-        )
-
-        embed.add_field(
             name="🏛️ City Elections & Mayor Executive Suite",
             value=(
                 "• **Democratic Elections:** Citizens run for Mayor with campaign manifestos, minimum tenure requirements, and verified community voting.\n"
                 "• **🎩 Mayor Office (`/mayor`):** The reigning Mayor gains web access to the Executive Suite:\n"
-                "  - 🗺️ **Zoning:** Zone and place brand-new territory parcels onto the 3D map for citizens to buy.\n"
+
                 "  - 📈 **Stock Exchange Control:** Adjust transaction taxes (0–50%), share float, and list new corporate IPO stocks!\n"
-                "  - 🪖 **Tactical Radar:** Live city-wide radar tracking border skirmishes and peacekeeper lockdowns."
+                "  - 🌍 **Virtual Earth:** Review sovereign country growth, taxes, unrest, and active wars."
             ),
             inline=False
         )
@@ -3087,7 +2995,7 @@ class EconomyCog(commands.Cog):
 
         view.add_item(discord.ui.Button(label="📈 Open Stock Market", url="https://phantom-regiment.onrender.com/medals", style=discord.ButtonStyle.link, emoji="📈"))
 
-        view.add_item(discord.ui.Button(label="🌐 Launch 3D E-State", url="https://phantom-regiment.onrender.com/estate", style=discord.ButtonStyle.link, emoji="🌐"))
+        view.add_item(discord.ui.Button(label="🌐 Launch Virtual Earth", url="https://phantom-regiment.onrender.com/earth", style=discord.ButtonStyle.link, emoji="🌐"))
 
         await interaction.response.send_message(embed=embed, view=view)
 
@@ -3161,240 +3069,52 @@ class EconomyCog(commands.Cog):
 
 
 
-    @app_commands.command(name="estate", description="View 3D E-State territory districts, stats, and owned plots")
+    @app_commands.command(name="investadvisor", description="Review stock trends and get a risk-aware investment watchlist")
+    async def investadvisor(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        stocks = await self.bot.db.get_all_stocks()
+        portfolio = await self.bot.db.get_user_stocks(interaction.user.id)
+        portfolio_by_id = {item["stock_id"]: item for item in portfolio}
+        ranked = []
 
-    async def estate(self, interaction: discord.Interaction):
+        for stock in stocks:
+            history = await self.bot.db.get_stock_history(stock["id"], limit=7)
+            prices = [max(1, int(item.get("price", stock["price"]))) for item in history]
+            if len(prices) >= 2:
+                trend = (prices[-1] - prices[0]) / prices[0]
+                average = sum(prices) / len(prices)
+                volatility = (max(prices) - min(prices)) / max(average, 1)
+            else:
+                trend = 0.0
+                volatility = 0.0
+            score = trend - (volatility * 0.5)
+            ranked.append((score, trend, volatility, stock, portfolio_by_id.get(stock["id"])))
 
-        plots = await self.bot.db.get_estate_plots()
-
-        user_id = str(interaction.user.id)
-
-        user_plots = [p for p in plots if str(p.get("owner_id")) == user_id]
-
-
-
-        districts = {}
-
-        for p in plots:
-
-            d = p.get("district", "Unknown")
-
-            districts[d] = districts.get(d, 0) + 1
-
-
-
-        header_title = "Collation of Rose" if getattr(self.bot, "is_partner", False) else "Phantom Regiment"
-
+        ranked.sort(key=lambda item: item[0], reverse=True)
         embed = discord.Embed(
-
-            title=f"🌐 {header_title} 3D Sovereign E-State & Territories",
-
+            title="📊 Medal Market Advisor",
             description=(
-
-                "Interactive 3D real estate map across all tactical districts.\n"
-
-                "Claim territory plots with Medals to earn passive tycoon yields!"
-
+                "A rules-based review of recent price direction and volatility. "
+                "It does not place trades or guarantee profit."
             ),
-
-            color=0x9B59B6
-
+            color=0x38BDF8
         )
 
-
-
-        dist_text = "\n".join([f"• **{d}:** {count} total plots" for d, count in districts.items()])
-
-        embed.add_field(name="🏛️ Sovereign Districts", value=dist_text or "No districts configured.", inline=False)
-
-
-
-        if user_plots:
-
-            my_plots_text = "\n".join([f"• **Plot #{p['id']}** ({p.get('district')}): `{p.get('price', 0):,}` Medals (Accrued Yield: `{p.get('accrued_yield', 0):,}`)" for p in user_plots[:8]])
-
-            if len(user_plots) > 8:
-
-                my_plots_text += f"\n*...and {len(user_plots) - 8} more plots*"
-
-            embed.add_field(name=f"📍 Your Owned Plots ({len(user_plots)})", value=my_plots_text, inline=False)
-
-        else:
-
-            embed.add_field(name="📍 Your Owned Plots", value="You don't own any land yet! Visit the 3D map to claim available plots.", inline=False)
-
-
-
-        view = discord.ui.View()
-
-        view.add_item(discord.ui.Button(label="🌐 Launch 3D E-State Map", url="https://phantom-regiment.onrender.com/estate", style=discord.ButtonStyle.link, emoji="🌐"))
-
-        embed.set_footer(text="Use /collectyield to collect accrued passive land income!")
-
-        await interaction.response.send_message(embed=embed, view=view)
-
-
-
-    @app_commands.command(name="collectyield", description="Collect accrued passive land yields from your owned E-State territory plots")
-    async def collectyield(self, interaction: discord.Interaction):
-        total_yield, msg = await self.bot.db.collect_estate_yields(interaction.user.id)
-        if total_yield <= 0:
-            return await interaction.response.send_message(f"ℹ️ {msg}", ephemeral=True)
-
-        embed = discord.Embed(
-            title="💰 E-State Passive Dividends Collected!",
-            description=f"✅ **{msg}**\nMedals have been transferred to your wallet.",
-            color=0x2ECC71
-        )
-        embed.set_footer(text="Plots generate continuous yields over time!")
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="raid", description="Launch an armed military strike on an enemy E-State territory parcel")
-    @app_commands.describe(plot_id="The target parcel ID to assault (view IDs via /estate or the 3D map)")
-    async def raid(self, interaction: discord.Interaction, plot_id: int):
-        await interaction.response.defer()
-        success, msg, battle_data = await self.bot.db.attack_estate_plot(interaction.user.id, plot_id)
-        embed = discord.Embed(
-            title="⚔️ E-STATE TACTICAL BORDER INCURSION",
-            description=msg,
-            color=0x2ECC71 if success else 0xE74C3C
-        )
-        if battle_data:
+        for score, trend, volatility, stock, holding in ranked[:5]:
+            risk = "Lower recent volatility" if volatility < 0.05 else ("Moderate volatility" if volatility < 0.15 else "High volatility")
+            position = f"\nYour position: {holding['shares']} shares" if holding else ""
             embed.add_field(
-                name="📊 Tactical Battle Metrics",
-                value=(
-                    f"• **Attacker Force Power:** `{battle_data.get('attacker_power', 0):,}` (Roll: `{battle_data.get('attacker_roll', 0):,}`)\n"
-                    f"• **Defender Defense Rating:** `{battle_data.get('defender_defense', 0):,}` (Roll: `{battle_data.get('defender_roll', 0):,}`)\n"
-                    f"• **Allied Defense Reinforcements:** `+{battle_data.get('allied_bonus', 0):,}` from `{battle_data.get('allies_count', 0)}` Allies"
-                ),
+                name=f"{stock['symbol']} — {stock['name']}",
+                value=f"7-point trend: {trend:+.1%} • {risk}\nCurrent quote: {stock['price']:,} Medals{position}",
                 inline=False
             )
-        embed.set_footer(text="Territory Skirmishes • Central State Bank Peacekeepers")
-        await interaction.followup.send(embed=embed)
 
-        # Dispatch Tactical Alert DM to Defender
-        if battle_data and battle_data.get("defender_id"):
-            try:
-                target_plot = await self.bot.db.get_estate_plot(plot_id)
-                if target_plot:
-                    await send_raid_alert_dm(self.bot, interaction.user.display_name, battle_data["defender_id"], target_plot, battle_data)
-            except Exception:
-                pass
-
-    @app_commands.command(name="military", description="View your personal military tycoon power, bases, bunkers, and tactical readiness")
-    async def military(self, interaction: discord.Interaction):
-        stats = await self.bot.db.get_user_military_stats(interaction.user.id)
-        allies = await self.bot.db.get_user_allies(interaction.user.id)
-        embed = discord.Embed(
-            title="🪖 E-STATE MILITARY HIGH COMMAND",
-            description=f"Strategic defense and offensive tactical summary for {interaction.user.mention}:",
-            color=0x34495E
-        )
-        embed.add_field(name="⚔️ Offensive Strike Power", value=f"`{stats['attack_power']:,}` Attack Rating", inline=True)
-        embed.add_field(name="🛡️ Garrison Defense Rating", value=f"`{stats['defense_power']:,}` Defense Rating", inline=True)
-        embed.add_field(name="🤝 Active Military Alliances", value=f"`{len(allies)}` Pacts Formed", inline=True)
-
-        bases_text = "\n".join([f"• **Plot #{b['plot_id']}** ({b['name']}) — Lvl {b['level']} Base (`+{b['attack']} ATK / +{b['defense']} DEF`)" for b in stats["military_bases"]]) or "*No Military Bases built. Build one via `/estate upgrade`!*"
-        bunkers_text = "\n".join([f"• **Plot #{b['plot_id']}** ({b['name']}) — Lvl {b['level']} Bunker (`+{b['defense']} Regional DEF`)" for b in stats["bunkers"]]) or "*No Defense Bunkers built.*"
-        rigs_text = "\n".join([f"• **Plot #{r['plot_id']}** ({r['name']}) — Lvl {r['level']} Offshore Rig (`4.0% Yield`)" for r in stats["oil_rigs"]]) or "*No Offshore Oil Rigs owned.*"
-
-        embed.add_field(name="🏰 Operational Military Bases", value=bases_text, inline=False)
-        embed.add_field(name="🛡️ Fortified Bunkers", value=bunkers_text, inline=False)
-        embed.add_field(name="🛢️ Offshore Oil Rigs", value=rigs_text, inline=False)
-
-        # Recent Skirmishes
-        user_raids = await self.bot.db.get_user_raids(interaction.user.id, limit=3)
-        if user_raids:
-            raid_lines = []
-            for r in user_raids:
-                is_attacker = (r["attacker_id"] == interaction.user.id)
-                outcome = "VICTORY" if r["success"] else "DEFEAT"
-                role_str = "Attacked" if is_attacker else "Defended against"
-                other_uid = r["defender_id"] if is_attacker else r["attacker_id"]
-                raid_lines.append(f"• `{outcome}` — {role_str} <@{other_uid}> on Plot #{r['plot_id']} ({r.get('loot', 0):,} M)")
-            embed.add_field(name="📜 Recent Combat Skirmishes", value="\n".join(raid_lines), inline=False)
-
-        embed.set_footer(text="Upgrade military facilities to launch strikes on rival plots with /raid!")
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="ally", description="Propose a mutual defense military alliance with another landowner")
-    @app_commands.describe(member="The landowner to propose alliance to")
-    async def ally(self, interaction: discord.Interaction, member: discord.Member):
-        if member.id == interaction.user.id:
-            return await interaction.response.send_message("❌ You cannot ally with yourself!", ephemeral=True)
-        if member.bot:
-            return await interaction.response.send_message("❌ Cannot ally with automated bot systems.", ephemeral=True)
-
-        success, msg = await self.bot.db.create_alliance_request(interaction.user.id, member.id)
-        if not success:
-            return await interaction.response.send_message(f"❌ {msg}", ephemeral=True)
-
-        ally_lines = [
-            f"{interaction.user.mention} has dispatched an official military defense alliance treaty to {member.mention}!",
-            "",
-            "**Alliance Benefits:**",
-            "• Mutual defense garrisons reinforce each other during enemy raids!",
-            "• Non-aggression treaty prevents friendly fire between coalition plots!",
-            "",
-            f"👉 {member.mention}: Accept the alliance treaty by running `/acceptally @{interaction.user.display_name}`!"
-        ]
-        embed = discord.Embed(
-            title="🤝 MILITARY ALLIANCE PROPOSAL DISPATCHED",
-            description="\n".join(ally_lines),
-            color=0x3498DB
-        )
-        embed.set_footer(text="Phantom Regiment Strategic Coalitions")
-        await interaction.response.send_message(content=member.mention, embed=embed)
-
-    @app_commands.command(name="acceptally", description="Accept an incoming mutual defense alliance proposal")
-    @app_commands.describe(member="The landowner who proposed the alliance")
-    async def acceptally(self, interaction: discord.Interaction, member: discord.Member):
-        success, msg = await self.bot.db.accept_alliance(interaction.user.id, member.id)
-        if not success:
-            return await interaction.response.send_message(f"❌ {msg}", ephemeral=True)
-
-        accept_lines = [
-            f"The mutual defense treaty between {interaction.user.mention} and {member.mention} is now **OFFICIALLY RATIFIED**!",
-            "",
-            "• Both landowners' military bases will now reinforce each other when attacked!",
-            "• View your coalition status anytime using `/allies` or `/military`."
-        ]
-        embed = discord.Embed(
-            title="🤝 MILITARY DEFENSE ALLIANCE SEALED!",
-            description="\n".join(accept_lines),
-            color=0x2ECC71
-        )
-        await interaction.response.send_message(content=f"🤝 {interaction.user.mention} + {member.mention}", embed=embed)
-
-    @app_commands.command(name="breakally", description="Dissolve a mutual defense military alliance")
-    @app_commands.describe(member="The ally to dissolve alliance with")
-    async def breakally(self, interaction: discord.Interaction, member: discord.Member):
-        success, msg = await self.bot.db.break_alliance(interaction.user.id, member.id)
-        await interaction.response.send_message(f"ℹ️ {msg}", ephemeral=True)
-
-    @app_commands.command(name="allies", description="View your active defense allies and combined military coalition strength")
-    async def allies(self, interaction: discord.Interaction):
-        ally_ids = await self.bot.db.get_user_allies(interaction.user.id)
-        if not ally_ids:
-            return await interaction.response.send_message("ℹ️ You do not currently have any active military alliances. Propose an alliance using `/ally @member`!", ephemeral=True)
-
-        lines = []
-        guild = interaction.guild
-        for a_id in ally_ids:
-            m = guild.get_member(a_id) if guild else None
-            name = m.mention if m else f"<@{a_id}>"
-            stats = await self.bot.db.get_user_military_stats(a_id)
-            lines.append(f"• {name} — Defense Contribution: `+{int(round(stats['defense_power'] * 0.35)):,} DEF` (`{len(stats['military_bases'])}` Bases, `{len(stats['bunkers'])}` Bunkers)")
-
-        desc_text = "Active mutual defense pacts protecting your E-State territories:\n\n" + "\n".join(lines)
-        embed = discord.Embed(
-            title="🤝 YOUR DEFENSE COALITION & ALLIES",
-            description=desc_text,
-            color=0x2ECC71
-        )
-        embed.set_footer(text="Allies automatically reinforce your garrison defense when under raid!")
-        await interaction.response.send_message(embed=embed)
-
+        if portfolio:
+            total_cost = sum(int(item["avg_buy_price"] * item["shares"]) for item in portfolio)
+            embed.set_footer(text=f"Portfolio: {len(portfolio)} equities • Cost basis {total_cost:,} Medals • Diversification lowers single-company risk")
+        else:
+            embed.set_footer(text="Start small, compare fees and volatility, and never invest Medals you need for essentials.")
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
