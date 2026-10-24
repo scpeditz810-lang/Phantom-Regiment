@@ -4969,7 +4969,7 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
                     <span style="font-size: 0.8rem; font-weight: 700;">📜 National Policies & Doctrines</span>
 
-                    ${c.can_manage_economy ? `<button class="btn-action-sm" onclick="openPoliciesModal()">Set Tax & Government</button>` : ''}
+                    ${(c.can_manage_economy || isOwner) ? `<button class="btn-action-sm" onclick="openPoliciesModal()">Set Tax & Government</button>` : ''}
 
                 </div>
 
@@ -5231,7 +5231,7 @@ function renderInfraTab(c, isLeader, isOwner, container) {
 
     const buildings = c.buildings || [];
 
-    const canBuild = Boolean(c.can_manage_economy);
+    const canBuild = Boolean(c.can_manage_economy || isOwner);
 
     const defaultBuildings = {
 
