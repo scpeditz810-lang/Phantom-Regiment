@@ -1380,6 +1380,35 @@ def api_earth_war_reinforce():
         "wallet": econ.get("medals", 0)
     }), 200 if success else 400
 
+@api_bp.route("/earth/army/hire", methods=["POST"])
+@login_required
+def api_earth_army_hire():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        divisions = int(data.get("divisions", 1))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid recruitment order."}), 400
+    db = get_db()
+    success, msg = run_async(db.hire_earth_divisions(session["user"]["id"], country_id, divisions))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+
+@api_bp.route("/earth/army/purchase", methods=["POST"])
+@login_required
+def api_earth_army_purchase():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        amount = int(data.get("amount", 1))
+        unit_type = str(data.get("unit_type", "")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid equipment order."}), 400
+    db = get_db()
+    success, msg = run_async(db.purchase_earth_military_hardware(session["user"]["id"], country_id, unit_type, amount))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+
 @api_bp.route("/earth/wars")
 def api_earth_wars():
     db = get_db()
