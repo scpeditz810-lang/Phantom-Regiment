@@ -2891,6 +2891,36 @@ def api_earth_alliance_join():
 
 
 
+@api_bp.route("/earth/alliance/request", methods=["POST"])
+@login_required
+def api_earth_alliance_request():
+    data = request.get_json() or {}
+    try:
+        country_id, alliance_id = int(data.get("country_id", 0)), int(data.get("alliance_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+    success, msg = run_async(get_db().request_earth_alliance(session["user"]["id"], country_id, alliance_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+
+@api_bp.route("/earth/alliance/requests")
+@login_required
+def api_earth_alliance_requests():
+    country_id = int((request.args.get("country_id") or 0))
+    return jsonify(run_async(get_db().get_earth_alliance_requests(session["user"]["id"], country_id)))
+
+
+@api_bp.route("/earth/alliance/request/respond", methods=["POST"])
+@login_required
+def api_earth_alliance_request_respond():
+    data = request.get_json() or {}
+    try: request_id = int(data.get("request_id", 0))
+    except (ValueError, TypeError): return jsonify({"success": False, "message": "Invalid request ID."}), 400
+    accept = bool(data.get("accept", False))
+    success, msg = run_async(get_db().respond_earth_alliance_request(session["user"]["id"], request_id, accept))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+
 @api_bp.route("/earth/alliance/leave", methods=["POST"])
 
 @login_required
