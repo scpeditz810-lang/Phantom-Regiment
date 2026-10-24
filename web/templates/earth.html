@@ -5582,19 +5582,19 @@ function getAvailableWarEquipment(countryId, unit) {
     }, 0);
     return Math.max(0, inventory - committed);
 }
-function openDeployEquipmentModal(warId, unitType, available) {
+function openDeployEquipmentModal(warId, unitType, available, countryId) {
     available = Math.max(0, Math.floor(Number(available) || 0));
     if (!available) return showToast("No uncommitted " + unitType + "s are available.");
     const title = {tank:"Deploy Tanks", jet:"Deploy Jets", ship:"Deploy Ships"}[unitType];
     const container = document.getElementById("modal-container");
-    container.innerHTML = '<div class="custom-modal-overlay" onclick="if(event.target===this) closeModal()"><div class="custom-modal-card" style="width:min(100% - 1rem, 440px);max-height:90dvh;overflow:auto;"><div class="custom-modal-header"><div class="custom-modal-title">' + title + '</div><button class="btn-action-sm" onclick="closeModal()" aria-label="Close">X</button></div><label class="custom-form-label" for="war-equipment-count">Amount to deploy (available: ' + available + ')</label><input id="war-equipment-count" type="number" min="1" max="' + available + '" value="1" inputmode="numeric" style="width:100%;min-height:2.7rem;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:8px;padding:.55rem;"><div style="font-size:.75rem;color:#94a3b8;margin:.5rem 0;">Only existing inventory can be dispatched. Deployed units are reserved until the campaign ends.</div><div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem;"><button class="btn-action-sm" onclick="closeModal()">Cancel</button><button class="btn-danger-sm" onclick="submitWarEquipment(' + warId + ',\'' + unitType + '\',' + available + ')">Deploy</button></div></div></div>';
+    container.innerHTML = '<div class="custom-modal-overlay" onclick="if(event.target===this) closeModal()"><div class="custom-modal-card" style="width:min(100% - 1rem, 440px);max-height:90dvh;overflow:auto;"><div class="custom-modal-header"><div class="custom-modal-title">' + title + '</div><button class="btn-action-sm" onclick="closeModal()" aria-label="Close">X</button></div><label class="custom-form-label" for="war-equipment-count">Amount to deploy (available: ' + available + ')</label><input id="war-equipment-count" type="number" min="1" max="' + available + '" value="1" inputmode="numeric" style="width:100%;min-height:2.7rem;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:8px;padding:.55rem;"><div style="font-size:.75rem;color:#94a3b8;margin:.5rem 0;">Only existing inventory can be dispatched. Deployed units are reserved until the campaign ends.</div><div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem;"><button class="btn-action-sm" onclick="closeModal()">Cancel</button><button class="btn-danger-sm" onclick="submitWarEquipment(' + warId + ',\'' + unitType + '\',' + available + ',' + countryId + ')">Deploy</button></div></div></div>';
 }
-async function submitWarEquipment(warId, unitType, available) {
+async function submitWarEquipment(warId, unitType, available, countryId) {
     const amount = Number(document.getElementById("war-equipment-count")?.value);
     if (!Number.isInteger(amount) || amount < 1 || amount > available) return showToast("Enter a whole number from 1 to " + available + ".");
     closeModal();
     try {
-        const res = await fetch("/api/earth/war/deploy-equipment", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({war_id:warId,unit_type:unitType,amount})});
+        const res = await fetch("/api/earth/war/deploy-equipment", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({war_id:warId,unit_type:unitType,amount,country_id:countryId})});
         const data = await res.json();
         showToast(data.message || "Equipment order failed.");
         if (data.success) loadVirtualEarthData();
@@ -5727,7 +5727,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                             const unit = domain === "air" ? "jets" : domain === "naval" ? "ships" : "tanks";
                             const kind = unit === "jets" ? "jet" : unit === "ships" ? "ship" : "tank";
                             const available = getAvailableWarEquipment(c.id, unit);
-                            return available > 0 ? '<button class="btn-action-sm" onclick="openDeployEquipmentModal(' + w.id + ',' + JSON.stringify(kind) + ',' + available + ')">Deploy ' + unit + ' · ' + available + ' available</button>' : "";
+                            return available > 0 ? '<button class="btn-action-sm" onclick="openDeployEquipmentModal(' + w.id + ',' + JSON.stringify(kind) + ',' + available + ',' + c.id + ')">Deploy ' + unit + ' · ' + available + ' available</button>' : "";
                         })() : ""}
                         ${(c.can_command_defense && (c.tools || []).some(tool => tool.tool_key === "nuclear_launch_pad") &&
                             (c.tools || []).some(tool => tool.tool_key === "tactical_nuke") &&
