@@ -132,6 +132,7 @@
             Rejected or overstated IPOs open after a crash adjustment. Listed shares become available to everyone.
         </p>
         <div id="company-owner-status" role="status" aria-live="polite" style="font-size:0.82rem;margin-bottom:0.75rem;"></div>
+        <p id="company-market-bank-balance" role="status" aria-live="polite" style="font-size:.8rem;color:var(--text-muted);"></p>
         <form id="player-company-form" onsubmit="submitPlayerCompany(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;">
             <div class="form-group">
                 <label class="form-label" for="company-name">Company name</label>
@@ -174,7 +175,6 @@
         </form>
                     <div id="company-sale-panel" hidden style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color,#334155);">
                 <h3 style="margin:0 0 .5rem;">Sell company</h3>
-                <p id="company-market-bank-balance" role="status" aria-live="polite" style="font-size:.8rem;color:var(--text-muted);"></p>
                 <p style="font-size:.8rem;color:var(--text-muted);">A buyer pays from their wallet. The seller receives the price after the current market tax. Bank buyouts are limited to the market bank's tax-funded balance.</p>
                 <form id="company-player-sale-form" onsubmit="submitCompanyPlayerSale(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.65rem;">
                     <div class="form-group"><label class="form-label" for="company-buyer-username">Player buyer username</label><input class="form-input" id="company-buyer-username" maxlength="80" required></div>
