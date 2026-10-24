@@ -2052,7 +2052,7 @@ def api_earth_buy():
 
     try:
 
-        country_id = int(data.get("country_id", 0))
+        country_id = int(data["country_id"]) if data.get("country_id") is not None else None
 
         offer = max(0, int(data.get("offer", 0)))
 
@@ -2676,10 +2676,11 @@ def api_earth_war_deploy_equipment():
         war_id = int(data.get("war_id", 0))
         amount = int(data.get("amount", 0))
         unit_type = str(data.get("unit_type", "")).strip().lower()
+        country_id = int(data.get("country_id", 0))
     except (ValueError, TypeError):
         return jsonify({"success": False, "message": "Invalid equipment order."}), 400
     db = get_db()
-    success, msg = run_async(db.deploy_earth_war_equipment(session["user"]["id"], war_id, unit_type, amount))
+    success, msg = run_async(db.deploy_earth_war_equipment(session["user"]["id"], war_id, unit_type, amount, country_id))
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 
