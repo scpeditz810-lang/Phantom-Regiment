@@ -879,6 +879,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         await self._db.commit()
 
+        await self.reset_virtual_economy_once()
+
         try:
             await self._db.execute("UPDATE stocks SET total_supply = 2500, available_shares = max(available_shares, 2000) WHERE total_supply < 2500")
         except Exception:
@@ -886,7 +888,6 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self.seed_default_stocks()
         await self.sanitize_stock_exploit()
         await self.seed_default_estate_plots()
-        await self.seed_default_earth_countries()
         await self.seed_default_earth_countries()
         try:
             await self._db.execute("""
@@ -4235,7 +4236,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             SELECT CASE WHEN user_id = ? THEN ally_id ELSE user_id END
             FROM estate_alliances
             WHERE (user_id = ? OR ally_id = ?) AND status = 'active'
-        """, (user_id, user_id, user_id)) as cur:
+        """, (user_id,)) as cur:
             return [r[0] for r in await cur.fetchall()]
 
     async def is_allied(self, user1_id: int, user2_id: int) -> bool:
@@ -4305,6 +4306,52 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
     # 🌍 VIRTUAL EARTH: 3D GEOPOLITICS SIMULATION DATABASE LAYER
     # ═══════════════════════════════════════════════════════════════════════════
 
+    async def reset_virtual_economy_once(self):
+        """Start a clean economy season once, preserving non-economy member data."""
+        reset_key = "virtual_economy_reset_2026_10"
+        if await self.get_meta(reset_key) == "complete":
+            return False
+
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            # Player currency, bank accounts, loans, insurance, and economy cooldowns.
+            await self._db.execute("""
+                UPDATE users SET medals = 0, last_daily = 0, last_work = 0,
+                    last_weekly = 0, last_crime = 0, last_scavenge = 0, last_trivia = 0
+            """)
+            await self._db.execute("""
+                UPDATE global_economy SET medals = 0, last_daily = 0, last_work = 0,
+                    last_weekly = 0, last_crime = 0, last_scavenge = 0, last_trivia = 0
+            """)
+            for table in ("banks", "bank_loans", "player_loans", "bank_insurance", "streaks", "role_purchases"):
+                await self._db.execute(f"DELETE FROM {table}")
+
+            # Shares and trading history are reseeded from the default catalogue.
+            for table in ("user_stocks", "stock_history", "stocks"):
+                await self._db.execute(f"DELETE FROM {table}")
+            await self._db.execute("DELETE FROM meta WHERE key = 'stock_tax_rate'")
+
+            # Estate market: clear player plots, ownership, offers, alliances, and raids.
+            for table in ("estate_raids", "estate_offers", "estate_alliances", "estate_plots"):
+                await self._db.execute(f"DELETE FROM {table}")
+
+            # Virtual Earth: reset the map and all player-created state to the base roster.
+            for table in (
+                "earth_country_offers", "earth_trade_routes", "earth_wars", "earth_alliances",
+                "earth_intelligence", "earth_spies", "earth_tools", "earth_citizens",
+                "earth_cabinet_invites", "earth_cabinet", "earth_buildings",
+                "earth_un_resolutions", "earth_countries"
+            ):
+                await self._db.execute(f"DELETE FROM {table}")
+
+            await self._db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (reset_key, "complete"))
+            await self._db.commit()
+            return True
+        except Exception:
+            await self._db.rollback()
+            raise
+
+
     async def seed_default_earth_countries(self):
         """Seed the 42 sovereign Earth countries and migrate top E-State landowners."""
         from utils.constants import EARTH_COUNTRIES, EARTH_BUILDINGS
@@ -4326,21 +4373,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             ))
         await self._db.commit()
 
-        # Explicit Guaranteed Ownership assignments (per user prompt instruction)
-        await self._db.execute("UPDATE earth_countries SET owner_id = 429350468796416013 WHERE code = 'RUS'")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 828513350883213342 WHERE code = 'IND'")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1134511531468525589 WHERE code = 'USA' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1291083270426988544 WHERE code = 'CHN' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1486122404102013050 WHERE code = 'GBR' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1280141055265865732 WHERE code = 'DEU' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1162404296097275904 WHERE code = 'JPN' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1370437656755834970 WHERE code = 'FRA' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1248327898901774356 WHERE code = 'BRA' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 829919098506444820 WHERE code = 'CAN' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1327273793650950216 WHERE code = 'AUS' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1423907121229074452 WHERE code = 'ITA' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1119603544635482163 WHERE code = 'SAU' AND owner_id IS NULL")
-        await self._db.execute("UPDATE earth_countries SET owner_id = 1289659139659792519 WHERE code = 'KOR' AND owner_id IS NULL")
+        # All base countries begin unclaimed; player ownership is earned in game.
         await self._db.commit()
 
         # Seed starter buildings for all sovereign nations that have owners
@@ -4366,20 +4399,6 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 """, (cid, now))
         await self._db.commit()
 
-        # Pre-seed bilateral ocean trade route between Russia and India
-        try:
-            async with self._db.execute("SELECT id FROM earth_countries WHERE code = 'RUS'") as c1:
-                r_rus = await c1.fetchone()
-            async with self._db.execute("SELECT id FROM earth_countries WHERE code = 'IND'") as c2:
-                r_ind = await c2.fetchone()
-            if r_rus and r_ind:
-                await self._db.execute("""
-                    INSERT OR IGNORE INTO earth_trade_routes (country_a_id, country_b_id, status, daily_tariff, created_at)
-                    VALUES (?, ?, 'active', 75000, ?)
-                """, (r_rus[0], r_ind[0], now))
-                await self._db.commit()
-        except Exception:
-            pass
 
     async def get_earth_countries(self) -> list[dict]:
         """Fetch all 42 countries with owner profiles, stats, active wars, and stability."""
@@ -4513,9 +4532,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # 1. Check if President
         async with self._db.execute("""
             SELECT id FROM earth_countries 
-            WHERE owner_id = ? OR (owner_id BETWEEN ? - 250 AND ? + 250)
+            WHERE owner_id = ?
             ORDER BY gdp DESC, id ASC
-        """, (user_id, user_id, user_id)) as cur:
+        """, (user_id,)) as cur:
             row = await cur.fetchone()
             if row:
                 c = await self.get_earth_country(row[0])
@@ -4528,8 +4547,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # 2. Check if Cabinet Minister
         async with self._db.execute("""
             SELECT country_id, role FROM earth_cabinet 
-            WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)
-        """, (user_id, user_id, user_id)) as cur:
+            WHERE user_id = ?
+        """, (user_id,)) as cur:
             row = await cur.fetchone()
             if row:
                 c = await self.get_earth_country(row[0])
@@ -4541,8 +4560,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # 3. Check if Registered Citizen
         async with self._db.execute("""
             SELECT country_id FROM earth_citizens 
-            WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)
-        """, (user_id, user_id, user_id)) as cur:
+            WHERE user_id = ?
+        """, (user_id,)) as cur:
             row = await cur.fetchone()
             if row:
                 c = await self.get_earth_country(row[0])
@@ -4600,9 +4619,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         async with self._db.execute("""
             SELECT cab.user_id FROM earth_cabinet cab
             JOIN earth_countries c ON cab.country_id = c.id
-            WHERE cab.role = ? AND (cab.user_id = ? OR cab.user_id BETWEEN ? - 250 AND ? + 250)
+            WHERE cab.role = ? AND cab.user_id = ?
               AND c.owner_id = (SELECT owner_id FROM earth_countries WHERE id = ?)
-        """, (required_role, user_id, user_id, user_id, country_id)) as cur:
+        """, (required_role, user_id, country_id)) as cur:
             if await cur.fetchone():
                 return True
         return False
@@ -4657,15 +4676,12 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # Boost country stats
         stab_boost = meta.get("stability_bonus", 0)
         unrest_drop = meta.get("unrest_reduction", 0)
-        gdp_growth = int(cost * 0.70)
-
         await self._db.execute("""
-            UPDATE earth_countries 
+            UPDATE earth_countries
             SET stability = min(100, stability + ?),
-                unrest = max(0, unrest - ?),
-                gdp = gdp + ?
+                unrest = max(0, unrest - ?)
             WHERE id = ?
-        """, (stab_boost, unrest_drop, gdp_growth, country_id))
+        """, (stab_boost, unrest_drop, country_id))
         await self._db.commit()
 
         return True, f"🏗️ Commissioned! {meta['emoji']} {meta['name']} upgraded to Level {new_level} (-{cost:,} Medals).", cost
@@ -4792,7 +4808,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             if target_user_id in (1162404296097275904, 1162404296097276000):
                 target_username = "TS_Aryan"
             else:
-                async with self._db.execute("SELECT roblox_display, roblox_username FROM roblox_links WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (target_user_id, target_user_id, target_user_id)) as cur:
+                async with self._db.execute("SELECT roblox_display, roblox_username FROM roblox_links WHERE user_id = ?", (target_user_id,)) as cur:
                     r_row = await cur.fetchone()
                     if r_row:
                         target_username = r_row[0] or r_row[1]
@@ -4900,7 +4916,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 if user_id in (1162404296097275904, 1162404296097276000):
                     inv_username = "TS_Aryan"
                 else:
-                    async with self._db.execute("SELECT roblox_display, roblox_username FROM roblox_links WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (user_id, user_id, user_id)) as cur:
+                    async with self._db.execute("SELECT roblox_display, roblox_username FROM roblox_links WHERE user_id = ?", (user_id,)) as cur:
                         r_row = await cur.fetchone()
                         if r_row:
                             inv_username = r_row[0] or r_row[1]
@@ -4952,7 +4968,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if self._db is None:
             await self.setup()
         from utils.constants import EARTH_CABINET_ROLES
-        sql = "SELECT country_id, role FROM earth_cabinet WHERE (user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250))"
+        sql = "SELECT country_id, role FROM earth_cabinet WHERE user_id = ?"
         params = [user_id, user_id, user_id]
         if country_id:
             sql += " AND country_id = ?"
@@ -4963,7 +4979,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 return False, "You do not currently hold any active ministerial cabinet portfolio."
             cid, role = row[0], row[1]
 
-        await self._db.execute("DELETE FROM earth_cabinet WHERE (user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)) AND country_id = ?", (user_id, user_id, user_id, cid))
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? AND country_id = ?", (user_id, cid))
         await self._db.commit()
         role_info = EARTH_CABINET_ROLES.get(role, {"title": role})
         return True, f"Resignation tendered. You have stepped down as **{role_info.get('title', role)}**. Portfolio duties have reverted to the President."
@@ -5079,19 +5095,24 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             econ = await self.get_global_economy(user_id)
             if econ.get("medals", 0) < offer:
                 return False, f"Insufficient Capital: You offered {offer:,} Medals, but only have {econ.get('medals', 0):,} Medals in your wallet."
-            await self.subtract_medals(user_id, offer)
 
         now = time.time()
-        # Offer directly capitalizes national treasury (no tax applied)
+        # Conditional write prevents a stale request or a second ruler from winning.
         new_treasury = max(1000000, c.get("treasury", 1000000) + offer)
-        await self._db.execute("""
-            UPDATE earth_countries 
+        async with self._db.execute("""
+            UPDATE earth_countries
             SET owner_id = ?, stability = 80, unrest = 15, treasury = ?, last_yield_claim = ?, last_growth_tick = ?
-            WHERE id = ?
-        """, (user_id, new_treasury, now, now, country_id))
+            WHERE id = ? AND owner_id IS NULL
+              AND NOT EXISTS (SELECT 1 FROM earth_countries WHERE owner_id = ?)
+        """, (user_id, new_treasury, now, now, country_id, user_id)) as cur:
+            if cur.rowcount != 1:
+                return False, "This nation was just claimed, or you already govern a country."
+
+        if offer > 0:
+            await self.subtract_medals(user_id, offer)
         
         # Relieve user from any prior ministerial cabinet post so they can rule independently
-        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (user_id, user_id, user_id))
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (user_id,))
 
         # Register user as citizen/ruler of this country
         await self._db.execute("""
@@ -5142,18 +5163,12 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         capital = (capital or "").strip() or "Capital City"
         desc = (desc or "").strip() or f"Sovereign nation of {name} founded by supreme decree."
 
-        # Check existing rule
-        async with self._db.execute("SELECT id, name FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
+        # Validate funding before relinquishing any existing country.
+        async with self._db.execute("SELECT id, name FROM earth_countries WHERE owner_id = ? ORDER BY gdp DESC LIMIT 1", (user_id,)) as cur:
             existing = await cur.fetchone()
-            if existing:
-                if not replace_current:
-                    return False, f"? You already govern **{existing[1]}**! Check 'Relinquish Current Rule' to abdicate and found {name}.", None
-                else:
-                    # Relinquish previous country back to State Trust
-                    await self._db.execute("UPDATE earth_countries SET owner_id = NULL WHERE id = ?", (existing[0],))
-                    await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (existing[0],))
+            if existing and not replace_current:
+                return False, f"You already govern **{existing[1]}**! Choose the replace option only if you intend to abdicate.", None
 
-        # Check offer amount (0 to infinity!)
         try:
             offered_medals = max(0, int(offered_medals))
         except (ValueError, TypeError):
@@ -5163,11 +5178,19 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             econ = await self.get_global_economy(user_id)
             if econ.get("medals", 0) < offered_medals:
                 return False, f"Insufficient funds: You offered {offered_medals:,} Medals, but only have {econ.get('medals', 0):,} Medals in your wallet.", None
-            # Deduct offer - NO TAX APPLIED!
+
+        if existing:
+            await self._db.execute("""
+                DELETE FROM earth_cabinet
+                WHERE country_id IN (SELECT id FROM earth_countries WHERE owner_id = ?)
+            """, (user_id,))
+            await self._db.execute("UPDATE earth_countries SET owner_id = NULL WHERE owner_id = ?", (user_id,))
+
+        if offered_medals > 0:
             await self.subtract_medals(user_id, offered_medals)
 
         # Relieve user from any prior ministerial cabinet post so they can found their own nation freely
-        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (user_id, user_id, user_id))
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (user_id,))
 
         # Generate unique 3-4 letter code
         clean_code = "".join(ch for ch in name.upper() if ch.isalnum())
@@ -6174,7 +6197,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (cid,))
 
         # Resign buyer from any prior ministerial posts
-        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (bid, bid, bid))
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (bid,))
         await self._db.execute("UPDATE earth_country_offers SET status = 'accepted' WHERE id = ?", (offer_id,))
         await self._db.commit()
 
@@ -6555,7 +6578,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             stab_factor = max(0.4, (country.get("stability", 80)) / 100.0)
             
             # Organic GDP growth: ~0.3% compound per hour of peace
-            gdp_growth = int(country["gdp"] * 0.003 * capped_hours * stab_factor)
+            gdp_growth = int(country["gdp"] * 0.0001 * capped_hours * stab_factor)
             # Organic civic treasury yield: based on tax rate & stability
             tax_rate = country.get("tax_rate", 10)
             treasury_gain = int(tax_rate * 250 * capped_hours * stab_factor)
