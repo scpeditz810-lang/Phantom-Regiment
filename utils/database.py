@@ -2666,10 +2666,16 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         buyer_id = int(buyer["user_id"])
         if buyer_id == seller_id:
             return False, "You cannot sell the company to yourself.", None
-        async with self._db.execute("SELECT id, name, symbol FROM player_companies WHERE owner_id = ?", (seller_id,)) as cur:
+        async with self._db.execute("""SELECT pc.id, pc.name, pc.symbol, pc.fair_value, s.price, s.total_supply
+            FROM player_companies pc JOIN stocks s ON s.id = pc.stock_id WHERE pc.owner_id = ?""", (seller_id,)) as cur:
             company = await cur.fetchone()
         if not company:
             return False, "You do not own a listed company.", None
+        reviewed_value = int(company["fair_value"] or 0)
+        market_value = int(company["price"] or 0) * int(company["total_supply"] or 0)
+        max_player_price = max(25_000, min(reviewed_value or 25_000, market_value or reviewed_value or 25_000))
+        if gross_price > max_player_price:
+            return False, f"Player sale price is capped at {max_player_price:,} Medals by the reviewed valuation and current market cap.", None
 
         now = time.time()
         await self.get_global_economy(seller_id)
