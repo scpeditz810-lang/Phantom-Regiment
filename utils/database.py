@@ -3799,22 +3799,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         await self._db.execute("BEGIN IMMEDIATE")
         try:
-            # Preserve existing wallets when upgrading an older database. A missing
-            # reset marker must never wipe live balances during a web/Discord restart.
-            async with self._db.execute("SELECT COUNT(*) FROM global_economy WHERE medals != 0") as cur:
-                has_existing_wallets = int((await cur.fetchone())[0] or 0) > 0
-            if not has_existing_wallets:
-                await self._db.execute("""
-                    UPDATE users SET medals = 0, last_daily = 0, last_work = 0,
-                        last_weekly = 0, last_crime = 0, last_scavenge = 0, last_trivia = 0
-                """)
-                await self._db.execute("""
-                    UPDATE global_economy SET medals = 0, last_daily = 0, last_work = 0,
-                        last_weekly = 0, last_crime = 0, last_scavenge = 0, last_trivia = 0
-                """)
-            for table in ("banks", "bank_loans", "player_loans", "bank_insurance", "streaks", "role_purchases"):
-                await self._db.execute(f"DELETE FROM {table}")
-
+            # Startup migrations are preservation-only. Wallets, banks, loans, and
+            # gambling balances are live player data and must never be reset because
+            # a legacy database is missing the migration marker.
             # Stock portfolios and player companies are persistent season assets.
             # Never delete them from a startup migration: a missing/reset marker must
             # not erase holdings or unexpectedly refund shareholders.
