@@ -1357,6 +1357,18 @@ EARTH_ADVANCED_TOOLS = {
         "hourly_yield": 10000,
         "perk": "Devastating Frontline Offense (+210 Military Power)"
     },
+    "nuclear_launch_pad": {
+        "key": "nuclear_launch_pad",
+        "name": "Nuclear Launch Pad",
+        "emoji": "🛰️",
+        "category": "military",
+        "price": 1200000,
+        "desc": "Permanent hardened launch infrastructure required before a tactical nuclear weapon can be fired.",
+        "military_power": 0,
+        "defense_power": 35,
+        "hourly_yield": 0,
+        "perk": "Unlocks one nuclear strike per enemy per active war when a tactical nuke is ready"
+    },
     "tactical_nuke": {
         "key": "tactical_nuke",
         "name": "Tactical Nuclear Deterrence Complex",
