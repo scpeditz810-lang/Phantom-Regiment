@@ -3029,33 +3029,24 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
 
 
-    async def delete_stock(self, stock_id: int):
-
+    async def delete_stock(self, stock_id: int) -> tuple[bool, str]:
+        """Delist an empty stock only; never liquidate holders implicitly."""
         stock = await self.get_stock(stock_id)
+        if not stock:
+            return False, "Stock not found."
 
-        if stock:
+        async with self._db.execute(
+            "SELECT COUNT(*) FROM user_stocks WHERE stock_id = ? AND shares > 0",
+            (stock_id,)
+        ) as cur:
+            holders = int((await cur.fetchone())[0] or 0)
+        if holders:
+            return False, "Cannot delist a stock while shareholders still hold shares. Require explicit shareholder settlement first."
 
-            current_price = stock["price"]
-
-            async with self._db.execute("SELECT user_id, shares FROM user_stocks WHERE stock_id = ? AND shares > 0", (stock_id,)) as cur:
-
-                rows = await cur.fetchall()
-
-                for uid, shares in rows:
-
-                    refund = shares * current_price
-
-                    await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (refund, uid))
-
-                    await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ?", (refund, uid))
-
-            await self._db.execute("DELETE FROM user_stocks WHERE stock_id = ?", (stock_id,))
-
-            await self._db.execute("DELETE FROM stock_history WHERE stock_id = ?", (stock_id,))
-
-            await self._db.execute("DELETE FROM stocks WHERE id = ?", (stock_id,))
-
-            await self._db.commit()
+        await self._db.execute("DELETE FROM stock_history WHERE stock_id = ?", (stock_id,))
+        await self._db.execute("DELETE FROM stocks WHERE id = ?", (stock_id,))
+        await self._db.commit()
+        return True, f"{stock['symbol']} was delisted."
 
 
 
