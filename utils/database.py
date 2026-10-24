@@ -2504,6 +2504,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         for symbol, name, price, supply, desc in default_stocks:
 
+            price = max(2_000, min(80_000, int(price)))
+
             async with self._db.execute("SELECT id FROM stocks WHERE symbol = ?", (symbol,)) as cur:
 
                 if not await cur.fetchone():
@@ -2524,7 +2526,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
                             variation = random.randint(-4, 4)
 
-                            hist_price = max(10, price + variation)
+                            hist_price = max(2_000, min(80_000, price + variation))
 
                             await self._db.execute(
 
@@ -2544,7 +2546,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             # Keep every listing inside a predictable, affordable trading band.
             # This prevents compounding buy pressure from making one company
             # dominate the entire Medal economy.
-            async with self._db.execute("SELECT count(*) FROM stocks WHERE price > 75000 OR price < 20") as cur:
+            async with self._db.execute("SELECT count(*) FROM stocks WHERE price > 80000 OR price < 2000") as cur:
                 has_runaway_stocks = (await cur.fetchone())[0] > 0
 
             if not has_runaway_stocks:
@@ -2552,17 +2554,17 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
             print("[Safety] Clamping runaway stock prices to ceiling...", flush=True)
             stock_ceilings = {
-                "PRC": 75000, "TSC": 75000, "VNG": 75000,
-                "AERO": 75000, "CRYP": 75000, "TSLA": 75000, "PANDA": 75000
+                "PRC": 80000, "TSC": 80000, "VNG": 80000,
+                "AERO": 80000, "CRYP": 80000, "TSLA": 80000, "PANDA": 80000
             }
             for sym, ceiling in stock_ceilings.items():
                 await self._db.execute(
-                    "UPDATE stocks SET price = min(75000, max(20, price)) WHERE symbol = ?",
+                    "UPDATE stocks SET price = min(80000, max(2000, price)) WHERE symbol = ?",
                     (sym,)
                 )
 
-            await self._db.execute("UPDATE stocks SET price = min(75000, max(20, price))")
-            await self._db.execute("DELETE FROM stock_history WHERE price > 75000 OR price < 20")
+            await self._db.execute("UPDATE stocks SET price = min(80000, max(2000, price))")
+            await self._db.execute("DELETE FROM stock_history WHERE price > 80000 OR price < 2000")
             await self._db.commit()
         except Exception as e:
             print(f"[Sanitizer Notice] {e}", flush=True)
@@ -2596,6 +2598,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
     async def create_stock(self, symbol: str, name: str, price: int, description: str = "", supply: int = 2500) -> bool:
 
         symbol = symbol.strip().upper()
+        price = max(2_000, min(80_000, int(price)))
 
         async with self._db.execute("SELECT 1 FROM stocks WHERE symbol = ?", (symbol,)) as cur:
 
@@ -2939,14 +2942,14 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         approved = plausible and random.random() < 0.5
         # A company may be valuable, but no single share can become an
         # economy-breaking reserve asset.
-        claim_price = max(20, min(75_000, int(round(valuation / 2500))))
-        fair_price = max(20, min(75_000, int(round(fair_value / 2500))))
+        claim_price = max(2_000, min(80_000, int(round(valuation / 2500))))
+        fair_price = max(2_000, min(80_000, int(round(fair_value / 2500))))
         if approved:
             opening_price = min(claim_price, fair_price * 2)
             ai_status = "approved"
             ai_report = f"AI analysts reviewed the reported revenue, profit, and debt. Modeled fair value: {fair_value:,} Medals. The IPO was approved."
         else:
-            opening_price = max(20, min(int(claim_price * 0.20), fair_price))
+            opening_price = max(2_000, min(int(claim_price * 0.20), fair_price))
             ai_status = "crashed"
             reason = "Claimed valuation exceeded twice the modeled fair value." if not plausible else "The 50/50 AI market review rejected the IPO."
             ai_report = f"{reason} Modeled fair value: {fair_value:,} Medals. The share price opened after an 80% crash adjustment."
@@ -3044,7 +3047,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
     async def update_stock_price(self, stock_id: int, new_price: int):
 
-        new_price = max(20, min(75000, int(new_price)))
+        new_price = max(2_000, min(80_000, int(new_price)))
 
         await self._db.execute("UPDATE stocks SET price = ? WHERE id = ?", (new_price, stock_id))
 
@@ -3139,7 +3142,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # Bounded price impact: no order can move a listing more than 0.5%.
         pct_impact = min(0.005, 0.00002 * shares)
         price_bump = max(1, int(round(stock["price"] * pct_impact)))
-        new_price = min(75000, stock["price"] + price_bump)
+        new_price = min(80_000, max(2_000, stock["price"] + price_bump))
 
         # Average execution price along the order book curve (slippage protection)
         effective_buy_price = (stock["price"] + new_price) / 2.0
@@ -3207,7 +3210,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # Bounded price impact: no order can move a listing more than 0.5%.
         pct_impact = min(0.005, 0.00002 * shares)
         price_drop = max(1, int(round(stock["price"] * pct_impact)))
-        new_price = max(20, stock["price"] - price_drop)
+        new_price = max(2_000, min(80_000, stock["price"] - price_drop))
 
         # Average execution price along the order book curve
         effective_sell_price = (stock["price"] + new_price) / 2.0
