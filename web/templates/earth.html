@@ -2146,6 +2146,7 @@ let combatFXGroup = null;
 
 let activeSortieJets = [];
 let activeGroundTanks = [];
+let activeGroundArmies = [];
 
 let combatPatrolJets = [];
 
@@ -3146,6 +3147,29 @@ function createWarshipMesh(isCarrier = false, hullColor = 0x475569) {
 }
 
 
+function createArmyDivisionMesh(color = 0xef4444) {
+    const unit = new THREE.Group();
+    const uniform = new THREE.MeshStandardMaterial({color, metalness:0.28, roughness:0.7});
+    const dark = new THREE.MeshStandardMaterial({color:0x1e293b, roughness:0.8});
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.42,0.95),uniform);
+    body.position.y=0.42; unit.add(body);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.48,0.28,0.42),uniform);
+    cabin.position.set(0,0.73,-0.08); unit.add(cabin);
+    [-0.27,0.27].forEach(x => {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,0.14,8),dark);
+        wheel.rotation.z=Math.PI/2; wheel.position.set(x,0.25,0); unit.add(wheel);
+    });
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.24,0.16),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));
+    flag.position.set(0,1.03,0); unit.add(flag);
+    unit.scale.setScalar(0.72);
+    return unit;
+}
+
+function combatDisplayCount(value) {
+    const count = Math.max(0, Math.floor(Number(value || 0)));
+    return count <= 3 ? count : 2;
+}
+
 function createBattleTankMesh(color = 0xef4444) {
     const tank = new THREE.Group();
     const armor = new THREE.MeshStandardMaterial({color, metalness:0.62, roughness:0.42});
@@ -3371,6 +3395,7 @@ function renderMilitaryAirAirspaces() {
     activeSortieJets = [];
     combatPatrolJets = [];
     activeGroundTanks = [];
+    activeGroundArmies = [];
 
 
 
@@ -3459,17 +3484,34 @@ function renderMilitaryAirAirspaces() {
         const groundEnd = vDfn.clone().normalize().multiplyScalar(GLOBE_RADIUS * 1.006);
         const groundControl = vMid.clone().normalize().multiplyScalar(GLOBE_RADIUS * 1.008);
         const groundCurve = new THREE.QuadraticBezierCurve3(groundStart, groundControl, groundEnd);
-        [
-            {color:0xef4444, attacker:true, count:w.attacker_tanks},
-            {color:0x3b82f6, attacker:false, count:w.defender_tanks}
-        ].forEach((side, sideIdx) => {
-            if (Number(side.count || 0) < 1) return;
-            const formationSize = Math.min(3, Math.max(0, Number(side.count || 0)));
-            for (let vehicle = 0; vehicle < formationSize; vehicle++) {
+        const momentum = Math.max(0, Math.min(1, Number(w.progress_pct || 0) / 100));
+        const forceSides = [
+            {color:0xef4444, attacker:true, tankCount:w.attacker_tanks, divisionCount:w.attacker_divisions},
+            {color:0x3b82f6, attacker:false, tankCount:w.defender_tanks, divisionCount:w.defender_divisions}
+        ];
+        forceSides.forEach((side, sideIdx) => {
+            const tankGroups = combatDisplayCount(side.tankCount);
+            for (let vehicle = 0; vehicle < tankGroups; vehicle++) {
                 const tank = createBattleTankMesh(side.color);
-                tank.userData = {groundCurve, attacker:side.attacker, phase:wIdx * 0.8 + sideIdx * 1.7 + vehicle * 1.1, turret:tank.userData.turret, flash:tank.userData.flash};
+                tank.userData = {
+                    groundCurve, attacker:side.attacker, momentum,
+                    phase:wIdx * 0.8 + sideIdx * 1.7 + vehicle * 1.1,
+                    formationIndex:vehicle, formationSize:tankGroups,
+                    turret:tank.userData.turret, flash:tank.userData.flash
+                };
                 militaryAirGroup.add(tank);
                 activeGroundTanks.push(tank);
+            }
+            const armyGroups = combatDisplayCount(side.divisionCount);
+            for (let division = 0; division < armyGroups; division++) {
+                const army = createArmyDivisionMesh(side.color);
+                army.userData = {
+                    groundCurve, attacker:side.attacker, momentum,
+                    phase:wIdx * 0.9 + sideIdx * 1.9 + division * 1.25,
+                    formationIndex:division, formationSize:armyGroups
+                };
+                militaryAirGroup.add(army);
+                activeGroundArmies.push(army);
             }
         });
     });
@@ -3684,19 +3726,33 @@ function animateMilitaryUnits(time) {
 
 
 
-    // Ground armor advances and fires along active war fronts.
-    activeGroundTanks.forEach(tank => {
-        const u = tank.userData;
+    // Ground forces visibly advance/retreat along the front. Campaign progress is
+    // server-provided: when the defender is losing, attackers move toward its capital
+    // (the defender endpoint) and defenders fall back toward that endpoint.
+    const animateGroundForce = (unit, isTank) => {
+        const u = unit.userData;
         const wave = 0.5 + 0.5 * Math.sin(time * 0.55 + u.phase);
-        const p = u.attacker ? 0.16 + wave * 0.18 : 0.84 - wave * 0.18;
+        const attackerP = 0.22 + u.momentum * 0.48;
+        const defenderP = 0.78 + u.momentum * 0.14;
+        const centerP = u.attacker ? attackerP : defenderP;
+        const spread = Math.min(0.06, 0.018 * u.formationSize);
+        const sideOffset = (u.formationIndex - (u.formationSize - 1) / 2) * spread;
+        const p = Math.max(0.03, Math.min(0.97, centerP + sideOffset + (wave - 0.5) * 0.012));
         const pos = u.groundCurve.getPointAt(p).normalize().multiplyScalar(GLOBE_RADIUS * 1.009);
-        const next = u.groundCurve.getPointAt(Math.min(0.999, p + (u.attacker ? 0.003 : -0.003))).normalize().multiplyScalar(GLOBE_RADIUS * 1.009);
-        tank.position.copy(pos);
-        orientMilitaryUnitOnGlobe(tank, pos, u.attacker ? next.clone().sub(pos) : pos.clone().sub(next));
-        u.turret.rotation.y = 0.18 * Math.sin(time * 1.7 + u.phase);
-        u.flash.material.opacity = Math.sin(time * 5.2 + u.phase) > 0.88 ? 0.95 : 0;
-        u.flash.scale.setScalar(0.75 + 0.4 * Math.abs(Math.sin(time * 8 + u.phase)));
-    });
+        const lookP = Math.max(0.001, Math.min(0.999, p + (u.attacker ? 0.003 : -0.003)));
+        const next = u.groundCurve.getPointAt(lookP).normalize().multiplyScalar(GLOBE_RADIUS * 1.009);
+        unit.position.copy(pos);
+        orientMilitaryUnitOnGlobe(unit, pos, u.attacker ? next.clone().sub(pos) : pos.clone().sub(next));
+        if (isTank) {
+            u.turret.rotation.y = 0.18 * Math.sin(time * 1.7 + u.phase);
+            u.flash.material.opacity = Math.sin(time * 5.2 + u.phase) > 0.88 ? 0.95 : 0;
+            u.flash.scale.setScalar(0.75 + 0.4 * Math.abs(Math.sin(time * 8 + u.phase)));
+        } else {
+            unit.rotation.y += Math.sin(time * 0.7 + u.phase) * 0.002;
+        }
+    };
+    activeGroundTanks.forEach(tank => animateGroundForce(tank, true));
+    activeGroundArmies.forEach(army => animateGroundForce(army, false));
 
     // 2. Animate Combat Air Patrols (circling in loops over major countries)
 
