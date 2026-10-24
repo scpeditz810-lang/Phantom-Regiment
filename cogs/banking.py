@@ -42,7 +42,7 @@ class BankingCog(commands.Cog):
             await self.bot.db._db.execute("UPDATE bank_loans SET total_owed = total_owed + ?, late_fee_applied = 1 WHERE id = ?", (fee, loan_id))
             try:
                 user = await self.bot.fetch_user(user_id)
-                await user.send(f"**Bank Loan Overdue:** Your loan wasn't paid back on time. A 20% late fee (**{fee:,} medals**) was added to what you owe. Any medals you earn will go toward paying it off.")
+                await user.send(f"**Bank Loan Overdue:** Your loan wasn't paid back on time. A 20% late fee (**{fee:,} medals**) was added to what you owe. Repay the loan explicitly with the repayment command; earnings are not withheld automatically.")
             except: pass
             
         # 2. Player loans
@@ -297,7 +297,7 @@ class BankingCog(commands.Cog):
         
         await interaction.response.send_message(f"✅ You took a bank loan of **{amount:,} medals** for **{days} days**.\n"
                                                 f"The medals have been added to your wallet. You need to repay **{total_owed:,} medals**.\n\n"
-                                                f"If you don't repay on time, a **20% late fee** is added and any medals you earn will go toward paying it off.")
+                                                f"If you don't repay on time, a **20% late fee** is added and repay the loan explicitly; earnings are not withheld automatically.")
 
     @bank.command(name="repay", description="Repay your bank loan")
     async def bank_loan_repay(self, interaction: discord.Interaction):
@@ -340,7 +340,14 @@ class BankingCog(commands.Cog):
         # Deduct from lender (escrow)
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -amount)
         
-        loan_id = await self.bot.db.create_player_loan(interaction.user.id, user.id, interaction.guild_id, amount, interest_medals, due_at)
+        try:
+            loan_id = await self.bot.db.create_player_loan(
+                interaction.user.id, user.id, interaction.guild_id, amount, interest_medals, due_at
+            )
+        except Exception:
+            # Never leave the lender short if creating the loan record fails.
+            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, amount)
+            raise
         
         await interaction.response.send_message(f"✅ **Loan Offer Sent!** {interaction.user.mention} has offered {user.mention} a loan of **{amount:,} medals**.\n"
                                                 f"**Terms:** {interest}% interest over {days} days. Total repayment: **{amount + interest_medals:,} medals**.\n\n"
