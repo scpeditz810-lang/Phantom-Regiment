@@ -3094,16 +3094,16 @@ def api_earth_members():
     async def _get_all_citizens():
 
         citizens = []
-
         seen = set()
-
+        async with db._db.execute("SELECT owner_id FROM earth_countries WHERE owner_id IS NOT NULL") as cur:
+            president_ids = {str(row[0]) for row in await cur.fetchall()}
         async with db._db.execute("SELECT user_id, username FROM oauth_members") as cur:
 
             for r in await cur.fetchall():
 
                 uid_str = str(r[0])
 
-                citizens.append({"user_id": uid_str, "username": r[1] or f"Member {uid_str[-4:]}"})
+                citizens.append({"user_id": uid_str, "username": r[1] or f"Member {uid_str[-4:]}", "is_president": uid_str in president_ids})
 
                 seen.add(uid_str)
 
@@ -3117,7 +3117,7 @@ def api_earth_members():
 
                     disp = r[1] or r[2] or f"Member {uid_str[-4:]}"
 
-                    citizens.append({"user_id": uid_str, "username": disp})
+                    citizens.append({"user_id": uid_str, "username": disp, "is_president": uid_str in president_ids})
 
                     seen.add(uid_str)
 
