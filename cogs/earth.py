@@ -600,55 +600,6 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     # ??? Custom Country Creation & Unowned Nation Claims ?????????????????????????
 
-    @earth_group.command(name="found", description="Charter and buy a custom sovereign nation for any medal offer (0-inf, 0% tax).")
-    @app_commands.describe(
-        name="Official sovereign name of your new nation",
-        flag="Flag or icon emoji (e.g. ?????, ??, ??, ??, ??, ???, ??, ??)",
-        capital="Name of your capital city",
-        offer="Medals offered to charter (0 to inf, no tax). Offer directly funds treasury",
-        replace_current="Relinquish leadership of your current nation if you already govern one"
-    )
-    async def earth_found(
-        self,
-        interaction: discord.Interaction,
-        name: str,
-        flag: str = "???",
-        capital: str = "Capital City",
-        offer: int = 0,
-        replace_current: bool = False
-    ):
-        await interaction.response.defer()
-        success, msg, c = await self.bot.db.create_custom_country(
-            user_id=interaction.user.id,
-            name=name,
-            flag=flag,
-            capital=capital,
-            offered_medals=offer,
-            replace_current=replace_current
-        )
-        if not success:
-            await interaction.followup.send(f"? {msg}")
-            return
-
-        desc_text = (
-            f"Supreme Sovereign: {interaction.user.mention}\n"
-            f"Capital City: **{c['capital']}**\n"
-            f"National Treasury: **{c['treasury']:,} Medals** (0% Treaty Tax applied)\n"
-            f"Sovereign GDP: **{c['gdp']:,} Medals**\n"
-            f"Geographic Coordinates: `Lat {c['lat']}, Lng {c['lng']}`\n\n"
-            f"Your sovereign nation is now live on the 3D globe! Manage your cabinet, military, industry, and espionage from the interactive command room."
-        )
-
-        embed = discord.Embed(
-            title=f"?? Sovereign Nation Proclaimed: {c['flag']} {c['name']} ({c['code']})",
-            description=desc_text,
-            color=0xF59E0B
-        )
-        embed.set_footer(text="Virtual Earth 3D Simulation ? 0% Treaty Tax Applied")
-        view = discord.ui.View()
-        view.add_item(discord.ui.Button(label="Open 3D Command Deck", url=WEB_URL, style=discord.ButtonStyle.link, emoji="??"))
-        await interaction.followup.send(embed=embed, view=view)
-
     @earth_group.command(name="claim", description="Claim an unowned country from the State Trust for any medal offer (0-inf, 0% tax).")
     @app_commands.describe(
         country="3-letter code or country name",
