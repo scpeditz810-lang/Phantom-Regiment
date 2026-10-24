@@ -2717,7 +2717,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                     <button class="btn-danger-sm" onclick="openDeclareWarModal(${c.id})">
                         Declare Conquest!
                     </button>
-                ` : ''))}
+                ` : '')}
             </div>
             ${isOwnCountry ? `
                 <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.35rem; line-height: 1.4;">
@@ -2748,12 +2748,16 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                         <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}')">
                             🪖 Reinforce Front
                         </button>
-                        ${(c.can_command_defense && (c.tools || []).some(tool => tool.tool_key === "tactical_nuke")) ? `
+                        ${(c.can_command_defense && (c.tools || []).some(tool => tool.tool_key === "nuclear_launch_pad") &&
+                            (c.tools || []).some(tool => tool.tool_key === "tactical_nuke") &&
+                            ((c.id === w.attacker_country_id && !w.attacker_nuke_used) ||
+                             (c.id === w.defender_country_id && !w.defender_nuke_used))) ? `
                             <button class="btn-action-sm" style="padding:0.25rem 0.55rem;font-size:0.7rem;border-color:#f97316;color:#fdba74;" onclick="launchNuclearStrike(${c.id}, ${w.id})">
                                 ☢️ Launch Nuclear Strike
                             </button>
                         ` : ''}
                     </div>
+                    ${c.can_command_defense ? '<div style="font-size:.7rem;color:#94a3b8;">Nuclear strikes need a Launch Pad and unused nuke; one strike per enemy per active war.</div>' : ''}
                 </div>
             `;
         });
