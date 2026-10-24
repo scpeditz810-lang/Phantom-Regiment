@@ -682,6 +682,13 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 end_time REAL NOT NULL,
                 reparations INTEGER DEFAULT 0,
                 winner_country_id INTEGER DEFAULT NULL,
+                war_domain TEXT NOT NULL DEFAULT 'land',
+                attacker_tanks INTEGER NOT NULL DEFAULT 0,
+                defender_tanks INTEGER NOT NULL DEFAULT 0,
+                attacker_jets INTEGER NOT NULL DEFAULT 0,
+                defender_jets INTEGER NOT NULL DEFAULT 0,
+                attacker_ships INTEGER NOT NULL DEFAULT 0,
+                defender_ships INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(attacker_country_id) REFERENCES earth_countries(id),
                 FOREIGN KEY(defender_country_id) REFERENCES earth_countries(id)
             );
@@ -811,6 +818,13 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             "ALTER TABLE player_companies ADD COLUMN treasury INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE player_companies ADD COLUMN aid_received INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE earth_country_offers ADD COLUMN offer_scope TEXT DEFAULT 'state'",
+            "ALTER TABLE earth_wars ADD COLUMN war_domain TEXT NOT NULL DEFAULT 'land'",
+            "ALTER TABLE earth_wars ADD COLUMN attacker_tanks INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE earth_wars ADD COLUMN defender_tanks INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE earth_wars ADD COLUMN attacker_jets INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE earth_wars ADD COLUMN defender_jets INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE earth_wars ADD COLUMN attacker_ships INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE earth_wars ADD COLUMN defender_ships INTEGER NOT NULL DEFAULT 0",
             "PRAGMA journal_mode=WAL"
 
         ]:
@@ -963,7 +977,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # Recent resolutions
         resolutions = []
         try:
-            async with self._db.execute("SELECT id, resolution_type, target_country_id, war_id, mayor_id, details, created_at FROM earth_un_resolutions ORDER BY id DESC LIMIT 10") as cur:
+            async with self._db.execute("SELECT id, action AS resolution_type, target_country_id, war_id, sponsor_id AS mayor_id, details, created_at FROM earth_un_resolutions ORDER BY id DESC LIMIT 10") as cur:
                 for r in await cur.fetchall():
                     resolutions.append({
                         "id": r[0],
@@ -989,35 +1003,41 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         }
 
     async def un_issue_ceasefire(self, mayor_id: int, war_id: int) -> tuple[bool, str]:
-        """UN Secretary-General (Mayor) enforces an emergency ceasefire, immediately concluding an active war."""
+        """UN Secretary-General (Mayor) ends an active war with a ceasefire."""
         if self._db is None:
             await self.setup()
-
-        async with self._db.execute("SELECT id, attacker_id, defender_id, war_scale, is_active FROM earth_wars WHERE id = ?", (war_id,)) as cur:
+        async with self._db.execute(
+            "SELECT attacker_country_id, defender_country_id, attacker_divisions, defender_divisions FROM earth_wars WHERE id = ? AND status = 'active'",
+            (war_id,),
+        ) as cur:
             war = await cur.fetchone()
-
         if not war:
-            return False, "War record not found."
-        if not war[4]:
-            return False, "This war has already concluded."
-
+            return False, "Active war record not found."
         now = time.time()
-        # Conclude war with un_ceasefire status
-        await self._db.execute("""
-            UPDATE earth_wars
-            SET is_active = 0, outcome = 'un_ceasefire', ended_at = ?
-            WHERE id = ?
-        """, (now, war_id))
-
-        # Record resolution
-        details = f"UN Security Council Resolution passed: Ceasefire enforced on War #{war_id} between Country #{war[1]} and #{war[2]}."
-        await self._db.execute("""
-            INSERT INTO earth_un_resolutions (resolution_type, war_id, mayor_id, details, created_at)
-            VALUES ('CEASEFIRE', ?, ?, ?, ?)
-        """, (war_id, mayor_id, details, now))
-
-        await self._db.commit()
-        return True, f"🕊️ UN Resolution Ratified: Emergency Ceasefire enforced on War #{war_id}! All combat operations halted immediately."
+        details = f"UN ceasefire enforced on War #{war_id} between Country #{war[0]} and #{war[1]}."
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute(
+                "SELECT id FROM earth_wars WHERE id = ? AND status = 'active'", (war_id,)
+            ) as cur:
+                if not await cur.fetchone():
+                    await self._db.rollback()
+                    return False, "This war has already concluded."
+            await self._db.execute("UPDATE earth_wars SET status = 'ceasefire' WHERE id = ?", (war_id,))
+            for country_id, divisions in ((war[0], war[2]), (war[1], war[3])):
+                await self._db.execute(
+                    "UPDATE earth_countries SET army_divisions=MIN(MAX(0,population/5),army_divisions+?) WHERE id=?",
+                    (max(0, int(divisions or 0)), country_id),
+                )
+            await self._db.execute(
+                "INSERT INTO earth_un_resolutions (action, war_id, sponsor_id, details, created_at) VALUES ('CEASEFIRE', ?, ?, ?, ?)",
+                (war_id, mayor_id, details, now),
+            )
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            raise
+        return True, f"UN ceasefire enforced on War #{war_id}; deployed forces are released."
 
     async def un_impose_sanctions(self, mayor_id: int, country_id: int, reason: str, duration_hours: int = 48) -> tuple[bool, str]:
         """UN Secretary-General (Mayor) imposes binding economic sanctions on a rogue nation."""
@@ -1041,9 +1061,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         details = f"UN Economic Sanctions imposed on {country[2]} {country[1]} for {duration_hours}h. Reason: {reason}."
         await self._db.execute("""
-            INSERT INTO earth_un_resolutions (resolution_type, target_country_id, mayor_id, details, created_at, expires_at)
-            VALUES ('SANCTION', ?, ?, ?, ?, ?)
-        """, (country_id, mayor_id, details, now, expires))
+            INSERT INTO earth_un_resolutions (action, target_country_id, sponsor_id, details, created_at)
+            VALUES ('SANCTION', ?, ?, ?, ?)
+        """, (country_id, mayor_id, details, now))
 
         await self._db.commit()
         return True, f"🚫 UN Security Council Sanction Passed: Embargo imposed on {country[2]} **{country[1]}** for {duration_hours} hours! Yields halved, offensive warfare barred."
@@ -1070,7 +1090,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         details = f"UN Sanctions lifted from {country[2]} {country[1]} by order of UN Secretary-General."
         await self._db.execute("""
-            INSERT INTO earth_un_resolutions (resolution_type, target_country_id, mayor_id, details, created_at)
+            INSERT INTO earth_un_resolutions (action, target_country_id, sponsor_id, details, created_at)
             VALUES ('LIFT_SANCTION', ?, ?, ?, ?)
         """, (country_id, mayor_id, details, now))
 
@@ -1100,7 +1120,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         details = f"UN Humanitarian Relief Package of {amount:,} Medals dispatched to {country[2]} {country[1]} to quelled riots."
         await self._db.execute("""
-            INSERT INTO earth_un_resolutions (resolution_type, target_country_id, mayor_id, details, created_at)
+            INSERT INTO earth_un_resolutions (action, target_country_id, sponsor_id, details, created_at)
             VALUES ('AID', ?, ?, ?, ?)
         """, (country_id, mayor_id, details, now))
 
@@ -3942,6 +3962,13 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         async with self._db.execute("SELECT COALESCE(SUM(defender_divisions),0) FROM earth_wars WHERE status='active' AND defender_country_id=?", (country_id,)) as cur:
             deployed += int((await cur.fetchone())[0] or 0)
         country["deployed_divisions"] = deployed
+        for unit in ("tanks", "jets", "ships"):
+            async with self._db.execute(
+                f"SELECT COALESCE(SUM(CASE WHEN attacker_country_id=? THEN attacker_{unit} ELSE defender_{unit} END),0) FROM earth_wars WHERE status='active' AND (attacker_country_id=? OR defender_country_id=?)",
+                (country_id, country_id, country_id),
+            ) as cur:
+                country[f"deployed_{unit}"] = int((await cur.fetchone())[0] or 0)
+            country[f"available_{unit}"] = max(0, int(country.get(unit, 0) or 0) - country[f"deployed_{unit}"])
 
         # Calculate combat power
         mil_power = 20
@@ -5258,118 +5285,107 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
     # ─── Multi-Day Conquest & Warfare System ──────────────────────────────────
 
-    async def declare_earth_war(self, user_id: int, attacker_country_id: int, defender_country_id: int, scale: str) -> tuple[bool, str, dict]:
-        """Declare a multi-day military conquest campaign (1 to 5 days)."""
+    async def declare_earth_war(self, user_id: int, attacker_country_id: int, defender_country_id: int, scale: str, domain: str = "land", equipment: int = 0) -> tuple[bool, str, dict]:
+        """Declare a campaign and reserve only the equipment explicitly committed by the attacker."""
         if self._db is None:
             await self.setup()
         from utils.constants import EARTH_WAR_SCALES
-
+        domain = str(domain or "land").strip().lower()
+        if domain not in ("land", "air", "naval"):
+            return False, "Choose a land, air, or naval campaign.", {}
         if scale not in EARTH_WAR_SCALES:
             return False, f"Invalid war scale: {scale}", {}
-
+        try:
+            equipment = int(equipment)
+        except (ValueError, TypeError):
+            return False, "Equipment count must be a whole number.", {}
+        if equipment < 0 or equipment > 50:
+            return False, "Commit between 0 and 50 equipment per campaign.", {}
         if attacker_country_id == defender_country_id:
             return False, "You cannot declare war upon yourself!", {}
-
-        # Permission check: President or Army Commander
-        can_command = await self.has_earth_cabinet_permission(user_id, attacker_country_id, "defense")
-        if not can_command:
-            return False, "⛔ Authorization Denied: Only the President or the Supreme Army Commander can declare military conquests!", {}
-
-        meta = EARTH_WAR_SCALES[scale]
+        if not await self.has_earth_cabinet_permission(user_id, attacker_country_id, "defense"):
+            return False, "Only the President or Army Commander can declare a campaign.", {}
         atk = await self.get_earth_country(attacker_country_id)
         dfn = await self.get_earth_country(defender_country_id)
         if not atk or not dfn:
             return False, "Sovereign country not found.", {}
         if not dfn.get("owner_id"):
-            return False, "You cannot attack an unclaimed country. Unclaimed countries can only be selected as a player's starting country.", {}
+            return False, "You cannot attack an unclaimed country.", {}
         if atk.get("owner_id") == dfn.get("owner_id"):
             return False, "You cannot declare war on a country ruled by your own sovereign.", {}
-
-        # Check existing active war
-        async with self._db.execute("""
-            SELECT id FROM earth_wars 
-            WHERE status = 'active' AND (
-                (attacker_country_id = ? AND defender_country_id = ?) OR
-                (attacker_country_id = ? AND defender_country_id = ?)
-            )
-        """, (attacker_country_id, defender_country_id, defender_country_id, attacker_country_id)) as cur:
-            if await cur.fetchone():
-                return False, "An active military campaign is already ongoing between these two sovereign powers!", {}
-
-        # Alliance check: Cannot attack ally
         if atk.get("alliance_id") and dfn.get("alliance_id") and atk["alliance_id"] == dfn["alliance_id"]:
-            return False, "⛔ Treaty Violation: You cannot declare war on a fellow member of your sovereign alliance!", {}
-
-        # Imperial Expansion Cap: Max 4 conquered states (5 territories total)
-        atk_owner = atk.get("owner_id")
-        if atk_owner:
-            async with self._db.execute("SELECT COUNT(*) FROM earth_countries WHERE owner_id = ?", (atk_owner,)) as cur:
-                owned_count = (await cur.fetchone())[0]
-            if owned_count >= 5:
-                return False, "⛔ Imperial Expansion Limit Reached: Your empire already governs the maximum of 4 conquered states (5 territories total). Grant independence or sell an imperial state before waging new wars!", {}
-
-        required_divisions = int(meta["min_divisions"])
-        if int(atk.get("army_divisions",0) or 0) < required_divisions:
-            return False, f"This campaign needs {required_divisions} reserve divisions; your country has {int(atk.get('army_divisions',0) or 0)}.", {}
+            return False, "You cannot declare war on a fellow alliance member.", {}
+        async with self._db.execute("SELECT COUNT(*) FROM earth_countries WHERE owner_id = ?", (atk.get("owner_id"),)) as cur:
+            owned_count = (await cur.fetchone())[0]
+        if owned_count >= 5:
+            return False, "Your empire already governs the maximum of five territories.", {}
+        meta = EARTH_WAR_SCALES[scale]
+        unit = {"land": "tanks", "air": "jets", "naval": "ships"}[domain]
+        unit_count = equipment if domain != "land" else 0
+        if domain == "land" and equipment:
+            unit_count = equipment
+        if domain in ("air", "naval") and unit_count < 1:
+            return False, f"A {domain} campaign must commit at least one {unit[:-1]}.", {}
+        required_divisions = int(meta["min_divisions"]) if domain == "land" else 0
         now = time.time()
-        duration_s = meta["duration_seconds"]
-        end_time = now + duration_s
-
-        atk_power = atk.get("total_military_power", 50)
-        dfn_power = dfn.get("total_defense_power", 50)
-
-        # Apply allied defense bonus if defender has alliance
-        if dfn.get("alliance_id"):
-            async with self._db.execute("SELECT COUNT(*) FROM earth_countries WHERE alliance_id = ? AND id != ?", (dfn["alliance_id"], defender_country_id)) as cur:
-                ally_count = (await cur.fetchone())[0]
-                dfn_power += ally_count * 25 # +25 defense power per ally
-
+        duration = meta["duration_seconds"]
+        end_time = now + duration
         await self._db.execute("BEGIN IMMEDIATE")
         try:
-            async with self._db.execute("SELECT army_divisions FROM earth_countries WHERE id=?", (attacker_country_id,)) as cur:
-                attacker_reserve = await cur.fetchone()
-            if not attacker_reserve or int(attacker_reserve[0] or 0) < required_divisions:
-                await self._db.rollback()
-                return False, "Your reserve changed before the war order was approved. Refresh and try again.", {}
-            async with self._db.execute("SELECT army_divisions FROM earth_countries WHERE id=?", (defender_country_id,)) as cur:
-                defender_reserve = await cur.fetchone()
-            defender_committed = min(required_divisions, max(0,int(defender_reserve[0] or 0))) if defender_reserve else 0
-            async with self._db.execute("SELECT id FROM earth_wars WHERE status='active' AND ((attacker_country_id=? AND defender_country_id=?) OR (attacker_country_id=? AND defender_country_id=?))", (attacker_country_id,defender_country_id,defender_country_id,attacker_country_id)) as cur:
+            async with self._db.execute("SELECT id FROM earth_wars WHERE status='active' AND ((attacker_country_id=? AND defender_country_id=?) OR (attacker_country_id=? AND defender_country_id=?))", (attacker_country_id, defender_country_id, defender_country_id, attacker_country_id)) as cur:
                 if await cur.fetchone():
                     await self._db.rollback()
                     return False, "An active campaign is already ongoing between these countries.", {}
-            await self._db.execute("UPDATE earth_countries SET army_divisions=army_divisions-? WHERE id=?", (required_divisions,attacker_country_id))
-            await self._db.execute("UPDATE earth_countries SET army_divisions=army_divisions-? WHERE id=?", (defender_committed,defender_country_id))
-            async with self._db.execute("""
-                INSERT INTO earth_wars (
-                    attacker_country_id, defender_country_id, scale, status,
+            async with self._db.execute(f"SELECT {unit}, army_divisions, owner_id FROM earth_countries WHERE id=?", (attacker_country_id,)) as cur:
+                attacker_stock = await cur.fetchone()
+            async with self._db.execute(f"SELECT {unit}, army_divisions FROM earth_countries WHERE id=?", (defender_country_id,)) as cur:
+                defender_stock = await cur.fetchone()
+            if not attacker_stock or int(attacker_stock[0] or 0) < unit_count:
+                await self._db.rollback()
+                return False, f"Your country does not have {unit_count} available {unit}.", {}
+            if required_divisions and int(attacker_stock[1] or 0) < required_divisions:
+                await self._db.rollback()
+                return False, f"This campaign needs {required_divisions} reserve divisions; your country has {int(attacker_stock[1] or 0)}.", {}
+            # The BEGIN IMMEDIATE transaction serializes this availability check with other dispatches.
+            async with self._db.execute(
+                f"SELECT COALESCE(SUM(CASE WHEN attacker_country_id=? THEN attacker_{unit} ELSE defender_{unit} END),0) FROM earth_wars WHERE status='active' AND (attacker_country_id=? OR defender_country_id=?)",
+                (attacker_country_id, attacker_country_id, attacker_country_id),
+            ) as cur:
+                active_committed = int((await cur.fetchone())[0] or 0)
+            if int(attacker_stock[0] or 0) - active_committed < unit_count:
+                await self._db.rollback()
+                return False, f"Only {max(0,int(attacker_stock[0] or 0)-active_committed)} {unit} are available outside other active campaigns.", {}
+            # Defenders choose their own response from the equipment deployment controls;
+            # declaring a campaign never auto-dispatches or invents their hardware.
+            defender_committed_units = 0
+            defender_divisions = min(required_divisions, max(0, int(defender_stock[1] or 0))) if defender_stock else 0
+            attacker_divisions = required_divisions
+            atk_power = 50 + attacker_divisions * 5 + unit_count * (15 if domain == "land" else 25)
+            dfn_power = 50 + defender_divisions * 5 + defender_committed_units * (15 if domain == "land" else 25)
+            if required_divisions:
+                await self._db.execute("UPDATE earth_countries SET army_divisions=army_divisions-? WHERE id=?", (attacker_divisions, attacker_country_id))
+                await self._db.execute("UPDATE earth_countries SET army_divisions=army_divisions-? WHERE id=?", (defender_divisions, defender_country_id))
+            async with self._db.execute(
+                f"""INSERT INTO earth_wars (
+                    attacker_country_id, defender_country_id, scale, status, war_domain,
                     attacker_power, defender_power, attacker_divisions, defender_divisions,
-                    start_time, end_time, reparations
-                ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                attacker_country_id, defender_country_id, scale,
-                atk_power, dfn_power, required_divisions, defender_committed,
-                now, end_time, meta["reparations"]
-            )) as cur:
+                    attacker_{unit}, defender_{unit}, start_time, end_time, reparations
+                ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (attacker_country_id, defender_country_id, scale, domain, atk_power, dfn_power,
+                 attacker_divisions, defender_divisions, unit_count, defender_committed_units,
+                 now, end_time, meta["reparations"]),
+            ) as cur:
                 war_id = cur.lastrowid
             await self._db.commit()
         except Exception:
             await self._db.rollback()
             raise
-
-        war_data = {
-            "war_id": war_id,
-            "attacker_name": atk["name"],
-            "attacker_flag": atk["flag"],
-            "defender_name": dfn["name"],
-            "defender_flag": dfn["flag"],
-            "scale": scale,
-            "scale_name": meta["name"],
-            "duration_hours": meta["duration_hours"],
-            "start_time": now,
-            "end_time": end_time
+        return True, f"{domain.title()} campaign declared; {unit_count} {unit} reserved for the attacker.", {
+            "war_id": war_id, "attacker_name": atk["name"], "attacker_flag": atk["flag"],
+            "defender_name": dfn["name"], "defender_flag": dfn["flag"], "scale": scale,
+            "scale_name": meta["name"], "domain": domain, "duration_hours": meta["duration_hours"],
+            "start_time": now, "end_time": end_time,
         }
-        return True, f"⚔️ WAR DECLARED! {atk['flag']} {atk['name']} launched a {meta['duration_hours']}-Hour {meta['name']} against {dfn['flag']} {dfn['name']}!", war_data
 
     async def get_active_earth_wars(self) -> list[dict]:
         """Fetch all ongoing multi-day global wars with progress percentages and 3D coordinates."""
@@ -5393,9 +5409,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                          AND ns.target_country_id = w.attacker_country_id
                    ) AS defender_nuke_used,
                    ac.name as attacker_name, ac.flag as attacker_flag, ac.lat as atk_lat, ac.lng as atk_lng,
-                   ac.tanks as attacker_tanks, ac.jets as attacker_jets, ac.ships as attacker_ships, ac.population as attacker_population,
+                   ac.tanks as attacker_tank_inventory, ac.jets as attacker_jet_inventory, ac.ships as attacker_ship_inventory, ac.population as attacker_population,
                    dc.name as defender_name, dc.flag as defender_flag, dc.lat as dfn_lat, dc.lng as dfn_lng,
-                   dc.tanks as defender_tanks, dc.jets as defender_jets, dc.ships as defender_ships, dc.population as defender_population
+                   dc.tanks as defender_tank_inventory, dc.jets as defender_jet_inventory, dc.ships as defender_ship_inventory, dc.population as defender_population
             FROM earth_wars w
             JOIN earth_countries ac ON w.attacker_country_id = ac.id
             JOIN earth_countries dc ON w.defender_country_id = dc.id
@@ -5576,6 +5592,63 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self._db.rollback()
             raise
 
+    async def deploy_earth_war_equipment(self, user_id: int, war_id: int, unit_type: str, amount: int) -> tuple[bool, str]:
+        """Reserve additional owned hardware on a matching active front without creating units."""
+        if self._db is None:
+            await self.setup()
+        unit_type = str(unit_type or "").strip().lower()
+        columns = {"tank": ("tanks", "land", 15), "jet": ("jets", "air", 25), "ship": ("ships", "naval", 25)}
+        if unit_type not in columns:
+            return False, "Choose tanks, jets, or ships."
+        try:
+            amount = int(amount)
+        except (TypeError, ValueError):
+            return False, "Equipment count must be a whole number."
+        if not 1 <= amount <= 50:
+            return False, "Deploy between 1 and 50 vehicles per order."
+        stock_column, domain, power_each = columns[unit_type]
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute("SELECT * FROM earth_wars WHERE id=? AND status='active'", (war_id,)) as cur:
+                row = await cur.fetchone()
+            if not row:
+                await self._db.rollback()
+                return False, "Active war campaign not found."
+            war = dict(row)
+            if war.get("war_domain", "land") != domain:
+                await self._db.rollback()
+                return False, f"{unit_type.title()}s can only be deployed to {domain} campaigns."
+            side = None
+            country_id = None
+            for candidate, cid in (("attacker", int(war["attacker_country_id"])), ("defender", int(war["defender_country_id"]))):
+                if await self.has_earth_cabinet_permission(user_id, cid, "defense"):
+                    side, country_id = candidate, cid
+                    break
+            if not side:
+                await self._db.rollback()
+                return False, "Only a President or Army Commander in this war can deploy equipment."
+            async with self._db.execute(f"SELECT {stock_column} FROM earth_countries WHERE id=?", (country_id,)) as cur:
+                row = await cur.fetchone()
+            stock = int(row[0] or 0) if row else 0
+            async with self._db.execute(
+                f"SELECT COALESCE(SUM(CASE WHEN attacker_country_id=? THEN attacker_{stock_column} ELSE defender_{stock_column} END),0) FROM earth_wars WHERE status='active' AND (attacker_country_id=? OR defender_country_id=?)",
+                (country_id, country_id, country_id),
+            ) as cur:
+                reserved = int((await cur.fetchone())[0] or 0)
+            available = stock - reserved
+            if amount > available:
+                await self._db.rollback()
+                return False, f"Only {max(0, available)} {stock_column} are available to deploy."
+            await self._db.execute(
+                f"UPDATE earth_wars SET {side}_{stock_column}={side}_{stock_column}+?, {side}_power={side}_power+? WHERE id=?",
+                (amount, amount * power_each, war_id),
+            )
+            await self._db.commit()
+            return True, f"Deployed {amount} {unit_type}{'s' if amount != 1 else ''}; your national inventory is unchanged and these units are reserved at this front."
+        except Exception:
+            await self._db.rollback()
+            raise
+
     async def reinforce_earth_war(self, user_id: int, war_id: int, divisions: int) -> tuple[bool, str]:
         """Move existing national reserve divisions to an active front."""
         if self._db is None:
@@ -5603,6 +5676,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.rollback()
                 return False,"Only a President or Army Commander of a country in this war can deploy troops."
             side,country_id=choice
+            if war.get("war_domain", "land") != "land":
+                await self._db.rollback()
+                return False,"Division reinforcements are only available in land campaigns."
             async with self._db.execute("SELECT army_divisions FROM earth_countries WHERE id=?",(country_id,)) as cur:
                 reserve=await cur.fetchone()
             available=int(reserve[0] or 0) if reserve else 0
@@ -5638,6 +5714,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             defender_owner = defender_row[0] if defender_row else None
             attacker_owner = attacker_row[0] if attacker_row else None
             if not defender_owner or not attacker_owner or defender_owner == attacker_owner:
+                for country_id, divisions in ((w["attacker_country_id"], w["attacker_divisions"]), (w["defender_country_id"], w["defender_divisions"])):
+                    await self._db.execute(
+                        "UPDATE earth_countries SET army_divisions=MIN(MAX(0,population/5),army_divisions+?) WHERE id=?",
+                        (max(0, int(divisions or 0)), country_id),
+                    )
                 await self._db.execute("UPDATE earth_wars SET status = 'cancelled' WHERE id = ?", (wid,))
                 await self._db.commit()
                 continue
@@ -5662,7 +5743,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loot, w["attacker_country_id"]))
 
                 # Imperial Annexation: If campaign scale is annexation or total world war
-                if w.get("scale") in ("annexation", "world_war"):
+                if w.get("war_domain", "land") == "land" and w.get("scale") in ("annexation", "world_war"):
                     async with self._db.execute("SELECT owner_id FROM earth_countries WHERE id = ?", (w["attacker_country_id"],)) as cur:
                         atk_owner_row = await cur.fetchone()
                         atk_owner = atk_owner_row[0] if atk_owner_row else None
@@ -5685,8 +5766,15 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 loot = w.get("reparations", 100000)
                 await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loot, w["defender_country_id"]))
 
-            # Return surviving formations and apply population losses after the campaign.
+            # Deployed hardware returns to inventory except for campaign attrition.
             attacker_won = status == "attacker_won"
+            for unit in ("tanks", "jets", "ships"):
+                for side, cid, won in (("attacker", w["attacker_country_id"], attacker_won), ("defender", w["defender_country_id"], not attacker_won)):
+                    committed_units = int(w.get(f"{side}_{unit}", 0) or 0)
+                    unit_losses = min(committed_units, int(committed_units * (0.10 if won else 0.35) + (0 if won else 0.999)))
+                    if unit_losses:
+                        await self._db.execute(f"UPDATE earth_countries SET {unit}=MAX(0,{unit}-?) WHERE id=?", (unit_losses, cid))
+            # Return surviving formations and apply population losses after the campaign.
             for cid, committed, won in ((w["attacker_country_id"],int(w["attacker_divisions"] or 0),attacker_won),(w["defender_country_id"],int(w["defender_divisions"] or 0),not attacker_won)):
                 losses = min(committed,max(1,int(committed*(0.12 if won else 0.32))) if committed else 0)
                 survivors = max(0,committed-losses)
