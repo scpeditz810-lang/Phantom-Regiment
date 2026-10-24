@@ -1071,7 +1071,8 @@ let tradeRoutesData = [];
 let militaryAirGroup = null;
 let navalFleetsGroup = null;
 let combatFXGroup = null;
-let activeSortieJets = [];
+let activeSortieJets = [];
+let activeGroundTanks = [];
 let combatPatrolJets = [];
 let deployedNavalVessels = [];
 let activeCombatExplosions = [];
@@ -1307,9 +1308,7 @@ function latLngToVector3(lat, lng, radius) {
 }
 
 function renderCountryPins() {
-    while (countryPinsGroup.children.length > 0) {
-        countryPinsGroup.remove(countryPinsGroup.children[0]);
-    }
+    clearThreeGroup(countryPinsGroup);
 
     countriesData.forEach(c => {
         if (!shouldShowCountry(c)) return;
@@ -1660,6 +1659,45 @@ function createWarshipMesh(isCarrier = false, hullColor = 0x475569) {
     return ship;
 }
 
+
+function createBattleTankMesh(color = 0xef4444) {
+    const tank = new THREE.Group();
+    const armor = new THREE.MeshStandardMaterial({color, metalness:0.62, roughness:0.42});
+    const dark = new THREE.MeshStandardMaterial({color:0x202936, metalness:0.35, roughness:0.7});
+    const steel = new THREE.MeshStandardMaterial({color:0x94a3b8, metalness:0.8, roughness:0.3});
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.35,0.45,1.8),armor);
+    body.position.y=0.48; tank.add(body);
+    const upper = new THREE.Mesh(new THREE.BoxGeometry(1.08,0.32,1.08),armor);
+    upper.position.set(0,0.84,-0.08); tank.add(upper);
+    const turret = new THREE.Group();
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.48,0.56,0.28,10),armor);
+    cap.position.y=0.02; turret.add(cap);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.1,1.15,8),steel);
+    barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.02,0.65); turret.add(barrel);
+    const flash = new THREE.Mesh(new THREE.SphereGeometry(0.2,8,8),new THREE.MeshBasicMaterial({color:0xffa500,transparent:true,opacity:0}));
+    flash.position.set(0,0.02,1.24); turret.add(flash);
+    tank.add(turret);
+    [-0.62,0.62].forEach(x=>{
+        const track=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.42,2.05),dark);
+        track.position.set(x,0.28,0); tank.add(track);
+        [-0.78,-0.25,0.28,0.76].forEach(z=>{
+            const wheel=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.38,10),steel);
+            wheel.rotation.z=Math.PI/2; wheel.position.set(x,0.28,z); tank.add(wheel);
+        });
+    });
+    tank.scale.setScalar(0.72);
+    tank.userData.turret=turret; tank.userData.flash=flash;
+    return tank;
+}
+
+function orientMilitaryUnitOnGlobe(unit, position, tangent) {
+    const up=position.clone().normalize();
+    const forward=tangent.clone().projectOnPlane(up).normalize();
+    const right=new THREE.Vector3().crossVectors(up,forward).normalize();
+    const basis=new THREE.Matrix4().makeBasis(right,up,forward);
+    unit.quaternion.setFromRotationMatrix(basis);
+}
+
 const STRATEGIC_NAVAL_PORTS = [
     // North America & Atlantic
     { name: "Norfolk Naval Station", country: "USA", flag: "🇺🇸", lat: 36.8, lng: -74.2, carrier: true, rot: 0.5 },
@@ -1696,10 +1734,26 @@ const STRATEGIC_NAVAL_PORTS = [
     { name: "Sydney Fleet Base East", country: "AUS", flag: "🇦🇺", lat: -34.1, lng: 152.0, carrier: true, rot: -0.6 }
 ];
 
+function clearThreeGroup(group) {
+    if (!group) return;
+    while (group.children.length) {
+        const child = group.children[0];
+        child.traverse(object => {
+            if (object.geometry) object.geometry.dispose();
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            materials.filter(Boolean).forEach(material => {
+                Object.values(material).forEach(value => {
+                    if (value && value.isTexture) value.dispose();
+                });
+                material.dispose();
+            });
+        });
+        group.remove(child);
+    }
+}
+
 function renderNavalFleets() {
-    while (navalFleetsGroup.children.length > 0) {
-        navalFleetsGroup.remove(navalFleetsGroup.children[0]);
-    }
+    clearThreeGroup(navalFleetsGroup);
     deployedNavalVessels = [];
 
     STRATEGIC_NAVAL_PORTS.forEach((port, idx) => {
@@ -1722,7 +1776,8 @@ function renderNavalFleets() {
         ship.userData = {
             basePos: pos.clone(),
             normal: normal,
-            phase: idx * 0.73,
+            phase: idx * 0.73,
+            baseQuaternion: ship.quaternion.clone(),
             name: port.name,
             country: port.country
         };
@@ -1730,14 +1785,35 @@ function renderNavalFleets() {
         navalFleetsGroup.add(ship);
         deployedNavalVessels.push(ship);
     });
+    // Deploy visible national warships on active war routes.
+    warsData.forEach((w, wIdx) => {
+        const start = latLngToVector3(w.atk_lat,w.atk_lng,GLOBE_RADIUS*1.006);
+        const finish = latLngToVector3(w.dfn_lat,w.dfn_lng,GLOBE_RADIUS*1.006);
+        const mid = start.clone().add(finish).multiplyScalar(0.5).normalize().multiplyScalar(GLOBE_RADIUS*1.008);
+        const seaCurve = new THREE.QuadraticBezierCurve3(start,mid,finish);
+        [
+            {count:w.attacker_ships,color:0xef4444,attacker:true},
+            {count:w.defender_ships,color:0x3b82f6,attacker:false}
+        ].forEach((side,sideIdx)=>{
+            if(Number(side.count||0)<1)return;
+            const ship=createWarshipMesh(false,side.color);
+            const p=side.attacker?0.14:0.86;
+            const pos=seaCurve.getPointAt(p).normalize().multiplyScalar(GLOBE_RADIUS*1.004);
+            ship.position.copy(pos);
+            const next=seaCurve.getPointAt(Math.min(.999,p+(side.attacker?.002:-.002))).normalize().multiplyScalar(GLOBE_RADIUS*1.004);
+            orientMilitaryUnitOnGlobe(ship,pos,side.attacker?next.clone().sub(pos):pos.clone().sub(next));
+            ship.userData={basePos:pos.clone(),normal:pos.clone().normalize(),phase:wIdx+sideIdx,seaCurve,attacker:side.attacker};
+            navalFleetsGroup.add(ship);
+            deployedNavalVessels.push(ship);
+        });
+    });
 }
 
 function renderMilitaryAirAirspaces() {
-    while (militaryAirGroup.children.length > 0) {
-        militaryAirGroup.remove(militaryAirGroup.children[0]);
-    }
-    activeSortieJets = [];
-    combatPatrolJets = [];
+    clearThreeGroup(militaryAirGroup);
+    activeSortieJets = [];
+    combatPatrolJets = [];
+    activeGroundTanks = [];
 
     // 1. ACTIVE COMBAT SORTIES (Between warring nations)
     warsData.forEach((w, wIdx) => {
@@ -1752,7 +1828,7 @@ function renderMilitaryAirAirspaces() {
         const interceptCurve = new THREE.QuadraticBezierCurve3(vDfn, vMid, vAtk);
 
         // Attack Formation: Lead Strike Jet + Wingman
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < Math.min(2, Math.max(0, Number(w.attacker_jets || 0))); i++) {
             const strikeJet = createFighterJetMesh(0xef4444, 0xf97316); // Combat Red with blazing afterburner
             strikeJet.userData = {
                 curve: attackCurve,
@@ -1767,6 +1843,7 @@ function renderMilitaryAirAirspaces() {
         }
 
         // Defender Interceptor Jet
+        if (Number(w.defender_jets || 0) > 0) {
         const interceptJet = createFighterJetMesh(0x3b82f6, 0x06b6d4); // Cyan / Blue interceptor
         interceptJet.userData = {
             curve: interceptCurve,
@@ -1777,7 +1854,26 @@ function renderMilitaryAirAirspaces() {
             war: w
         };
         militaryAirGroup.add(interceptJet);
-        activeSortieJets.push(interceptJet);
+        activeSortieJets.push(interceptJet);
+        }
+
+        const groundStart = vAtk.clone().normalize().multiplyScalar(GLOBE_RADIUS * 1.006);
+        const groundEnd = vDfn.clone().normalize().multiplyScalar(GLOBE_RADIUS * 1.006);
+        const groundControl = vMid.clone().normalize().multiplyScalar(GLOBE_RADIUS * 1.008);
+        const groundCurve = new THREE.QuadraticBezierCurve3(groundStart, groundControl, groundEnd);
+        [
+            {color:0xef4444, attacker:true, count:w.attacker_tanks},
+            {color:0x3b82f6, attacker:false, count:w.defender_tanks}
+        ].forEach((side, sideIdx) => {
+            if (Number(side.count || 0) < 1) return;
+            const formationSize = Math.min(3, Math.max(0, Number(side.count || 0)));
+            for (let vehicle = 0; vehicle < formationSize; vehicle++) {
+                const tank = createBattleTankMesh(side.color);
+                tank.userData = {groundCurve, attacker:side.attacker, phase:wIdx * 0.8 + sideIdx * 1.7 + vehicle * 1.1, turret:tank.userData.turret, flash:tank.userData.flash};
+                militaryAirGroup.add(tank);
+                activeGroundTanks.push(tank);
+            }
+        });
     });
 
     // 2. COMBAT AIR PATROLS (CAP) - Flying tactical air defense circuits over major nations
@@ -1802,9 +1898,7 @@ function renderMilitaryAirAirspaces() {
 }
 
 function renderCombatWarzones() {
-    while (combatFXGroup.children.length > 0) {
-        combatFXGroup.remove(combatFXGroup.children[0]);
-    }
+    clearThreeGroup(combatFXGroup);
     activeCombatExplosions = [];
     activeCombatShockwaves = [];
 
@@ -1886,6 +1980,20 @@ function animateMilitaryUnits(time) {
         }
     });
 
+    // Ground armor advances and fires along active war fronts.
+    activeGroundTanks.forEach(tank => {
+        const u = tank.userData;
+        const wave = 0.5 + 0.5 * Math.sin(time * 0.55 + u.phase);
+        const p = u.attacker ? 0.16 + wave * 0.18 : 0.84 - wave * 0.18;
+        const pos = u.groundCurve.getPointAt(p).normalize().multiplyScalar(GLOBE_RADIUS * 1.009);
+        const next = u.groundCurve.getPointAt(Math.min(0.999, p + (u.attacker ? 0.003 : -0.003))).normalize().multiplyScalar(GLOBE_RADIUS * 1.009);
+        tank.position.copy(pos);
+        orientMilitaryUnitOnGlobe(tank, pos, u.attacker ? next.clone().sub(pos) : pos.clone().sub(next));
+        u.turret.rotation.y = 0.18 * Math.sin(time * 1.7 + u.phase);
+        u.flash.material.opacity = Math.sin(time * 5.2 + u.phase) > 0.88 ? 0.95 : 0;
+        u.flash.scale.setScalar(0.75 + 0.4 * Math.abs(Math.sin(time * 8 + u.phase)));
+    });
+
     // 2. Animate Combat Air Patrols (circling in loops over major countries)
     combatPatrolJets.forEach(jet => {
         const u = jet.userData;
@@ -1918,17 +2026,27 @@ function animateMilitaryUnits(time) {
     });
 
     // 3. Animate Naval Warships (Ocean wave heaving & bobbing)
-    deployedNavalVessels.forEach(ship => {
-        const u = ship.userData;
-        const heave = Math.sin(time * 2.2 + u.phase) * 0.12;
-        const pitch = Math.cos(time * 1.8 + u.phase) * 0.025;
-        const roll = Math.sin(time * 1.5 + u.phase) * 0.035;
-
-        ship.position.copy(u.basePos).addScaledVector(u.normal, heave);
-        ship.rotation.x += pitch * 0.05;
-        ship.rotation.z += roll * 0.05;
-    });
-
+    deployedNavalVessels.forEach(ship => {
+        const u = ship.userData;
+        const heave = Math.sin(time * 2.2 + u.phase) * 0.12;
+        const pitch = Math.cos(time * 1.8 + u.phase) * 0.025;
+        const roll = Math.sin(time * 1.5 + u.phase) * 0.035;
+        if (u.seaCurve) {
+            const wave=0.5+0.5*Math.sin(time*0.3+u.phase);
+            const p=u.attacker?0.14+wave*0.16:0.86-wave*0.16;
+            const pos=u.seaCurve.getPointAt(p).normalize().multiplyScalar(GLOBE_RADIUS*1.005);
+            const next=u.seaCurve.getPointAt(Math.min(.999,p+(u.attacker?.002:-.002))).normalize().multiplyScalar(GLOBE_RADIUS*1.005);
+            ship.position.copy(pos).addScaledVector(pos.clone().normalize(),heave);
+            orientMilitaryUnitOnGlobe(ship,pos,u.attacker?next.clone().sub(pos):pos.clone().sub(next));
+            ship.rotateX(pitch); ship.rotateZ(roll);
+        } else {
+            ship.position.copy(u.basePos).addScaledVector(u.normal, heave);
+            const bob = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch * 0.05,0,roll * 0.05));
+            ship.quaternion.copy(u.baseQuaternion).multiply(bob);
+            
+        }
+    });
+
     // 4. Animate Combat FX (Shockwaves & Explosions)
     activeCombatShockwaves.forEach(sw => {
         sw.scale += sw.speed;
@@ -1955,9 +2073,7 @@ function animateMilitaryUnits(time) {
 }
 
 function renderWarTrajectories() {
-    while (warArcsGroup.children.length > 0) {
-        warArcsGroup.remove(warArcsGroup.children[0]);
-    }
+    clearThreeGroup(warArcsGroup);
 
     warsData.forEach(w => {
         const vAtk = latLngToVector3(w.atk_lat, w.atk_lng, GLOBE_RADIUS * 1.014);
@@ -2658,7 +2774,7 @@ function renderIntelTab(c, isLeader, isOwner, container) {
     } else {
         spies.forEach(s => {
             const rank = SPY_RANKS[s.skill_level] || { name: `Level ${s.skill_level}`, color: "#94a3b8" };
-            const canTrain = isLeader && s.status === 'idle' && s.skill_level < 5;
+            const canTrain = canManageIntel && s.status === 'idle' && s.skill_level < 5;
             const nextLevel = (s.skill_level || 1) + 1;
 
             html += `
@@ -2671,12 +2787,12 @@ function renderIntelTab(c, isLeader, isOwner, container) {
                             </span>
                         </div>
                         <div style="font-size: 0.72rem; color: ${s.status === 'idle' ? '#10b981' : (s.status === 'captured' ? '#ef4444' : '#f59e0b')}; margin-top: 0.2rem;">
-                            Status: <strong>${s.status.toUpperCase()}</strong>
+                            Status: <strong>${s.status.toUpperCase()}</strong>${s.status === 'infiltrating' ? `<br>Field mission in progress · ${Math.ceil((s.mission_remaining_seconds || 0) / 60)} min left` : ''}
                         </div>
                     </div>
 
                     <div style="display:flex; gap:0.35rem; align-items:center;">
-                        ${(isLeader && s.status === 'idle') ? `
+                        ${(canManageIntel && s.status === 'idle') ? `
                             <button class="btn-action-sm" onclick="openDispatchSpyModal(${s.id}, '${escapeHtml(s.codename)}', ${s.skill_level})">
                                 Dispatch
                             </button>
@@ -2696,7 +2812,7 @@ function renderIntelTab(c, isLeader, isOwner, container) {
     html += `
         <div style="display:flex; justify-content:space-between; align-items:center; margin: 0.85rem 0 0.35rem 0;">
             <span style="font-size: 0.82rem; font-weight: 800;">📑 Classified Intelligence Dossiers</span>
-            ${isLeader ? `<button class="btn-action-sm" style="border-color:#fbbf24; color:#fbbf24;" onclick="openBuyIntelModal(${c.id})">📑 Buy Dossier</button>` : ''}
+            ${canManageIntel ? `<button class="btn-action-sm" style="border-color:#fbbf24; color:#fbbf24;" onclick="openBuyIntelModal(${c.id})">📑 Buy Dossier</button>` : ''}
         </div>
     `;
 
@@ -2724,7 +2840,7 @@ function renderIntelTab(c, isLeader, isOwner, container) {
         <div class="info-tile" style="margin-top: 0.85rem; border-color: rgba(16, 185, 129, 0.3);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.4rem;">
                 <span style="font-size: 0.84rem; font-weight: 800; color: #10b981;">🛡️ Counter-Intelligence & Border Security</span>
-                ${isLeader ? `<button class="btn-action-sm" style="border-color:#10b981; color:#10b981;" onclick="runCounterSweep(${c.id})">🔍 Security Sweep</button>` : ''}
+                ${canManageIntel ? `<button class="btn-action-sm" style="border-color:#10b981; color:#10b981;" onclick="runCounterSweep(${c.id})">🔍 Security Sweep</button>` : ''}
             </div>
             <div style="font-size: 0.73rem; color: #94a3b8; margin-bottom: 0.65rem;">
                 Run active sweeps to catch enemy infiltrators in your territory. Fortification Bunkers boost capture rate (+3% per level).
@@ -2767,6 +2883,27 @@ function renderWarsTab(c, isLeader, isOwner, container) {
         </div>
     `;
 
+    if (isOwnCountry && c.can_command_defense) {
+        const reserve = Math.max(0, Number(c.army_divisions || 0));
+        const maxTotal = Math.max(0, Math.floor(Number(c.population || 0) / 5));
+        html += `
+            <div class="info-tile" style="margin-bottom:0.85rem;border-color:rgba(56,189,248,.4);">
+                <div style="font-weight:800;color:#7dd3fc;margin-bottom:.45rem;">🪖 National Defense Forces</div>
+                <div style="font-size:.75rem;color:#cbd5e1;line-height:1.6;">
+                    Civilians: <b>${Number(c.population||0).toLocaleString()}</b> · Force ceiling: <b>${maxTotal}</b> divisions<br>Ready reserve: <b>${reserve}</b> · Active fronts: <b>${Number(c.deployed_divisions||0)}</b><br>
+                    🪖 ${Number(c.army_divisions||0)} reserve · 🛡️ ${Number(c.tanks||0)} tanks · ✈️ ${Number(c.jets||0)} jets · 🚢 ${Number(c.ships||0)} ships
+                </div>
+                <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.6rem;">
+                    <input id="earth-hire-divisions" type="number" min="1" max="20" value="1" inputmode="numeric" style="width:5rem;min-height:2.4rem;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:8px;padding:.4rem;" aria-label="Divisions to recruit">
+                    <button class="btn-action-sm" onclick="hireEarthDivisions(${c.id})">Recruit Divisions</button>
+                    <button class="btn-action-sm" onclick="purchaseEarthHardware(${c.id},'tank')">Buy Tank · 200k</button>
+                    <button class="btn-action-sm" onclick="purchaseEarthHardware(${c.id},'jet')">Buy Jet · 350k</button>
+                    ${c.is_coastal ? '<button class="btn-action-sm" onclick="purchaseEarthHardware(' + c.id + ',&#39;ship&#39;)">Buy Ship · 300k</button>' : ''}
+                </div>
+                <div style="font-size:.68rem;color:#94a3b8;margin-top:.35rem;">Force capacity grows with population. Recruitment costs 25,000 Medals per division; deployed troops come from this reserve.</div>
+            </div>`;
+    }
+
     if (wars.length === 0) {
         html += `<div style="text-align:center; padding:2rem; color:#94a3b8; font-size:0.8rem;">No active multi-day conquests involving this nation. Sovereign borders are intact.</div>`;
     } else {
@@ -2778,16 +2915,16 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                         <span style="font-size: 0.72rem; color: #ef4444; font-weight:800;">${w.hours_remaining}h left</span>
                     </div>
                     <div style="font-size: 0.72rem; margin-top: 0.25rem; color:#cbd5e1;">
-                        Scale: <strong>${w.scale.toUpperCase()}</strong> • Assault: ${w.attacker_power} (${w.attacker_divisions} Divs) vs Defense: ${w.defender_power} (${w.defender_divisions} Divs)
+                        Scale: <strong>${w.scale.toUpperCase()}</strong> • Assault: ${w.attacker_power} (${w.attacker_divisions} Divs) vs Defense: ${w.defender_power} (${w.defender_divisions} Divs)<br>Armor / air / navy: 🔴 ${Number(w.attacker_tanks||0)} / ${Number(w.attacker_jets||0)} / ${Number(w.attacker_ships||0)} vs 🔵 ${Number(w.defender_tanks||0)} / ${Number(w.defender_jets||0)} / ${Number(w.defender_ships||0)}
                     </div>
                     <div class="stat-progress-bar" style="margin-top: 0.4rem; width:100%;">
                         <div class="stat-progress-fill" style="width: ${w.progress_pct}%; background: #ef4444;"></div>
                     </div>
                     <div style="display:flex; justify-content:space-between; width:100%; margin-top:0.4rem; align-items:center;">
                         <span style="font-size: 0.7rem; color: #94a3b8;">Campaign Progress: ${w.progress_pct}%</span>
-                        <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}')">
+                        ${c.can_command_defense && Number(c.army_divisions||0)>0 ? `<button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${Number(c.army_divisions||0)})">
                             🪖 Reinforce Front
-                        </button>
+                        </button>` : ''}
                         ${(c.can_command_defense && (c.tools || []).some(tool => tool.tool_key === "nuclear_launch_pad") &&
                             (c.tools || []).some(tool => tool.tool_key === "tactical_nuke") &&
                             ((c.id === w.attacker_country_id && !w.attacker_nuke_used) ||
@@ -3325,7 +3462,7 @@ function openDispatchSpyModal(spyId, codename, skillLevel) {
                     <label class="custom-form-label">Mission Objective</label>
                     <div class="selectable-card active" id="mission-card-intel" onclick="selectMissionType('intel')">
                         <div style="font-weight:800; color:#38bdf8;">🛰️ Infiltrate & Gather Intelligence</div>
-                        <div style="font-size:0.72rem; color:#cbd5e1;">Decrypt hidden enemy military power, treasury reserves, and pending war orders. (20% risk)</div>
+                        <div style="font-size:0.72rem; color:#cbd5e1;">A timed infiltration reveals population, divisions, tanks, jets, ships, nuclear readiness, and recent military orders. (20% risk)</div>
                     </div>
 
                     <div class="selectable-card" id="mission-card-sabotage" onclick="selectMissionType('sabotage')">
@@ -3335,7 +3472,7 @@ function openDispatchSpyModal(spyId, codename, skillLevel) {
 
                     <div class="selectable-card" id="mission-card-riot" onclick="selectMissionType('incite_riot')">
                         <div style="font-weight:800; color:#ef4444;">🔥 Fund Dissidents & Incite Riots</div>
-                        <div style="font-size:0.72rem; color:#cbd5e1;">Inject +25% civil unrest into the target nation to trigger violent riots and coup risks! (40% risk)</div>
+                        <div style="font-size:0.72rem; color:#cbd5e1;">After the operation completes, add up to 8 unrest and reduce stability slightly. This cannot directly change leadership. (40% risk)</div>
                     </div>
                 </div>
 
@@ -3531,7 +3668,7 @@ async function submitDeclareWar(targetId) {
     }
 }
 
-function openReinforceModal(warId, atkName, dfnName) {
+function openReinforceModal(warId, atkName, dfnName, available = 1) {
     const container = document.getElementById("modal-container");
     container.innerHTML = `
         <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
@@ -3550,9 +3687,9 @@ function openReinforceModal(warId, atkName, dfnName) {
                 <div class="custom-form-group">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <label class="custom-form-label">Divisions to Deploy: <strong id="reinforce-div-label">5 Divisions</strong></label>
-                        <span style="font-size:0.75rem; color:#38bdf8;" id="reinforce-cost-label">Cost: 125,000 M</span>
+                        <span style="font-size:0.75rem; color:#38bdf8;" id="reinforce-cost-label">Deploys existing reserve units · no Medals</span>
                     </div>
-                    <input type="range" min="1" max="30" value="5" class="form-range w-100" id="reinforce-slider" oninput="updateReinforceCost(this.value)">
+                    <input type="range" min="1" max="${Math.max(1, Math.min(50, Number(available)||1))}" value="${Math.min(5, Math.max(1, Number(available)||1))}" class="form-range w-100" id="reinforce-slider" oninput="updateReinforceCost(this.value)">
                 </div>
 
                 <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
@@ -3566,8 +3703,7 @@ function openReinforceModal(warId, atkName, dfnName) {
 
 function updateReinforceCost(divs) {
     document.getElementById("reinforce-div-label").innerText = divs + " Divisions";
-    const cost = divs * 25000;
-    document.getElementById("reinforce-cost-label").innerText = "Cost: " + cost.toLocaleString() + " M";
+    document.getElementById("reinforce-cost-label").innerText = "Uses reserve divisions · no fee";
 }
 
 async function submitReinforceWar(warId) {
@@ -3587,6 +3723,39 @@ async function submitReinforceWar(warId) {
     }
 }
 
+
+async function hireEarthDivisions(countryId) {
+    const input = document.getElementById("earth-hire-divisions");
+    const amount = Math.max(1, Math.min(20, parseInt(input?.value || "1", 10) || 1));
+    try {
+        const response = await fetch("/api/earth/army/hire", {
+            method: "POST", headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({country_id: countryId, divisions: amount})
+        });
+        const data = await response.json();
+        showToast(data.message || "Recruitment order processed.");
+        await loadVirtualEarthData();
+    } catch (error) {
+        showToast("Recruitment request failed.");
+    }
+}
+
+async function purchaseEarthHardware(countryId, unitType) {
+    const costs = {tank: 200000, jet: 350000, ship: 300000};
+    if (!costs[unitType] || !confirm("Purchase 1 " + unitType + " for " + costs[unitType].toLocaleString() + " Medals?")) return;
+    try {
+        const response = await fetch("/api/earth/army/purchase", {
+            method: "POST", headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({country_id: countryId, unit_type: unitType, amount: 1})
+        });
+        const data = await response.json();
+        showToast(data.message || "Equipment order processed.");
+        await loadVirtualEarthData();
+    } catch (error) {
+        showToast("Equipment request failed.");
+    }
+}
+
 async function launchNuclearStrike(countryId, warId) {
     if (!confirm("Launch the one-use tactical nuclear weapon in this active war? The enemy country will take damage and the weapon cannot be recalled.")) return;
     try {
@@ -3945,6 +4114,15 @@ function openIntelModal(escapedJson) {
                     </div>
                 </div>
 
+
+                <div class="info-tile" style="margin-bottom:.75rem;">
+                    <div style="font-size:.75rem;font-weight:800;margin-bottom:.35rem;">Detected Forces & Nuclear Readiness</div>
+                    <div style="font-size:.72rem;color:#cbd5e1;">Population: <b>${Number(d.population||0).toLocaleString()}</b> · Reserve divisions: <b>${Number(d.army_divisions||0)}</b><br>🛡️ ${Number(d.tanks||0)} tanks · ✈️ ${Number(d.jets||0)} jets · 🚢 ${Number(d.ships||0)} ships<br>☢️ ${d.nuclear_plot_detected ? 'Launch pad and tactical nuke both detected' : 'No ready nuclear launch capability detected'}</div>
+                </div>
+                <div class="info-tile" style="margin-bottom:.75rem;">
+                    <div style="font-size:.75rem;font-weight:800;margin-bottom:.35rem;">Recent recruitment and purchases · 30 days</div>
+                    ${(d.military_orders_last_30_days||[]).length ? d.military_orders_last_30_days.slice(0,8).map(order=>'<div style="font-size:.72rem;color:#cbd5e1;">'+escapeHtml(String(order.action||''))+': '+Number(order.amount||0)+' × '+escapeHtml(String(order.unit_type||''))+' · player '+Number(order.actor_id||0)+'</div>').join('') : '<div style="font-size:.72rem;color:#94a3b8;">No recent orders recorded.</div>'}
+                </div>
                 <div style="display:flex; justify-content:flex-end;">
                     <button class="btn-action-sm" onclick="closeModal()">Close</button>
                 </div>
