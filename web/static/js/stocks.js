@@ -9,6 +9,8 @@ let currentBankAction = 'deposit';
 
 document.addEventListener("DOMContentLoaded", () => {
     initMarket();
+    initPlayerCompanyForm();
+    setInterval(() => { initPlayerCompanyForm(); }, 30000);
     loadLeaderboards();
     if (document.getElementById("portfolio-body")) {
         loadPortfolio();
@@ -28,6 +30,189 @@ async function initMarket() {
             loadChart(activeStockId);
         }
     }, 25000);
+}
+
+async function refreshCompanyBankBalance() {
+    const label = document.getElementById("company-market-bank-balance");
+    if (!label) return;
+    try {
+        const response = await fetch("/api/companies/bank-balance");
+        if (!response.ok) return;
+        const data = await response.json();
+        label.textContent = "Market bank available balance: " + Number(data.balance || 0).toLocaleString() +
+            " Medals · sale tax: " + Number(data.tax_pct || 0) + "%";
+    } catch (error) {
+        label.textContent = "Market bank balance unavailable.";
+    }
+}
+
+async function refreshCompanyOffers() {
+    const host = document.getElementById("company-incoming-offers");
+    if (!host) return;
+    host.replaceChildren();
+    try {
+        const response = await fetch("/api/companies/offers");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data.offers || !data.offers.length) return;
+        const title = document.createElement("h3");
+        title.textContent = "Company purchase offers";
+        host.appendChild(title);
+        for (const offer of data.offers) {
+            const card = document.createElement("div");
+            card.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.65rem;border:1px solid var(--border-color,#334155);border-radius:8px;margin:.4rem 0";
+            const label = document.createElement("span");
+            label.textContent = offer.company_name + " (" + offer.symbol + ") from " +
+                (offer.seller_username || "player") + " — " + Number(offer.gross_price).toLocaleString() + " Medals including tax";
+            label.style.flex = "1 1 220px";
+            card.appendChild(label);
+            for (const [action, caption] of [["accept", "Accept"], ["reject", "Decline"]]) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "btn btn-blue";
+                button.textContent = caption;
+                button.addEventListener("click", async () => {
+                    button.disabled = true;
+                    const status = document.getElementById("company-owner-status");
+                    try {
+                        const result = await fetch("/api/companies/offers/" + offer.id + "/" + action, {method:"POST"});
+                        const body = await result.json();
+                        if (status) status.textContent = body.message || "Offer updated.";
+                        await refreshCompanyOffers();
+                        if (result.ok && action === "accept") await initPlayerCompanyForm();
+                    } catch (error) {
+                        if (status) status.textContent = "Could not update this offer. Please retry.";
+                        button.disabled = false;
+                    }
+                });
+                card.appendChild(button);
+            }
+            host.appendChild(card);
+        }
+    } catch (error) {
+        host.textContent = "Purchase offers could not be loaded.";
+    }
+}
+
+async function submitCompanyPlayerSale(event) {
+    event.preventDefault();
+    const status = document.getElementById("company-offer-status");
+    const button = event.target.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+        const payload = {
+            buyer_username: document.getElementById("company-buyer-username").value.trim(),
+            price: document.getElementById("company-player-sale-price").value
+        };
+        const response = await fetch("/api/companies/offers", {
+            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (status) status.textContent = data.message || "Offer could not be sent.";
+        if (response.ok) event.target.reset();
+    } catch (error) {
+        if (status) status.textContent = "Could not send the offer. Please retry.";
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
+async function submitCompanyBankSale(event) {
+    event.preventDefault();
+    const status = document.getElementById("company-offer-status");
+    const button = event.target.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+        const price = document.getElementById("company-bank-sale-price").value;
+        const response = await fetch("/api/companies/sell-to-bank", {
+            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({price})
+        });
+        const data = await response.json();
+        if (status) status.textContent = data.message || "Bank sale failed.";
+        if (response.ok) {
+            const panel = document.getElementById("company-sale-panel");
+            if (panel) panel.hidden = true;
+            await initPlayerCompanyForm();
+        }
+    } catch (error) {
+        if (status) status.textContent = "Could not complete the bank sale. Please retry.";
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
+async function initPlayerCompanyForm() {
+    const form = document.getElementById("player-company-form");
+    const status = document.getElementById("company-owner-status");
+    if (!form) {
+        await refreshCompanyOffers();
+        return;
+    }
+    try {
+        const response = await fetch("/api/companies/mine");
+        if (!response.ok) {
+            await refreshCompanyOffers();
+            return;
+        }
+        const data = await response.json();
+        if (!data.company) {
+            form.hidden = false;
+            const salePanel = document.getElementById("company-sale-panel");
+            if (salePanel) salePanel.hidden = true;
+            await refreshCompanyOffers();
+            await refreshCompanyBankBalance();
+            return;
+        }
+        if (status) status.innerText = data.company.name + " (" + data.company.symbol + ") is listed at " +
+            Number(data.company.price).toLocaleString() + " Medals per share. AI review: " + data.company.ai_status +
+            ". Company treasury: " + Number(data.company.treasury || 0).toLocaleString() + " Medals.";
+        form.hidden = true;
+        const salePanel = document.getElementById("company-sale-panel");
+        if (salePanel) salePanel.hidden = false;
+        await refreshCompanyOffers();
+        await refreshCompanyBankBalance();
+    } catch (error) {
+        if (status) status.innerText = "Your company listing could not be loaded.";
+    }
+}
+
+async function submitPlayerCompany(event) {
+    event.preventDefault();
+    const form = document.getElementById("player-company-form");
+    const status = document.getElementById("company-owner-status");
+    const button = document.getElementById("company-submit");
+    if (!form || !status || !button) return;
+    button.disabled = true;
+    status.innerText = "Submitting the company and checking the reported figures...";
+    const payload = {
+        name: document.getElementById("company-name").value.trim(),
+        symbol: document.getElementById("company-symbol").value.trim().toUpperCase(),
+        sector: document.getElementById("company-sector").value,
+        valuation: document.getElementById("company-valuation").value,
+        annual_revenue: document.getElementById("company-revenue").value,
+        annual_profit: document.getElementById("company-profit").value,
+        debt: document.getElementById("company-debt").value,
+        description: document.getElementById("company-description").value.trim()
+    };
+    try {
+        const response = await fetch("/api/companies/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        status.innerText = data.message || "Company submission failed.";
+        if (response.ok && data.success) {
+            form.hidden = true;
+            await loadStocks(true);
+            await initPlayerCompanyForm();
+        } else {
+            button.disabled = false;
+        }
+    } catch (error) {
+        status.innerText = "Company submission failed. Please try again.";
+        button.disabled = false;
+    }
 }
 
 // ── Stock Loading & Rendering ────────────────────────────────────────────────
@@ -97,6 +282,7 @@ function renderStockCards() {
                     <div>
                         <div class="stock-symbol">${s.symbol}</div>
                         <div class="stock-company">${s.name}</div>
+                        ${s.company_owner_id ? `<div style="font-size:0.68rem;color:#94a3b8;">${s.company_sector || "Player company"}</div>` : ""}
                     </div>
                     <span class="${isUp ? 'tag-up' : 'tag-down'}">
                         ${sign}${s.change_pct}%
@@ -110,6 +296,7 @@ function renderStockCards() {
                     <span>Avail: ${s.available_shares} / ${s.total_supply}</span>
                     <span>Max: 250/usr</span>
                 </div>
+                ${s.company_owner_id ? `<div style="font-size:0.68rem;margin-top:0.35rem;color:${s.ai_status === "approved" ? "#86efac" : "#fca5a5"};">AI review: ${s.ai_status === "approved" ? "approved" : "crash-adjusted"} • fair value ${Number(s.fair_value || 0).toLocaleString()} M • treasury ${Number(s.company_treasury || 0).toLocaleString()} M</div>` : ""}
             </div>
         `;
     }).join("");

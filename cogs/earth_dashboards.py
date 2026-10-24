@@ -17,7 +17,7 @@ from utils.constants import (
     EARTH_DOCTRINES
 )
 
-WEB_URL = "https://phantom-regiment-1.onrender.com/estate"
+WEB_URL = "https://phantom-regiment-1.onrender.com/earth"
 
 
 def _parse_user_id(val: str) -> int | None:
@@ -48,7 +48,7 @@ async def build_defense_embed(bot, country: dict, user_id: int) -> discord.Embed
             f"**Supreme Army Commander:** <@{user_id}>\n"
             f"**Military Power:** `{mil_power}` 🪖 | **Defensive Rating:** `{def_power}` 🛡️\n"
             f"**Imperial Commonwealth:** {empire_str}\n"
-            f"**Frontline Theaters:** Deploy division reinforcements, declare multi-day conquest campaigns, or conquer frontier lands below."
+            f"**Frontline Theaters:** Deploy reinforcements or declare multi-day campaigns against ruled countries."
         ),
         color=0xDC2626
     )
@@ -74,14 +74,7 @@ async def build_defense_embed(bot, country: dict, user_id: int) -> discord.Embed
             )
         embed.add_field(name="🚨 Active Frontline Campaigns", value="\n\n".join(war_lines), inline=False)
     else:
-        embed.add_field(name="🕊️ Frontline Campaign Status", value="All frontiers are currently peaceful. No active war campaigns ongoing.", inline=False)
-
-    # Unclaimed frontier lands preview
-    all_countries = await bot.db.get_earth_countries()
-    unowned = [cnt for cnt in all_countries if not cnt.get("owner_id")][:5]
-    if unowned:
-        frontiers = ", ".join([f"{u['flag']} `{u['code']}` ({u['name']})" for u in unowned])
-        embed.add_field(name="🚩 Frontier Targets (Unclaimed Lands)", value=f"Army Commander can dispatch armed expeditions to conquer:\n{frontiers}", inline=False)
+        embed.add_field(name="🕊️ Frontline Campaign Status", value="All sovereign borders are currently peaceful. No active war campaigns ongoing.", inline=False)
 
     embed.set_footer(text="Virtual Earth 3D • Ministry of Defense • Supreme Army Command")
     return embed
@@ -287,51 +280,6 @@ class DeclareWarModal(discord.ui.Modal, title="⚔️ Declare Sovereign War Camp
                     f"• **Front Line Active:** Mobilize divisions to fortify your front line!"
                 ),
                 color=0xDC2626
-            )
-            await interaction.followup.send(embed=embed, ephemeral=False)
-        else:
-            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
-
-
-class AttackFrontierModal(discord.ui.Modal, title="🎖️ Military Frontier Expedition"):
-    target_country = discord.ui.TextInput(
-        label="Frontier Country Code (Unclaimed Land)",
-        placeholder="e.g. MYS, FIN, PRT, DNK, QAT, IRL",
-        min_length=2,
-        max_length=10,
-        required=True
-    )
-    divisions = discord.ui.TextInput(
-        label="Divisions to Deploy (5 - 50 @ 20k M each)",
-        placeholder="10",
-        default="10",
-        max_length=3,
-        required=True
-    )
-
-    def __init__(self, bot, country: dict):
-        super().__init__()
-        self.bot = bot
-        self.country = country
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        tgt = await self.bot.db.get_earth_country_by_code(self.target_country.value.strip().upper())
-        if not tgt:
-            await interaction.followup.send(f"❌ Frontier country `{self.target_country.value}` not found.", ephemeral=True)
-            return
-
-        try:
-            divs = int(self.divisions.value.strip())
-        except ValueError:
-            divs = 10
-
-        success, msg, data = await self.bot.db.expedition_attack_unclaimed(interaction.user.id, self.country["id"], tgt["id"], divs)
-        if success:
-            embed = discord.Embed(
-                title="🚩 Frontier Territory Conquered & Annexed!",
-                description=msg,
-                color=0x22C55E
             )
             await interaction.followup.send(embed=embed, ephemeral=False)
         else:
@@ -828,13 +776,6 @@ class DefenseDashboardView(discord.ui.View):
             return
         await interaction.response.send_modal(DeclareWarModal(self.bot, self.country))
 
-    @discord.ui.button(label="Attack Frontier", style=discord.ButtonStyle.primary, emoji="🎖️", row=0)
-    async def attack_frontier_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ This defense dashboard is managed by the Commander.", ephemeral=True)
-            return
-        await interaction.response.send_modal(AttackFrontierModal(self.bot, self.country))
-
     @discord.ui.button(label="Mobilize (+10)", style=discord.ButtonStyle.secondary, emoji="🪖", row=0)
     async def mobilize_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.user_id:
@@ -880,7 +821,8 @@ class InfrastructureSelect(discord.ui.Select):
             discord.SelectOption(label="Sovereign Gold & Mineral Mine", value="gold_mine", emoji="⛏️", description="+8,500 M/hr passive revenue directly to treasury"),
             discord.SelectOption(label="Deepwater Petroleum Oil Rig", value="oil_rig", emoji="🛢️", description="+16,000 M/hr massive commercial export yield"),
             discord.SelectOption(label="Fortified Citadel Bunker & SAM", value="bunker", emoji="🏰", description="+65 Defense Power to repel foreign invasions"),
-            discord.SelectOption(label="Deepwater Port & Maritime Dock", value="naval_port", emoji="⚓", description="Enables Ocean Trade Routes & bilateral sealanes")
+            discord.SelectOption(label="Deepwater Port & Maritime Dock", value="naval_port", emoji="⚓", description="Enables Ocean Trade Routes & bilateral sealanes"),
+            discord.SelectOption(label="Offshore Sovereign Ocean Base", value="ocean_base", emoji="🛟", description="Adds maritime defense power and GDP")
         ]
         super().__init__(placeholder="🏗️ Commission Domestic Infrastructure Project...", min_values=1, max_values=1, options=options, row=0)
 
@@ -1245,7 +1187,7 @@ class MinistryHubSelect(discord.ui.Select):
         self.user_id = user_id
 
         options = [
-            discord.SelectOption(label="Ministry of Defense", value="defense", emoji="⚔️", description="Frontlines, War Campaigns, Frontier Conquests, Reinforcements"),
+            discord.SelectOption(label="Ministry of Defense", value="defense", emoji="⚔️", description="Frontlines, War Campaigns, Reinforcements"),
             discord.SelectOption(label="Ministry of Economy", value="economy", emoji="🏦", description="Infrastructure, Treasury Reserves, Dividends, Unrest Relief"),
             discord.SelectOption(label="Ministry of Foreign Affairs", value="diplomat", emoji="📜", description="Coalitions, Bilateral Trade Sealanes, Buyout Offers"),
             discord.SelectOption(label="Directorate of Intelligence", value="intelligence", emoji="🕵️", description="Operative Roster, Training, Espionage Missions, Captives"),

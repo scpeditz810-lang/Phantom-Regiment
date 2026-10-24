@@ -304,9 +304,8 @@ def members_page():
         guild_name=guild.name if guild else "Phantom Regiment"
     )
 
-@views_bp.route("/estate")
 @views_bp.route("/earth")
-def estate_page():
+def earth_page():
     user = session.get("user")
     user_data = None
     user_country = None
@@ -318,7 +317,7 @@ def estate_page():
         user_country = run_async(db.get_user_earth_country(uid))
 
     return render_template(
-        "estate.html",
+        "earth.html",
         user=user,
         user_data=user_data,
         user_country=user_country
@@ -329,22 +328,9 @@ def estate_page():
 def mayor_page():
     db = current_app.config["DB"]
     user = session.get("user")
-    plots = run_async(db.get_estate_plots())
     stocks = run_async(db.get_all_stocks())
-    raw_raids = run_async(db.get_recent_raids(8))
-    bot = current_app.config.get("DISCORD_BOT")
-    from web.api import _resolve_discord_user
-    enriched_raids = []
-    for r in raw_raids:
-        item = dict(r)
-        atk_name, atk_av = _resolve_discord_user(r.get("attacker_id"), bot=bot, db=db)
-        def_name, def_av = _resolve_discord_user(r.get("defender_id"), bot=bot, db=db)
-        item["attacker_name"] = atk_name
-        item["attacker_avatar"] = atk_av
-        item["defender_name"] = def_name
-        item["defender_avatar"] = def_av
-        enriched_raids.append(item)
-    raids = enriched_raids
+    companies = run_async(db.get_all_player_companies())
+    mayor_wallet = run_async(db.get_global_economy(user["id"])).get("medals", 0)
     try:
         tax_pct = int(round(run_async(db.get_stock_tax_rate()) * 100))
     except Exception:
@@ -359,9 +345,6 @@ def mayor_page():
     term_days_left = max(0, int((term_end - now) // 86400))
     term_hours_left = max(0, int(((term_end - now) % 86400) // 3600))
 
-    total_land_val = sum(p.get("current_value", 0) for p in plots)
-    owned_plots = [p for p in plots if p.get("owner_id")]
-    zoning_quota = run_async(db.get_mayor_weekly_zoning_quota())
     un_status = run_async(db.get_earth_un_status())
     countries = run_async(db.get_earth_countries())
     active_wars = un_status.get("active_wars", []) if un_status else []
@@ -369,16 +352,12 @@ def mayor_page():
     return render_template(
         "mayor.html",
         user=user,
-        plots=plots,
         stocks=stocks,
-        raids=raids,
         tax_pct=tax_pct,
+        companies=companies,
+        mayor_wallet=mayor_wallet,
         term_days_left=term_days_left,
         term_hours_left=term_hours_left,
-        total_land_val=total_land_val,
-        owned_count=len(owned_plots),
-        total_plots=len(plots),
-        zoning_quota=zoning_quota,
         un_status=un_status,
         countries=countries,
         active_wars=active_wars
