@@ -2015,6 +2015,10 @@ def api_earth_country_detail(country_id):
 
         c["can_manage_intelligence"] = bool(owner_key and owner_key in permissions["intelligence"])
 
+        c["can_manage_diplomacy"] = bool(
+            run_async(db.has_earth_cabinet_permission(current_user["id"], country_id, "diplomat"))
+        )
+
 
 
     # Intelligence is private to the country's president/cabinet intelligence role.
