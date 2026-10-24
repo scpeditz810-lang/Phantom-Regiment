@@ -17,6 +17,20 @@ from utils.constants import (
     EARTH_DOCTRINES
 )
 
+from cogs.earth_dashboards import (
+    build_defense_embed,
+    build_economy_embed,
+    build_diplomacy_embed,
+    build_intelligence_embed,
+    build_president_embed,
+    DefenseDashboardView,
+    EconomyDashboardView,
+    DiplomacyDashboardView,
+    IntelligenceDashboardView,
+    PresidentDashboardView,
+    MinistryHubView
+)
+
 WEB_URL = "https://phantom-regiment-1.onrender.com/estate"
 
 
@@ -177,6 +191,168 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="🌍 Open 3D Virtual Earth Console", url=WEB_URL, style=discord.ButtonStyle.link))
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
+    # ─── Ministerial Dashboards ───────────────────────────────────────────────
+
+    @earth_group.command(name="defense", description="⚔️ Ministry of Defense & Supreme Army Command Dashboard")
+    async def earth_defense(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send(
+                f"❌ You do not currently lead an Earth nation or hold a cabinet ministry. Visit the [3D Virtual Earth Globe]({WEB_URL}) to acquire sovereign territory or get appointed by a President!",
+                ephemeral=True
+            )
+            return
+
+        has_perm = await self.bot.db.has_earth_cabinet_permission(interaction.user.id, c["id"], "defense")
+        if not has_perm:
+            await interaction.followup.send(
+                f"⛔ Executive Authorization Required: Only the Supreme Army Commander or the Sovereign President of {c['flag']} **{c['name']}** can access Defense Command!",
+                ephemeral=True
+            )
+            return
+
+        embed = await build_defense_embed(self.bot, c, interaction.user.id)
+        view = DefenseDashboardView(self.bot, c, interaction.user.id)
+        await interaction.followup.send(embed=embed, view=view)
+
+    @earth_group.command(name="economy", description="🏦 Ministry of Economy & National Treasury Dashboard")
+    async def earth_economy(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send(
+                f"❌ You do not currently lead an Earth nation or hold a cabinet ministry. Visit the [3D Virtual Earth Globe]({WEB_URL}) to acquire sovereign territory!",
+                ephemeral=True
+            )
+            return
+
+        has_perm = await self.bot.db.has_earth_cabinet_permission(interaction.user.id, c["id"], "economy")
+        if not has_perm:
+            await interaction.followup.send(
+                f"⛔ Executive Authorization Required: Only the Minister of Economy or the Sovereign President of {c['flag']} **{c['name']}** can manage the Treasury & Economy!",
+                ephemeral=True
+            )
+            return
+
+        embed = await build_economy_embed(self.bot, c, interaction.user.id)
+        view = EconomyDashboardView(self.bot, c, interaction.user.id)
+        await interaction.followup.send(embed=embed, view=view)
+
+    @earth_group.command(name="diplomacy", description="📜 Ministry of Foreign Affairs & Diplomatic Corps Dashboard")
+    async def earth_diplomacy(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send(
+                f"❌ You do not currently lead an Earth nation or hold a cabinet ministry. Visit the [3D Virtual Earth Globe]({WEB_URL}) to acquire sovereign territory!",
+                ephemeral=True
+            )
+            return
+
+        has_perm = await self.bot.db.has_earth_cabinet_permission(interaction.user.id, c["id"], "diplomat")
+        if not has_perm:
+            await interaction.followup.send(
+                f"⛔ Executive Authorization Required: Only the Chief Diplomat or the Sovereign President of {c['flag']} **{c['name']}** can manage Foreign Affairs & Coalitions!",
+                ephemeral=True
+            )
+            return
+
+        embed = await build_diplomacy_embed(self.bot, c, interaction.user.id)
+        view = DiplomacyDashboardView(self.bot, c, interaction.user.id)
+        await interaction.followup.send(embed=embed, view=view)
+
+    @earth_group.command(name="intelligence", description="🕵️ Directorate of Secret Intelligence & Espionage Dashboard")
+    async def earth_intelligence(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send(
+                f"❌ You do not currently lead an Earth nation or hold a cabinet ministry. Visit the [3D Virtual Earth Globe]({WEB_URL}) to acquire sovereign territory!",
+                ephemeral=True
+            )
+            return
+
+        has_perm = await self.bot.db.has_earth_cabinet_permission(interaction.user.id, c["id"], "intelligence")
+        if not has_perm:
+            await interaction.followup.send(
+                f"⛔ Executive Authorization Required: Only the Director of Intelligence or the Sovereign President of {c['flag']} **{c['name']}** can access Covert Espionage Operations!",
+                ephemeral=True
+            )
+            return
+
+        embed = await build_intelligence_embed(self.bot, c, interaction.user.id)
+        view = IntelligenceDashboardView(self.bot, c, interaction.user.id)
+        await interaction.followup.send(embed=embed, view=view)
+
+    @earth_group.command(name="president", description="👑 Presidential High Command & Imperial Sovereign Dashboard")
+    async def earth_president(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send(
+                f"❌ You do not currently lead an Earth nation. Visit the [3D Virtual Earth Globe]({WEB_URL}) to claim or buy an available sovereign state!",
+                ephemeral=True
+            )
+            return
+
+        if str(c.get("owner_id")) != str(interaction.user.id):
+            await interaction.followup.send(
+                f"⛔ Sovereign Privilege Required: Only the sitting President/PM of {c['flag']} **{c['name']}** can access Presidential High Command!",
+                ephemeral=True
+            )
+            return
+
+        embed = await build_president_embed(self.bot, c, interaction.user.id)
+        view = PresidentDashboardView(self.bot, c, interaction.user.id)
+        await interaction.followup.send(embed=embed, view=view)
+
+    @earth_group.command(name="ministry", description="🏛️ Sovereign Ministry Hub — Switch between Cabinet Portfolios")
+    @app_commands.describe(department="Optional ministerial portfolio to open directly")
+    @app_commands.choices(department=[
+        app_commands.Choice(name="⚔️ Ministry of Defense (Army Commander)", value="defense"),
+        app_commands.Choice(name="🏦 Ministry of Economy (Finance Minister)", value="economy"),
+        app_commands.Choice(name="📜 Ministry of Foreign Affairs (Chief Diplomat)", value="diplomat"),
+        app_commands.Choice(name="🕵️ Directorate of Intelligence (Spy Chief)", value="intelligence"),
+        app_commands.Choice(name="👑 Presidential High Command (Sovereign)", value="president"),
+    ])
+    async def earth_ministry(self, interaction: discord.Interaction, department: app_commands.Choice[str] = None):
+        if department:
+            dep_val = department.value
+            if dep_val == "defense":
+                await self.earth_defense(interaction)
+            elif dep_val == "economy":
+                await self.earth_economy(interaction)
+            elif dep_val == "diplomat":
+                await self.earth_diplomacy(interaction)
+            elif dep_val == "intelligence":
+                await self.earth_intelligence(interaction)
+            elif dep_val == "president":
+                await self.earth_president(interaction)
+            return
+
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send(
+                f"❌ You do not currently lead an Earth nation or hold a cabinet ministry. Visit the [3D Virtual Earth Globe]({WEB_URL}) to acquire sovereign territory!",
+                ephemeral=True
+            )
+            return
+
+        embed = discord.Embed(
+            title=f"🏛️ Sovereign Ministry Hub: {c['flag']} {c['name']} ({c['code']})",
+            description=(
+                f"**Your Governed Portfolio:** `{c.get('role_title', 'Citizen')}`\n"
+                f"**National Treasury:** `{c.get('treasury', 0):,} Medals` | **GDP:** `{c.get('gdp', 0):,} Medals`\n"
+                f"**Stability:** `{c.get('stability', 80)}%` | **Unrest:** `{c.get('unrest', 10)}%`\n\n"
+                f"Use the interactive dropdown below to access your department dashboard directly."
+            ),
+            color=0x3B82F6
+        )
+        hub_view = MinistryHubView(self.bot, c, interaction.user.id)
+        await interaction.followup.send(embed=embed, view=hub_view)
 
     # ─── Cabinet Appointments ─────────────────────────────────────────────────
 
