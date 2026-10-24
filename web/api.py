@@ -1158,9 +1158,8 @@ def admin_delete_stock():
 
     db = get_db()
 
-    run_async(db.delete_stock(stock_id))
-
-    return jsonify({"success": True, "message": "Stock delisted and active shareholders refunded."})
+    success, message = run_async(db.delete_stock(stock_id))
+    return jsonify({"success": success, "message": message}), 200 if success else 409
 
 
 
