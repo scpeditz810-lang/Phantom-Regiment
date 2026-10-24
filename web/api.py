@@ -104,6 +104,62 @@ def api_company_create():
     return jsonify({"success": success, "message": message, "company": company}), 200 if success else 400
 
 
+@api_bp.route("/companies/bank-balance")
+@login_required
+def api_company_bank_balance():
+    db = get_db()
+    balance = run_async(db.get_company_market_balance())
+    tax_pct = int(round(run_async(db.get_stock_tax_rate()) * 100))
+    return jsonify({"balance": balance, "tax_pct": tax_pct})
+
+
+@api_bp.route("/companies/offers")
+@login_required
+def api_company_offers():
+    offers = run_async(get_db().get_company_sale_offers(session["user"]["id"]))
+    return jsonify({"offers": offers})
+
+
+@api_bp.route("/companies/offers", methods=["POST"])
+@login_required
+def api_company_offer_create():
+    data = request.get_json() or {}
+    try:
+        price = int(data.get("price", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Sale price must be a whole Medal amount."}), 400
+    success, message, offer = run_async(get_db().create_company_sale_offer(
+        session["user"]["id"], str(data.get("buyer_username", "")), price
+    ))
+    return jsonify({"success": success, "message": message, "offer": offer}), 200 if success else 400
+
+
+@api_bp.route("/companies/offers/<int:offer_id>/accept", methods=["POST"])
+@login_required
+def api_company_offer_accept(offer_id):
+    success, message = run_async(get_db().accept_company_sale_offer(session["user"]["id"], offer_id))
+    return jsonify({"success": success, "message": message}), 200 if success else 400
+
+
+@api_bp.route("/companies/offers/<int:offer_id>/reject", methods=["POST"])
+@login_required
+def api_company_offer_reject(offer_id):
+    success, message = run_async(get_db().reject_company_sale_offer(session["user"]["id"], offer_id))
+    return jsonify({"success": success, "message": message}), 200 if success else 400
+
+
+@api_bp.route("/companies/sell-to-bank", methods=["POST"])
+@login_required
+def api_company_sell_to_bank():
+    data = request.get_json() or {}
+    try:
+        price = int(data.get("price", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Sale price must be a whole Medal amount."}), 400
+    success, message = run_async(get_db().sell_company_to_bank(session["user"]["id"], price))
+    return jsonify({"success": success, "message": message}), 200 if success else 400
+
+
 @api_bp.route("/portfolio")
 @login_required
 def get_portfolio():
