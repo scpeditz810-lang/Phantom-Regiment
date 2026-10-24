@@ -2104,8 +2104,7 @@ def api_earth_buy():
         db.buy_earth_country(
             user_id,
             country_id,
-            offer=offer,
-            ip_fingerprint=_earth_claim_fingerprint()
+            offer=offer
         )
     )
 
@@ -2133,7 +2132,7 @@ def api_earth_build():
 
     try:
 
-        country_id = int(data.get("country_id", 0))
+        country_id = int(data.get("country_id", 0)) or None
 
         b_type = str(data.get("building_type", "")).strip().lower()
 

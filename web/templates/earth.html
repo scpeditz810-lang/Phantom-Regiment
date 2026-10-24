@@ -5203,7 +5203,7 @@ function renderCabinetTab(c, isLeader, isOwner, container) {
 
                             <button class="btn-action-sm" onclick="openAppointCabinetModal('${rKey}', '${rMeta.short_title}', '${rMeta.emoji}')">
 
-                                ${isVacant || isImperial ? 'Nominate' : 'Change'}
+                                ${rKey === 'defense' && isVacant && !isImperial ? 'Hire Commander' : (isVacant || isImperial ? 'Nominate' : 'Change')}
 
                             </button>
 
