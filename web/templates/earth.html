@@ -5529,7 +5529,7 @@ async function submitWarEquipment(warId, unitType, available, countryId) {
 
 function renderWarsTab(c, isLeader, isOwner, container) {
 
-    const wars = warsData.filter(w => w.attacker_country_id === c.id || w.defender_country_id === c.id);
+    const wars = warsData.filter(w => Number(w.attacker_country_id) === Number(c.id) || Number(w.defender_country_id) === Number(c.id));
 
     const isOwnCountry = userCountry && userCountry.id === c.id;
 
@@ -5657,8 +5657,8 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                         })() : ""}
                         ${(c.can_command_defense && (c.tools || []).some(tool => tool.tool_key === "nuclear_launch_pad") &&
                             (c.tools || []).some(tool => tool.tool_key === "tactical_nuke") &&
-                            ((c.id === w.attacker_country_id && !w.attacker_nuke_used) ||
-                             (c.id === w.defender_country_id && !w.defender_nuke_used))) ? `
+                            ((Number(c.id) === Number(w.attacker_country_id) && !w.attacker_nuke_used) ||
+                             (Number(c.id) === Number(w.defender_country_id) && !w.defender_nuke_used))) ? `
 
                             <button class="btn-action-sm" style="padding:0.25rem 0.55rem;font-size:0.7rem;border-color:#f97316;color:#fdba74;" onclick="launchNuclearStrike(${c.id}, ${w.id})">
 
