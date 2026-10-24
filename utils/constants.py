@@ -433,6 +433,28 @@ EARTH_SPY_MISSIONS = {
     }
 }
 
+EARTH_GOVERNMENTS = {
+    "socialist": {"name": "Socialist", "emoji": "🚩"},
+    "democracy": {"name": "Democracy", "emoji": "🗳️"},
+    "communism": {"name": "Communism", "emoji": "☭"},
+    "monarchy": {"name": "Monarchy", "emoji": "👑"},
+    "dictatorship": {"name": "Dictatorship", "emoji": "⚔️"},
+}
+
+COMPANY_TREASURY_CAP = 250_000
+COMPANY_AID_GRANT = 25_000
+
+PLAYER_COMPANY_SECTORS = {
+    "technology": "Technology",
+    "energy": "Energy",
+    "manufacturing": "Manufacturing",
+    "finance": "Finance",
+    "agriculture": "Agriculture",
+    "healthcare": "Healthcare",
+    "transport": "Transport",
+    "media": "Media",
+}
+
 EARTH_DOCTRINES = {
     "economic": {
         "free_market": {
