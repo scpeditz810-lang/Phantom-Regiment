@@ -31,7 +31,7 @@
 
                 <div class="ghost-feature-tile">
                     <div class="ghost-tile-title">Holding Limit</div>
-                    <div class="ghost-tile-sub">Max 250 shares per user + 0.4% passive dividends.</div>
+                    <div class="ghost-tile-sub">Max 250 shares per stock + 0.4% passive dividends.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
@@ -188,7 +188,7 @@
             </div>
 
             <div style="background: rgba(15, 23, 42, 0.7); border: 1px dashed rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 0.65rem 0.85rem; margin-bottom: 1rem; font-size: 0.74rem; color: var(--text-muted); line-height: 1.45;">
-                🛡️ <strong>Fair Market Protections:</strong> {{ stock_tax_pct or 15 }}% Transaction Tax on sales (Regulated by Mayor) • 3m Anti-Arbitrage lock • 0.4% passive dividends (capped at 250M).
+                🛡️ <strong>Fair Market Protections:</strong> {{ stock_tax_pct or 15 }}% Transaction Fee on purchases and sales (Regulated by Mayor) • 3m Anti-Arbitrage lock • 0.4% passive dividends (capped at 250M).
             </div>
 
             {% if session.get('user') %}
