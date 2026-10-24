@@ -499,7 +499,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     @app_commands.choices(mission=[
         app_commands.Choice(name="🛰️ Infiltrate & Gather Intelligence Dossier", value="intel"),
         app_commands.Choice(name="💣 Covert Infrastructure Sabotage (Disable Mine/Rig)", value="sabotage"),
-        app_commands.Choice(name="🔥 Fund Dissidents & Incite Urban Riots (+25% Unrest)", value="incite_riot"),
+        app_commands.Choice(name="🔥 Fund Dissidents & Incite Limited Unrest (+8 max)", value="incite_riot"),
     ])
     async def earth_spy(self, interaction: discord.Interaction, target_country: str, mission: app_commands.Choice[str]):
         await interaction.response.defer()
@@ -525,14 +525,14 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
         if success:
             embed = discord.Embed(
-                title="🕵️ Espionage Operation Successful",
-                description=f"**Agent '{spy['codename']}'** infiltrated **{tgt['flag']} {tgt['name']}**!\n\n{msg}",
+                title="🕵️ Field Operation Underway",
+                description=f"**Agent '{spy['codename']}'** is conducting a timed operation inside **{tgt['flag']} {tgt['name']}**.\n\n{msg}",
                 color=0x3B82F6
             )
             await interaction.followup.send(embed=embed)
         else:
             embed = discord.Embed(
-                title="🚨 ESPIONAGE OPERATION COMPROMISED",
+                title="⛔ ESPIONAGE ORDER REJECTED",
                 description=f"{msg}",
                 color=0xEF4444
             )
