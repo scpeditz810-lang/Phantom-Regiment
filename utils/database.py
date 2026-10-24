@@ -792,6 +792,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             "ALTER TABLE earth_countries ADD COLUMN is_sanctioned INTEGER DEFAULT 0",
             "ALTER TABLE earth_countries ADD COLUMN sanction_reason TEXT DEFAULT NULL",
             "ALTER TABLE earth_countries ADD COLUMN sanction_expires REAL DEFAULT 0",
+            "ALTER TABLE earth_country_offers ADD COLUMN offer_scope TEXT DEFAULT 'state'",
             "PRAGMA journal_mode=WAL"
 
         ]:
@@ -909,17 +910,20 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         # Look up current Mayor from elections table or fallback to server sovereign
         mayor_id = None
-        mayor_name = "UN Security Council"
+        mayor_name = "UN Security Council (Vacant - Run in /elections)"
         try:
             async with self._db.execute("SELECT winner_id FROM elections WHERE winner_id IS NOT NULL ORDER BY id DESC LIMIT 1") as cur:
                 row = await cur.fetchone()
                 if row and row[0]:
                     mayor_id = row[0]
+                    async with self._db.execute("SELECT username FROM users WHERE user_id = ?", (mayor_id,)) as ucur:
+                        urow = await ucur.fetchone()
+                        if urow and urow[0]:
+                            mayor_name = f"UN Secretary-General {urow[0]}"
+                        else:
+                            mayor_name = f"UN Secretary-General (ID: {mayor_id})"
         except Exception:
             pass
-
-        if not mayor_id:
-            mayor_id = 429350468796416013
 
         # Calculate UN peacekeeping fund (starts at 500,000 Medals + 5% of global customs)
         un_fund = 500000
@@ -4362,6 +4366,31 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # Apply slow organic growth if country has a ruler
         if country.get("owner_id"):
             country = await self.apply_organic_growth(country)
+            # Imperial commonwealth & conquered state metadata
+            async with self._db.execute("SELECT id, name, flag, gdp FROM earth_countries WHERE owner_id = ? ORDER BY gdp DESC, id ASC", (country["owner_id"],)) as cur:
+                empire_rows = await cur.fetchall()
+            country["total_states_owned"] = len(empire_rows)
+            if empire_rows and len(empire_rows) > 1:
+                prim = empire_rows[0]
+                if prim[0] != country_id:
+                    country["is_annexed_state"] = True
+                    country["motherland_id"] = prim[0]
+                    country["motherland_name"] = prim[1]
+                    country["motherland_flag"] = prim[2]
+                    country["conquered_states_count"] = len(empire_rows) - 1
+                else:
+                    country["is_annexed_state"] = False
+                    country["motherland_id"] = prim[0]
+                    country["motherland_name"] = prim[1]
+                    country["motherland_flag"] = prim[2]
+                    country["conquered_states_count"] = len(empire_rows) - 1
+            else:
+                country["is_annexed_state"] = False
+                country["conquered_states_count"] = 0
+        else:
+            country["total_states_owned"] = 0
+            country["is_annexed_state"] = False
+            country["conquered_states_count"] = 0
 
         return country
 
@@ -4810,8 +4839,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if self._db is None:
             await self.setup()
         from utils.constants import EARTH_CABINET_ROLES
-        sql = "SELECT country_id, role FROM earth_cabinet WHERE user_id = ?"
-        params = [user_id]
+        sql = "SELECT country_id, role FROM earth_cabinet WHERE (user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250))"
+        params = [user_id, user_id, user_id]
         if country_id:
             sql += " AND country_id = ?"
             params.append(country_id)
@@ -4821,7 +4850,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 return False, "You do not currently hold any active ministerial cabinet portfolio."
             cid, role = row[0], row[1]
 
-        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? AND country_id = ?", (user_id, cid))
+        await self._db.execute("DELETE FROM earth_cabinet WHERE (user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)) AND country_id = ?", (user_id, user_id, user_id, cid))
         await self._db.commit()
         role_info = EARTH_CABINET_ROLES.get(role, {"title": role})
         return True, f"Resignation tendered. You have stepped down as **{role_info.get('title', role)}**. Portfolio duties have reverted to the President."
@@ -4948,6 +4977,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             WHERE id = ?
         """, (user_id, new_treasury, now, now, country_id))
         
+        # Relieve user from any prior ministerial cabinet post so they can rule independently
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (user_id, user_id, user_id))
+
         # Register user as citizen/ruler of this country
         await self._db.execute("""
             INSERT OR REPLACE INTO earth_citizens (user_id, country_id, joined_at)
@@ -5020,6 +5052,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 return False, f"Insufficient funds: You offered {offered_medals:,} Medals, but only have {econ.get('medals', 0):,} Medals in your wallet.", None
             # Deduct offer - NO TAX APPLIED!
             await self.subtract_medals(user_id, offered_medals)
+
+        # Relieve user from any prior ministerial cabinet post so they can found their own nation freely
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (user_id, user_id, user_id))
 
         # Generate unique 3-4 letter code
         clean_code = "".join(ch for ch in name.upper() if ch.isalnum())
@@ -5516,6 +5551,14 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if atk.get("alliance_id") and dfn.get("alliance_id") and atk["alliance_id"] == dfn["alliance_id"]:
             return False, "⛔ Treaty Violation: You cannot declare war on a fellow member of your sovereign alliance!", {}
 
+        # Imperial Expansion Cap: Max 4 conquered states (5 territories total)
+        atk_owner = atk.get("owner_id")
+        if atk_owner:
+            async with self._db.execute("SELECT COUNT(*) FROM earth_countries WHERE owner_id = ?", (atk_owner,)) as cur:
+                owned_count = (await cur.fetchone())[0]
+            if owned_count >= 5:
+                return False, "⛔ Imperial Expansion Limit Reached: Your empire already governs the maximum of 4 conquered states (5 territories total). Grant independence or sell an imperial state before waging new wars!", {}
+
         now = time.time()
         duration_s = meta["duration_seconds"]
         end_time = now + duration_s
@@ -5848,8 +5891,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             return True, f"Listed {c_name} for sale on the Global Diplomatic Exchange for {price:,} Medals!"
         return True, f"Delisted {c_name} from the Global Diplomatic Exchange."
 
-    async def create_country_offer(self, buyer_id: int, country_id: int, amount: int) -> tuple[bool, str]:
-        """Make a bilateral buyout offer for a sovereign country (0 to infinity medals, no tax applied)."""
+    async def create_country_offer(self, buyer_id: int, country_id: int, amount: int, offer_scope: str = "state") -> tuple[bool, str]:
+        """Make a bilateral buyout offer for an individual state or the entire sovereign empire (0% tax applied)."""
         if self._db is None:
             await self.setup()
 
@@ -5857,6 +5900,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             amount = max(0, int(amount))
         except (ValueError, TypeError):
             amount = 0
+
+        offer_scope = "whole_country" if offer_scope in ("whole_country", "empire") else "state"
 
         if amount > 0:
             econ = await self.get_global_economy(buyer_id)
@@ -5875,12 +5920,13 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         now = time.time()
         await self._db.execute("""
-            INSERT INTO earth_country_offers (country_id, buyer_id, seller_id, offer_amount, status, created_at)
-            VALUES (?, ?, ?, ?, 'pending', ?)
-        """, (country_id, buyer_id, seller_id, amount, now))
+            INSERT INTO earth_country_offers (country_id, buyer_id, seller_id, offer_amount, status, created_at, offer_scope)
+            VALUES (?, ?, ?, ?, 'pending', ?, ?)
+        """, (country_id, buyer_id, seller_id, amount, now, offer_scope))
         await self._db.commit()
 
-        return True, f"Diplomatic Buyout Offer of {amount:,} Medals submitted to the ruler of {c_name} (0% Tax applied)!"
+        target_desc = f"the Entire Sovereign Empire of {c_name}" if offer_scope == "whole_country" else f"the State of {c_name}"
+        return True, f"Diplomatic Buyout Offer of {amount:,} Medals submitted for {target_desc} (0% Treaty Tax applied)!"
 
     async def accept_country_offer(self, seller_id: int, offer_id: int) -> tuple[bool, str]:
         """Accept a buyout offer and transfer sovereign ownership (0% tax applied)."""
@@ -5912,10 +5958,19 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self.subtract_medals(bid, amt)
             await self.add_medals(seller_id, amt)
 
-        # Transfer country ownership
-        await self._db.execute("UPDATE earth_countries SET owner_id = ?, for_sale_price = NULL WHERE id = ?", (bid, cid))
-        # Clear old cabinet
-        await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (cid,))
+        # Transfer country ownership based on offer scope (state vs whole country/empire)
+        scope = offer.get("offer_scope", "state")
+        if scope in ("whole_country", "empire"):
+            # Transfer entire sovereign empire (all countries governed by seller)
+            await self._db.execute("UPDATE earth_countries SET owner_id = ?, for_sale_price = NULL WHERE owner_id = ?", (bid, seller_id))
+            await self._db.execute("DELETE FROM earth_cabinet WHERE country_id IN (SELECT id FROM earth_countries WHERE owner_id = ?)", (bid,))
+        else:
+            # Transfer individual state
+            await self._db.execute("UPDATE earth_countries SET owner_id = ?, for_sale_price = NULL WHERE id = ?", (bid, cid))
+            await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (cid,))
+
+        # Resign buyer from any prior ministerial posts
+        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)", (bid, bid, bid))
         await self._db.execute("UPDATE earth_country_offers SET status = 'accepted' WHERE id = ?", (offer_id,))
         await self._db.commit()
 
