@@ -3836,7 +3836,7 @@ function animateMilitaryUnits(time) {
         const p = Math.max(0.03, Math.min(0.97, centerP + sideOffset + (wave - 0.5) * 0.012));
         const pos = u.groundCurve.getPointAt(p).normalize().multiplyScalar(GLOBE_RADIUS * 1.015);
         const lookP = Math.max(0.001, Math.min(0.999, p + (u.attacker ? 0.003 : -0.003)));
-        const next = u.groundCurve.getPointAt(lookP).normalize().multiplyScalar(GLOBE_RADIUS * 1.009);
+        const next = u.groundCurve.getPointAt(lookP).normalize().multiplyScalar(GLOBE_RADIUS * 1.015);
         unit.position.copy(pos);
         orientMilitaryUnitOnGlobe(unit, pos, u.attacker ? next.clone().sub(pos) : pos.clone().sub(next));
         if (isTank) {
@@ -4658,7 +4658,7 @@ async function renderActiveTabContent(c, body) {
 
     const isLeader = Boolean(sameSovereign && userCountry.user_role !== 'citizen');
 
-    const isOwner = Boolean(sameSovereign && userCountry.user_role === 'president');
+    const isOwner = Boolean(sameSovereign && (userCountry.user_role === 'president' || (statsData.user && String(c.owner_id) === String(statsData.user.id))));
 
 
 
@@ -6056,10 +6056,10 @@ function openAppointCabinetModal(roleKey, roleTitle, roleEmoji) {
 
     let optionsHtml = `<option value="">-- Choose Server Citizen --</option>`;
 
-    serverMembers.filter(m => !m.is_president).forEach(m => {
+    serverMembers.filter(m => !(m.is_president === true || m.is_president === 1 || String(m.is_president).toLowerCase() === 'true')).forEach(m => {
         optionsHtml += `<option value="${m.user_id}" data-username="${escapeHtml(m.username)}">@${escapeHtml(m.username)} (ID: ${m.user_id})</option>`;
     });
-    if (!serverMembers.some(m => !m.is_president)) {
+    if (!serverMembers.some(m => !(m.is_president === true || m.is_president === 1 || String(m.is_president).toLowerCase() === 'true'))) {
         optionsHtml = '<option value="">No eligible non-president citizens found</option>';
     }
 
