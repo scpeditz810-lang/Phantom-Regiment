@@ -552,6 +552,8 @@ class Database:
                 economic_doctrine TEXT DEFAULT 'free_market',
                 military_doctrine TEXT DEFAULT 'volunteer',
                 diplomatic_stance TEXT DEFAULT 'neutral',
+                government_type TEXT DEFAULT 'democracy',
+                last_policy_review REAL DEFAULT 0,
                 for_sale_price INTEGER DEFAULT NULL,
                 last_yield_claim REAL DEFAULT 0,
                 last_riot_check REAL DEFAULT 0,
@@ -700,6 +702,38 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         for table in ("estate_offers", "estate_raids", "estate_alliances", "estate_plots"):
             await self._db.execute(f"DROP TABLE IF EXISTS {table}")
 
+        await self._db.executescript("""
+            CREATE TABLE IF NOT EXISTS player_companies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_id INTEGER NOT NULL UNIQUE,
+                name TEXT NOT NULL UNIQUE,
+                symbol TEXT NOT NULL UNIQUE,
+                sector TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                claimed_valuation INTEGER NOT NULL,
+                annual_revenue INTEGER NOT NULL DEFAULT 0,
+                annual_profit INTEGER NOT NULL DEFAULT 0,
+                debt INTEGER NOT NULL DEFAULT 0,
+                fair_value INTEGER NOT NULL,
+                treasury INTEGER NOT NULL DEFAULT 0,
+                aid_received INTEGER NOT NULL DEFAULT 0,
+                ai_status TEXT NOT NULL,
+                ai_report TEXT NOT NULL,
+                stock_id INTEGER NOT NULL UNIQUE,
+                created_at REAL NOT NULL,
+                FOREIGN KEY(stock_id) REFERENCES stocks(id)
+            );
+            CREATE TABLE IF NOT EXISTS earth_nuclear_strikes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                war_id INTEGER NOT NULL,
+                source_country_id INTEGER NOT NULL,
+                target_country_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                gdp_damage INTEGER NOT NULL DEFAULT 0,
+                created_at REAL NOT NULL
+            );
+        """)
+
         # Safely migrate existing databases by adding new columns if they don't exist
 
         for query in [
@@ -741,6 +775,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             "ALTER TABLE earth_countries ADD COLUMN is_sanctioned INTEGER DEFAULT 0",
             "ALTER TABLE earth_countries ADD COLUMN sanction_reason TEXT DEFAULT NULL",
             "ALTER TABLE earth_countries ADD COLUMN sanction_expires REAL DEFAULT 0",
+            "ALTER TABLE earth_countries ADD COLUMN government_type TEXT DEFAULT 'democracy'",
+            "ALTER TABLE earth_countries ADD COLUMN last_policy_review REAL DEFAULT 0",
+            "ALTER TABLE player_companies ADD COLUMN treasury INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE player_companies ADD COLUMN aid_received INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE earth_country_offers ADD COLUMN offer_scope TEXT DEFAULT 'state'",
             "PRAGMA journal_mode=WAL"
 
@@ -2488,34 +2526,29 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
 
     async def get_all_stocks(self) -> list[dict]:
-
-        async with self._db.execute("SELECT * FROM stocks ORDER BY id ASC") as cur:
-
+        async with self._db.execute("""
+            SELECT s.*, pc.owner_id AS company_owner_id, pc.sector AS company_sector,
+                   pc.claimed_valuation, pc.annual_revenue, pc.annual_profit, pc.debt,
+                   pc.fair_value, pc.treasury AS company_treasury, pc.aid_received, pc.ai_status, pc.ai_report
+            FROM stocks s LEFT JOIN player_companies pc ON pc.stock_id = s.id
+            ORDER BY s.id ASC
+        """) as cur:
             return [dict(row) for row in await cur.fetchall()]
 
-
-
     async def get_stock(self, stock_id_or_symbol) -> dict | None:
-
         if isinstance(stock_id_or_symbol, int) or (isinstance(stock_id_or_symbol, str) and str(stock_id_or_symbol).isdigit()):
-
-            query = "SELECT * FROM stocks WHERE id = ?"
-
-            param = int(stock_id_or_symbol)
-
+            predicate, param = "s.id = ?", int(stock_id_or_symbol)
         else:
-
-            query = "SELECT * FROM stocks WHERE UPPER(symbol) = UPPER(?)"
-
-            param = str(stock_id_or_symbol)
-
-        async with self._db.execute(query, (param,)) as cur:
-
+            predicate, param = "UPPER(s.symbol) = UPPER(?)", str(stock_id_or_symbol)
+        async with self._db.execute(f"""
+            SELECT s.*, pc.owner_id AS company_owner_id, pc.sector AS company_sector,
+                   pc.claimed_valuation, pc.annual_revenue, pc.annual_profit, pc.debt,
+                   pc.fair_value, pc.treasury AS company_treasury, pc.aid_received, pc.ai_status, pc.ai_report
+            FROM stocks s LEFT JOIN player_companies pc ON pc.stock_id = s.id
+            WHERE {predicate}
+        """, (param,)) as cur:
             row = await cur.fetchone()
-
             return dict(row) if row else None
-
-
 
     async def create_stock(self, symbol: str, name: str, price: int, description: str = "", supply: int = 2500) -> bool:
 
@@ -2547,6 +2580,171 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self._db.commit()
 
         return True
+
+    async def get_player_company(self, user_id: int) -> dict | None:
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT pc.*, s.price, s.available_shares, s.total_supply
+            FROM player_companies pc JOIN stocks s ON s.id = pc.stock_id
+            WHERE pc.owner_id = ?
+        """, (int(user_id),)) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def get_all_player_companies(self) -> list[dict]:
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT pc.*, s.price, s.available_shares, s.total_supply
+            FROM player_companies pc JOIN stocks s ON s.id = pc.stock_id
+            ORDER BY pc.created_at DESC
+        """) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def grant_player_company_aid(self, mayor_id: int, company_id: int) -> tuple[bool, str, dict | None]:
+        """Transfer a fixed grant from the Mayor wallet into a capped company treasury."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import COMPANY_AID_GRANT, COMPANY_TREASURY_CAP
+
+        mayor_id, company_id = int(mayor_id), int(company_id)
+        await self.get_global_economy(mayor_id)
+        try:
+            await self._db.execute("BEGIN IMMEDIATE")
+            async with self._db.execute(
+                "SELECT id, name, treasury, aid_received FROM player_companies WHERE id = ?",
+                (company_id,)
+            ) as cur:
+                company = await cur.fetchone()
+            if not company:
+                await self._db.rollback()
+                return False, "Player company not found.", None
+            remaining = COMPANY_TREASURY_CAP - int(company[2] or 0)
+            grant = min(COMPANY_AID_GRANT, remaining)
+            if grant <= 0:
+                await self._db.rollback()
+                return False, f"{company[1]}'s treasury reached its {COMPANY_TREASURY_CAP:,} Medal cap.", None
+            async with self._db.execute(
+                "SELECT medals FROM global_economy WHERE user_id = ?", (mayor_id,)
+            ) as cur:
+                wallet = await cur.fetchone()
+            if not wallet or int(wallet[0] or 0) < grant:
+                await self._db.rollback()
+                return False, f"Mayor needs {grant:,} wallet Medals to fund this grant.", None
+
+            await self._db.execute(
+                "UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (grant, mayor_id)
+            )
+            await self._db.execute(
+                "UPDATE users SET medals = medals - ? WHERE user_id = ?", (grant, mayor_id)
+            )
+            await self._db.execute("""
+                UPDATE player_companies
+                SET treasury = treasury + ?,
+                    aid_received = aid_received + ?,
+                    fair_value = min(2000000000, fair_value + ?)
+                WHERE id = ?
+            """, (grant, grant, grant, company_id))
+            await self._db.commit()
+            updated = next((row for row in await self.get_all_player_companies() if row["id"] == company_id), None)
+            return True, f"Transferred {grant:,} Medals from the Mayor wallet into {company[1]}'s company treasury. Treasury: {int(company[2] or 0) + grant:,}/{COMPANY_TREASURY_CAP:,}.", updated
+        except Exception:
+            await self._db.rollback()
+            raise
+
+    async def create_player_company(self, user_id: int, name: str, symbol: str, sector: str,
+                                    valuation: int, annual_revenue: int, annual_profit: int,
+                                    debt: int, description: str = "") -> tuple[bool, str, dict | None]:
+        """Create a Medal-funded company and submit its IPO to the simulated market reviewers."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import PLAYER_COMPANY_SECTORS
+
+        user_id = int(user_id)
+        name = " ".join(str(name).split())[:48]
+        symbol = str(symbol).strip().upper()
+        sector = str(sector).strip().lower()
+        description = " ".join(str(description).split())[:240]
+        try:
+            valuation, annual_revenue = int(valuation), int(annual_revenue)
+            annual_profit, debt = int(annual_profit), int(debt)
+        except (ValueError, TypeError):
+            return False, "Company figures must be whole Medal amounts.", None
+        if not (2 <= len(symbol) <= 6 and symbol.isalnum()):
+            return False, "Ticker must be 2–6 letters or numbers.", None
+        if not name or sector not in PLAYER_COMPANY_SECTORS:
+            return False, "Enter a company name and choose a valid sector.", None
+        if not (250_000 <= valuation <= 2_000_000_000):
+            return False, "Claimed valuation must be between 250,000 and 2,000,000,000 Medals.", None
+        if not (0 <= annual_revenue <= 2_000_000_000 and -2_000_000_000 <= annual_profit <= 2_000_000_000 and 0 <= debt <= 2_000_000_000):
+            return False, "Revenue, profit, or debt is outside the allowed range.", None
+
+        fee = 25000
+        fair_value = max(100_000, annual_revenue + max(0, annual_profit) * 6 - debt)
+        fair_value = min(2_000_000_000, fair_value)
+        plausible = valuation <= fair_value * 2
+        # Plausible claims have exactly a 50/50 approve/crash review; inflated claims fail the fundamentals review.
+        approved = plausible and random.random() < 0.5
+        claim_price = max(20, min(800_000, int(round(valuation / 2500))))
+        fair_price = max(20, min(800_000, int(round(fair_value / 2500))))
+        if approved:
+            opening_price = min(claim_price, fair_price * 2)
+            ai_status = "approved"
+            ai_report = f"AI analysts reviewed the reported revenue, profit, and debt. Modeled fair value: {fair_value:,} Medals. The IPO was approved."
+        else:
+            opening_price = max(20, min(int(claim_price * 0.20), fair_price))
+            ai_status = "crashed"
+            reason = "Claimed valuation exceeded twice the modeled fair value." if not plausible else "The 50/50 AI market review rejected the IPO."
+            ai_report = f"{reason} Modeled fair value: {fair_value:,} Medals. The share price opened after an 80% crash adjustment."
+
+        await self.get_global_economy(user_id)
+        now = time.time()
+        try:
+            await self._db.execute("BEGIN IMMEDIATE")
+            async with self._db.execute("SELECT 1 FROM player_companies WHERE owner_id = ?", (user_id,)) as cur:
+                if await cur.fetchone():
+                    await self._db.rollback()
+                    return False, "Each player can found one listed company.", None
+            async with self._db.execute("SELECT 1 FROM stocks WHERE UPPER(symbol) = UPPER(?)", (symbol,)) as cur:
+                if await cur.fetchone():
+                    await self._db.rollback()
+                    return False, f"Ticker {symbol} is already listed.", None
+            async with self._db.execute("SELECT medals FROM global_economy WHERE user_id = ?", (user_id,)) as cur:
+                wallet = await cur.fetchone()
+            if not wallet or int(wallet[0] or 0) < fee:
+                await self._db.rollback()
+                return False, f"Founding a company costs {fee:,} Medals.", None
+
+            await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (fee, user_id))
+            await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (fee, user_id))
+            supply = 2500
+            await self._db.execute(
+                "INSERT INTO stocks (symbol, name, price, total_supply, available_shares, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (symbol, name, opening_price, supply, supply, description, now)
+            )
+            async with self._db.execute("SELECT last_insert_rowid()") as cur:
+                stock_id = int((await cur.fetchone())[0])
+            await self._db.execute(
+                "INSERT INTO stock_history (stock_id, price, timestamp) VALUES (?, ?, ?)",
+                (stock_id, opening_price, now)
+            )
+            await self._db.execute("""
+                INSERT INTO player_companies
+                    (owner_id, name, symbol, sector, description, claimed_valuation,
+                     annual_revenue, annual_profit, debt, fair_value, treasury, aid_received,
+                     ai_status, ai_report, stock_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)
+            """, (user_id, name, symbol, sector, description, valuation,
+                  annual_revenue, annual_profit, debt, fair_value, ai_status,
+                  ai_report, stock_id, now))
+            await self._db.commit()
+            company = await self.get_player_company(user_id)
+            result_text = "AI review approved." if approved else "AI review rejected the valuation and the stock crashed."
+            return True, f"{result_text} {ai_report} {symbol} is now listed and open to buy. Founding fee: {fee:,} Medals.", company
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def adjust_stock_supply(self, stock_id_or_symbol, delta: int) -> tuple[bool, str, dict | None]:
         """Mayor / Executive adjustment of stock market share supply."""
@@ -3352,14 +3550,14 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.execute(f"DELETE FROM {table}")
 
             # Shares and trading history are reseeded from the default catalogue.
-            for table in ("user_stocks", "stock_history", "stocks"):
+            for table in ("player_companies", "user_stocks", "stock_history", "stocks"):
                 await self._db.execute(f"DELETE FROM {table}")
             await self._db.execute("DELETE FROM meta WHERE key = 'stock_tax_rate'")
 
             # Virtual Earth: reset the map and all player-created state to the base roster.
             for table in (
                 "earth_country_offers", "earth_trade_routes", "earth_wars", "earth_alliances",
-                "earth_intelligence", "earth_spies", "earth_tools", "earth_citizens",
+                "earth_intelligence", "earth_spies", "earth_tools", "earth_nuclear_strikes", "earth_citizens",
                 "earth_cabinet_invites", "earth_cabinet", "earth_buildings",
                 "earth_un_resolutions", "earth_countries"
             ):
@@ -3383,7 +3581,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         try:
             for table in (
                 "earth_country_offers", "earth_trade_routes", "earth_wars", "earth_alliances",
-                "earth_intelligence", "earth_spies", "earth_tools", "earth_citizens",
+                "earth_intelligence", "earth_spies", "earth_tools", "earth_nuclear_strikes", "earth_citizens",
                 "earth_cabinet_invites", "earth_cabinet", "earth_buildings", "earth_un_resolutions"
             ):
                 await self._db.execute(f"DELETE FROM {table}")
@@ -3396,6 +3594,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                     economic_doctrine = 'free_market',
                     military_doctrine = 'volunteer',
                     diplomatic_stance = 'neutral',
+                    government_type = 'democracy', last_policy_review = 0,
                     for_sale_price = NULL, last_yield_claim = 0,
                     last_riot_check = 0, alliance_id = NULL,
                     last_growth_tick = ?, is_sanctioned = 0,
@@ -3632,6 +3831,28 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                     b["is_sabotaged"] = 0
                 results.append(b)
             return results
+
+    async def get_user_earth_permissions(self, user_id: int) -> dict[str, set[str]]:
+        """Return sovereign owner IDs where this user is president or holds a minister role."""
+        if self._db is None:
+            await self.setup()
+        permissions = {"economy": set(), "defense": set(), "intelligence": set()}
+        async with self._db.execute(
+            "SELECT owner_id FROM earth_countries WHERE owner_id = ?", (user_id,)
+        ) as cur:
+            for row in await cur.fetchall():
+                if row[0] is not None:
+                    for role in permissions:
+                        permissions[role].add(str(row[0]))
+        async with self._db.execute("""
+            SELECT DISTINCT c.owner_id, cab.role
+            FROM earth_cabinet cab JOIN earth_countries c ON c.id = cab.country_id
+            WHERE cab.user_id = ? AND c.owner_id IS NOT NULL
+        """, (user_id,)) as cur:
+            for row in await cur.fetchall():
+                if row[1] in permissions:
+                    permissions[row[1]].add(str(row[0]))
+        return permissions
 
     async def has_earth_cabinet_permission(self, user_id: int, country_id: int, required_role: str) -> bool:
         """Check if user is President (who can manage everything) OR appointed to required cabinet role."""
@@ -4368,37 +4589,66 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         return total_payout, f"⚡ Harvested +{total_payout:,} Medals from national infrastructure! (+{treasury_deposit:,} deposited into Treasury){riot_warning}"
 
-    async def update_earth_policies(self, user_id: int, country_id: int, economic: str, military: str, diplomatic: str, tax_rate: int) -> tuple[bool, str]:
-        """Update national doctrines and tax rate."""
+    async def update_earth_policies(self, user_id: int, country_id: int, economic: str,
+                                   military: str, diplomatic: str, tax_rate: int,
+                                   government_type: str = "democracy") -> tuple[bool, str]:
+        """Let the President or Economy Minister submit policy to a simulated 50/50 AI review."""
         if self._db is None:
             await self.setup()
-        from utils.constants import EARTH_DOCTRINES
+        from utils.constants import EARTH_DOCTRINES, EARTH_GOVERNMENTS
 
-        # Check permission: Owner or cabinet
-        async with self._db.execute("SELECT owner_id FROM earth_countries WHERE id = ?", (country_id,)) as cur:
-            row = await cur.fetchone()
-            if not row or str(row[0]) != str(user_id):
-                return False, "⛔ Sovereign Privilege Required: Only the President can enact structural policy reforms!"
+        if economic not in EARTH_DOCTRINES["economic"] or military not in EARTH_DOCTRINES["military"]:
+            return False, "Invalid economic or military doctrine."
+        if diplomatic not in EARTH_DOCTRINES["diplomatic"] or government_type not in EARTH_GOVERNMENTS:
+            return False, "Invalid diplomatic stance or government type."
+        try:
+            tax_rate = int(tax_rate)
+        except (ValueError, TypeError):
+            return False, "Tax rate must be a whole number from 0% to 50%."
+        if tax_rate < 0 or tax_rate > 50:
+            return False, "Tax rate must be between 0% and 50%."
+        if not await self.has_earth_cabinet_permission(user_id, country_id, "economy"):
+            return False, "Only the President or appointed Economy Minister can submit national policy and tax changes."
 
-        tax_rate = max(0, min(50, int(tax_rate)))
-        unrest_add = 0
-        if tax_rate > 25:
-            unrest_add += 15
-        elif tax_rate > 15:
-            unrest_add += 5
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute(
+                "SELECT last_policy_review FROM earth_countries WHERE id = ?", (country_id,)
+            ) as cur:
+                row = await cur.fetchone()
+            if not row:
+                await self._db.rollback()
+                return False, "Country not found."
+            now = time.time()
+            wait = 900 - (now - (row[0] or 0))
+            if wait > 0:
+                await self._db.rollback()
+                return False, f"The Policy Council is reviewing proposals. Try again in {int(wait // 60) + 1} minutes."
 
-        await self._db.execute("""
-            UPDATE earth_countries
-            SET economic_doctrine = ?,
-                military_doctrine = ?,
-                diplomatic_stance = ?,
-                tax_rate = ?,
-                unrest = min(100, unrest + ?)
-            WHERE id = ?
-        """, (economic, military, diplomatic, tax_rate, unrest_add, country_id))
-        await self._db.commit()
+            approved = random.random() < 0.5
+            await self._db.execute(
+                "UPDATE earth_countries SET last_policy_review = ? WHERE id = ?", (now, country_id)
+            )
+            if not approved:
+                await self._db.commit()
+                return False, "The simulated AI Policy Council rejected this proposal. Its approval chance is 50%; current settings remain unchanged."
 
-        return True, f"📜 National Policy Reform Enacted! Tax Rate set to {tax_rate}%. Economic: {economic.replace('_', ' ').title()}."
+            unrest_add = 15 if tax_rate > 25 else (5 if tax_rate > 15 else 0)
+            await self._db.execute("""
+                UPDATE earth_countries
+                SET economic_doctrine = ?,
+                    military_doctrine = ?,
+                    diplomatic_stance = ?,
+                    government_type = ?,
+                    tax_rate = ?,
+                    unrest = min(100, unrest + ?)
+                WHERE id = ?
+            """, (economic, military, diplomatic, government_type, tax_rate, unrest_add, country_id))
+            await self._db.commit()
+            return True, f"AI Policy Council approved the proposal. Government set to {EARTH_GOVERNMENTS[government_type]['name']}; custom tax set to {tax_rate}%."
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def quell_earth_unrest(self, user_id: int, country_id: int, method: str) -> tuple[bool, str]:
         """Deploy state resources to quell unrest and suppress riots."""
@@ -4777,13 +5027,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         """Fetch all ongoing multi-day global wars with progress percentages and 3D coordinates."""
         if self._db is None:
             await self.setup()
-
-        # Conclude any expired wars
         try:
             await self.resolve_concluded_earth_wars()
         except Exception:
             pass
-
         now = time.time()
         async with self._db.execute("""
             SELECT w.*, 
@@ -4796,15 +5043,77 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             ORDER BY w.start_time DESC
         """) as cur:
             rows = await cur.fetchall()
-            results = []
-            for r in rows:
-                item = dict(r)
-                total_duration = max(1, item["end_time"] - item["start_time"])
-                elapsed = max(0, now - item["start_time"])
-                item["progress_pct"] = min(100.0, round((elapsed / total_duration) * 100.0, 1))
-                item["hours_remaining"] = max(0.1, round((item["end_time"] - now) / 3600.0, 1))
-                results.append(item)
-            return results
+        results = []
+        for r in rows:
+            item = dict(r)
+            total_duration = max(1, item["end_time"] - item["start_time"])
+            elapsed = max(0, now - item["start_time"])
+            item["progress_pct"] = min(100.0, round((elapsed / total_duration) * 100.0, 1))
+            item["hours_remaining"] = max(0.1, round((item["end_time"] - now) / 3600.0, 1))
+            results.append(item)
+        return results
+
+    async def launch_earth_nuclear_strike(self, user_id: int, source_country_id: int, war_id: int) -> tuple[bool, str]:
+        """Consume one tactical nuke and damage the opposing country in an active war."""
+        if self._db is None:
+            await self.setup()
+        if not await self.has_earth_cabinet_permission(user_id, source_country_id, "defense"):
+            return False, "Only the President or Army Commander (Defense Minister) can launch a nuclear strike."
+
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute(
+                "SELECT attacker_country_id, defender_country_id FROM earth_wars WHERE id = ? AND status = 'active'",
+                (war_id,)
+            ) as cur:
+                war = await cur.fetchone()
+            if not war or source_country_id not in (war[0], war[1]):
+                await self._db.rollback()
+                return False, "Nuclear strikes can only be used by a country involved in an active war."
+
+            target_country_id = war[1] if source_country_id == war[0] else war[0]
+            async with self._db.execute(
+                "SELECT owner_id FROM earth_countries WHERE id = ?", (source_country_id,)
+            ) as cur:
+                source = await cur.fetchone()
+            async with self._db.execute(
+                "SELECT owner_id, gdp FROM earth_countries WHERE id = ?", (target_country_id,)
+            ) as cur:
+                target = await cur.fetchone()
+            if not source or not target or not source[0] or not target[0] or str(source[0]) == str(target[0]):
+                await self._db.rollback()
+                return False, "Nuclear strikes require two different ruled countries in an active war."
+
+            async with self._db.execute(
+                "SELECT 1 FROM earth_tools WHERE country_id = ? AND tool_key = 'tactical_nuke'",
+                (source_country_id,)
+            ) as cur:
+                if not await cur.fetchone():
+                    await self._db.rollback()
+                    return False, "This country has no tactical nuclear asset ready to launch."
+
+            damage = max(0, int((target[1] or 0) * 0.20))
+            now = time.time()
+            await self._db.execute(
+                "DELETE FROM earth_tools WHERE country_id = ? AND tool_key = 'tactical_nuke'",
+                (source_country_id,)
+            )
+            await self._db.execute("""
+                UPDATE earth_countries
+                SET gdp = max(0, gdp - ?), stability = max(0, stability - 20),
+                    unrest = min(100, unrest + 25)
+                WHERE id = ?
+            """, (damage, target_country_id))
+            await self._db.execute("""
+                INSERT INTO earth_nuclear_strikes
+                    (war_id, source_country_id, target_country_id, user_id, gdp_damage, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (war_id, source_country_id, target_country_id, int(user_id), damage, now))
+            await self._db.commit()
+            return True, f"Nuclear strike launched. {damage:,} GDP damage, -20 stability, +25 unrest. The one-use tactical weapon was consumed."
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def reinforce_earth_war(self, user_id: int, war_id: int, divisions: int) -> tuple[bool, str]:
         """Mobilize division reinforcements into an active war theater."""
@@ -5615,12 +5924,17 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if tool_key not in EARTH_ADVANCED_TOOLS:
             return False, "Invalid advanced tool selected.", {}
 
-        # Authorization check: president or defense minister
-        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "defense")
+        required_role = {
+            "economy": "economy",
+            "intelligence": "intelligence",
+            "military": "defense",
+            "defense": "defense",
+            "superweapon": "defense",
+        }.get(EARTH_ADVANCED_TOOLS[tool_key].get("category"), "defense")
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, required_role)
         if not can_manage:
-            can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "intelligence")
-        if not can_manage:
-            return False, "? Authorization Denied: Only the Supreme Sovereign or Minister of Defense can procure advanced military assets!", {}
+            role_name = "Army Commander" if required_role == "defense" else f"Minister of {required_role.title()}"
+            return False, f"Authorization denied: the President or {role_name} is required for this asset.", {}
 
         meta = EARTH_ADVANCED_TOOLS[tool_key]
         price = meta["price"]
