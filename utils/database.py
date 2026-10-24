@@ -3795,10 +3795,12 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             for table in ("banks", "bank_loans", "player_loans", "bank_insurance", "streaks", "role_purchases"):
                 await self._db.execute(f"DELETE FROM {table}")
 
-            # Shares and trading history are reseeded from the default catalogue.
-            for table in ("player_company_offers", "player_companies", "user_stocks", "stock_history", "stocks"):
-                await self._db.execute(f"DELETE FROM {table}")
-            await self._db.execute("DELETE FROM meta WHERE key IN ('stock_tax_rate', 'company_market_balance')")
+            # Stock portfolios and player companies are persistent season assets.
+            # Never delete them from a startup migration: a missing/reset marker must
+            # not erase holdings or unexpectedly refund shareholders.
+            await self._db.execute(
+                "DELETE FROM player_company_offers WHERE status IN ('expired', 'rejected', 'cancelled')"
+            )
 
             # Virtual Earth: reset the map and all player-created state to the base roster.
             for table in (
