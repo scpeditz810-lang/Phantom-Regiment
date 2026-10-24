@@ -2762,11 +2762,14 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         # Average execution price along the order book curve (slippage protection)
         effective_buy_price = (stock["price"] + new_price) / 2.0
-        total_cost = int(round(shares * effective_buy_price))
+        gross_cost = int(round(shares * effective_buy_price))
+        tax_rate = await self.get_stock_tax_rate()
+        tax_amount = int(round(gross_cost * tax_rate))
+        total_cost = gross_cost + tax_amount
 
         user_econ = await self.get_global_economy(user_id)
         if user_econ.get("medals", 0) < total_cost:
-            return False, f"Insufficient Wallet Medals. You need {total_cost:,} Medals (Avg: {int(round(effective_buy_price)):,} M/share), but only have {user_econ.get('medals', 0):,} in your wallet. (Withdraw from your /bank if needed!)"
+            return False, f"Insufficient Wallet Medals. You need {total_cost:,} Medals including {int(round(tax_rate * 100))}% market fee ({tax_amount:,} Medals; shares cost {gross_cost:,}), but only have {user_econ.get('medals', 0):,} in your wallet. (Withdraw from your /bank if needed!)"
 
         await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
         await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
@@ -2788,7 +2791,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self.update_stock_price(stock_id, new_price)
         await self._db.commit()
 
-        return True, f"Successfully purchased {shares} shares of {stock['symbol']} for {total_cost:,} Medals (Avg: {int(round(effective_buy_price)):,} Medals/share). Price rose to {new_price:,} Medals!"
+        return True, f"Successfully purchased {shares} shares of {stock['symbol']} for {total_cost:,} Medals (shares: {gross_cost:,} + {int(round(tax_rate * 100))}% fee: {tax_amount:,}). Price rose to {new_price:,} Medals!"
 
     async def sell_stock(self, user_id: int, stock_id: int, shares: int) -> tuple[bool, str]:
         try:
