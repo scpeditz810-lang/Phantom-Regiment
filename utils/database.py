@@ -938,6 +938,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self.sanitize_stock_exploit()
         await self.seed_default_earth_countries()
         await self.reset_earth_world_to_zero_once()
+        await self.release_user_earth_claims_once(1147451922459136070, "IRN")
 
 
 
@@ -3902,6 +3903,36 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             )
             await self._db.commit()
             return True
+        except Exception:
+            await self._db.rollback()
+            raise
+
+
+    async def release_user_earth_claims_once(self, user_id: int, keep_code: str = "IRN") -> bool:
+        """Release a flagged user's extra countries once, preserving the requested country."""
+        reset_key = f"earth_release_excess_{int(user_id)}_{str(keep_code).upper()}"
+        if await self.get_meta(reset_key) == "complete":
+            return False
+
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute(
+                """SELECT id FROM earth_countries
+                   WHERE owner_id = ? AND UPPER(code) <> UPPER(?)""",
+                (int(user_id), str(keep_code))
+            ) as cur:
+                country_ids = [int(row[0]) for row in await cur.fetchall()]
+
+            now = time.time()
+            for country_id in country_ids:
+                await self._reset_unclaimed_earth_country(country_id, now)
+
+            await self._db.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                (reset_key, "complete")
+            )
+            await self._db.commit()
+            return bool(country_ids)
         except Exception:
             await self._db.rollback()
             raise
