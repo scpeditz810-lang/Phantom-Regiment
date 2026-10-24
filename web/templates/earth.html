@@ -8,16 +8,16 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════════
-// Keep the fullscreen globe viewport aligned to the actual wrapped navbar height.
-function syncEarthNavbarHeight() {
-    const navbar = document.querySelector(".navbar");
-    const height = navbar ? navbar.getBoundingClientRect().height : 0;
-    document.documentElement.style.setProperty("--earth-nav-height", `${height}px`);
-}
-window.addEventListener("load", syncEarthNavbarHeight, { once: true });
-window.addEventListener("resize", syncEarthNavbarHeight, { passive: true });
-window.addEventListener("orientationchange", syncEarthNavbarHeight, { passive: true });
-
+// Keep the fullscreen globe viewport aligned to the actual wrapped navbar height.
+function syncEarthNavbarHeight() {
+    const navbar = document.querySelector(".navbar");
+    const height = navbar ? navbar.getBoundingClientRect().height : 0;
+    document.documentElement.style.setProperty("--earth-nav-height", `${height}px`);
+}
+window.addEventListener("load", syncEarthNavbarHeight, { once: true });
+window.addEventListener("resize", syncEarthNavbarHeight, { passive: true });
+window.addEventListener("orientationchange", syncEarthNavbarHeight, { passive: true });
+
 // 🎓 SPY TRAINING ACADEMY & INTEL DOSSIER PURCHASE MODALS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2235,8 +2235,10 @@ function closeModal() {
 
 async function renderActiveTabContent(c, body) {
     if (!c || !body) return;
-    const isLeader = Boolean(userCountry && userCountry.id === c.id);
-    const isOwner = Boolean(statsData && statsData.user && statsData.user.country && statsData.user.country.id === c.id && statsData.user.role === 'president');
+    const sameSovereign = Boolean(userCountry && userCountry.owner_id && c.owner_id &&
+        String(userCountry.owner_id) === String(c.owner_id));
+    const isLeader = Boolean(sameSovereign && userCountry.user_role !== 'citizen');
+    const isOwner = Boolean(sameSovereign && userCountry.user_role === 'president');
 
     try {
         if (activeTab === 'dossier') {
@@ -2275,11 +2277,11 @@ async function renderDockContent() {
         const res = await fetch(`/api/earth/country/${countryId}?_t=` + Date.now());
         if (res.ok) {
             const fresh = await res.json();
-            if (selectedCountry && selectedCountry.id === countryId) {
-                const previousScrollTop = body.scrollTop;
-                selectedCountry = fresh;
-                renderActiveTabContent(selectedCountry, body);
-                body.scrollTop = Math.min(previousScrollTop, Math.max(0, body.scrollHeight - body.clientHeight));
+            if (selectedCountry && selectedCountry.id === countryId) {
+                const previousScrollTop = body.scrollTop;
+                selectedCountry = fresh;
+                renderActiveTabContent(selectedCountry, body);
+                body.scrollTop = Math.min(previousScrollTop, Math.max(0, body.scrollHeight - body.clientHeight));
             }
         }
     } catch(err) {
@@ -2390,11 +2392,12 @@ function renderDossierTab(c, isLeader, isOwner, container) {
             <div class="info-tile">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.4rem;">
                     <span style="font-size: 0.8rem; font-weight: 700;">📜 National Policies & Doctrines</span>
-                    <button class="btn-action-sm" onclick="openPoliciesModal()">Reform</button>
+                    ${c.can_manage_economy ? `<button class="btn-action-sm" onclick="openPoliciesModal()">Set Tax & Government</button>` : ''}
                 </div>
                 <div style="display:flex; flex-direction:column; gap:0.35rem; font-size:0.75rem; color:#cbd5e1;">
                     <div>• <strong>Economic:</strong> ${c.economic_doctrine?.replace('_', ' ').toUpperCase() || 'FREE MARKET'}</div>
                     <div>• <strong>Military:</strong> ${c.military_doctrine?.toUpperCase() || 'VOLUNTEER'}</div>
+                    <div>• <strong>Government:</strong> ${c.government_type?.toUpperCase() || 'DEMOCRACY'}</div>
                     <div>• <strong>Diplomatic:</strong> ${c.diplomatic_stance?.toUpperCase() || 'NEUTRAL'}</div>
                     <div>• <strong>Tax Rate:</strong> ${c.tax_rate || 10}%</div>
                 </div>
@@ -2520,13 +2523,14 @@ function renderCabinetTab(c, isLeader, isOwner, container) {
 
 function renderInfraTab(c, isLeader, isOwner, container) {
     const buildings = c.buildings || [];
+    const canBuild = Boolean(c.can_manage_economy);
     const defaultBuildings = {
         "school": { "name": "Public School & University Campus", "emoji": "🏫", "base_cost": 100000, "cost_multiplier": 1.5, "hourly_yield": 2500, "desc": "Boosts national stability and civic harmony." },
         "hospital": { "name": "Regional Hospital Complex", "emoji": "🏥", "base_cost": 150000, "cost_multiplier": 1.5, "hourly_yield": 3500, "desc": "Drastically lowers citizen unrest." },
         "mine": { "name": "Deep Gold & Mineral Mine", "emoji": "⛏️", "base_cost": 250000, "cost_multiplier": 1.6, "hourly_yield": 8000, "desc": "Extracts precious metals, generating revenue." },
         "oil_rig": { "name": "Offshore Oil Rig & Refinery", "emoji": "🛢️", "base_cost": 500000, "cost_multiplier": 1.7, "hourly_yield": 18000, "desc": "Powers national industry with massive yields." },
         "bunker": { "name": "Fortified Defense Bunker", "emoji": "🛡️", "base_cost": 300000, "cost_multiplier": 1.5, "hourly_yield": 0, "desc": "Fortifies national frontiers (+25 defense)." },
-        "naval_port": { "name": "Deepwater Ocean Port", "emoji": "⚓", "base_cost": 400000, "cost_multiplier": 1.6, "hourly_yield": 12000, "desc": "Enables bilateral maritime shipping routes." },
+        "naval_port": { "name": "Deepwater Ocean Port", "emoji": "⚓", "base_cost": 400000, "cost_multiplier": 1.6, "hourly_yield": 12000, "desc": "Enables bilateral maritime shipping routes." },
         "ocean_base": { "name": "Offshore Sovereign Base", "emoji": "🛟", "base_cost": 650000, "cost_multiplier": 1.7, "hourly_yield": 4000, "desc": "Adds maritime defense and ocean operations." }
     };
     const bInfo = (statsData && statsData.buildings_info && Object.keys(statsData.buildings_info).length > 0) ? statsData.buildings_info : defaultBuildings;
@@ -2563,7 +2567,7 @@ function renderInfraTab(c, isLeader, isOwner, container) {
                     </div>
                 </div>
 
-                ${isLeader ? `
+                ${canBuild ? `
                     <button class="btn-action-sm" onclick="buildInfrastructure('${bKey}')">
                         ${lvl > 0 ? 'Upgrade' : 'Build'} (${Number(upgradeCost).toLocaleString()} M)
                     </button>
@@ -2577,6 +2581,7 @@ function renderInfraTab(c, isLeader, isOwner, container) {
 
 function renderIntelTab(c, isLeader, isOwner, container) {
     const spies = c.spies || [];
+    const canManageIntel = Boolean(c.can_manage_intelligence);
     const intel = c.intelligence || [];
 
     const SPY_RANKS = {
@@ -2595,7 +2600,7 @@ function renderIntelTab(c, isLeader, isOwner, container) {
                     <span style="font-size: 0.88rem; font-weight: 800; color: #38bdf8;">🕵️ Intelligence Bureau</span>
                     <div style="font-size: 0.72rem; color: #94a3b8;">Active Operatives: <strong>${spies.length} / 6</strong></div>
                 </div>
-                ${isLeader ? `<button class="btn-action-sm" onclick="openRecruitSpyModal()">+ Recruit Operative</button>` : ''}
+                ${canManageIntel ? `<button class="btn-action-sm" onclick="openRecruitSpyModal()">+ Recruit Operative</button>` : ''}
             </div>
             <div style="font-size: 0.74rem; color: #94a3b8;">
                 Recruit undercover field agents and train them at the Academy to specialize in infiltration, sabotage, and cyber warfare.
@@ -2743,6 +2748,11 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                         <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}')">
                             🪖 Reinforce Front
                         </button>
+                        ${(c.can_command_defense && (c.tools || []).some(tool => tool.tool_key === "tactical_nuke")) ? `
+                            <button class="btn-action-sm" style="padding:0.25rem 0.55rem;font-size:0.7rem;border-color:#f97316;color:#fdba74;" onclick="launchNuclearStrike(${c.id}, ${w.id})">
+                                ☢️ Launch Nuclear Strike
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -3041,12 +3051,25 @@ function openPoliciesModal() {
                     <button class="btn-action-sm" onclick="closeModal()">✕</button>
                 </div>
 
+                <p style="font-size:0.73rem;color:#94a3b8;margin-bottom:0.9rem;">
+                    President or Economy Minister only. The simulated AI Policy Council approves 50% of proposals; there is a 15-minute review cooldown.
+                </p>
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Government System</label>
+                    <select class="custom-form-select" id="policy-government-select">
+                        <option value="socialist" ${c.government_type === 'socialist' ? 'selected' : ''}>🚩 Socialist</option>
+                        <option value="democracy" ${!c.government_type || c.government_type === 'democracy' ? 'selected' : ''}>🗳️ Democracy</option>
+                        <option value="communism" ${c.government_type === 'communism' ? 'selected' : ''}>☭ Communism</option>
+                        <option value="monarchy" ${c.government_type === 'monarchy' ? 'selected' : ''}>👑 Monarchy</option>
+                        <option value="dictatorship" ${c.government_type === 'dictatorship' ? 'selected' : ''}>⚔️ Dictatorship</option>
+                    </select>
+                </div>
                 <div class="custom-form-group">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <label class="custom-form-label">National Tax Rate: <strong id="tax-slider-val">${c.tax_rate || 10}%</strong></label>
+                        <label class="custom-form-label">National Tax Rate: <strong id="tax-slider-val">${c.tax_rate ?? 10}%</strong></label>
                         <span id="tax-warning-badge" style="font-size:0.7rem; color:#10b981;">Low Unrest</span>
                     </div>
-                    <input type="range" min="0" max="45" value="${c.tax_rate || 10}" class="form-range w-100" id="policy-tax-slider" oninput="updateTaxLabel(this.value)">
+                    <input type="range" min="0" max="50" value="${c.tax_rate ?? 10}" class="form-range w-100" id="policy-tax-slider" oninput="updateTaxLabel(this.value)">
                 </div>
 
                 <div class="custom-form-group">
@@ -3078,7 +3101,7 @@ function openPoliciesModal() {
 
                 <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
                     <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
-                    <button class="hud-btn" onclick="submitPolicies()">Enact Reforms</button>
+                    <button class="hud-btn" onclick="submitPolicies()">Submit to AI Policy Council</button>
                 </div>
             </div>
         </div>
@@ -3105,6 +3128,7 @@ async function submitPolicies() {
     const econ = document.getElementById("policy-econ-select").value;
     const mil = document.getElementById("policy-mil-select").value;
     const dip = document.getElementById("policy-dip-select").value;
+    const government = document.getElementById("policy-government-select").value;
 
     closeModal();
     try {
@@ -3116,7 +3140,8 @@ async function submitPolicies() {
                 tax_rate: parseInt(tax),
                 economic_doctrine: econ,
                 military_doctrine: mil,
-                diplomatic_stance: dip
+                diplomatic_stance: dip,
+                government_type: government
             })
         });
         const data = await res.json();
@@ -3515,6 +3540,22 @@ async function submitReinforceWar(warId) {
         loadVirtualEarthData();
     } catch(e) {
         showToast("Reinforce failed.");
+    }
+}
+
+async function launchNuclearStrike(countryId, warId) {
+    if (!confirm("Launch the one-use tactical nuclear weapon in this active war? The enemy country will take damage and the weapon cannot be recalled.")) return;
+    try {
+        const response = await fetch("/api/earth/nuclear/launch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId, war_id: warId })
+        });
+        const data = await response.json();
+        showToast(data.message || "Nuclear strike request completed.");
+        if (data.success) await loadVirtualEarthData();
+    } catch (error) {
+        showToast("Nuclear strike request failed.");
     }
 }
 
