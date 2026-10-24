@@ -13,7 +13,7 @@
                 <span style="color: #38bdf8; text-shadow: 0 0 20px rgba(56,189,248,0.4);">& Mayoral Command Suite</span>
             </h1>
             <p class="hero-desc" style="color: #94a3b8; font-size: 0.85rem; line-height: 1.5; margin-bottom: 1.25rem;">
-                Welcome, Presiding Officer <strong>{{ user.global_name or user.username }}</strong>. You hold supreme peacekeeping authority, monetary governance, municipal zoning, and geopolitical oversight across all 48 sovereign nations of Virtual Earth.
+                Welcome, Presiding Officer <strong>{{ user.global_name or user.username }}</strong>. You hold supreme peacekeeping authority, monetary governance, and geopolitical oversight across all 60 sovereign countries of Virtual Earth.
             </p>
             <div style="display: flex; gap: 0.65rem; flex-wrap: wrap;">
                 <span class="status-pill active" style="background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.35); padding: 0.35rem 0.75rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 700;">
@@ -71,9 +71,6 @@
         </button>
         <button class="btn btn-pill-dark" id="btn-geopolitics-tab" onclick="switchMayorTab('geopolitics-tab', this)" style="border: 1px solid transparent; color: #94a3b8; background: rgba(255,255,255,0.04); padding: 0.5rem 1rem; border-radius: 9999px; font-weight: 700; font-size: 0.84rem; cursor: pointer;">
             🌐 Geopolitics & War Monitor
-        </button>
-        <button class="btn btn-pill-dark" id="btn-zoning-tab" onclick="switchMayorTab('zoning-tab', this)" style="border: 1px solid transparent; color: #94a3b8; background: rgba(255,255,255,0.04); padding: 0.5rem 1rem; border-radius: 9999px; font-weight: 700; font-size: 0.84rem; cursor: pointer;">
-            🗺️ Civic Land Development & Zoning
         </button>
     </div>
 
@@ -337,7 +334,7 @@
                 <div class="eyebrow-text" style="color: #38bdf8; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">48 SOVEREIGN NATIONS OVERVIEW</div>
                 <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Virtual Earth Geopolitics Radar</h3>
                 <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.25rem;">
-                    Full radar survey across all 48 sovereign nations. Monitors imperial conquest counts (Max 4 conquered states per nation).
+                    Full radar survey across all 60 sovereign countries. Monitors imperial conquest counts (Max 4 conquered states per nation).
                 </p>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1.25rem;">
@@ -358,161 +355,18 @@
                 </div>
 
                 <div style="text-align: center;">
-                    <a href="{{ url_for('views.estate_page') }}" style="display: block; width: 100%; background: #38bdf8; color: #000; font-weight: 800; padding: 0.75rem; border-radius: 8px; text-decoration: none; font-size: 0.85rem;">
+                    <a href="{{ url_for('views.earth_page') }}" style="display: block; width: 100%; background: #38bdf8; color: #000; font-weight: 800; padding: 0.75rem; border-radius: 8px; text-decoration: none; font-size: 0.85rem;">
                         🌐 Launch Interactive 3D Virtual Earth Console
                     </a>
                 </div>
             </div>
 
-            <!-- Military Tycoon Skirmish Feed -->
-            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
-                <div class="eyebrow-text" style="color: #ef4444; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">MUNICIPAL SKIRMISH RADAR</div>
-                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">District Border Incursions</h3>
-                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.25rem;">
-                    Recent military border raids launched between rival landowners in Phantom Regiment.
-                </p>
-
-                <div id="raids-feed" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 380px; overflow-y: auto;">
-                    {% if raids %}
-                    {% for r in raids %}
-                    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 0.85rem 1rem; border-left: 3px solid {% if r.success %}#2ecc71{% else %}#ef4444{% endif %};">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                            <strong style="color: #fff; font-size: 0.84rem;">Plot #{{ r.plot_id }} — {{ r.plot_name }}</strong>
-                            <span style="font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 700; background: {% if r.success %}rgba(46,204,113,0.15); color: #2ecc71;{% else %}rgba(239,68,68,0.15); color: #ef4444;{% endif %}">
-                                {% if r.success %}BREACH SUCCESSFUL{% else %}ASSAULT REPELLED{% endif %}
-                            </span>
-                        </div>
-                        <div style="font-size: 0.76rem; color: #94a3b8; line-height: 1.4;">
-                            Attacker: <strong style="color: #f87171;">{{ r.attacker_name | default(r.attacker_id) }}</strong> vs Defender: <strong style="color: #38bdf8;">{{ r.defender_name | default(r.defender_id) }}</strong>
-                            {% if r.success %}
-                            <div style="color: #2ecc71; font-weight: 600; margin-top: 0.2rem;">💰 Plunder: +{{ "{:,}".format(r.loot) }} Medals • 🛡️ 1-Hr Protection Deployed</div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                    {% else %}
-                    <div style="text-align: center; color: #64748b; padding: 2rem; font-size: 0.85rem;">
-                        No tactical border skirmishes recorded yet. Peace reigns over the city!
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+            
         </div>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <!-- TAB 4: 🗺️ Civic Land Development & Zoning -->
-    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="zoning-tab" class="tab-content" style="display: none;">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem;">
-            <!-- Zone New Plot Form -->
-            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
-                <div class="eyebrow-text" style="color: #f1c40f; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">CIVIC DEVELOPMENT ACT</div>
-                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Zone & Deploy New Territory Plot</h3>
-                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; line-height: 1.4;">
-                    Create a brand new parcel on the map for citizens to buy and develop. You can zone land parcels or deepwater ocean oil platforms!
-                </p>
-
-                <div style="background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-size: 0.72rem; color: #7dd3fc; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;">Weekly Mayoral Zoning Quota</div>
-                        <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 2px;">Mayors are authorized to zone up to <strong>5 territory parcels per week</strong>.</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <span id="quota-display" style="font-size: 1.25rem; font-weight: 900; color: {% if zoning_quota and zoning_quota.can_create %}#10b981{% else %}#ef4444{% endif %};">
-                            {{ zoning_quota.remaining if zoning_quota else 5 }} / 5 Available
-                        </span>
-                    </div>
-                </div>
-
-                <form id="create-plot-form" onsubmit="handleCreatePlot(event)">
-                    <div style="margin-bottom: 0.75rem;">
-                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Parcel Designation / Name</label>
-                        <input type="text" id="plot-name" placeholder="e.g. Ironclad Harbor or Poseidon Rig" required maxlength="60" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.75rem;">
-                        <div>
-                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">District Sector</label>
-                            <select id="plot-district" required style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
-                                <option value="The Outskirts">🌲 The Outskirts</option>
-                                <option value="Riverside Commons">💧 Riverside Commons</option>
-                                <option value="Ironworks District">🏗️ Ironworks District</option>
-                                <option value="Shadow Citadel">👑 Shadow Citadel</option>
-                                <option value="Highland Outpost">⛰️ Highland Outpost</option>
-                                <option value="Deepwater Basin">🛢️ Deepwater Basin (Ocean)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Terrain Environment</label>
-                            <select id="plot-terrain" required style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
-                                <option value="plains">Plains (Standard Land)</option>
-                                <option value="forest">Forest (Woodland Ridge)</option>
-                                <option value="riverfront">Riverfront (Water Access)</option>
-                                <option value="industrial">Industrial (Refinery Docks)</option>
-                                <option value="citadel">Citadel (Urban Core)</option>
-                                <option value="ocean">Ocean (Deepwater / Oil Rig)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div style="margin-bottom: 0.75rem;">
-                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Initial Listing Price (Medals)</label>
-                        <input type="number" id="plot-price" placeholder="e.g. 150000" min="5000" max="25000000" required style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1rem;">
-                        <div>
-                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Grid X (Optional)</label>
-                            <input type="number" id="plot-x" placeholder="Auto-allocate" min="1" max="20" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
-                        </div>
-                        <div>
-                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Grid Y (Optional)</label>
-                            <input type="number" id="plot-y" placeholder="Auto-allocate" min="1" max="20" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
-                        </div>
-                    </div>
-
-                    {% if zoning_quota and not zoning_quota.can_create %}
-                    <button type="submit" id="btn-submit-plot" disabled style="width: 100%; background: #475569; color: #94a3b8; font-weight: 800; border: none; padding: 0.65rem; border-radius: 8px; font-size: 0.82rem; cursor: not-allowed;">
-                        ⛔ Weekly Zoning Limit Reached (5/5 Placed)
-                    </button>
-                    {% else %}
-                    <button type="submit" id="btn-submit-plot" style="width: 100%; background: #f1c40f; color: #000; font-weight: 800; border: none; padding: 0.65rem; border-radius: 8px; font-size: 0.82rem; cursor: pointer;">
-                        🗺️ Authorize & Zone Plot onto Map
-                    </button>
-                    {% endif %}
-                </form>
-            </div>
-
-            <!-- Territory Valuations -->
-            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
-                <div class="eyebrow-text" style="color: #a855f7; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">MUNICIPAL LAND REGISTRY</div>
-                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Territory Valuations & Overview</h3>
-                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.25rem;">
-                    Real-time metrics on municipal land plots, citizen holdings, and development yields.
-                </p>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1.25rem;">
-                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid #38bdf8;">
-                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Total Parcels Zoned</span>
-                        <strong style="font-size: 1.4rem; color: #fff;">{{ total_plots }}</strong>
-                    </div>
-                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid #10b981;">
-                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Settled / Owned</span>
-                        <strong style="font-size: 1.4rem; color: #10b981;">{{ owned_count }}</strong>
-                    </div>
-                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid #f1c40f;">
-                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Available Unowned</span>
-                        <strong style="font-size: 1.4rem; color: #f1c40f;">{{ total_plots - owned_count }}</strong>
-                    </div>
-                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid #a855f7;">
-                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Total Valuation</span>
-                        <strong style="font-size: 1.15rem; color: #a855f7;">{{ "{:,}".format(total_land_val) }} M</strong>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    
 </div>
 
 <script>
@@ -675,33 +529,5 @@ async function handleCreateStock(e) {
     }
 }
 
-async function handleCreatePlot(e) {
-    e.preventDefault();
-    const payload = {
-        name: document.getElementById("plot-name").value.trim(),
-        district: document.getElementById("plot-district").value,
-        terrain: document.getElementById("plot-terrain").value,
-        price: parseInt(document.getElementById("plot-price").value),
-        x: document.getElementById("plot-x").value ? parseInt(document.getElementById("plot-x").value) : null,
-        y: document.getElementById("plot-y").value ? parseInt(document.getElementById("plot-y").value) : null
-    };
-
-    try {
-        const res = await fetch("/api/mayor/plot/create", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert("🎉 " + data.message);
-            window.location.reload();
-        } else {
-            alert("❌ " + data.message);
-        }
-    } catch (err) {
-        alert("Error zoning plot: " + err);
-    }
-}
 </script>
 {% endblock %}
