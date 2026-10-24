@@ -31,7 +31,7 @@ from cogs.earth_dashboards import (
     MinistryHubView
 )
 
-WEB_URL = "https://phantom-regiment-1.onrender.com/estate"
+WEB_URL = "https://phantom-regiment-1.onrender.com/earth"
 
 
 class CabinetInviteView(discord.ui.View):
@@ -465,12 +465,17 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         app_commands.Choice(name="🏭 Heavy Industrial Complex (+Military Power)", value="heavy_factory"),
         app_commands.Choice(name="🏰 Fortified Citadel Bunker (+Massive Defense)", value="bunker"),
         app_commands.Choice(name="⚓ Deepwater Commercial & Naval Port (Enables Ocean Trade)", value="naval_port"),
+        app_commands.Choice(name="🛟 Offshore Sovereign Ocean Base (+Defense & GDP)", value="ocean_base"),
     ])
-    async def earth_build(self, interaction: discord.Interaction, building: app_commands.Choice[str]):
+    @app_commands.describe(country_code="Optional code of a country/state you rule, including a conquered state")
+    async def earth_build(self, interaction: discord.Interaction, building: app_commands.Choice[str], country_code: str = None):
         await interaction.response.defer()
-        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if country_code:
+            c = await self.bot.db.get_earth_country_by_code(country_code.strip().upper())
+        else:
+            c = await self.bot.db.get_user_earth_country(interaction.user.id)
         if not c:
-            await interaction.followup.send("❌ You do not govern a sovereign nation or hold the Economy portfolio!", ephemeral=True)
+            await interaction.followup.send("❌ Country/state not found. Use /earth my_country to see your current nation.", ephemeral=True)
             return
 
         success, msg, cost = await self.bot.db.build_earth_infrastructure(interaction.user.id, c["id"], building.value)
