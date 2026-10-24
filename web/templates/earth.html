@@ -2048,7 +2048,7 @@ body.virtual-earth-page {
 
             </button>
 
-            <button class="dock-tab-btn" onclick="switchDockTab('intel', this)">
+            <button id="dock-intel-tab" class="dock-tab-btn" onclick="switchDockTab('intel', this)">
 
                 <i class="fa-solid fa-user-secret"></i> Intelligence
 
@@ -4644,6 +4644,16 @@ function closeModal() {
 async function renderActiveTabContent(c, body) {
 
     if (!c || !body) return;
+
+    const intelTab = document.getElementById("dock-intel-tab");
+    const canViewIntel = c.can_view_intelligence === true;
+    if (intelTab) intelTab.style.display = canViewIntel ? "" : "none";
+    if (!canViewIntel && activeTab === 'intel') {
+        activeTab = 'dossier';
+        document.querySelectorAll(".dock-tab-btn").forEach(b => b.classList.remove("active"));
+        const dossierTab = document.querySelector(".dock-tab-btn[onclick*="'dossier'"]");
+        if (dossierTab) dossierTab.classList.add("active");
+    }
 
     const sameSovereign = Boolean(userCountry && userCountry.owner_id && c.owner_id &&
 
