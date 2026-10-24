@@ -1097,6 +1097,79 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self._db.commit()
         return True, f"🏥 UN Humanitarian Relief Dispatched: Granted {amount:,} Medals to {country[2]} **{country[1]}**! Unrest lowered to {new_unrest}%, stability restored to {new_stability}%."
 
+
+    async def siphon_earth_treasury(self, user_id: int, country_id: int, amount: int) -> tuple[bool, str, dict]:
+        """Sovereign withdraws funds from the national treasury into personal wallet with corruption loss and severe civil unrest penalty."""
+        if self._db is None:
+            await self.setup()
+
+        # Permission check: Only President
+        async with self._db.execute("SELECT id, name, flag, owner_id, treasury, unrest, stability FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            c = await cur.fetchone()
+
+        if not c:
+            return False, "Country not found.", {}
+        if str(c[3]) != str(user_id):
+            return False, "⛔ Sovereign Privilege Required: Only the sitting President can access national treasury reserves!", {}
+
+        current_treasury = c[4] or 0
+        if current_treasury < 10000:
+            return False, "State treasury reserves are depleted (minimum 10,000 M required).", {}
+
+        amount = int(amount)
+        if amount <= 0:
+            return False, "Please enter a valid positive withdrawal amount.", {}
+
+        # Max withdrawal limit: 20% of treasury at a time
+        max_allowed = int(current_treasury * 0.20)
+        if amount > max_allowed:
+            return False, f"⛔ Treasury Protection Limit: You can withdraw at most 20% of national reserves at once (Max: {max_allowed:,} Medals)!", {}
+
+        if amount > current_treasury:
+            return False, "Insufficient treasury reserves.", {}
+
+        # 25% Corruption Leakage Loss
+        loss_fee = int(amount * 0.25)
+        payout = amount - loss_fee
+
+        # Civil Unrest and Stability Penalties
+        unrest_spike = 20
+        stab_drop = 15
+        new_unrest = min(100, (c[5] or 0) + unrest_spike)
+        new_stab = max(10, (c[6] or 80) - stab_drop)
+        new_treasury = current_treasury - amount
+
+        await self._db.execute("""
+            UPDATE earth_countries
+            SET treasury = ?, unrest = ?, stability = ?
+            WHERE id = ?
+        """, (new_treasury, new_unrest, new_stab, country_id))
+
+        # Credit net payout to player
+        await self.add_medals(user_id, payout)
+        await self._db.commit()
+
+        riot_warning = ""
+        if new_unrest >= 85:
+            riot_warning = " 🚨 IMMINENT REVOLUTION RISK! Citizens are preparing to storm the presidential palace!"
+        elif new_unrest >= 60:
+            riot_warning = " 🔥 Severe urban riots erupted across the capital!"
+
+        msg = (
+            f"💸 Treasury Withdrawn: Disbursed {amount:,} Medals from {c[2]} {c[1]} reserves. "
+            f"Net received: +{payout:,} Medals (-{loss_fee:,} M corruption leakage). "
+            f"⚠️ Penalty: +{unrest_spike}% Civil Unrest (Now {new_unrest}%), -{stab_drop}% Stability (Now {new_stab}%).{riot_warning}"
+        )
+
+        return True, msg, {
+            "amount": amount,
+            "payout": payout,
+            "loss_fee": loss_fee,
+            "new_treasury": new_treasury,
+            "new_unrest": new_unrest,
+            "new_stability": new_stab
+        }
+
     async def close(self):
 
         if self._db:
@@ -4212,18 +4285,17 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             count = row[0] if row else 0
 
         now = time.time()
-        if count == 0:
-            for c in EARTH_COUNTRIES:
-                await self._db.execute("""
-                    INSERT OR IGNORE INTO earth_countries (
-                        id, code, name, flag, lat, lng, owner_id, gdp, treasury, stability, unrest, is_coastal, capital, desc, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    c["id"], c["code"], c["name"], c["flag"], c["lat"], c["lng"],
-                    c.get("initial_owner_id"), c["gdp"], int(c["gdp"] * 0.15), 85, 12,
-                    c["is_coastal"], c.get("capital", ""), c.get("desc", ""), now
-                ))
-            await self._db.commit()
+        for c in EARTH_COUNTRIES:
+            await self._db.execute("""
+                INSERT OR IGNORE INTO earth_countries (
+                    id, code, name, flag, lat, lng, owner_id, gdp, treasury, stability, unrest, is_coastal, capital, desc, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                c["id"], c["code"], c["name"], c["flag"], c["lat"], c["lng"],
+                c.get("initial_owner_id"), c["gdp"], int(c["gdp"] * 0.15), 85, 12,
+                c["is_coastal"], c.get("capital", ""), c.get("desc", ""), now
+            ))
+        await self._db.commit()
 
         # Explicit Guaranteed Ownership assignments (per user prompt instruction)
         await self._db.execute("UPDATE earth_countries SET owner_id = 429350468796416013 WHERE code = 'RUS'")
@@ -4410,16 +4482,25 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self.setup()
 
         # 1. Check if President
-        async with self._db.execute("SELECT id FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
+        async with self._db.execute("""
+            SELECT id FROM earth_countries 
+            WHERE owner_id = ? OR (owner_id BETWEEN ? - 250 AND ? + 250)
+            ORDER BY gdp DESC, id ASC
+        """, (user_id, user_id, user_id)) as cur:
             row = await cur.fetchone()
             if row:
                 c = await self.get_earth_country(row[0])
                 c["user_role"] = "president"
                 c["role_title"] = "President & Supreme Sovereign"
+                async with self._db.execute("SELECT id, name, flag, code, gdp FROM earth_countries WHERE owner_id = ? AND id != ?", (c.get("owner_id"), c["id"])) as cur2:
+                    c["empire_states"] = [dict(s) for s in await cur2.fetchall()]
                 return c
 
         # 2. Check if Cabinet Minister
-        async with self._db.execute("SELECT country_id, role FROM earth_cabinet WHERE user_id = ?", (user_id,)) as cur:
+        async with self._db.execute("""
+            SELECT country_id, role FROM earth_cabinet 
+            WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)
+        """, (user_id, user_id, user_id)) as cur:
             row = await cur.fetchone()
             if row:
                 c = await self.get_earth_country(row[0])
@@ -4429,7 +4510,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 return c
 
         # 3. Check if Registered Citizen
-        async with self._db.execute("SELECT country_id FROM earth_citizens WHERE user_id = ?", (user_id,)) as cur:
+        async with self._db.execute("""
+            SELECT country_id FROM earth_citizens 
+            WHERE user_id = ? OR (user_id BETWEEN ? - 250 AND ? + 250)
+        """, (user_id, user_id, user_id)) as cur:
             row = await cur.fetchone()
             if row:
                 c = await self.get_earth_country(row[0])
@@ -5704,6 +5788,24 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
                 await self._db.execute("UPDATE earth_countries SET treasury = max(0, treasury - ?), unrest = min(100, unrest + 20) WHERE id = ?", (loot, w["defender_country_id"]))
                 await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loot, w["attacker_country_id"]))
+
+                # Imperial Annexation: If campaign scale is annexation or total world war
+                if w.get("scale") in ("annexation", "world_war"):
+                    async with self._db.execute("SELECT owner_id FROM earth_countries WHERE id = ?", (w["attacker_country_id"],)) as cur:
+                        atk_owner_row = await cur.fetchone()
+                        atk_owner = atk_owner_row[0] if atk_owner_row else None
+
+                    if atk_owner:
+                        async with self._db.execute("SELECT COUNT(*) FROM earth_countries WHERE owner_id = ?", (atk_owner,)) as cur:
+                            owned_count = (await cur.fetchone())[0]
+
+                        if owned_count < 5:  # Max 4 conquered states + 1 motherland = 5 total
+                            await self._db.execute("""
+                                UPDATE earth_countries 
+                                SET owner_id = ?, unrest = 35, stability = 50 
+                                WHERE id = ?
+                            """, (atk_owner, w["defender_country_id"]))
+                            await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (w["defender_country_id"],))
             else:
                 # Defender held the line
                 winner_id = w["defender_country_id"]
@@ -5716,6 +5818,79 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             concluded.append({"war_id": wid, "status": status, "winner_id": winner_id})
 
         return concluded
+
+    async def expedition_attack_unclaimed(self, user_id: int, attacker_country_id: int, target_country_id: int, divisions: int = 10) -> tuple[bool, str, dict]:
+        """Launch an armed military expedition to conquer an unclaimed frontier country (Max 4 conquered states)."""
+        if self._db is None:
+            await self.setup()
+
+        # Permission check: President or Army Commander
+        can_command = await self.has_earth_cabinet_permission(user_id, attacker_country_id, "defense")
+        if not can_command:
+            return False, "⛔ Authorization Denied: Only the President or Supreme Army Commander can launch military frontier expeditions!", {}
+
+        atk = await self.get_earth_country(attacker_country_id)
+        tgt = await self.get_earth_country(target_country_id)
+        if not atk or not tgt:
+            return False, "Sovereign country not found.", {}
+
+        if tgt.get("owner_id"):
+            return False, f"⛔ Frontier Claim Denied: {tgt['flag']} {tgt['name']} is already claimed by a sovereign ruler! Declare a formal war campaign instead of an unclaimed expedition.", {}
+
+        atk_owner = atk.get("owner_id")
+        if not atk_owner:
+            return False, "Attacking nation has no sovereign ruler to register imperial territory under.", {}
+
+        # Imperial Expansion Cap: Max 4 conquered states (5 territories total)
+        async with self._db.execute("SELECT COUNT(*) FROM earth_countries WHERE owner_id = ?", (atk_owner,)) as cur:
+            owned_count = (await cur.fetchone())[0]
+        if owned_count >= 5:
+            return False, "⛔ Imperial Expansion Limit Reached: Your empire already governs the maximum of 4 conquered states (5 territories total). Grant independence or sell an imperial state before expanding!", {}
+
+        divisions = max(5, min(50, int(divisions)))
+        cost = divisions * 20000
+        econ = await self.get_global_economy(user_id)
+        if econ.get("medals", 0) < cost:
+            return False, f"Expedition mobilization of {divisions} divisions requires {cost:,} Medals (Current balance: {econ.get('medals', 0):,}).", {}
+
+        await self.subtract_medals(user_id, cost)
+
+        # Garrison resistance battle calculation
+        garrison_resistance = tgt.get("total_defense_power", 50) + random.randint(15, 45)
+        assault_power = atk.get("total_military_power", 50) + (divisions * 6) + random.randint(20, 60)
+
+        if assault_power > garrison_resistance:
+            # Conquest Successful: Annex country to sovereign
+            await self._db.execute("""
+                UPDATE earth_countries 
+                SET owner_id = ?, unrest = 35, stability = 60, treasury = treasury + 50000
+                WHERE id = ?
+            """, (atk_owner, target_country_id))
+            await self._db.commit()
+
+            conquered_count = owned_count # now owned_count + 1 total, so conquered = owned_count
+            return True, (
+                f"🚩 **TERRITORIAL CONQUEST VICTORY!**\n\n"
+                f"Your expeditionary force of **{divisions} divisions** smashed all frontier militia resistance "
+                f"(Assault Power: `{assault_power}` vs Frontier Defense: `{garrison_resistance}`).\n\n"
+                f"**{tgt['flag']} {tgt['name']}** has been annexed into the sovereign empire of **{atk['flag']} {atk['name']}**!\n"
+                f"👑 Imperial Status: `{conquered_count}/4 Conquered States` governed."
+            ), {
+                "success": True,
+                "target_name": tgt["name"],
+                "target_flag": tgt["flag"],
+                "conquered_count": conquered_count,
+                "divisions": divisions
+            }
+        else:
+            return False, (
+                f"💥 **EXPEDITION REPELLED!**\n\n"
+                f"Frontier defenders repelled the invasion force (Frontier Defense: `{garrison_resistance}` vs Assault Power: `{assault_power}`). "
+                f"Lost {divisions} assault divisions (-{cost:,} Medals). Reorganize your troops and strike again!"
+            ), {
+                "success": False,
+                "target_name": tgt["name"]
+            }
 
     # ─── Ocean Trade Routes & Bilateral Commerce ──────────────────────────────
 
