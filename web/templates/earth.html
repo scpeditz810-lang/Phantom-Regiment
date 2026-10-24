@@ -4651,7 +4651,9 @@ async function renderActiveTabContent(c, body) {
     if (!canViewIntel && activeTab === 'intel') {
         activeTab = 'dossier';
         document.querySelectorAll(".dock-tab-btn").forEach(b => b.classList.remove("active"));
-        const dossierTab = document.querySelector(".dock-tab-btn[onclick*="'dossier'"]");
+        const dossierTab = Array.from(document.querySelectorAll(".dock-tab-btn")).find(
+            b => (b.getAttribute("onclick") || "").includes("'dossier'")
+        );
         if (dossierTab) dossierTab.classList.add("active");
     }
 
