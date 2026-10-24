@@ -2157,6 +2157,10 @@ let activeTradeVessels = [];
 let lastTradeAnimationTime = 0;
 
 let activeCombatExplosions = [];
+let activeNuclearFlights = [];
+let activeNuclearBlasts = [];
+let nuclearFXGroup = null;
+let lastFrameTimestamp = 0;
 
 let activeCombatShockwaves = [];
 
@@ -2515,6 +2519,7 @@ function init3DWorld() {
     earthGroup.add(navalFleetsGroup);
 
     earthGroup.add(combatFXGroup);
+    earthGroup.add(nuclearFXGroup);
 
 
 
@@ -3559,6 +3564,80 @@ function renderMilitaryAirAirspaces() {
 }
 
 
+
+function createNuclearStrikeVisual(war, sourceCountryId) {
+    if (!nuclearFXGroup || !war) return;
+    const sourceIsAttacker = Number(sourceCountryId) === Number(war.attacker_country_id);
+    const sourceLat = sourceIsAttacker ? war.atk_lat : war.dfn_lat;
+    const sourceLng = sourceIsAttacker ? war.atk_lng : war.dfn_lng;
+    const targetLat = sourceIsAttacker ? war.dfn_lat : war.atk_lat;
+    const targetLng = sourceIsAttacker ? war.dfn_lng : war.atk_lng;
+    const from = latLngToVector3(sourceLat, sourceLng, GLOBE_RADIUS * 1.025);
+    const to = latLngToVector3(targetLat, targetLng, GLOBE_RADIUS * 1.025);
+    const mid = from.clone().add(to).multiplyScalar(0.5);
+    mid.normalize().multiplyScalar(GLOBE_RADIUS + Math.min(26, from.distanceTo(to) * 0.32));
+    const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
+    const missile = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.22,0.72,8),new THREE.MeshStandardMaterial({color:0x475569,metalness:0.7,roughness:0.3}));
+    body.rotation.x=Math.PI/2; missile.add(body);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.17,0.34,8),new THREE.MeshBasicMaterial({color:0xef4444}));
+    nose.rotation.x=Math.PI/2; nose.position.z=0.52; missile.add(nose);
+    const exhaust = new THREE.Mesh(new THREE.SphereGeometry(0.18,8,8),new THREE.MeshBasicMaterial({color:0xffa500,transparent:true,opacity:0.95}));
+    exhaust.position.z=-0.48; missile.add(exhaust);
+    nuclearFXGroup.add(missile);
+    activeNuclearFlights.push({missile,exhaust,curve,progress:0,speed:0.0048,target:to});
+}
+
+function createNuclearBlast(position) {
+    if (!nuclearFXGroup) return;
+    const normal = position.clone().normalize();
+    const blast = new THREE.Group();
+    const fireball = new THREE.Mesh(new THREE.SphereGeometry(1.6,16,12),new THREE.MeshBasicMaterial({color:0xff7a18,transparent:true,opacity:0.98}));
+    blast.add(fireball);
+    const hotCore = new THREE.Mesh(new THREE.SphereGeometry(0.72,12,10),new THREE.MeshBasicMaterial({color:0xfff7b2,transparent:true,opacity:1}));
+    hotCore.position.addScaledVector(normal,0.3); blast.add(hotCore);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.3,2.0,32),new THREE.MeshBasicMaterial({color:0xffc107,transparent:true,opacity:0.9,side:THREE.DoubleSide}));
+    ring.position.copy(normal); ring.lookAt(new THREE.Vector3(0,0,0)); blast.add(ring);
+    const cloud = new THREE.Mesh(new THREE.SphereGeometry(1.25,14,10),new THREE.MeshBasicMaterial({color:0x64748b,transparent:true,opacity:0.72}));
+    cloud.position.addScaledVector(normal,2.15); cloud.scale.set(1.4,0.8,1.15); blast.add(cloud);
+    const surface = normal.clone().multiplyScalar(GLOBE_RADIUS * 1.025);
+    blast.position.copy(surface);
+    nuclearFXGroup.add(blast);
+    activeNuclearBlasts.push({blast,age:0,ring,fireball,cloud});
+}
+
+function animateNuclearEffects(deltaTime) {
+    const dt = Math.min(50, Math.max(0, Number(deltaTime) || 16));
+    activeNuclearFlights = activeNuclearFlights.filter(flight => {
+        flight.progress += flight.speed * dt;
+        if (flight.progress >= 1) {
+            createNuclearBlast(flight.target);
+            nuclearFXGroup.remove(flight.missile);
+            return false;
+        }
+        const p = flight.progress;
+        const pos = flight.curve.getPointAt(p);
+        const next = flight.curve.getPointAt(Math.min(0.999,p+0.01));
+        flight.missile.position.copy(pos);
+        orientMilitaryUnitOnGlobe(flight.missile,pos,next.clone().sub(pos));
+        flight.exhaust.scale.setScalar(0.8 + 0.35 * Math.abs(Math.sin(performance.now()*0.02)));
+        return true;
+    });
+    activeNuclearBlasts = activeNuclearBlasts.filter(effect => {
+        effect.age += dt;
+        const t = effect.age / 3200;
+        effect.blast.scale.setScalar(0.35 + Math.min(1.6,t*1.8));
+        effect.fireball.material.opacity = Math.max(0,1.0-t*1.15);
+        effect.cloud.material.opacity = Math.max(0,0.72-t*0.5);
+        effect.ring.scale.setScalar(1 + t*3.5);
+        effect.ring.material.opacity = Math.max(0,0.9-t*0.9);
+        if (effect.age >= 3200) {
+            nuclearFXGroup.remove(effect.blast);
+            return false;
+        }
+        return true;
+    });
+}
 
 function renderCombatWarzones() {
 
@@ -7304,7 +7383,12 @@ async function launchNuclearStrike(countryId, warId) {
 
         showToast(data.message || "Nuclear strike request completed.");
 
-        if (data.success) await loadVirtualEarthData();
+        if (data.success) {
+            const war = warsData.find(item => Number(item.id) === Number(warId));
+            if (war) createNuclearStrikeVisual(war, countryId);
+            // Keep the missile and blast animation alive while refreshing game state.
+            await loadVirtualEarthData();
+        }
 
     } catch (error) {
 
