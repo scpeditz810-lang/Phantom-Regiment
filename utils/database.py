@@ -5488,11 +5488,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 (war_id,)
             ) as cur:
                 war = await cur.fetchone()
-            if not war or source_country_id not in (war[0], war[1]):
+            if not war or source_country_id not in (int(war[0]), int(war[1])):
                 await self._db.rollback()
                 return False, "Nuclear strikes can only be used by a country involved in an active war."
 
-            target_country_id = war[1] if source_country_id == war[0] else war[0]
+            target_country_id = int(war[1]) if source_country_id == int(war[0]) else int(war[0])
             async with self._db.execute(
                 "SELECT 1 FROM earth_nuclear_strikes WHERE war_id = ? AND source_country_id = ? AND target_country_id = ? LIMIT 1",
                 (war_id, source_country_id, target_country_id)
