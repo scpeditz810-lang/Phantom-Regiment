@@ -5676,7 +5676,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                     <button class="btn-action-sm" onclick="purchaseEarthHardware(${c.id},'jet')">Buy Jet · 350k</button>
                     ${c.is_coastal ? '<button class="btn-action-sm" onclick="purchaseEarthHardware(' + c.id + ',&#39;ship&#39;)">Buy Ship · 300k</button>' : ''}
                 </div>
-                <div style="font-size:.68rem;color:#94a3b8;margin-top:.35rem;">Force capacity grows with population. Recruitment costs 25,000 Medals per division; deployed troops come from this reserve.</div>
+                <div style="font-size:.68rem;color:#94a3b8;margin-top:.35rem;">Force capacity grows with population. Recruitment costs 25,000 Medals and 5 civilians per division; both are consumed. Deployed troops come from this reserve.</div>
             </div>`;
     }
 
@@ -7575,7 +7575,7 @@ async function openAllianceModal(countryId, currentAllianceName) {
 
                 ${(!currentAllianceName || currentAllianceName !== al.name) ? `
 
-                    <button class="btn-action-sm" onclick="joinAlliance(${al.id})">Join</button>
+                    <button class="btn-action-sm" onclick="requestAlliance(${countryId}, ${al.id})">Request to join</button>
 
                 ` : `<span class="hud-tag" style="background:rgba(34,197,94,0.15); color:#22c55e;">Member</span>`}
 
@@ -7622,6 +7622,8 @@ async function openAllianceModal(countryId, currentAllianceName) {
                 </div>
 
 
+
+                <div id="alliance-request-inbox" style="margin:0.75rem 0;"></div>
 
                 <label class="custom-form-label">Existing Global Coalitions</label>
 
@@ -7699,6 +7701,28 @@ async function submitCreateAlliance(countryId) {
 
 
 
+async function requestAlliance(countryId, allianceId) {
+    try {
+        const res = await fetch("/api/earth/alliance/request", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({country_id:countryId, alliance_id:allianceId})});
+        const data = await res.json(); showToast(data.message || "Alliance request sent.");
+        if (data.success) { await loadVirtualEarthData(); closeModal(); }
+    } catch (e) { showToast("Alliance request failed."); }
+}
+
+async function loadAllianceRequests(countryId) {
+    const box = document.getElementById("alliance-request-inbox"); if (!box) return;
+    try {
+        const res = await fetch("/api/earth/alliance/requests?country_id=" + encodeURIComponent(countryId));
+        const requests = await res.json();
+        box.innerHTML = requests.length ? requests.map(r => "<div class=\"minister-card\"><div><b>" + escapeHtml(r.country_flag||"") + " " + escapeHtml(r.country_name) + "</b><div style=\"font-size:.7rem;color:#94a3b8;\">Request for " + escapeHtml(r.alliance_name) + "</div></div><div style=\"display:flex;gap:.3rem;\"><button class=\"btn-action-sm\" onclick=\"respondAllianceRequest(" + r.id + ",true)\">Accept</button><button class=\"btn-danger-sm\" onclick=\"respondAllianceRequest(" + r.id + ",false)\">Reject</button></div></div>").join("") : "<div style=\"font-size:.72rem;color:#94a3b8;\">No pending alliance requests.</div>";
+    } catch (e) { box.innerHTML = "<div style=\"font-size:.72rem;color:#fca5a5;\">Could not load alliance requests.</div>"; }
+}
+
+async function respondAllianceRequest(requestId, accept) {
+    const res = await fetch("/api/earth/alliance/request/respond", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({request_id:requestId, accept})});
+    const data = await res.json(); showToast(data.message || "Alliance request updated.");
+    if (data.success) { await loadVirtualEarthData(); if (selectedCountry) openAllianceModal(selectedCountry.id, selectedCountry.alliance_name || ""); }
+}
 async function joinAlliance(alId) {
 
     closeModal();

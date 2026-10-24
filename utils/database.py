@@ -668,6 +668,17 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 created_at REAL NOT NULL
             );
 
+
+            CREATE TABLE IF NOT EXISTS earth_alliance_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alliance_id INTEGER NOT NULL,
+                country_id INTEGER NOT NULL,
+                requester_id INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at REAL NOT NULL,
+                UNIQUE(alliance_id, country_id, status)
+            );
+
             CREATE TABLE IF NOT EXISTS earth_wars (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 attacker_country_id INTEGER NOT NULL,
@@ -2655,10 +2666,16 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         buyer_id = int(buyer["user_id"])
         if buyer_id == seller_id:
             return False, "You cannot sell the company to yourself.", None
-        async with self._db.execute("SELECT id, name, symbol FROM player_companies WHERE owner_id = ?", (seller_id,)) as cur:
+        async with self._db.execute("""SELECT pc.id, pc.name, pc.symbol, pc.fair_value, s.price, s.total_supply
+            FROM player_companies pc JOIN stocks s ON s.id = pc.stock_id WHERE pc.owner_id = ?""", (seller_id,)) as cur:
             company = await cur.fetchone()
         if not company:
             return False, "You do not own a listed company.", None
+        reviewed_value = int(company["fair_value"] or 0)
+        market_value = int(company["price"] or 0) * int(company["total_supply"] or 0)
+        max_player_price = max(25_000, min(reviewed_value or 25_000, market_value or reviewed_value or 25_000))
+        if gross_price > max_player_price:
+            return False, f"Player sale price is capped at {max_player_price:,} Medals by the reviewed valuation and current market cap.", None
 
         now = time.time()
         await self.get_global_economy(seller_id)
@@ -2796,6 +2813,18 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             if not company:
                 await self._db.rollback()
                 return False, "You do not own a listed company."
+            async with self._db.execute("""
+                SELECT pc.fair_value, s.price, s.total_supply
+                FROM player_companies pc JOIN stocks s ON s.id = pc.stock_id
+                WHERE pc.id = ?
+            """, (company["id"],)) as cur:
+                valuation_row = await cur.fetchone()
+            reviewed_value = int(valuation_row[0] or 0) if valuation_row else 0
+            market_value = int(valuation_row[1] or 0) * int(valuation_row[2] or 0) if valuation_row else 0
+            max_bank_price = max(25_000, min(reviewed_value or 25_000, market_value or reviewed_value or 25_000))
+            if gross_price > max_bank_price:
+                await self._db.rollback()
+                return False, f"Bank buyout is capped at {max_bank_price:,} Medals by the reviewed valuation and current market cap."
             async with self._db.execute("SELECT value FROM meta WHERE key = 'company_market_balance'") as cur:
                 row = await cur.fetchone()
             bank_balance = max(0, int(row[0])) if row and str(row[0]).isdigit() else 0
@@ -5534,12 +5563,16 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             if reserve+deployed+divisions>capacity:
                 await self._db.rollback()
                 return False,f"Population supports {capacity} total divisions; {reserve+deployed} are already recruited or deployed."
+            civilian_cost = divisions * 5
+            if population <= civilian_cost:
+                await self._db.rollback()
+                return False, f"Recruiting {divisions} divisions requires {civilian_cost} civilians; the country must retain at least 1 civilian."
             async with self._db.execute("UPDATE global_economy SET medals=medals-? WHERE user_id=? AND medals>=?",(cost,user_id,cost)) as cur:
                 if cur.rowcount != 1:
                     await self._db.rollback()
                     return False,f"Recruiting {divisions} divisions costs {cost:,} Medals from your wallet."
             await self._db.execute("UPDATE users SET medals=(SELECT medals FROM global_economy WHERE user_id=?) WHERE user_id=?",(user_id,user_id))
-            await self._db.execute("UPDATE earth_countries SET army_divisions=army_divisions+? WHERE id=?",(divisions,country_id))
+            await self._db.execute("UPDATE earth_countries SET army_divisions=army_divisions+?, population=population-? WHERE id=?",(divisions,civilian_cost,country_id))
             await self._db.execute("INSERT INTO earth_military_log(country_id,actor_id,action,unit_type,amount,created_at) VALUES (?,?,'recruited','division',?,?)",(country_id,user_id,divisions,time.time()))
             await self._db.commit()
             return True,f"Recruited {divisions} divisions for {cost:,} Medals. Population-backed force limit: {capacity}."
@@ -5913,6 +5946,57 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self._db.execute("UPDATE earth_countries SET alliance_id = ? WHERE id = ?", (alliance_id, country_id))
         await self._db.commit()
         return True, f"🤝 Acceded to **{al_name}**! Your nation is now under collective defense guarantees."
+
+    async def request_earth_alliance(self, user_id: int, country_id: int, alliance_id: int) -> tuple[bool, str]:
+        if self._db is None:
+            await self.setup()
+        if not await self.has_earth_cabinet_permission(user_id, country_id, "diplomat"):
+            return False, "Only the President or Chief Diplomat can send alliance requests."
+        async with self._db.execute("SELECT alliance_id FROM earth_countries WHERE id = ? AND owner_id = ?", (country_id, user_id)) as cur:
+            country = await cur.fetchone()
+        if not country:
+            return False, "You do not control this country."
+        if country[0]:
+            return False, "Leave your current alliance before requesting another."
+        async with self._db.execute("SELECT 1 FROM earth_alliances WHERE id = ?", (alliance_id,)) as cur:
+            if not await cur.fetchone(): return False, "Alliance not found."
+        await self._db.execute("UPDATE earth_alliance_requests SET status='cancelled' WHERE country_id=? AND status='pending'", (country_id,))
+        try:
+            await self._db.execute("INSERT INTO earth_alliance_requests (alliance_id,country_id,requester_id,status,created_at) VALUES (?,?,?,'pending',?)", (alliance_id,country_id,user_id,time.time()))
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            return False, "A request for this country is already pending."
+        return True, "Alliance request sent to the coalition leader."
+
+    async def get_earth_alliance_requests(self, user_id: int, country_id: int) -> list[dict]:
+        if self._db is None: await self.setup()
+        async with self._db.execute("""
+            SELECT r.id, r.alliance_id, r.country_id, r.requester_id, r.created_at,
+                   a.name AS alliance_name, c.name AS country_name, c.flag AS country_flag
+            FROM earth_alliance_requests r
+            JOIN earth_alliances a ON a.id=r.alliance_id
+            JOIN earth_countries creator ON creator.id=a.creator_country_id
+            JOIN earth_countries c ON c.id=r.country_id
+            WHERE creator.owner_id=? AND r.status='pending' ORDER BY r.created_at DESC
+        """, (user_id,)) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def respond_earth_alliance_request(self, user_id: int, request_id: int, accept: bool) -> tuple[bool, str]:
+        if self._db is None: await self.setup()
+        async with self._db.execute("""SELECT r.*, a.name, creator.id AS creator_id, creator.owner_id AS leader_id
+            FROM earth_alliance_requests r JOIN earth_alliances a ON a.id=r.alliance_id
+            JOIN earth_countries creator ON creator.id=a.creator_country_id
+            WHERE r.id=? AND r.status='pending'""", (request_id,)) as cur:
+            row=await cur.fetchone()
+        if not row or str(row["leader_id"]) != str(user_id): return False, "Only the alliance leader can respond to this request."
+        status="accepted" if accept else "rejected"
+        await self._db.execute("UPDATE earth_alliance_requests SET status=? WHERE id=?", (status,request_id))
+        if accept:
+            await self._db.execute("UPDATE earth_countries SET alliance_id=? WHERE id=?", (row["alliance_id"],row["country_id"]))
+            await self._db.execute("UPDATE earth_alliance_requests SET status='cancelled' WHERE country_id=? AND status='pending' AND id<>?", (row["country_id"],request_id))
+        await self._db.commit()
+        return True, ("Alliance request accepted." if accept else "Alliance request rejected.")
 
     async def leave_earth_alliance(self, user_id: int, country_id: int) -> tuple[bool, str]:
         """Withdraw from your current international coalition."""
