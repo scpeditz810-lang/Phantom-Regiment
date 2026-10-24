@@ -427,7 +427,7 @@ EARTH_SPY_MISSIONS = {
         "key": "incite_riot",
         "name": "Fund Dissidents and Incite Riots",
         "emoji": "🔥",
-        "desc": "Fund radical dissident groups to spike target nation unrest by +25%, driving them toward revolution!",
+        "desc": "Fund dissident activity. After a timed mission, add at most 8 unrest and reduce stability by 5; this cannot directly change leadership.",
         "duration_seconds": 5400,
         "capture_risk": 0.40
     }
