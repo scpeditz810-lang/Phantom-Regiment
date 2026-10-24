@@ -5592,7 +5592,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self._db.rollback()
             raise
 
-    async def deploy_earth_war_equipment(self, user_id: int, war_id: int, unit_type: str, amount: int) -> tuple[bool, str]:
+    async def deploy_earth_war_equipment(self, user_id: int, war_id: int, unit_type: str, amount: int, country_id: int | None = None) -> tuple[bool, str]:
         """Reserve additional owned hardware on a matching active front without creating units."""
         if self._db is None:
             await self.setup()
@@ -5619,20 +5619,23 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.rollback()
                 return False, f"{unit_type.title()}s can only be deployed to {domain} campaigns."
             side = None
-            country_id = None
-            for candidate, cid in (("attacker", int(war["attacker_country_id"])), ("defender", int(war["defender_country_id"]))):
+            selected_country_id = None
+            candidates = (("attacker", int(war["attacker_country_id"])), ("defender", int(war["defender_country_id"])))
+            if country_id is not None:
+                candidates = tuple((candidate, cid) for candidate, cid in candidates if cid == int(country_id))
+            for candidate, cid in candidates:
                 if await self.has_earth_cabinet_permission(user_id, cid, "defense"):
-                    side, country_id = candidate, cid
+                    side, selected_country_id = candidate, cid
                     break
             if not side:
                 await self._db.rollback()
                 return False, "Only a President or Army Commander in this war can deploy equipment."
-            async with self._db.execute(f"SELECT {stock_column} FROM earth_countries WHERE id=?", (country_id,)) as cur:
+            async with self._db.execute(f"SELECT {stock_column} FROM earth_countries WHERE id=?", (selected_country_id,)) as cur:
                 row = await cur.fetchone()
             stock = int(row[0] or 0) if row else 0
             async with self._db.execute(
                 f"SELECT COALESCE(SUM(CASE WHEN attacker_country_id=? THEN attacker_{stock_column} ELSE defender_{stock_column} END),0) FROM earth_wars WHERE status='active' AND (attacker_country_id=? OR defender_country_id=?)",
-                (country_id, country_id, country_id),
+                (selected_country_id, selected_country_id, selected_country_id),
             ) as cur:
                 reserved = int((await cur.fetchone())[0] or 0)
             available = stock - reserved
