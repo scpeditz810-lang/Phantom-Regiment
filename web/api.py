@@ -69,6 +69,41 @@ def get_stock_history(stock_id):
         prices.append(h["price"])
     return jsonify({"labels": labels, "prices": prices})
 
+@api_bp.route("/companies/mine")
+@login_required
+def api_company_mine():
+    db = get_db()
+    company = run_async(db.get_player_company(session["user"]["id"]))
+    return jsonify({"company": company})
+
+
+@api_bp.route("/companies/create", methods=["POST"])
+@login_required
+def api_company_create():
+    data = request.get_json() or {}
+    try:
+        valuation = int(data.get("valuation", 0))
+        revenue = int(data.get("annual_revenue", 0))
+        profit = int(data.get("annual_profit", 0))
+        debt = int(data.get("debt", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Financial figures must be whole Medal amounts."}), 400
+
+    db = get_db()
+    success, message, company = run_async(db.create_player_company(
+        session["user"]["id"],
+        str(data.get("name", "")),
+        str(data.get("symbol", "")),
+        str(data.get("sector", "")),
+        valuation,
+        revenue,
+        profit,
+        debt,
+        str(data.get("description", "")),
+    ))
+    return jsonify({"success": success, "message": message, "company": company}), 200 if success else 400
+
+
 @api_bp.route("/portfolio")
 @login_required
 def get_portfolio():
@@ -814,6 +849,20 @@ def api_mayor_stock_create():
         return jsonify({"success": False, "message": f"Stock {symbol} already exists on the exchange."}), 400
     return jsonify({"success": True, "message": f"IPO successfully issued for {symbol} ({name}) at {price:,} Medals!"})
 
+@api_bp.route("/mayor/company-aid", methods=["POST"])
+@mayor_required
+def api_mayor_company_aid():
+    data = request.get_json() or {}
+    try:
+        company_id = int(data.get("company_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid company ID."}), 400
+    success, message, company = run_async(get_db().grant_player_company_aid(
+        session["user"]["id"], company_id
+    ))
+    return jsonify({"success": success, "message": message, "company": company}), 200 if success else 400
+
+
 # ── Earth Defense Endpoints ──────────────────────────────────────────────────
 @api_bp.route("/earth/countries")
 def api_earth_countries():
@@ -823,6 +872,7 @@ def api_earth_countries():
     
     curr_user = session.get("user")
     user_id = int(curr_user["id"]) if curr_user and curr_user.get("id") and str(curr_user["id"]).isdigit() else None
+    permissions = run_async(db.get_user_earth_permissions(user_id)) if user_id else {}
     
     enriched = []
     for c in countries:
@@ -836,7 +886,11 @@ def api_earth_countries():
             item["owner_name"] = "Sovereign State Trust (Unclaimed)"
             item["owner_avatar"] = "https://cdn.discordapp.com/embed/avatars/0.png"
             
+        owner_key = str(owner_id) if owner_id is not None else None
         item["is_my_country"] = bool(user_id and owner_id and int(owner_id) == user_id)
+        item["can_manage_economy"] = bool(owner_key and owner_key in permissions.get("economy", set()))
+        item["can_command_defense"] = bool(owner_key and owner_key in permissions.get("defense", set()))
+        item["can_manage_intelligence"] = bool(owner_key and owner_key in permissions.get("intelligence", set()))
         # Compatibility fields for legacy consumers
         item["x"] = int(round(c.get("lat", 0)))
         item["y"] = int(round(c.get("lng", 0)))
@@ -854,7 +908,7 @@ def api_earth_stats():
     total_gdp = sum(c.get("gdp", 0) for c in countries)
     total_claimed = sum(1 for c in countries if c.get("owner_id"))
     
-    from utils.constants import EARTH_BUILDINGS, EARTH_CABINET_ROLES, EARTH_WAR_SCALES, EARTH_DOCTRINES, EARTH_SPY_MISSIONS
+    from utils.constants import EARTH_BUILDINGS, EARTH_CABINET_ROLES, EARTH_WAR_SCALES, EARTH_DOCTRINES, EARTH_GOVERNMENTS, EARTH_SPY_MISSIONS
     
     user_stats = {
         "wallet": 0,
@@ -892,6 +946,7 @@ def api_earth_stats():
         "cabinet_roles": EARTH_CABINET_ROLES,
         "war_scales": EARTH_WAR_SCALES,
         "doctrines": EARTH_DOCTRINES,
+        "governments": EARTH_GOVERNMENTS,
         "spy_missions": EARTH_SPY_MISSIONS
     })
 
@@ -910,6 +965,14 @@ def api_earth_country_detail(country_id):
     else:
         c["owner_name"] = "Sovereign State Trust (Unclaimed)"
         c["owner_avatar"] = "https://cdn.discordapp.com/embed/avatars/0.png"
+
+    current_user = session.get("user")
+    if current_user and current_user.get("id"):
+        permissions = run_async(db.get_user_earth_permissions(current_user["id"]))
+        owner_key = str(c.get("owner_id")) if c.get("owner_id") is not None else None
+        c["can_manage_economy"] = bool(owner_key and owner_key in permissions["economy"])
+        c["can_command_defense"] = bool(owner_key and owner_key in permissions["defense"])
+        c["can_manage_intelligence"] = bool(owner_key and owner_key in permissions["intelligence"])
 
     # Enrich cabinet names and avatars
     if c.get("owner_id"):
@@ -1129,13 +1192,16 @@ def api_earth_policies():
         economic = str(data.get("economic_doctrine", "free_market")).strip().lower()
         military = str(data.get("military_doctrine", "volunteer")).strip().lower()
         diplomatic = str(data.get("diplomatic_stance", "neutral")).strip().lower()
+        government_type = str(data.get("government_type", "democracy")).strip().lower()
         tax_rate = int(data.get("tax_rate", 10))
     except (ValueError, TypeError):
         return jsonify({"success": False, "message": "Invalid parameters."}), 400
-        
+
     user_id = session["user"]["id"]
     db = get_db()
-    success, msg = run_async(db.update_earth_policies(user_id, country_id, economic, military, diplomatic, tax_rate))
+    success, msg = run_async(db.update_earth_policies(
+        user_id, country_id, economic, military, diplomatic, tax_rate, government_type
+    ))
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 @api_bp.route("/earth/quell_unrest", methods=["POST"])
@@ -1628,6 +1694,21 @@ def api_earth_tool_buy():
         "message": msg,
         "result": res
     }), 200 if success else 400
+
+
+@api_bp.route("/earth/nuclear/launch", methods=["POST"])
+@login_required
+def api_earth_nuclear_launch():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        war_id = int(data.get("war_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid country or war ID."}), 400
+    success, message = run_async(get_db().launch_earth_nuclear_strike(
+        session["user"]["id"], country_id, war_id
+    ))
+    return jsonify({"success": success, "message": message}), 200 if success else 400
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
