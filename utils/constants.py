@@ -1159,6 +1159,84 @@ EARTH_COUNTRIES = [
         "initial_owner_id": None,
         "desc": "Technological and cyber-defense powerhouse with elite military R&D capabilities.",
         "capital": "Jerusalem"
+    },
+    {
+        "id": 43,
+        "code": "DNK",
+        "name": "Kingdom of Denmark",
+        "flag": "🇩🇰",
+        "lat": 55.6761,
+        "lng": 12.5683,
+        "gdp": 23000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Maritime Nordic nation controlling the Danish straits and high-efficiency wind and green technology grids.",
+        "capital": "Copenhagen"
+    },
+    {
+        "id": 44,
+        "code": "FIN",
+        "name": "Republic of Finland",
+        "flag": "🇫🇮",
+        "lat": 60.1699,
+        "lng": 24.9384,
+        "gdp": 21000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "High-tech Nordic republic boasting elite cyber-defense networks and arctic resilience fortresses.",
+        "capital": "Helsinki"
+    },
+    {
+        "id": 45,
+        "code": "PRT",
+        "name": "Portuguese Republic",
+        "flag": "🇵🇹",
+        "lat": 38.7223,
+        "lng": -9.1393,
+        "gdp": 19000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Atlantic coastal gateway to Europe, connecting maritime commerce routes across continents.",
+        "capital": "Lisbon"
+    },
+    {
+        "id": 46,
+        "code": "MYS",
+        "name": "Federation of Malaysia",
+        "flag": "🇲🇾",
+        "lat": 3.1390,
+        "lng": 101.6869,
+        "gdp": 22000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Southeast Asian economic powerhouse commanding key trade routes along the Strait of Malacca.",
+        "capital": "Kuala Lumpur"
+    },
+    {
+        "id": 47,
+        "code": "QAT",
+        "name": "State of Qatar",
+        "flag": "🇶🇦",
+        "lat": 25.2854,
+        "lng": 51.5310,
+        "gdp": 28000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Resource-wealthy Gulf sovereign state and premier global liquefied natural gas exporter.",
+        "capital": "Doha"
+    },
+    {
+        "id": 48,
+        "code": "IRL",
+        "name": "Republic of Ireland",
+        "flag": "🇮🇪",
+        "lat": 53.3498,
+        "lng": -6.2603,
+        "gdp": 25000000,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "European financial and multinational tech hub bridging Atlantic commerce with the Continent.",
+        "capital": "Dublin"
     }
 ]
 
@@ -1167,7 +1245,7 @@ EARTH_ADVANCED_TOOLS = {
     "sat_recon": {
         "key": "sat_recon",
         "name": "Orbital Reconnaissance Satellite Grid",
-        "emoji": "???",
+        "emoji": "🛰️",
         "category": "intelligence",
         "price": 250000,
         "desc": "High-altitude surveillance satellites providing real-time strategic intelligence on foreign military movements.",
@@ -1179,7 +1257,7 @@ EARTH_ADVANCED_TOOLS = {
     "drone_swarm": {
         "key": "drone_swarm",
         "name": "Autonomous AI Strike Drone Swarm",
-        "emoji": "??",
+        "emoji": "🛸",
         "category": "military",
         "price": 450000,
         "desc": "Armada of low-observable loitering munitions capable of precision strikes against enemy frontline divisions.",
@@ -1191,7 +1269,7 @@ EARTH_ADVANCED_TOOLS = {
     "iron_dome": {
         "key": "iron_dome",
         "name": "Iron Dome & Aegis Ballistic Shield",
-        "emoji": "???",
+        "emoji": "🛡️",
         "category": "defense",
         "price": 550000,
         "desc": "Multi-tier layered air and missile defense grid intercepting hostile artillery, rockets, and foreign saboteurs.",
@@ -1203,7 +1281,7 @@ EARTH_ADVANCED_TOOLS = {
     "cyber_grid": {
         "key": "cyber_grid",
         "name": "Cyber-Warfare & Jamming Citadel",
-        "emoji": "??",
+        "emoji": "⚡",
         "category": "intelligence",
         "price": 380000,
         "desc": "Centralized cyber operations warfare center executing electronic jamming against foreign espionage networks.",
@@ -1215,7 +1293,7 @@ EARTH_ADVANCED_TOOLS = {
     "hypersonic_battery": {
         "key": "hypersonic_battery",
         "name": "Hypersonic Cruise Missile Battery",
-        "emoji": "??",
+        "emoji": "🚀",
         "category": "military",
         "price": 950000,
         "desc": "Mach 8+ glide missile launch batteries designed to neutralize heavy enemy armor formations and command bastions.",
@@ -1227,7 +1305,7 @@ EARTH_ADVANCED_TOOLS = {
     "tactical_nuke": {
         "key": "tactical_nuke",
         "name": "Tactical Nuclear Deterrence Complex",
-        "emoji": "??",
+        "emoji": "☢️",
         "category": "superweapon",
         "price": 2500000,
         "desc": "Supreme sovereign deterrence silo complex. Hostile invaders face catastrophic retaliation.",
@@ -1239,7 +1317,7 @@ EARTH_ADVANCED_TOOLS = {
     "industrial_core": {
         "key": "industrial_core",
         "name": "Automated Mega-Industrial Core",
-        "emoji": "??",
+        "emoji": "🔬",
         "category": "economy",
         "price": 600000,
         "desc": "Robotic super-factories that fast-track national construction, turbocharge GDP, and accelerate dividend production.",

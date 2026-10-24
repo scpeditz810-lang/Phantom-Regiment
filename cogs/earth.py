@@ -76,6 +76,155 @@ class CabinetInviteView(discord.ui.View):
         await interaction.followup.send("Appointment decree declined.", ephemeral=True)
 
 
+
+def build_war_embed(war: dict) -> discord.Embed:
+    """Build a rich frontline tactical embed with live tug-of-war meter and combat log."""
+    atk_name = war.get("attacker_name", "Attacker")
+    atk_flag = war.get("attacker_flag", "🔴")
+    dfn_name = war.get("defender_name", "Defender")
+    dfn_flag = war.get("defender_flag", "🔵")
+
+    atk_power = max(1, war.get("attacker_power", 50))
+    dfn_power = max(1, war.get("defender_power", 50))
+    total_power = atk_power + dfn_power
+    atk_share = round((atk_power / total_power) * 100)
+    dfn_share = 100 - atk_share
+
+    # Render 16-slot frontline meter
+    slots = 14
+    atk_slots = min(slots, max(0, round((atk_share / 100) * slots)))
+    dfn_slots = slots - atk_slots
+    meter = f"🔴 {'█' * atk_slots}{'░' * dfn_slots} 🔵"
+
+    hours_rem = war.get("hours_remaining", 0)
+    progress = war.get("progress_pct", 0)
+    reparations = war.get("reparations", 100000)
+
+    desc = (
+        f"**Campaign Theater:** {atk_flag} **{atk_name}** vs {dfn_flag} **{dfn_name}**\n"
+        f"**Frontline Status:** War #{war.get('id', '?')} • Scale: `{str(war.get('scale', 'conflict')).title()}`\n\n"
+        f"**Frontline Balance of Power:**\n"
+        f"`[{atk_flag} {atk_share}% {meter} {dfn_share}% {dfn_flag}]`\n\n"
+        f"⚔️ **Attacker Forces:** `{atk_power}` Power • `{war.get('attacker_divisions', 10)}` Divisions\n"
+        f"🛡️ **Defender Forces:** `{dfn_power}` Power • `{war.get('defender_divisions', 10)}` Divisions\n"
+        f"⏳ **Campaign Clock:** `{hours_rem} Hours Remaining` ({progress}% elapsed)\n"
+        f"💰 **Reparations Stake:** `{reparations:,} Medals`\n"
+    )
+
+    logs = war.get("logs", [])
+    if logs:
+        desc += "\n📜 **Recent Frontline Dispatches:**\n"
+        for l in logs[:4]:
+            desc += f"• {l.get('description', '')}\n"
+
+    embed = discord.Embed(
+        title=f"⚔️ ACTIVE FRONT LINE: {atk_flag} {atk_name} vs {dfn_flag} {dfn_name}",
+        description=desc,
+        color=0xDC2626 if atk_share > dfn_share else 0x2563EB
+    )
+    embed.set_footer(text=f"War Room Telemetry • War #{war.get('id')} • Click buttons below to deploy reinforcements & strikes")
+    return embed
+
+
+class EarthStrikeSelectView(discord.ui.View):
+    """Dropdown menu to select a tactical weapon bombardment strike."""
+    def __init__(self, bot, war_id: int):
+        super().__init__(timeout=120)
+        self.bot = bot
+        self.war_id = war_id
+
+    @discord.ui.select(
+        placeholder="Choose Tactical Strike Operation...",
+        options=[
+            discord.SelectOption(label="Supersonic Air Strike", value="airstrike", description="Cost: 75k M • 70-140 Power Shift, Destroys 3-6 Divs", emoji="✈️"),
+            discord.SelectOption(label="Heavy Artillery Barrage", value="artillery", description="Cost: 40k M • 40-80 Power Shift, Destroys 2-4 Divs", emoji="💥"),
+            discord.SelectOption(label="Precision Strike Drone", value="drone", description="Cost: 55k M • 55-110 Power Shift, Destroys 2-5 Divs", emoji="🛸"),
+            discord.SelectOption(label="Cyber Jamming & EMP Grid", value="cyber", description="Cost: 35k M • 35-70 Power Shift, Scrambles Communications", emoji="⚡"),
+        ]
+    )
+    async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
+        await interaction.response.defer(ephemeral=True)
+        strike_type = select.values[0]
+        success, msg, rep = await self.bot.db.tactical_strike_earth_war(interaction.user.id, self.war_id, strike_type)
+        if success:
+            await interaction.followup.send(f"🎯 **STRIKE CONFIRMED!**\n{msg}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+
+class EarthWarView(discord.ui.View):
+    """Interactive Discord War Room with live operational control buttons."""
+    def __init__(self, bot, war_id: int):
+        super().__init__(timeout=86400)
+        self.bot = bot
+        self.war_id = war_id
+        self.add_item(discord.ui.Button(label="3D War Room", url=WEB_URL, style=discord.ButtonStyle.link, emoji="🌍"))
+
+    @discord.ui.button(label="Mobilize (+10 Divs)", style=discord.ButtonStyle.primary, emoji="🪖")
+    async def mobilize_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        success, msg = await self.bot.db.reinforce_earth_war(interaction.user.id, self.war_id, 10)
+        if success:
+            war = await self.bot.db.get_detailed_earth_war(self.war_id)
+            if war and interaction.message:
+                embed = build_war_embed(war)
+                await interaction.message.edit(embed=embed, view=self)
+            await interaction.followup.send(f"🪖 **Divisions Deployed!** {msg}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @discord.ui.button(label="Tactical Strike", style=discord.ButtonStyle.danger, emoji="🚀")
+    async def strike_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        strike_view = EarthStrikeSelectView(self.bot, self.war_id)
+        await interaction.response.send_message("🎯 **Select Tactical Bombardment Operation:**", view=strike_view, ephemeral=True)
+
+    @discord.ui.button(label="Vanguard Skirmish", style=discord.ButtonStyle.danger, emoji="⚔️")
+    async def skirmish_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        success, msg, rep = await self.bot.db.skirmish_earth_war(interaction.user.id, self.war_id)
+        war = await self.bot.db.get_detailed_earth_war(self.war_id)
+        if war and interaction.message:
+            embed = build_war_embed(war)
+            await interaction.message.edit(embed=embed, view=self)
+        if success:
+            await interaction.followup.send(f"{msg}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"{msg}", ephemeral=True)
+
+    @discord.ui.button(label="Fortify Defenses", style=discord.ButtonStyle.secondary, emoji="🛡️")
+    async def fortify_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        success, msg = await self.bot.db.fortify_earth_war(interaction.user.id, self.war_id)
+        if success:
+            war = await self.bot.db.get_detailed_earth_war(self.war_id)
+            if war and interaction.message:
+                embed = build_war_embed(war)
+                await interaction.message.edit(embed=embed, view=self)
+            await interaction.followup.send(f"🛡️ **Defenses Fortified!** {msg}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @discord.ui.button(label="Ceasefire", style=discord.ButtonStyle.secondary, emoji="🕊️")
+    async def ceasefire_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        success, msg = await self.bot.db.propose_ceasefire_earth_war(interaction.user.id, self.war_id)
+        if success:
+            await interaction.followup.send(f"🕊️ **Armistice Treaty Signed!** {msg}", ephemeral=False)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.secondary, emoji="🔄")
+    async def refresh_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        war = await self.bot.db.get_detailed_earth_war(self.war_id)
+        if war and interaction.message:
+            embed = build_war_embed(war)
+            await interaction.message.edit(embed=embed, view=self)
+            await interaction.followup.send("🔄 Frontline telemetry refreshed.", ephemeral=True)
+        else:
+            await interaction.followup.send("Campaign has concluded or not found.", ephemeral=True)
+
+
 class EarthCog(commands.Cog, name="Virtual Earth"):
     """Global sovereign governance, cabinet appointments, and military conquests."""
 
@@ -84,6 +233,106 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     earth_group = app_commands.Group(name="earth", description="🌍 Virtual Earth: Global Geopolitics Simulation")
     cabinet_group = app_commands.Group(name="cabinet", parent=earth_group, description="🏛️ Sovereign Cabinet & Ministers")
+
+    # ─── Discord Warfare & Active Front Lines ─────────────────────────────────
+
+    @earth_group.command(name="wars", description="Display active frontline war campaigns with live tactical operations suite.")
+    async def earth_wars(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        wars = await self.bot.db.get_active_earth_wars()
+        if not wars:
+            embed = discord.Embed(
+                title="🕊️ Global Peace Prevails",
+                description=(
+                    "There are currently no active multi-day sovereign war campaigns.\n\n"
+                    "• Declare a conquest: `/earth war target_country:... scale:...`\n"
+                    "• Attack unclaimed frontiers: `/earth attack target_country:...`\n"
+                    "• Open the 3D Globe: [Virtual Earth MMO Web Portal](" + WEB_URL + ")"
+                ),
+                color=0x10B981
+            )
+            embed.set_footer(text="Virtual Earth 3D • Global War Room")
+            view = discord.ui.View()
+            view.add_item(discord.ui.Button(label="🌍 Open 3D Globe", url=WEB_URL, style=discord.ButtonStyle.link))
+            await interaction.followup.send(embed=embed, view=view)
+            return
+
+        for w in wars[:3]:
+            det = await self.bot.db.get_detailed_earth_war(w["id"])
+            if det:
+                embed = build_war_embed(det)
+                view = EarthWarView(self.bot, w["id"])
+                await interaction.followup.send(embed=embed, view=view)
+
+    @earth_group.command(name="strike", description="Launch an aerial or artillery tactical strike on an active war front line.")
+    @app_commands.describe(
+        war_id="ID of the active war campaign",
+        strike_type="Type of tactical strike ordnance to deploy"
+    )
+    @app_commands.choices(strike_type=[
+        app_commands.Choice(name="✈️ Supersonic Air Strike (75k M)", value="airstrike"),
+        app_commands.Choice(name="💥 Heavy Artillery Barrage (40k M)", value="artillery"),
+        app_commands.Choice(name="🛸 Precision Strike Drone (55k M)", value="drone"),
+        app_commands.Choice(name="⚡ EMP & Cyber Warfare (35k M)", value="cyber"),
+    ])
+    async def earth_strike(self, interaction: discord.Interaction, war_id: int, strike_type: app_commands.Choice[str]):
+        await interaction.response.defer()
+        success, msg, rep = await self.bot.db.tactical_strike_earth_war(interaction.user.id, war_id, strike_type.value)
+        if success:
+            war = await self.bot.db.get_detailed_earth_war(war_id)
+            view = EarthWarView(self.bot, war_id) if war else None
+            embed = build_war_embed(war) if war else None
+            await interaction.followup.send(f"🎯 **STRIKE MISSION SUCCESSFUL!**\n{msg}", embed=embed, view=view)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @earth_group.command(name="skirmish", description="Lead your frontline infantry vanguard in a high-intensity combat skirmish.")
+    @app_commands.describe(war_id="ID of the active war campaign")
+    async def earth_skirmish(self, interaction: discord.Interaction, war_id: int):
+        await interaction.response.defer()
+        success, msg, rep = await self.bot.db.skirmish_earth_war(interaction.user.id, war_id)
+        war = await self.bot.db.get_detailed_earth_war(war_id)
+        embed = build_war_embed(war) if war else None
+        view = EarthWarView(self.bot, war_id) if war else None
+        await interaction.followup.send(f"{msg}", embed=embed, view=view)
+
+    @earth_group.command(name="reinforce", description="Deploy national combat divisions into an active war theater.")
+    @app_commands.describe(war_id="ID of the active war campaign", divisions="Number of divisions to mobilize (default: 10)")
+    async def earth_reinforce(self, interaction: discord.Interaction, war_id: int, divisions: int = 10):
+        await interaction.response.defer()
+        success, msg = await self.bot.db.reinforce_earth_war(interaction.user.id, war_id, divisions)
+        if success:
+            war = await self.bot.db.get_detailed_earth_war(war_id)
+            embed = build_war_embed(war) if war else None
+            view = EarthWarView(self.bot, war_id) if war else None
+            await interaction.followup.send(f"🪖 **REINFORCEMENTS COMMITTED!** {msg}", embed=embed, view=view)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @earth_group.command(name="ceasefire", description="Propose a diplomatic armistice and emergency ceasefire treaty.")
+    @app_commands.describe(war_id="ID of the active war campaign")
+    async def earth_ceasefire(self, interaction: discord.Interaction, war_id: int):
+        await interaction.response.defer()
+        success, msg = await self.bot.db.propose_ceasefire_earth_war(interaction.user.id, war_id)
+        if success:
+            await interaction.followup.send(f"🕊️ **Armistice Accords Concluded:** {msg}")
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @earth_group.command(name="resign", description="Resign from your current ministerial cabinet portfolio.")
+    async def earth_resign(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        success, msg = await self.bot.db.resign_earth_cabinet(interaction.user.id)
+        if success:
+            embed = discord.Embed(
+                title="🏛️ Ministerial Resignation Tendered",
+                description=f"You have stepped down from your cabinet post.\n\n{msg}",
+                color=0x94A3B8
+            )
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
 
     # ─── Country Overview ─────────────────────────────────────────────────────
 
@@ -409,24 +658,106 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
         tgt = await self.bot.db.get_earth_country_by_code(target_country.strip().upper())
         if not tgt:
-            await interaction.followup.send(f"❌ Target country `{target_country}` not found.")
+            countries = await self.bot.db.get_earth_countries()
+            for cand in countries:
+                if target_country.lower() in cand["name"].lower():
+                    tgt = await self.bot.db.get_earth_country(cand["id"])
+                    break
+
+        if not tgt:
+            await interaction.followup.send(f"❌ Target country `{target_country}` not found.", ephemeral=True)
             return
 
         success, msg, war_data = await self.bot.db.declare_earth_war(interaction.user.id, c["id"], tgt["id"], scale.value)
         if success:
-            embed = discord.Embed(
-                title="🚨 DECLARATION OF SOVEREIGN WAR",
-                description=f"**{c['flag']} {c['name']}** has officially declared war on **{tgt['flag']} {tgt['name']}**!\n\n"
-                            f"• **Campaign Scale:** {scale.name}\n"
-                            f"• **Duration:** `{war_data.get('duration_hours')} Hours`\n"
-                            f"• **Front Line Active:** Follow the campaign and deploy division reinforcements on the 3D globe!",
-                color=0xDC2626
-            )
-            view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="⚔️ Open 3D War Room", url=WEB_URL, style=discord.ButtonStyle.link))
+            war_id = war_data.get("war_id")
+            detailed_war = await self.bot.db.get_detailed_earth_war(war_id) if war_id else None
+            if detailed_war:
+                embed = build_war_embed(detailed_war)
+                view = EarthWarView(self.bot, war_id)
+            else:
+                embed = discord.Embed(
+                    title="🚨 DECLARATION OF SOVEREIGN WAR",
+                    description=f"**{c['flag']} {c['name']}** has officially declared war on **{tgt['flag']} {tgt['name']}**!\n\n"
+                                f"• **Campaign Scale:** {scale.name}\n"
+                                f"• **Duration:** `{war_data.get('duration_hours')} Hours`\n"
+                                f"• **Front Line Active:** Follow the campaign and deploy division reinforcements on the 3D globe!",
+                    color=0xDC2626
+                )
+                view = discord.ui.View()
+                view.add_item(discord.ui.Button(label="⚔️ Open 3D War Room", url=WEB_URL, style=discord.ButtonStyle.link))
             await interaction.followup.send(embed=embed, view=view)
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    # ─── Attack Unclaimed Lands Expedition ───────────────────────────────────
+
+    @earth_group.command(name="attack", description="Supreme Commander: Launch an armed military expedition to conquer & annex unclaimed lands!")
+    @app_commands.describe(
+        target_country="Code or name of the unclaimed territory to attack (e.g. AUS, BRA, Australia)",
+        divisions="Number of military combat divisions to commit to the expedition (default: 10)"
+    )
+    async def earth_attack(self, interaction: discord.Interaction, target_country: str, divisions: int = 10):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("❌ You must govern a sovereign nation or serve as Minister of Defense to lead military assaults!", ephemeral=True)
+            return
+
+        tgt = await self.bot.db.get_earth_country_by_code(target_country.strip().upper())
+        if not tgt:
+            countries = await self.bot.db.get_earth_countries()
+            for cand in countries:
+                if target_country.lower() in cand["name"].lower():
+                    tgt = await self.bot.db.get_earth_country(cand["id"])
+                    break
+
+        if not tgt:
+            await interaction.followup.send(f"❌ Target country `{target_country}` not found.", ephemeral=True)
+            return
+
+        if tgt.get("owner_id"):
+            await interaction.followup.send(
+                f"⚠️ **{tgt['flag']} {tgt['name']}** is already claimed and governed by <@{tgt['owner_id']}>!\n"
+                f"To attack a claimed sovereign nation, use `/earth war target_country:{tgt['code']} scale:...` to declare a multi-day war campaign.",
+                ephemeral=True
+            )
+            return
+
+        divisions = max(1, min(divisions, 100))
+        success, msg, battle_data = await self.bot.db.expedition_attack_unclaimed(
+            interaction.user.id, c["id"], tgt["id"], divisions
+        )
+
+        if success:
+            embed = discord.Embed(
+                title=f"🎖️ MILITARY EXPEDITION VICTORY: {tgt['flag']} {tgt['name']} CONQUERED!",
+                description=(
+                    f"**Supreme Army Commander** <@{interaction.user.id}> has led **{c['flag']} {c['name']}** forces in a victorious offensive!\n\n"
+                    f"• **Assault Power:** `{battle_data.get('atk_power')}` ({divisions} Divisions deployed)\n"
+                    f"• **Garrison Resistance:** `{battle_data.get('dfn_power')}`\n"
+                    f"• **Annexation Status:** 👑 **ANNEXED** into the sovereign realm of **{c['name']}**!\n"
+                    f"• **Treasury Plunder:** `+{battle_data.get('loot', 0):,} M` seized for national reserves!\n"
+                    f"• **Commander Reward:** `+{battle_data.get('medals_awarded', 250):,} Combat Medals` awarded to <@{interaction.user.id}>!"
+                ),
+                color=0x10B981
+            )
+        else:
+            embed = discord.Embed(
+                title=f"⚔️ EXPEDITION REPULSED: {tgt['flag']} {tgt['name']}",
+                description=(
+                    f"**Supreme Army Commander** <@{interaction.user.id}> launched an assault on **{tgt['flag']} {tgt['name']}**, but the local frontier garrison resisted!\n\n"
+                    f"• **Assault Power:** `{battle_data.get('atk_power')}` ({divisions} Divisions deployed)\n"
+                    f"• **Garrison Defense:** `{battle_data.get('dfn_power')}`\n"
+                    f"• **Outcome:** The expeditionary vanguard retreated to regroup.\n\n"
+                    f"💡 *Tip: Construct military factories and barracks, purchase advanced arsenal tools, or commit more divisions to overwhelm frontier defenses!*"
+                ),
+                color=0xEF4444
+            )
+
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="🌍 View 3D Globe War Room", url=WEB_URL, style=discord.ButtonStyle.link))
+        await interaction.followup.send(embed=embed, view=view)
 
     # ─── Quell Unrest & Riots ─────────────────────────────────────────────────
 
