@@ -4556,64 +4556,124 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         role_info = EARTH_CABINET_ROLES.get(role, {"title": role})
         return True, f"Dismissed minister from {role_info.get('title')}. Authority returned directly to the President."
 
+    async def _reset_unclaimed_earth_country(self, country_id: int, now: float | None = None):
+        """Strip prior rule, assets, and state data before a country is claimed as a fresh start."""
+        now = float(now or time.time())
+        country_id = int(country_id)
+        await self._db.execute("DELETE FROM earth_country_offers WHERE country_id = ?", (country_id,))
+        await self._db.execute("DELETE FROM earth_cabinet_invites WHERE country_id = ?", (country_id,))
+        await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (country_id,))
+        await self._db.execute("DELETE FROM earth_citizens WHERE country_id = ?", (country_id,))
+        await self._db.execute("DELETE FROM earth_buildings WHERE country_id = ?", (country_id,))
+        await self._db.execute("DELETE FROM earth_tools WHERE country_id = ?", (country_id,))
+        await self._db.execute(
+            "DELETE FROM earth_spies WHERE owner_country_id = ? OR target_country_id = ?",
+            (country_id, country_id)
+        )
+        await self._db.execute(
+            "DELETE FROM earth_intelligence WHERE gatherer_country_id = ? OR target_country_id = ?",
+            (country_id, country_id)
+        )
+        await self._db.execute(
+            "DELETE FROM earth_trade_routes WHERE country_a_id = ? OR country_b_id = ?",
+            (country_id, country_id)
+        )
+        await self._db.execute(
+            "DELETE FROM earth_wars WHERE status = 'active' AND (attacker_country_id = ? OR defender_country_id = ?)",
+            (country_id, country_id)
+        )
+        await self._db.execute("""
+            UPDATE earth_countries
+            SET owner_id = NULL, gdp = 0, treasury = 0, stability = 50, unrest = 10,
+                tax_rate = 10, economic_doctrine = 'free_market',
+                military_doctrine = 'volunteer', diplomatic_stance = 'neutral',
+                government_type = 'democracy', last_policy_review = 0,
+                for_sale_price = NULL, last_yield_claim = ?, last_riot_check = ?,
+                last_growth_tick = ?, alliance_id = NULL, is_sanctioned = 0,
+                sanction_reason = NULL, sanction_expires = 0
+            WHERE id = ?
+        """, (now, now, now, country_id))
+
     async def buy_earth_country(self, user_id: int, country_id: int, offer: int = 0) -> tuple[bool, str]:
-        """Purchase an unowned sovereign nation from the State Trust with Medals for any offered amount (0-inf, no tax)."""
+        """Claim one unowned country with an atomic wallet and clean-start reset."""
         if self._db is None:
             await self.setup()
-
-        # Check if user already owns a country
-        async with self._db.execute("SELECT id, name FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
-            existing = await cur.fetchone()
-            if existing:
-                return False, f"? One Sovereign Rule: You already govern {existing[1]}! You cannot lead multiple nations simultaneously."
-
-        async with self._db.execute("SELECT * FROM earth_countries WHERE id = ?", (country_id,)) as cur:
-            row = await cur.fetchone()
-            if not row:
-                return False, "Country not found."
-            c = dict(row)
-
-        if c.get("owner_id"):
-            return False, f"This nation is already governed by <@{c['owner_id']}>. You can start with one unclaimed country, or capture a ruled country through a formal war."
-
-        # Offer amount (0 to infinity, no tax applied)
+        user_id, country_id = int(user_id), int(country_id)
         try:
-            offer = max(0, int(offer))
+            offer = int(offer)
         except (ValueError, TypeError):
             offer = 0
-
-        if offer > 0:
-            econ = await self.get_global_economy(user_id)
-            if econ.get("medals", 0) < offer:
-                return False, f"Insufficient Capital: You offered {offer:,} Medals, but only have {econ.get('medals', 0):,} Medals in your wallet."
+        if not 0 <= offer <= 2_000_000_000:
+            return False, "Country offer must be between 0 and 2,000,000,000 Medals."
+        if offer:
+            await self.get_global_economy(user_id)
 
         now = time.time()
-        # Conditional write prevents a stale request or a second ruler from winning.
-        async with self._db.execute("""
-            UPDATE earth_countries
-            SET owner_id = ?, gdp = 0, stability = 50, unrest = 10, treasury = 0, last_yield_claim = ?, last_growth_tick = ?
-            WHERE id = ? AND owner_id IS NULL
-              AND NOT EXISTS (SELECT 1 FROM earth_countries WHERE owner_id = ?)
-        """, (user_id, now, now, country_id, user_id)) as cur:
-            if cur.rowcount != 1:
-                return False, "This nation was just claimed, or you already govern a country."
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute(
+                "SELECT id, name FROM earth_countries WHERE owner_id = ? LIMIT 1", (user_id,)
+            ) as cur:
+                existing = await cur.fetchone()
+            if existing:
+                await self._db.rollback()
+                return False, f"One Sovereign Rule: You already govern {existing['name']}! You cannot claim another starting country."
 
-        if offer > 0:
-            await self.subtract_medals(user_id, offer)
-        
-        # Relieve user from any prior ministerial cabinet post so they can rule independently
-        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (user_id,))
+            async with self._db.execute(
+                "SELECT id, name, flag, owner_id FROM earth_countries WHERE id = ?", (country_id,)
+            ) as cur:
+                country = await cur.fetchone()
+            if not country:
+                await self._db.rollback()
+                return False, "Country not found."
+            if country["owner_id"] is not None:
+                await self._db.rollback()
+                return False, f"This nation is already governed by <@{country['owner_id']}>. You can claim one unowned starting country or capture a ruled country through war."
 
-        # Register user as citizen/ruler of this country
-        await self._db.execute("""
-            INSERT OR REPLACE INTO earth_citizens (user_id, country_id, joined_at)
-            VALUES (?, ?, ?)
-        """, (user_id, country_id, now))
-        await self._db.commit()
+            if offer:
+                async with self._db.execute(
+                    "SELECT medals FROM global_economy WHERE user_id = ?", (user_id,)
+                ) as cur:
+                    wallet = await cur.fetchone()
+                if not wallet or int(wallet[0] or 0) < offer:
+                    await self._db.rollback()
+                    return False, f"Insufficient Capital: you offered {offer:,} Medals but do not have enough in your wallet."
 
-        if offer == 0:
-            return True, f"{c['flag']} **{c['name']}** is now your country. It starts at 0 GDP, 0 treasury, and no buildings."
-        return True, f"{c['flag']} **{c['name']}** is now your country. Your {offer:,}-Medal offer was spent; the country starts with 0 GDP, 0 treasury, and no buildings."
+            await self._reset_unclaimed_earth_country(country_id, now)
+            async with self._db.execute("""
+                UPDATE earth_countries SET owner_id = ?
+                WHERE id = ? AND owner_id IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM earth_countries WHERE owner_id = ?)
+            """, (user_id, country_id, user_id)) as cur:
+                if cur.rowcount != 1:
+                    await self._db.rollback()
+                    return False, "This nation was just claimed, or you already govern a country."
+
+            if offer:
+                async with self._db.execute(
+                    "UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?",
+                    (offer, user_id, offer)
+                ) as cur:
+                    if cur.rowcount != 1:
+                        await self._db.rollback()
+                        return False, "Your wallet balance changed before the claim completed; try again."
+                await self._db.execute(
+                    "UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?",
+                    (user_id, user_id)
+                )
+
+            await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (user_id,))
+            await self._db.execute("""
+                INSERT OR REPLACE INTO earth_citizens (user_id, country_id, joined_at)
+                VALUES (?, ?, ?)
+            """, (user_id, country_id, now))
+            await self._db.commit()
+            if offer == 0:
+                return True, f"{country['flag']} **{country['name']}** is now your country. It starts at 0 GDP, 0 treasury, and no buildings."
+            return True, f"{country['flag']} **{country['name']}** is now your country. Your {offer:,}-Medal offer was spent; the country starts with 0 GDP, 0 treasury, and no buildings."
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def create_custom_country(
         self,
@@ -4627,119 +4687,121 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         desc: str = "",
         replace_current: bool = False
     ) -> tuple[bool, str, dict | None]:
-        """Found and charter a brand new custom sovereign nation for any medal offer (0 to infinity, no tax applied)."""
+        """Found a zero-start custom country, atomically replacing any explicitly abdicated rule."""
         if self._db is None:
             await self.setup()
-
-        name = (name or "").strip()
-        if len(name) < 2 or len(name) > 40:
+        user_id = int(user_id)
+        name = " ".join(str(name or "").split())
+        if not 2 <= len(name) <= 40:
             return False, "Country name must be between 2 and 40 characters.", None
-
-        flag = (flag or "").strip() or "???"
-        capital = (capital or "").strip() or "Capital City"
-        desc = (desc or "").strip() or f"Sovereign nation of {name} founded by supreme decree."
-
-        # Validate funding before relinquishing any existing country.
-        async with self._db.execute("SELECT id, name FROM earth_countries WHERE owner_id = ? ORDER BY gdp DESC LIMIT 1", (user_id,)) as cur:
-            existing = await cur.fetchone()
-            if existing and not replace_current:
-                return False, f"You already govern **{existing[1]}**! Choose the replace option only if you intend to abdicate.", None
-
+        flag = " ".join(str(flag or "???").split())[:16] or "???"
+        capital = " ".join(str(capital or "Capital City").split())[:64] or "Capital City"
+        desc = " ".join(str(desc or "").split())[:300] or f"Sovereign nation of {name} founded by supreme decree."
         try:
-            offered_medals = max(0, int(offered_medals))
+            offered_medals = int(offered_medals)
         except (ValueError, TypeError):
             offered_medals = 0
+        if not 0 <= offered_medals <= 2_000_000_000:
+            return False, "The founding offer must be between 0 and 2,000,000,000 Medals.", None
+        if offered_medals:
+            await self.get_global_economy(user_id)
 
-        if offered_medals > 0:
-            econ = await self.get_global_economy(user_id)
-            if econ.get("medals", 0) < offered_medals:
-                return False, f"Insufficient funds: You offered {offered_medals:,} Medals, but only have {econ.get('medals', 0):,} Medals in your wallet.", None
-
-        if existing:
-            await self._db.execute("""
-                DELETE FROM earth_cabinet
-                WHERE country_id IN (SELECT id FROM earth_countries WHERE owner_id = ?)
-            """, (user_id,))
-            await self._db.execute("UPDATE earth_countries SET owner_id = NULL WHERE owner_id = ?", (user_id,))
-
-        if offered_medals > 0:
-            await self.subtract_medals(user_id, offered_medals)
-
-        # Relieve user from any prior ministerial cabinet post so they can found their own nation freely
-        await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (user_id,))
-
-        # Generate unique 3-4 letter code
-        clean_code = "".join(ch for ch in name.upper() if ch.isalnum())
-        if len(clean_code) >= 3:
-            base_code = clean_code[:3]
-        else:
-            base_code = (clean_code + "X12")[:3]
-
-        code = base_code
-        suffix = 1
-        while True:
-            async with self._db.execute("SELECT 1 FROM earth_countries WHERE UPPER(code) = UPPER(?)", (code,)) as cur:
-                if not await cur.fetchone():
-                    break
-            code = f"{base_code[:2]}{suffix}"
-            suffix += 1
-            if suffix > 99:
-                import random
-                code = "".join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZ", k=3))
-
-        # Coordinates
+        if lat is not None:
+            try:
+                lat = float(lat)
+            except (ValueError, TypeError):
+                lat = None
+        if lng is not None:
+            try:
+                lng = float(lng)
+            except (ValueError, TypeError):
+                lng = None
         if lat is None or lng is None:
             import random
-            preset_locations = [
-                (25.0, -40.0),    # Atlantis Mid-Atlantic
-                (14.5, -140.0),   # Pacific Sanctuary
-                (-8.5, 72.0),     # Chagos Indian Ocean
-                (-17.5, -149.5),  # Polynesia Haven
-                (21.5, -72.0),    # Caribbean Atoll
-                (35.0, 18.0),     # Mediterranean Isle
-                (-20.0, 57.5),    # Mauritius East
-                (64.0, -20.0),    # North Atlantic Isle
-                (-12.0, 96.8),    # Cocos Haven
-                (0.5, -30.0)      # Equatorial Atlantic
+            places = [
+                (25.0, -40.0), (14.5, -140.0), (-8.5, 72.0), (-17.5, -149.5),
+                (21.5, -72.0), (35.0, 18.0), (-20.0, 57.5), (64.0, -20.0),
+                (-12.0, 96.8), (0.5, -30.0)
             ]
-            lat, lng = random.choice(preset_locations)
+            lat, lng = random.choice(places)
             lat = round(lat + random.uniform(-1.5, 1.5), 2)
             lng = round(lng + random.uniform(-1.5, 1.5), 2)
         else:
-            lat = max(-80.0, min(80.0, float(lat)))
-            lng = max(-180.0, min(180.0, float(lng)))
+            lat = max(-80.0, min(80.0, lat))
+            lng = max(-180.0, min(180.0, lng))
 
         now = time.time()
-        # A new country begins with no GDP, treasury, or buildings.
-        initial_treasury = 0
-        initial_gdp = 0
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute(
+                "SELECT id, name FROM earth_countries WHERE owner_id = ? ORDER BY id",
+                (user_id,)
+            ) as cur:
+                existing = await cur.fetchall()
+            if existing and not replace_current:
+                await self._db.rollback()
+                return False, f"You already govern **{existing[0]['name']}**! Choose replace only if you intend to abdicate.", None
+            if offered_medals:
+                async with self._db.execute(
+                    "SELECT medals FROM global_economy WHERE user_id = ?", (user_id,)
+                ) as cur:
+                    wallet = await cur.fetchone()
+                if not wallet or int(wallet[0] or 0) < offered_medals:
+                    await self._db.rollback()
+                    return False, f"Insufficient funds: your {offered_medals:,}-Medal offer exceeds your wallet.", None
 
-        async with self._db.execute("""
-            INSERT INTO earth_countries (
-                code, name, flag, lat, lng, owner_id, gdp, treasury,
-                stability, unrest, is_coastal, tax_rate,
-                economic_doctrine, military_doctrine, diplomatic_stance,
-                capital, desc, created_at, last_yield_claim
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 85, 10, 1, 10, 'free_market', 'volunteer', 'neutral', ?, ?, ?, ?)
-        """, (code, name, flag, lat, lng, user_id, initial_gdp, initial_treasury, capital, desc, now, now)) as cur:
-            new_country_id = cur.lastrowid
+            for row in existing:
+                await self._reset_unclaimed_earth_country(int(row["id"]), now)
+            if offered_medals:
+                async with self._db.execute(
+                    "UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?",
+                    (offered_medals, user_id, offered_medals)
+                ) as cur:
+                    if cur.rowcount != 1:
+                        await self._db.rollback()
+                        return False, "Your wallet balance changed before the charter completed; try again.", None
+                await self._db.execute(
+                    "UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?",
+                    (user_id, user_id)
+                )
+            await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (user_id,))
 
-        await self._db.commit()
+            clean_code = "".join(ch for ch in name.upper() if ch.isalnum()) or "NEW"
+            base_code = (clean_code + "XXX")[:3]
+            code = None
+            for suffix in range(0, 1000):
+                candidate = base_code if suffix == 0 else f"{base_code[:2]}{suffix:02d}"
+                async with self._db.execute(
+                    "SELECT 1 FROM earth_countries WHERE UPPER(code) = UPPER(?)", (candidate,)
+                ) as cur:
+                    if not await cur.fetchone():
+                        code = candidate
+                        break
+            if code is None:
+                await self._db.rollback()
+                return False, "No unused country code is available. Try a different country name.", None
 
-        country_data = {
-            "id": new_country_id,
-            "code": code,
-            "name": name,
-            "flag": flag,
-            "capital": capital,
-            "lat": lat,
-            "lng": lng,
-            "gdp": 0,
-            "treasury": 0,
-            "owner_id": user_id
-        }
-
-        return True, f"Sovereign Charter Proclaimed! {flag} **{name}** ({code}) has been founded with 0 GDP, 0 treasury, and no starting buildings. The {offered_medals:,}-Medal offer was spent.", country_data
+            async with self._db.execute("""
+                INSERT INTO earth_countries (
+                    code, name, flag, lat, lng, owner_id, gdp, treasury,
+                    stability, unrest, is_coastal, tax_rate,
+                    economic_doctrine, military_doctrine, diplomatic_stance, government_type,
+                    capital, desc, created_at, last_yield_claim, last_growth_tick
+                ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 85, 10, 1, 10,
+                          'free_market', 'volunteer', 'neutral', 'democracy',
+                          ?, ?, ?, ?, ?)
+            """, (code, name, flag, lat, lng, user_id, capital, desc, now, now, now)) as cur:
+                country_id = int(cur.lastrowid)
+            await self._db.commit()
+            country = {
+                "id": country_id, "code": code, "name": name, "flag": flag,
+                "capital": capital, "lat": lat, "lng": lng,
+                "gdp": 0, "treasury": 0, "owner_id": user_id
+            }
+            return True, f"Sovereign Charter Proclaimed! {flag} **{name}** ({code}) begins with 0 GDP, 0 treasury, and no starting buildings. The {offered_medals:,}-Medal offer was spent.", country
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def collect_earth_yield(self, user_id: int) -> tuple[int, str]:
         """Harvest hourly passive dividends from all national mines, rigs, schools, and ocean trade."""
