@@ -1,5 +1,7 @@
 import os
 
+import hashlib
+
 import json
 
 import asyncio
@@ -55,6 +57,15 @@ def run_async(coro):
 def get_db():
 
     return current_app.config["DB"]
+
+
+def _earth_claim_fingerprint():
+    """Return a keyed one-way fingerprint for the claimant's network address."""
+    address = (request.remote_addr or "").strip()
+    if not address:
+        return None
+    secret = str(current_app.secret_key or "phantom-regiment")
+    return hashlib.sha256(f"{secret}|{address}".encode("utf-8")).hexdigest()
 
 
 
@@ -2066,7 +2077,14 @@ def api_earth_buy():
 
     db = get_db()
 
-    success, msg = run_async(db.buy_earth_country(user_id, country_id, offer=offer))
+    success, msg = run_async(
+        db.buy_earth_country(
+            user_id,
+            country_id,
+            offer=offer,
+            ip_fingerprint=_earth_claim_fingerprint()
+        )
+    )
 
     econ = run_async(db.get_global_economy(user_id))
 

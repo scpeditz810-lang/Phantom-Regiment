@@ -581,6 +581,12 @@ class Database:
                 FOREIGN KEY(country_id) REFERENCES earth_countries(id)
             );
 
+            CREATE TABLE IF NOT EXISTS earth_claim_fingerprints (
+                fingerprint TEXT PRIMARY KEY,
+                first_user_id INTEGER NOT NULL,
+                claimed_at REAL NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS earth_cabinet (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 country_id INTEGER NOT NULL,
@@ -4681,7 +4687,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             WHERE id = ?
         """, (now, now, now, now, country_id))
 
-    async def buy_earth_country(self, user_id: int, country_id: int, offer: int = 0) -> tuple[bool, str]:
+    async def buy_earth_country(self, user_id: int, country_id: int, offer: int = 0, ip_fingerprint: str | None = None) -> tuple[bool, str]:
         """Claim one unowned country with an atomic wallet and clean-start reset."""
         if self._db is None:
             await self.setup()
@@ -4692,6 +4698,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             offer = 0
         if not 0 <= offer <= 2_000_000_000:
             return False, "Country offer must be between 0 and 2,000,000,000 Medals."
+        ip_fingerprint = str(ip_fingerprint or "").strip()[:128] or None
         if offer:
             await self.get_global_economy(user_id)
 
@@ -4705,6 +4712,16 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             if existing:
                 await self._db.rollback()
                 return False, f"One Sovereign Rule: You already govern {existing['name']}! You cannot claim another starting country."
+
+            if ip_fingerprint:
+                async with self._db.execute(
+                    "SELECT first_user_id FROM earth_claim_fingerprints WHERE fingerprint = ?",
+                    (ip_fingerprint,)
+                ) as cur:
+                    fingerprint_owner = await cur.fetchone()
+                if fingerprint_owner and int(fingerprint_owner[0]) != user_id:
+                    await self._db.rollback()
+                    return False, "Duplicate claim blocked: this network has already claimed a starting country."
 
             async with self._db.execute(
                 "SELECT id, name, flag, owner_id FROM earth_countries WHERE id = ?", (country_id,)
@@ -4754,6 +4771,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 INSERT OR REPLACE INTO earth_citizens (user_id, country_id, joined_at)
                 VALUES (?, ?, ?)
             """, (user_id, country_id, now))
+            if ip_fingerprint:
+                await self._db.execute("""
+                    INSERT OR IGNORE INTO earth_claim_fingerprints (fingerprint, first_user_id, claimed_at)
+                    VALUES (?, ?, ?)
+                """, (ip_fingerprint, user_id, now))
             await self._db.commit()
             if offer == 0:
                 return True, f"{country['flag']} **{country['name']}** is now your country. It starts at 0 GDP, 0 treasury, and no buildings."
