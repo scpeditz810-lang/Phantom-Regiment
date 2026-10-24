@@ -224,143 +224,7 @@ BANK_TIERS = {
 
 
 
-# ─── E-State Virtual Real Estate & Tycoon ──────────────────────────────────────
-MAX_ESTATE_PLOTS_PER_USER = 6
 
-ESTATE_BUILDINGS = {
-    "factory": {
-        "key": "factory",
-        "name": "Factory",
-        "emoji": "🏭",
-        "desc": "Heavy industrial manufacturing producing consistent medal revenue.",
-        "cost_pct": 0.25,     # 25% of base price
-        "val_boost": 0.25,    # +25% valuation boost
-        "daily_yield": 0.020, # 2.0% daily passive yield in medals
-        "growth_mult": 1.2,   # +20% faster land value appreciation
-    },
-    "hospital": {
-        "key": "hospital",
-        "name": "Hospital",
-        "emoji": "🏥",
-        "desc": "Public health sanctuary generating stable community dividends and safety.",
-        "cost_pct": 0.30,     # 30% of base price
-        "val_boost": 0.30,    # +30% valuation boost
-        "daily_yield": 0.022, # 2.2% daily passive yield
-        "growth_mult": 1.3,
-    },
-    "construction": {
-        "key": "construction",
-        "name": "Construction Site",
-        "emoji": "🏗️",
-        "desc": "Rapid infrastructure development maximizing land growth rate.",
-        "cost_pct": 0.20,     # 20% of base price
-        "val_boost": 0.20,    # +20% valuation boost
-        "daily_yield": 0.010, # 1.0% daily yield
-        "growth_mult": 2.5,   # 2.5x growth rate boost!
-    },
-    "bunker": {
-        "key": "bunker",
-        "name": "Bunker",
-        "emoji": "🛡️",
-        "desc": "Subterranean stronghold shielding plot valuation and providing defense.",
-        "cost_pct": 0.35,     # 35% of base price
-        "val_boost": 0.35,    # +35% valuation boost
-        "daily_yield": 0.015, # 1.5% daily yield
-        "growth_mult": 1.1,
-    },
-    "military": {
-        "key": "military",
-        "name": "Military Base",
-        "emoji": "🪖",
-        "desc": "Regiment forward operations outpost with high tactical authority stipends.",
-        "cost_pct": 0.45,     # 45% of base price
-        "val_boost": 0.45,    # +45% valuation boost
-        "daily_yield": 0.028, # 2.8% daily yield
-        "growth_mult": 1.4,
-    },
-    "bank": {
-        "key": "bank",
-        "name": "Bank",
-        "emoji": "🏦",
-        "desc": "Central commercial branch producing top-tier financial dividend yields.",
-        "cost_pct": 0.50,     # 50% of base price
-        "val_boost": 0.60,    # +60% valuation boost
-        "daily_yield": 0.035, # 3.5% daily yield
-        "growth_mult": 1.5,
-    },
-    "oil_rig": {
-        "key": "oil_rig",
-        "name": "Offshore Oil Rig",
-        "emoji": "🛢️",
-        "desc": "Deepwater petroleum extraction rig generating immense crude oil dividend yields.",
-        "cost_pct": 0.60,     # 60% of base price
-        "val_boost": 0.70,    # +70% valuation boost
-        "daily_yield": 0.040, # 4.0% daily passive yield (Highest in city!)
-        "growth_mult": 1.6,
-    }
-}
-
-DEFAULT_ESTATE_PLOTS = [
-    # Row 1 (Outer Greenery - 10k to 50k)
-    {"id": 1, "x": 1, "y": 1, "name": "Verdant Outpost Alpha", "district": "The Outskirts", "terrain": "plains", "price": 10000},
-    {"id": 2, "x": 1, "y": 2, "name": "Pinecrest Glade", "district": "The Outskirts", "terrain": "forest", "price": 15000},
-    {"id": 3, "x": 1, "y": 3, "name": "Whispering Woods", "district": "The Outskirts", "terrain": "forest", "price": 20000},
-    {"id": 4, "x": 1, "y": 4, "name": "Mossy Ridge", "district": "The Outskirts", "terrain": "plains", "price": 25000},
-    {"id": 5, "x": 1, "y": 5, "name": "Wildflower Meadow", "district": "The Outskirts", "terrain": "plains", "price": 35000},
-    {"id": 6, "x": 1, "y": 6, "name": "Evergreen Foothills", "district": "The Outskirts", "terrain": "forest", "price": 50000},
-    # Row 2 (Greenery into Riverfront - 12k to 110k)
-    {"id": 7, "x": 2, "y": 1, "name": "Sunlit Orchard", "district": "The Outskirts", "terrain": "plains", "price": 12000},
-    {"id": 8, "x": 2, "y": 2, "name": "Clover Basin", "district": "The Outskirts", "terrain": "plains", "price": 18000},
-    {"id": 9, "x": 2, "y": 3, "name": "Riverbend Crossing", "district": "Riverside Commons", "terrain": "riverfront", "price": 75000},
-    {"id": 10, "x": 2, "y": 4, "name": "Azure Basin East", "district": "Riverside Commons", "terrain": "riverfront", "price": 90000},
-    {"id": 11, "x": 2, "y": 5, "name": "Silverwater Bay", "district": "Riverside Commons", "terrain": "riverfront", "price": 110000},
-    {"id": 12, "x": 2, "y": 6, "name": "Old Mill Copse", "district": "The Outskirts", "terrain": "forest", "price": 45000},
-    # Row 3 (Riverfront & High Bastion - 125k to 2M)
-    {"id": 13, "x": 3, "y": 1, "name": "Twin Bridges Marina", "district": "Riverside Commons", "terrain": "riverfront", "price": 125000},
-    {"id": 14, "x": 3, "y": 2, "name": "Delta Wharf", "district": "Riverside Commons", "terrain": "riverfront", "price": 150000},
-    {"id": 15, "x": 3, "y": 3, "name": "Highland Bastion", "district": "Shadow Citadel", "terrain": "citadel", "price": 2000000},
-    {"id": 16, "x": 3, "y": 4, "name": "Imperial Garrison Reserve", "district": "Shadow Citadel", "terrain": "citadel", "price": 3000000},
-    {"id": 17, "x": 3, "y": 5, "name": "Apex Foundry Plot", "district": "Ironworks District", "terrain": "industrial", "price": 350000},
-    {"id": 18, "x": 3, "y": 6, "name": "Fisherman's Reach", "district": "Riverside Commons", "terrain": "riverfront", "price": 180000},
-    # Row 4 (Riverfront, Citadel Core & Industrial - 200k to 6M)
-    {"id": 19, "x": 4, "y": 1, "name": "Riverbank Commons", "district": "Riverside Commons", "terrain": "riverfront", "price": 200000},
-    {"id": 20, "x": 4, "y": 2, "name": "Heron's Lagoon", "district": "Riverside Commons", "terrain": "riverfront", "price": 250000},
-    {"id": 21, "x": 4, "y": 3, "name": "Crown Plaza Central", "district": "Shadow Citadel", "terrain": "citadel", "price": 4500000},
-    {"id": 22, "x": 4, "y": 4, "name": "Obsidian Boulevard", "district": "Shadow Citadel", "terrain": "citadel", "price": 6000000},
-    {"id": 23, "x": 4, "y": 5, "name": "Cybernetic Depot", "district": "Ironworks District", "terrain": "industrial", "price": 450000},
-    {"id": 24, "x": 4, "y": 6, "name": "Titan Machine Works", "district": "Ironworks District", "terrain": "industrial", "price": 600000},
-    # Row 5 (Industrial & Citadel Peak - 750k to 10M)
-    {"id": 25, "x": 5, "y": 1, "name": "Vanguard Tech Yard", "district": "Ironworks District", "terrain": "industrial", "price": 750000},
-    {"id": 26, "x": 5, "y": 2, "name": "Ironclad Terminal", "district": "Ironworks District", "terrain": "industrial", "price": 850000},
-    {"id": 27, "x": 5, "y": 3, "name": "Grand Regent Spire", "district": "Shadow Citadel", "terrain": "citadel", "price": 7500000},
-    {"id": 28, "x": 5, "y": 4, "name": "Sovereign Apex Plaza", "district": "Shadow Citadel", "terrain": "citadel", "price": 8500000},
-    {"id": 29, "x": 5, "y": 5, "name": "Citadel Supreme Monolith", "district": "Shadow Citadel", "terrain": "citadel", "price": 10000000},
-    {"id": 30, "x": 5, "y": 6, "name": "Silicon Valley Lot", "district": "Ironworks District", "terrain": "industrial", "price": 1000000},
-    # Row 6 (Highlands & Faction Peak - 1.25M to 10M)
-    {"id": 31, "x": 6, "y": 1, "name": "Reactor Point", "district": "Ironworks District", "terrain": "industrial", "price": 1250000},
-    {"id": 32, "x": 6, "y": 2, "name": "Overlook Ridge", "district": "Highland Outpost", "terrain": "highlands", "price": 1500000},
-    {"id": 33, "x": 6, "y": 3, "name": "Paladin Enclave", "district": "Shadow Citadel", "terrain": "citadel", "price": 2500000},
-    {"id": 34, "x": 6, "y": 4, "name": "Monarch Square", "district": "Shadow Citadel", "terrain": "citadel", "price": 5000000},
-    {"id": 35, "x": 6, "y": 5, "name": "Phantom Vanguard Keep", "district": "Shadow Citadel", "terrain": "citadel", "price": 8000000},
-    {"id": 36, "x": 6, "y": 6, "name": "Zenith Citadel Peak", "district": "Shadow Citadel", "terrain": "citadel", "price": 10000000},
-    # Row 7 (Deepwater Basin & Offshore Waters - 150k to 3.5M)
-    {"id": 37, "x": 7, "y": 1, "name": "Deepwater Platform Alpha", "district": "Deepwater Basin", "terrain": "ocean", "price": 150000},
-    {"id": 38, "x": 7, "y": 2, "name": "Neptune Crude Rig", "district": "Deepwater Basin", "terrain": "ocean", "price": 220000},
-    {"id": 39, "x": 7, "y": 3, "name": "Kraken Offshore Station", "district": "Deepwater Basin", "terrain": "ocean", "price": 300000},
-    {"id": 40, "x": 7, "y": 4, "name": "Black Gold Shoals", "district": "Deepwater Basin", "terrain": "ocean", "price": 380000},
-    {"id": 41, "x": 7, "y": 5, "name": "Poseidon Drilling Array", "district": "Deepwater Basin", "terrain": "ocean", "price": 450000},
-    {"id": 42, "x": 7, "y": 6, "name": "Leviathan Extraction Deck", "district": "Deepwater Basin", "terrain": "ocean", "price": 600000},
-    # Row 8 (Deepwater Apex Zone - 750k to 3.5M)
-    {"id": 43, "x": 8, "y": 1, "name": "Abyssal Reef Station", "district": "Deepwater Basin", "terrain": "ocean", "price": 750000},
-    {"id": 44, "x": 8, "y": 2, "name": "Triton Marine Facility", "district": "Deepwater Basin", "terrain": "ocean", "price": 900000},
-    {"id": 45, "x": 8, "y": 3, "name": "Oceanic Refinery Platform", "district": "Deepwater Basin", "terrain": "ocean", "price": 1200000},
-    {"id": 46, "x": 8, "y": 4, "name": "Atlantic Apex Rig", "district": "Deepwater Basin", "terrain": "ocean", "price": 1500000},
-    {"id": 47, "x": 8, "y": 5, "name": "Sovereign Deepwater Spire", "district": "Deepwater Basin", "terrain": "ocean", "price": 2000000},
-    {"id": 48, "x": 8, "y": 6, "name": "Grand Leviathan Rig 01", "district": "Deepwater Basin", "terrain": "ocean", "price": 3500000},
-]
-
-
-# ===============================================================================
 # 🌍 VIRTUAL EARTH: 3D GLOBAL GEOPOLITICS SIMULATION CONSTANTS
 # ===============================================================================
 
@@ -490,6 +354,19 @@ EARTH_BUILDINGS = {
         "hourly_yield": 12000,
         "military_power": 15,
         "defense_power": 25
+    },
+    "ocean_base": {
+        "key": "ocean_base",
+        "name": "Offshore Sovereign Base",
+        "emoji": "🛟",
+        "desc": "Builds a guarded forward base for maritime defense and ocean operations.",
+        "base_cost": 650000,
+        "cost_multiplier": 1.7,
+        "stability_bonus": 2,
+        "unrest_reduction": 0,
+        "hourly_yield": 4000,
+        "military_power": 45,
+        "defense_power": 55
     }
 }
 
@@ -550,10 +427,32 @@ EARTH_SPY_MISSIONS = {
         "key": "incite_riot",
         "name": "Fund Dissidents and Incite Riots",
         "emoji": "🔥",
-        "desc": "Fund radical dissident groups to spike target nation unrest by +25%, driving them toward revolution!",
+        "desc": "Fund dissident activity. After a timed mission, add at most 8 unrest and reduce stability by 5; this cannot directly change leadership.",
         "duration_seconds": 5400,
         "capture_risk": 0.40
     }
+}
+
+EARTH_GOVERNMENTS = {
+    "socialist": {"name": "Socialist", "emoji": "🚩"},
+    "democracy": {"name": "Democracy", "emoji": "🗳️"},
+    "communism": {"name": "Communism", "emoji": "☭"},
+    "monarchy": {"name": "Monarchy", "emoji": "👑"},
+    "dictatorship": {"name": "Dictatorship", "emoji": "⚔️"},
+}
+
+COMPANY_TREASURY_CAP = 250_000
+COMPANY_AID_GRANT = 25_000
+
+PLAYER_COMPANY_SECTORS = {
+    "technology": "Technology",
+    "energy": "Energy",
+    "manufacturing": "Manufacturing",
+    "finance": "Finance",
+    "agriculture": "Agriculture",
+    "healthcare": "Healthcare",
+    "transport": "Transport",
+    "media": "Media",
 }
 
 EARTH_DOCTRINES = {
@@ -621,9 +520,9 @@ EARTH_COUNTRIES = [
         "flag": "🇷🇺",
         "lat": 61.5240,
         "lng": 105.3188,
-        "gdp": 120000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 429350468796416013,
+        "initial_owner_id": None,
         "desc": "Vast transcontinental Eurasian superpower with massive mineral wealth and formidable armed forces.",
         "capital": "Moscow"
     },
@@ -634,9 +533,9 @@ EARTH_COUNTRIES = [
         "flag": "🇮🇳",
         "lat": 20.5937,
         "lng": 78.9629,
-        "gdp": 110000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 828513350883213342,
+        "initial_owner_id": None,
         "desc": "Rapidly surging democratic giant and economic titan with extensive Indian Ocean maritime trade lanes.",
         "capital": "New Delhi"
     },
@@ -647,9 +546,9 @@ EARTH_COUNTRIES = [
         "flag": "🇺🇸",
         "lat": 37.0902,
         "lng": -95.7129,
-        "gdp": 135000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1134511531468525589,
+        "initial_owner_id": None,
         "desc": "Preeminent global financial and naval powerhouse with multi-ocean carrier fleets.",
         "capital": "Washington, D.C."
     },
@@ -660,9 +559,9 @@ EARTH_COUNTRIES = [
         "flag": "🇨🇳",
         "lat": 35.8617,
         "lng": 104.1954,
-        "gdp": 125000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1291083270426988544,
+        "initial_owner_id": None,
         "desc": "Global manufacturing juggernaut with sprawling technological and industrial infrastructure.",
         "capital": "Beijing"
     },
@@ -673,9 +572,9 @@ EARTH_COUNTRIES = [
         "flag": "🇬🇧",
         "lat": 55.3781,
         "lng": -3.4360,
-        "gdp": 85000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1486122404102013050,
+        "initial_owner_id": None,
         "desc": "Historic maritime empire and global financial capital with elite intelligence networks.",
         "capital": "London"
     },
@@ -686,9 +585,9 @@ EARTH_COUNTRIES = [
         "flag": "🇩🇪",
         "lat": 51.1657,
         "lng": 10.4515,
-        "gdp": 80000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1280141055265865732,
+        "initial_owner_id": None,
         "desc": "Industrial and technological powerhouse at the core of European continental trade.",
         "capital": "Berlin"
     },
@@ -699,9 +598,9 @@ EARTH_COUNTRIES = [
         "flag": "🇯🇵",
         "lat": 36.2048,
         "lng": 138.2529,
-        "gdp": 75000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1162404296097275904,
+        "initial_owner_id": None,
         "desc": "High-tech archipelago possessing advanced robotics, naval fleets, and dense mega-cities.",
         "capital": "Tokyo"
     },
@@ -712,9 +611,9 @@ EARTH_COUNTRIES = [
         "flag": "🇫🇷",
         "lat": 46.2276,
         "lng": 2.2137,
-        "gdp": 70000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1370437656755834970,
+        "initial_owner_id": None,
         "desc": "Sovereign European diplomatic hub with formidable aerospace, nuclear energy, and cultural influence.",
         "capital": "Paris"
     },
@@ -725,9 +624,9 @@ EARTH_COUNTRIES = [
         "flag": "🇧🇷",
         "lat": -14.2350,
         "lng": -51.9253,
-        "gdp": 60000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1248327898901774356,
+        "initial_owner_id": None,
         "desc": "Dominant South American giant blessed with immense agricultural and natural resource reserves.",
         "capital": "Brasília"
     },
@@ -738,9 +637,9 @@ EARTH_COUNTRIES = [
         "flag": "🇨🇦",
         "lat": 56.1304,
         "lng": -106.3468,
-        "gdp": 55000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 829919098506444820,
+        "initial_owner_id": None,
         "desc": "Northern realm of immense oil sands, mineral wealth, and extensive Arctic coastlines.",
         "capital": "Ottawa"
     },
@@ -751,9 +650,9 @@ EARTH_COUNTRIES = [
         "flag": "🇦🇺",
         "lat": -25.2744,
         "lng": 133.7751,
-        "gdp": 50000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1327273793650950216,
+        "initial_owner_id": None,
         "desc": "Island continent endowed with rich mineral deposits and strategic Indo-Pacific naval ports.",
         "capital": "Canberra"
     },
@@ -764,9 +663,9 @@ EARTH_COUNTRIES = [
         "flag": "🇮🇹",
         "lat": 41.8719,
         "lng": 12.5674,
-        "gdp": 45000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1423907121229074452,
+        "initial_owner_id": None,
         "desc": "Mediterranean maritime hub boasting high-precision manufacturing and ancient cultural prestige.",
         "capital": "Rome"
     },
@@ -777,9 +676,9 @@ EARTH_COUNTRIES = [
         "flag": "🇸🇦",
         "lat": 23.8859,
         "lng": 45.0792,
-        "gdp": 40000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1119603544635482163,
+        "initial_owner_id": None,
         "desc": "Global energy titan with massive petroleum sovereign wealth reserves and ambitious megaprojects.",
         "capital": "Riyadh"
     },
@@ -790,9 +689,9 @@ EARTH_COUNTRIES = [
         "flag": "🇰🇷",
         "lat": 35.9078,
         "lng": 127.7669,
-        "gdp": 38000000,
+        "gdp": 0,
         "is_coastal": 1,
-        "initial_owner_id": 1289659139659792519,
+        "initial_owner_id": None,
         "desc": "Technological high-density republic with world-leading semiconductor foundries and defense industries.",
         "capital": "Seoul"
     },
@@ -803,7 +702,7 @@ EARTH_COUNTRIES = [
         "flag": "🇹🇷",
         "lat": 38.9637,
         "lng": 35.2433,
-        "gdp": 25000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Geopolitical bridge linking Europe and Asia with control over crucial maritime straits.",
@@ -816,7 +715,7 @@ EARTH_COUNTRIES = [
         "flag": "🇪🇬",
         "lat": 26.8206,
         "lng": 30.8025,
-        "gdp": 18000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Custodian of the Suez Canal, a vital artery of global international maritime commerce.",
@@ -829,7 +728,7 @@ EARTH_COUNTRIES = [
         "flag": "🇿🇦",
         "lat": -30.5595,
         "lng": 22.9375,
-        "gdp": 16000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Mineral-rich nation commanding the strategic Cape maritime shipping routes.",
@@ -842,7 +741,7 @@ EARTH_COUNTRIES = [
         "flag": "🇲🇽",
         "lat": 23.6345,
         "lng": -102.5528,
-        "gdp": 22000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Thriving North American industrial manufacturing hub with access to both the Pacific and Atlantic.",
@@ -855,7 +754,7 @@ EARTH_COUNTRIES = [
         "flag": "🇮🇩",
         "lat": -0.7893,
         "lng": 113.9213,
-        "gdp": 20000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Expansive Southeast Asian archipelago commanding the strategic Malacca shipping choke-points.",
@@ -868,7 +767,7 @@ EARTH_COUNTRIES = [
         "flag": "🇪🇸",
         "lat": 40.4637,
         "lng": -3.7492,
-        "gdp": 24000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Iberian maritime gateway between the Atlantic Ocean and the Mediterranean Sea.",
@@ -881,7 +780,7 @@ EARTH_COUNTRIES = [
         "flag": "🇦🇷",
         "lat": -38.4161,
         "lng": -63.6167,
-        "gdp": 15000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Southern Cone agricultural breadbasket with extensive South Atlantic coastline.",
@@ -894,7 +793,7 @@ EARTH_COUNTRIES = [
         "flag": "🇺🇦",
         "lat": 48.3794,
         "lng": 31.1656,
-        "gdp": 12000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Resilient Eastern European granary and metallurgy center on the Black Sea coast.",
@@ -907,7 +806,7 @@ EARTH_COUNTRIES = [
         "flag": "🇵🇱",
         "lat": 51.9194,
         "lng": 19.1451,
-        "gdp": 19000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Central European logistics and military bastion with rapid modernization programs.",
@@ -920,7 +819,7 @@ EARTH_COUNTRIES = [
         "flag": "🇳🇴",
         "lat": 60.4720,
         "lng": 8.4689,
-        "gdp": 28000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Nordic oil and gas titan with deep fjords and world's largest sovereign wealth fund.",
@@ -933,7 +832,7 @@ EARTH_COUNTRIES = [
         "flag": "🇨🇭",
         "lat": 46.8182,
         "lng": 8.2275,
-        "gdp": 30000000,
+        "gdp": 0,
         "is_coastal": 0,
         "initial_owner_id": None,
         "desc": "Alpine fortress of global neutrality and ultra-secure private financial banking vaults.",
@@ -946,7 +845,7 @@ EARTH_COUNTRIES = [
         "flag": "🇮🇷",
         "lat": 32.4279,
         "lng": 53.6880,
-        "gdp": 17000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Ancient Persian plateau nation commanding the strategic Strait of Hormuz oil routes.",
@@ -959,7 +858,7 @@ EARTH_COUNTRIES = [
         "flag": "🇵🇰",
         "lat": 30.3753,
         "lng": 69.3451,
-        "gdp": 14000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "South Asian military powerhouse with deepwater Arabian Sea ports at Gwadar.",
@@ -972,7 +871,7 @@ EARTH_COUNTRIES = [
         "flag": "🇻🇳",
         "lat": 14.0583,
         "lng": 108.2772,
-        "gdp": 13000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Fast-growing Indo-Pacific tech manufacturing base with a long tropical maritime coastline.",
@@ -985,7 +884,7 @@ EARTH_COUNTRIES = [
         "flag": "🇸🇬",
         "lat": 1.3521,
         "lng": 103.8198,
-        "gdp": 32000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Ultra-wealthy maritime city-state and apex global financial trading capital.",
@@ -998,7 +897,7 @@ EARTH_COUNTRIES = [
         "flag": "🇳🇬",
         "lat": 9.0820,
         "lng": 8.6753,
-        "gdp": 11000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Demographic and petroleum powerhouse of West Africa on the Gulf of Guinea.",
@@ -1011,7 +910,7 @@ EARTH_COUNTRIES = [
         "flag": "🇦🇪",
         "lat": 23.4241,
         "lng": 53.8478,
-        "gdp": 35000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Hyper-modern desert oasis of skyscraper luxury, global aviation, and petroleum wealth.",
@@ -1024,7 +923,7 @@ EARTH_COUNTRIES = [
         "flag": "🇨🇴",
         "lat": 4.5709,
         "lng": -74.2973,
-        "gdp": 10000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Equatorial republic touching both the Pacific Ocean and the Caribbean Sea.",
@@ -1037,7 +936,7 @@ EARTH_COUNTRIES = [
         "flag": "🇨🇱",
         "lat": -35.6751,
         "lng": -71.5430,
-        "gdp": 12000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Long Pacific coastal ribbon possessing the world's premier copper and lithium reserves.",
@@ -1050,7 +949,7 @@ EARTH_COUNTRIES = [
         "flag": "🇬🇷",
         "lat": 39.0742,
         "lng": 21.8243,
-        "gdp": 11000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Cradle of Western civilization commanding one of the world's largest merchant cargo fleets.",
@@ -1063,7 +962,7 @@ EARTH_COUNTRIES = [
         "flag": "🇸🇪",
         "lat": 60.1282,
         "lng": 18.6435,
-        "gdp": 26000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Nordic innovation capital with world-class engineering, defense, and high-tech sectors.",
@@ -1076,7 +975,7 @@ EARTH_COUNTRIES = [
         "flag": "🇳🇱",
         "lat": 52.1326,
         "lng": 5.2913,
-        "gdp": 29000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Low-countries commercial juggernaut hosting Rotterdam, the largest maritime port in Europe.",
@@ -1089,7 +988,7 @@ EARTH_COUNTRIES = [
         "flag": "🇹🇭",
         "lat": 15.8700,
         "lng": 100.9925,
-        "gdp": 14000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Southeast Asian economic powerhouse and central automotive/electronics manufacturing center.",
@@ -1102,7 +1001,7 @@ EARTH_COUNTRIES = [
         "flag": "🇵🇭",
         "lat": 12.8797,
         "lng": 121.7740,
-        "gdp": 12000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Archipelago of over 7,000 islands strategically positioned across western Pacific sealanes.",
@@ -1115,7 +1014,7 @@ EARTH_COUNTRIES = [
         "flag": "🇳🇿",
         "lat": -40.9006,
         "lng": 174.8860,
-        "gdp": 15000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Isolated South Pacific haven blessed with pristine renewable resources and high civic trust.",
@@ -1128,7 +1027,7 @@ EARTH_COUNTRIES = [
         "flag": "🇰🇪",
         "lat": -0.0236,
         "lng": 37.9062,
-        "gdp": 8000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "East African technological 'Silicon Savannah' hub anchored by the port of Mombasa.",
@@ -1141,7 +1040,7 @@ EARTH_COUNTRIES = [
         "flag": "🇲🇦",
         "lat": 31.7917,
         "lng": -7.0926,
-        "gdp": 9000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "North African kingdom controlling the world's largest phosphate reserves and Tanger Med port.",
@@ -1154,7 +1053,7 @@ EARTH_COUNTRIES = [
         "flag": "🇮🇱",
         "lat": 31.0461,
         "lng": 34.8516,
-        "gdp": 27000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Technological and cyber-defense powerhouse with elite military R&D capabilities.",
@@ -1167,7 +1066,7 @@ EARTH_COUNTRIES = [
         "flag": "🇩🇰",
         "lat": 55.6761,
         "lng": 12.5683,
-        "gdp": 23000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Maritime Nordic nation controlling the Danish straits and high-efficiency wind and green technology grids.",
@@ -1180,7 +1079,7 @@ EARTH_COUNTRIES = [
         "flag": "🇫🇮",
         "lat": 60.1699,
         "lng": 24.9384,
-        "gdp": 21000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "High-tech Nordic republic boasting elite cyber-defense networks and arctic resilience fortresses.",
@@ -1193,7 +1092,7 @@ EARTH_COUNTRIES = [
         "flag": "🇵🇹",
         "lat": 38.7223,
         "lng": -9.1393,
-        "gdp": 19000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Atlantic coastal gateway to Europe, connecting maritime commerce routes across continents.",
@@ -1206,7 +1105,7 @@ EARTH_COUNTRIES = [
         "flag": "🇲🇾",
         "lat": 3.1390,
         "lng": 101.6869,
-        "gdp": 22000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Southeast Asian economic powerhouse commanding key trade routes along the Strait of Malacca.",
@@ -1219,7 +1118,7 @@ EARTH_COUNTRIES = [
         "flag": "🇶🇦",
         "lat": 25.2854,
         "lng": 51.5310,
-        "gdp": 28000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "Resource-wealthy Gulf sovereign state and premier global liquefied natural gas exporter.",
@@ -1232,11 +1131,167 @@ EARTH_COUNTRIES = [
         "flag": "🇮🇪",
         "lat": 53.3498,
         "lng": -6.2603,
-        "gdp": 25000000,
+        "gdp": 0,
         "is_coastal": 1,
         "initial_owner_id": None,
         "desc": "European financial and multinational tech hub bridging Atlantic commerce with the Continent.",
         "capital": "Dublin"
+    },
+    {
+        "id": 49,
+        "code": "DZA",
+        "name": "People's Democratic Republic of Algeria",
+        "flag": "🇩🇿",
+        "lat": 28.0339,
+        "lng": 1.6596,
+        "gdp": 0,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "North African energy producer with Mediterranean access.",
+        "capital": "Algiers"
+    },
+    {
+        "id": 50,
+        "code": "ETH",
+        "name": "Federal Democratic Republic of Ethiopia",
+        "flag": "🇪🇹",
+        "lat": 9.03,
+        "lng": 38.74,
+        "gdp": 0,
+        "is_coastal": 0,
+        "initial_owner_id": None,
+        "desc": "Horn of Africa nation with a major regional population and highland trade routes.",
+        "capital": "Addis Ababa"
+    },
+    {
+        "id": 51,
+        "code": "GHA",
+        "name": "Republic of Ghana",
+        "flag": "🇬🇭",
+        "lat": 5.6037,
+        "lng": -0.187,
+        "gdp": 0,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "West African coastal nation with gold, cocoa, and Atlantic trade.",
+        "capital": "Accra"
+    },
+    {
+        "id": 52,
+        "code": "BGD",
+        "name": "People's Republic of Bangladesh",
+        "flag": "🇧🇩",
+        "lat": 23.8103,
+        "lng": 90.4125,
+        "gdp": 0,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "South Asian manufacturing and maritime trade center on the Bay of Bengal.",
+        "capital": "Dhaka"
+    },
+    {
+        "id": 53,
+        "code": "PER",
+        "name": "Republic of Peru",
+        "flag": "🇵🇪",
+        "lat": -12.0464,
+        "lng": -77.0428,
+        "gdp": 0,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Andean nation with Pacific ports and mineral resources.",
+        "capital": "Lima"
+    },
+    {
+        "id": 54,
+        "code": "AUT",
+        "name": "Republic of Austria",
+        "flag": "🇦🇹",
+        "lat": 48.2082,
+        "lng": 16.3738,
+        "gdp": 0,
+        "is_coastal": 0,
+        "initial_owner_id": None,
+        "desc": "Central European state linking alpine transport and continental commerce.",
+        "capital": "Vienna"
+    },
+    {
+        "id": 55,
+        "code": "BEL",
+        "name": "Kingdom of Belgium",
+        "flag": "🇧🇪",
+        "lat": 50.8503,
+        "lng": 4.3517,
+        "gdp": 0,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "European trade hub with dense transport links and North Sea access.",
+        "capital": "Brussels"
+    },
+    {
+        "id": 56,
+        "code": "ROU",
+        "name": "Romania",
+        "flag": "🇷🇴",
+        "lat": 44.4268,
+        "lng": 26.1025,
+        "gdp": 0,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Black Sea and Danube gateway with agriculture and energy resources.",
+        "capital": "Bucharest"
+    },
+    {
+        "id": 57,
+        "code": "CZE",
+        "name": "Czech Republic",
+        "flag": "🇨🇿",
+        "lat": 50.0755,
+        "lng": 14.4378,
+        "gdp": 0,
+        "is_coastal": 0,
+        "initial_owner_id": None,
+        "desc": "Central European industrial economy with strong overland connections.",
+        "capital": "Prague"
+    },
+    {
+        "id": 58,
+        "code": "CUB",
+        "name": "Republic of Cuba",
+        "flag": "🇨🇺",
+        "lat": 23.1136,
+        "lng": -82.3666,
+        "gdp": 0,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Caribbean island state controlling important regional sea lanes.",
+        "capital": "Havana"
+    },
+    {
+        "id": 59,
+        "code": "TZA",
+        "name": "United Republic of Tanzania",
+        "flag": "🇹🇿",
+        "lat": -6.7924,
+        "lng": 39.2083,
+        "gdp": 0,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "East African coastal nation with ports, minerals, and regional trade routes.",
+        "capital": "Dodoma"
+    },
+    {
+        "id": 60,
+        "code": "VEN",
+        "name": "Bolivarian Republic of Venezuela",
+        "flag": "🇻🇪",
+        "lat": 10.4806,
+        "lng": -66.9036,
+        "gdp": 0,
+        "is_coastal": 1,
+        "initial_owner_id": None,
+        "desc": "Northern South American nation with Caribbean ports and energy reserves.",
+        "capital": "Caracas"
     }
 ]
 
@@ -1301,6 +1356,18 @@ EARTH_ADVANCED_TOOLS = {
         "defense_power": 70,
         "hourly_yield": 10000,
         "perk": "Devastating Frontline Offense (+210 Military Power)"
+    },
+    "nuclear_launch_pad": {
+        "key": "nuclear_launch_pad",
+        "name": "Nuclear Launch Pad",
+        "emoji": "🛰️",
+        "category": "military",
+        "price": 1200000,
+        "desc": "Permanent hardened launch infrastructure required before a tactical nuclear weapon can be fired.",
+        "military_power": 0,
+        "defense_power": 35,
+        "hourly_yield": 0,
+        "perk": "Unlocks one nuclear strike per enemy per active war when a tactical nuke is ready"
     },
     "tactical_nuke": {
         "key": "tactical_nuke",

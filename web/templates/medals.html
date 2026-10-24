@@ -31,7 +31,7 @@
 
                 <div class="ghost-feature-tile">
                     <div class="ghost-tile-title">Holding Limit</div>
-                    <div class="ghost-tile-sub">Max 250 shares per user + 0.4% passive dividends.</div>
+                    <div class="ghost-tile-sub">Max 250 shares per stock + 0.4% passive dividends.</div>
                 </div>
 
                 <div class="ghost-feature-tile">
@@ -122,6 +122,75 @@
         </div>
     </div>
 
+    {% if session.get('user') %}
+    <section class="surface-box" style="margin: 1rem 0; padding: 1.25rem;">
+        <div class="eyebrow-text">PLAYER VENTURES // PUBLIC COMPANY LISTINGS</div>
+        <h2 style="margin:0.25rem 0 0.4rem;">Found a Company</h2>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1rem;">
+            Create one company for 25,000 Medals. Report revenue, profit, debt, and your claimed value.
+            The simulated analyst review uses those figures and a 50/50 approval roll for plausible valuations.
+            Rejected or overstated IPOs open after a crash adjustment. Listed shares become available to everyone.
+        </p>
+        <div id="company-owner-status" role="status" aria-live="polite" style="font-size:0.82rem;margin-bottom:0.75rem;"></div>
+        <p id="company-market-bank-balance" role="status" aria-live="polite" style="font-size:.8rem;color:var(--text-muted);"></p>
+        <form id="player-company-form" onsubmit="submitPlayerCompany(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;">
+            <div class="form-group">
+                <label class="form-label" for="company-name">Company name</label>
+                <input class="form-input" id="company-name" maxlength="48" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="company-symbol">Ticker (2–6 characters)</label>
+                <input class="form-input" id="company-symbol" maxlength="6" minlength="2" pattern="[A-Za-z0-9]{2,6}" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="company-sector">Sector</label>
+                <select class="form-select" id="company-sector" required>
+                    <option value="technology">Technology</option><option value="energy">Energy</option>
+                    <option value="manufacturing">Manufacturing</option><option value="finance">Finance</option>
+                    <option value="agriculture">Agriculture</option><option value="healthcare">Healthcare</option>
+                    <option value="transport">Transport</option><option value="media">Media</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="company-valuation">Claimed valuation (Medals)</label>
+                <input class="form-input" id="company-valuation" type="number" min="250000" max="2000000000" step="1" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="company-revenue">Annual revenue</label>
+                <input class="form-input" id="company-revenue" type="number" min="0" max="2000000000" step="1" value="0" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="company-profit">Annual profit (negative allowed)</label>
+                <input class="form-input" id="company-profit" type="number" min="-2000000000" max="2000000000" step="1" value="0" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="company-debt">Debt</label>
+                <input class="form-input" id="company-debt" type="number" min="0" max="2000000000" step="1" value="0" required>
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+                <label class="form-label" for="company-description">What does your company do?</label>
+                <textarea class="form-input" id="company-description" maxlength="240" rows="2" required></textarea>
+            </div>
+            <button class="btn btn-blue" id="company-submit" type="submit" style="grid-column:1/-1;">Submit company for AI market review — 25,000 Medals</button>
+        </form>
+                    <div id="company-sale-panel" hidden style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color,#334155);">
+                <h3 style="margin:0 0 .5rem;">Sell company</h3>
+                <p style="font-size:.8rem;color:var(--text-muted);">A buyer pays from their wallet. The seller receives the price after the current market tax. Bank buyouts are limited to the market bank's tax-funded balance.</p>
+                <form id="company-player-sale-form" onsubmit="submitCompanyPlayerSale(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.65rem;">
+                    <div class="form-group"><label class="form-label" for="company-buyer-username">Player buyer username</label><input class="form-input" id="company-buyer-username" maxlength="80" required></div>
+                    <div class="form-group"><label class="form-label" for="company-player-sale-price">Total price including tax (Medals)</label><input class="form-input" id="company-player-sale-price" type="number" min="1" max="2000000000" step="1" required></div>
+                    <button class="btn btn-blue" type="submit">Send player offer</button>
+                </form>
+                <form id="company-bank-sale-form" onsubmit="submitCompanyBankSale(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.65rem;margin-top:.6rem;">
+                    <div class="form-group"><label class="form-label" for="company-bank-sale-price">Bank sale price (Medals)</label><input class="form-input" id="company-bank-sale-price" type="number" min="1" max="2000000000" step="1" required></div>
+                    <button class="btn btn-blue" type="submit">Sell to market bank</button>
+                </form>
+                <div id="company-offer-status" role="status" aria-live="polite" style="font-size:.82rem;margin-top:.5rem;"></div>
+            </div>
+            <div id="company-incoming-offers" style="margin-top:1rem;"></div>
+    </section>
+    {% endif %}
+
     <!-- Live Breaking News Banner -->
     <div id="stock-news-banner" style="margin-bottom: 1rem; padding: 0.65rem 1rem; background: rgba(56, 189, 248, 0.1); border: 1px solid var(--border-blue); border-radius: 8px; font-size: 0.8rem; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
         <span style="font-size:1.1rem;">📢</span> <span id="stock-news-text">Market News: High trading volume recorded across corporate equities.</span>
@@ -188,7 +257,7 @@
             </div>
 
             <div style="background: rgba(15, 23, 42, 0.7); border: 1px dashed rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 0.65rem 0.85rem; margin-bottom: 1rem; font-size: 0.74rem; color: var(--text-muted); line-height: 1.45;">
-                🛡️ <strong>Fair Market Protections:</strong> {{ stock_tax_pct or 15 }}% Transaction Tax on sales (Regulated by Mayor) • 3m Anti-Arbitrage lock • 0.4% passive dividends (capped at 250M).
+                🛡️ <strong>Fair Market Protections:</strong> {{ stock_tax_pct or 15 }}% Transaction Fee on purchases and sales (Regulated by Mayor) • 3m Anti-Arbitrage lock • 0.4% passive dividends (capped at 250M).
             </div>
 
             {% if session.get('user') %}

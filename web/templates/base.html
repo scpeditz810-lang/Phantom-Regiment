@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% if request.path == '/earth' %}virtual-earth-page{% endif %}">
     <!-- Top Navigation Bar -->
     <header class="navbar">
         <div class="nav-container">
@@ -42,7 +42,7 @@
                 <a href="{{ url_for('views.medals_page') }}" class="nav-link {% if request.path == '/medals' %}active{% endif %}">
                     Medals & Stocks
                 </a>
-                <a href="{{ url_for('views.estate_page') }}" class="nav-link {% if request.path == '/estate' or request.path == '/earth' %}active{% endif %}">
+                <a href="{{ url_for('views.earth_page') }}" class="nav-link {% if request.path == '/earth' %}active{% endif %}">
                     🌍 Virtual Earth
                 </a>
                 <a href="{{ url_for('views.members_page') }}" class="nav-link {% if request.path == '/members' %}active{% endif %}">
@@ -89,12 +89,12 @@
     </header>
 
     <!-- Main Page Content Body -->
-    <main class="page-body">
+    <main class="page-body {% if request.path == '/earth' %}earth-page-body{% endif %}">
         {% block content %}{% endblock %}
     </main>
 
     <!-- Footer -->
-    <footer class="footer">
+    <footer class="footer {% if request.path == '/earth' %}earth-page-footer{% endif %}">
         <div class="footer-container">
             <div>
                 <strong>Phantom Regiment</strong> — Made on 18 Sept 2026. Official branch of TS Clan.
