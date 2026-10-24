@@ -4,8 +4,8 @@ Phantom Regiment Stock Market Engine
 Features:
 - Realistic Multi-Regime Dynamics: Green Zones (Bull Rallies), Stock Crashes (Bear Markets), and Sideways Consolidation
 - Real-life Catalyst Events: Positive contract blowouts & Negative catastrophic crashes / scandals
-- Valuation Gravity & Profit-Taking: Prevents runaway infinite inflation
-- Passive Dividends with safety caps
+- Strict Mathematical Price Bounds & Mean-Reversion Valuation Gravity: Completely prevents runaway hyper-inflation
+- Passive Dividends with safety caps (max 50 Medals/position)
 """
 
 import time
@@ -13,35 +13,45 @@ import random
 import threading
 import asyncio
 
+DEFAULT_STOCK_BOUNDS = {
+    "PRC": {"base": 140, "min": 35, "max": 450},
+    "TSC": {"base": 180, "min": 45, "max": 550},
+    "VNG": {"base": 125, "min": 30, "max": 420},
+    "AERO": {"base": 155, "min": 35, "max": 480},
+    "CRYP": {"base": 95, "min": 25, "max": 350},
+    "TSLA": {"base": 165, "min": 40, "max": 500},
+    "PANDA": {"base": 45, "min": 15, "max": 180},
+}
+
 BULL_CATALYSTS = [
-    ("VNG", "⚔️ [WARTIME PROCUREMENT] Vanguard Armaments awarded 45M emergency munitions contract for active Earth conflict!", (0.15, 0.30)),
-    ("AERO", "🛰️ [COMBAT SATELLITE DEMAND] Apex Aerospace orbital recon contracted by combatant powers! Stock breaking out.", (0.14, 0.26)),
-    ("PRC", "🛡️ [TACTICAL PMC CONTRACT] Phantom Regiment Corp deploys defensive battalions to active war theater!", (0.12, 0.25)),
-    ("GLOBAL", "⚔️ [GLOBAL WAR MOBILIZATION] Virtual Earth military escalations trigger defense sector super-cycle!", (0.10, 0.22)),
-    ("PRC", "🚀 [GREEN ZONE SURGE] Phantom Regiment Corp secures 50M sovereign defense contract! Bull rally surging.", (0.12, 0.24)),
-    ("TSC", "🚀 [GREEN ZONE SURGE] TS Clan Holdings smashes consensus profits! Heavy institutional buying.", (0.10, 0.22)),
-    ("VNG", "⚔️ [GREEN ZONE SURGE] Vanguard Armaments unveils next-gen kinetic titan armor! Global demand peaks.", (0.12, 0.25)),
-    ("AERO", "🛰️ [GREEN ZONE SURGE] Apex Aerospace launches orbital defense constellation! Stock price surging.", (0.10, 0.20)),
-    ("CRYP", "💎 [GREEN ZONE SURGE] Cypher Intelligence cracks foreign sovereign ledger! Quantum rally initiated.", (0.12, 0.24)),
-    ("TSLA", "⚡ [GREEN ZONE SURGE] Tesla autonomous defense units deployed across all clans! Massive bull run.", (0.12, 0.26)),
-    ("PANDA", "🍜 [GREEN ZONE SURGE] PandaPo signs continental ration logistics monopoly! Record volume buying.", (0.12, 0.25)),
-    ("PRC", "🔥 [SHORT SQUEEZE] Massive short squeeze on Phantom Regiment Corp! Short sellers forced to liquidate.", (0.15, 0.32)),
-    ("TSLA", "🚀 [MEGA BREAKOUT] Tesla announces fusion micro-reactor prototype! Valuation skyrockets.", (0.15, 0.30)),
-    ("TSC", "🏦 [INSTITUTIONAL INFLOW] TS Clan sovereign treasury announces 20M strategic buyback!", (0.10, 0.20))
+    ("VNG", "⚔️ [WARTIME PROCUREMENT] Vanguard Armaments awarded emergency munitions contract for active Earth conflict!", (0.08, 0.16)),
+    ("AERO", "🛰️ [COMBAT SATELLITE DEMAND] Apex Aerospace orbital recon contracted by combatant powers! Stock breaking out.", (0.07, 0.15)),
+    ("PRC", "🛡️ [TACTICAL PMC CONTRACT] Phantom Regiment Corp deploys defensive battalions to active war theater!", (0.06, 0.14)),
+    ("GLOBAL", "⚔️ [GLOBAL WAR MOBILIZATION] Virtual Earth military escalations trigger defense sector rally!", (0.05, 0.12)),
+    ("PRC", "🚀 [GREEN ZONE SURGE] Phantom Regiment Corp secures sovereign defense contract! Bull rally surging.", (0.06, 0.13)),
+    ("TSC", "🚀 [GREEN ZONE SURGE] TS Clan Holdings smashes consensus profits! Heavy institutional buying.", (0.05, 0.12)),
+    ("VNG", "⚔️ [GREEN ZONE SURGE] Vanguard Armaments unveils next-gen kinetic armor! Global demand peaks.", (0.06, 0.14)),
+    ("AERO", "🛰️ [GREEN ZONE SURGE] Apex Aerospace launches orbital defense constellation! Stock price surging.", (0.05, 0.12)),
+    ("CRYP", "💎 [GREEN ZONE SURGE] Cypher Intelligence cracks foreign sovereign ledger! Quantum rally initiated.", (0.06, 0.13)),
+    ("TSLA", "⚡ [GREEN ZONE SURGE] Tesla autonomous defense units deployed across all clans! Bull run active.", (0.06, 0.14)),
+    ("PANDA", "🍜 [GREEN ZONE SURGE] PandaPo signs continental ration logistics contract! Record volume buying.", (0.06, 0.13)),
+    ("PRC", "🔥 [SHORT SQUEEZE] Short squeeze on Phantom Regiment Corp! Short sellers forced to liquidate.", (0.07, 0.16)),
+    ("TSLA", "🚀 [MEGA BREAKOUT] Tesla announces fusion micro-reactor prototype! Valuation climbs.", (0.07, 0.15)),
+    ("TSC", "🏦 [INSTITUTIONAL INFLOW] TS Clan sovereign treasury announces strategic buyback!", (0.05, 0.12))
 ]
 
 CRASH_CATALYSTS = [
-    ("PANDA", "🚢 [STRAIT BLOCKADE] Commercial shipping corridors blocked by active naval warfare! PandaPo logistics paralyzed.", (-0.15, -0.28)),
-    ("PRC", "💥 [STOCK CRASH] Phantom Regiment Corp hit with federal whistleblower audit! Panic selling ensues.", (-0.18, -0.32)),
-    ("TSC", "📉 [STOCK CRASH] TS Clan Holdings quarterly earnings miss! Institutional investors dump massive blocks.", (-0.15, -0.28)),
-    ("VNG", "💥 [RECALL CRASH] Vanguard Armaments issues catastrophic kinetic armor recall! Shares plummet.", (-0.20, -0.35)),
-    ("AERO", "📉 [CRASH ALERT] Apex Aerospace orbital satellite explodes during launch! Stock value collapses.", (-0.16, -0.30)),
-    ("CRYP", "💥 [SECURITY BREACH] Cypher Intelligence reports critical zero-day network breach! Mass liquidation.", (-0.18, -0.32)),
-    ("TSLA", "📉 [STOCK CRASH] Tesla slapped with sweeping antitrust monopoly sanctions! Heavy margin call dumps.", (-0.20, -0.36)),
-    ("PANDA", "💥 [SUPPLY SHOCK] PandaPo supply warehouses hit with catastrophic trade embargo! Shares dump.", (-0.15, -0.28)),
-    ("PRC", "📉 [PROFIT TAKING CRASH] Hedge funds orchestrate coordinated dump on Phantom Regiment Corp!", (-0.16, -0.28)),
-    ("GLOBAL", "🚨 [MARKET-WIDE FLASH CRASH] Global trade dispute triggers market bloodbath! All equities plunging.", (-0.14, -0.26)),
-    ("GLOBAL", "💥 [BLACK SWAN CRASH] Exchange liquidity crisis! Algorithmic cascading stop-loss liquidations.", (-0.16, -0.30))
+    ("PANDA", "🚢 [STRAIT BLOCKADE] Commercial shipping corridors blocked by active naval warfare! PandaPo logistics delayed.", (-0.08, -0.16)),
+    ("PRC", "💥 [STOCK CRASH] Phantom Regiment Corp hit with federal whistleblower audit! Panic selling ensues.", (-0.09, -0.18)),
+    ("TSC", "📉 [STOCK CRASH] TS Clan Holdings quarterly earnings miss! Institutional investors dump blocks.", (-0.08, -0.16)),
+    ("VNG", "💥 [RECALL CRASH] Vanguard Armaments issues kinetic armor recall! Shares pull back.", (-0.10, -0.18)),
+    ("AERO", "📉 [CRASH ALERT] Apex Aerospace test satellite anomaly during launch! Stock value drops.", (-0.08, -0.16)),
+    ("CRYP", "💥 [SECURITY BREACH] Cypher Intelligence reports network breach! Profit-taking liquidations.", (-0.09, -0.18)),
+    ("TSLA", "📉 [STOCK CRASH] Tesla slapped with regulatory scrutiny! Margin call dumps.", (-0.10, -0.18)),
+    ("PANDA", "💥 [SUPPLY SHOCK] PandaPo supply warehouses hit with regional embargo! Shares drop.", (-0.08, -0.16)),
+    ("PRC", "📉 [PROFIT TAKING CRASH] Institutional funds orchestrate planned profit-taking on Phantom Regiment Corp!", (-0.08, -0.16)),
+    ("GLOBAL", "🚨 [MARKET-WIDE PULLBACK] Global trade tensions trigger market-wide equity pullback.", (-0.07, -0.14)),
+    ("GLOBAL", "💥 [FLASH CORRECTION] Market-wide technical correction! Cascading stop-loss triggers.", (-0.08, -0.16))
 ]
 
 
@@ -53,14 +63,14 @@ class StockMarketEngine:
         self._running = False
         self._thread = None
         self.tick_count = 0
-        self.market_regime = "SIDEWAYS"  # 'BULL_RALLY', 'BEAR_CRASH', 'SIDEWAYS'
+        self.market_regime = "SIDEWAYS"  # 'BULL_RALLY', 'BEAR_CRASH', 'SIDEWAYS', 'WARTIME_ECONOMY'
         self.regime_ticks_left = 20
         self.latest_news = "📈 Market Open: High-volume trading active across corporate equities."
         self.last_dividend_time = time.time()
 
     def get_regime_display_name(self) -> str:
         if self.market_regime == "WARTIME_ECONOMY":
-            return "⚔️ Wartime Economy (Defense Rally)"
+            return "⚔️ Wartime Economy (Defense Active)"
         elif self.market_regime == "BULL_RALLY":
             return "🟢 Green Zone (Bull Market)"
         elif self.market_regime == "BEAR_CRASH":
@@ -73,7 +83,7 @@ class StockMarketEngine:
         self._running = True
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        print("[Stock Market Engine] Started background price fluctuation ticker with Green Zones, Crashes & Valuations.", flush=True)
+        print("[Stock Market Engine] Started background price fluctuation ticker with strict mathematical caps & valuation gravity.", flush=True)
 
     def stop(self):
         self._running = False
@@ -102,13 +112,6 @@ class StockMarketEngine:
             active_wars = []
 
         war_count = len(active_wars)
-        war_intensity = sum(
-            4.0 if w.get("war_scale") == "total_war" else (
-                2.5 if w.get("war_scale") == "theater" else (
-                    1.5 if w.get("war_scale") == "skirmish" else 1.0
-                )
-            ) for w in active_wars
-        ) if war_count > 0 else 0.0
 
         if war_count > 0:
             self.market_regime = "WARTIME_ECONOMY"
@@ -116,10 +119,9 @@ class StockMarketEngine:
             atk_n = first_war.get("attacker_name", "Attacker")
             dfn_n = first_war.get("defender_name", "Defender")
             if self.tick_count % 3 == 0:
-                self.latest_news = f"⚔️ [WARTIME MOBILIZATION] {war_count} Active War(s) on Virtual Earth ({atk_n} vs {dfn_n})! Defense contractors (VNG, AERO, PRC) surging on munitions demand!"
-
-        # Rotate Market Regime when cycle expires (every 15 to 30 ticks ~15 to 30 mins)
-        if self.regime_ticks_left <= 0:
+                self.latest_news = f"⚔️ [WARTIME MOBILIZATION] {war_count} Active War(s) on Virtual Earth ({atk_n} vs {dfn_n})! Defense contractors (VNG, AERO, PRC) in focus."
+        elif self.regime_ticks_left <= 0:
+            # Rotate Market Regime when cycle expires (every 15 to 30 ticks)
             regimes = ["SIDEWAYS", "BULL_RALLY", "BEAR_CRASH"]
             weights = [0.45, 0.275, 0.275]  # 45% sideways, 27.5% Green Zone, 27.5% Crash Zone
             self.market_regime = random.choices(regimes, weights=weights)[0]
@@ -127,10 +129,8 @@ class StockMarketEngine:
 
             if self.market_regime == "BULL_RALLY":
                 self.latest_news = "🟢 [GREEN ZONE ACTIVATED] Global Bull Run! Strong institutional liquidity surging into corporate equities!"
-                print(f"[Stock Market] {self.latest_news}", flush=True)
             elif self.market_regime == "BEAR_CRASH":
-                self.latest_news = "🔴 [MARKET CRASH IN PROGRESS] Heavy Panic Selling! Cascading liquidations and margin calls dragging equities downward!"
-                print(f"[Stock Market] {self.latest_news}", flush=True)
+                self.latest_news = "🔴 [MARKET CORRECTION] Profit Taking Underway! Orderly pullbacks across corporate equities."
             else:
                 self.latest_news = "⚪ [MARKET CONSOLIDATION] Equilibrium trading active. Equities oscillating around fair valuation."
 
@@ -143,7 +143,6 @@ class StockMarketEngine:
         catalyst_multiplier = 0.0
 
         if self.tick_count % random.randint(16, 24) == 0:
-            # Pick Bull catalyst if in Bull Rally, Crash catalyst if in Bear Crash, or random in Sideways
             if self.market_regime == "BULL_RALLY":
                 pool = BULL_CATALYSTS
             elif self.market_regime == "BEAR_CRASH":
@@ -160,6 +159,15 @@ class StockMarketEngine:
         for stock in stocks:
             old_price = stock["price"]
             sym = stock["symbol"]
+            bounds = DEFAULT_STOCK_BOUNDS.get(sym, {"base": 100, "min": 20, "max": 500})
+            base_p = bounds["base"]
+            min_p = bounds["min"]
+            max_p = bounds["max"]
+
+            # Safety check: if existing DB price is corrupt/runaway, clamp immediately
+            if old_price > max_p:
+                old_price = base_p
+                await self.db.update_stock_price(stock["id"], base_p)
 
             # 1. Catalyst Override
             if catalyst_symbol == sym or catalyst_symbol == "GLOBAL":
@@ -167,52 +175,53 @@ class StockMarketEngine:
 
             # 2. Market Regime Fluctuation
             elif self.market_regime == "WARTIME_ECONOMY":
-                # Wartime Dynamics: Defense surging, logistics dragged, tech volatile
-                intensity_scale = min(2.5, max(1.0, war_intensity))
+                # Wartime Dynamics: Defense contractors gain with realistic profit-taking pullbacks
                 if sym in {"VNG", "AERO", "PRC"}:
-                    change_percent = random.uniform(0.020, 0.055) * intensity_scale
+                    if random.random() < 0.58:
+                        change_percent = random.uniform(0.015, 0.035)
+                    else:
+                        change_percent = -random.uniform(0.010, 0.022)
                 elif sym in {"PANDA"}:
-                    change_percent = -random.uniform(0.012, 0.032) * intensity_scale
+                    change_percent = -random.uniform(0.010, 0.022)
                 elif sym in {"CRYP"}:
-                    change_percent = random.uniform(-0.02, 0.04) * intensity_scale
+                    change_percent = random.uniform(-0.020, 0.025)
                 else:
-                    change_percent = random.uniform(-0.01, 0.02)
+                    change_percent = random.uniform(-0.012, 0.015)
 
             elif self.market_regime == "BULL_RALLY":
-                # Green Zone: 68% green ticks, 32% red pullbacks
-                if random.random() < 0.68:
-                    change_percent = random.uniform(0.012, 0.038)
+                # Green Zone: 60% green ticks, 40% red pullbacks
+                if random.random() < 0.60:
+                    change_percent = random.uniform(0.012, 0.028)
                 else:
-                    change_percent = random.uniform(-0.016, -0.005)
+                    change_percent = -random.uniform(0.010, 0.020)
 
             elif self.market_regime == "BEAR_CRASH":
-                # Crash Zone: 68% red drops, 32% green dead-cat bounces
-                if random.random() < 0.68:
-                    change_percent = random.uniform(-0.038, -0.012)
+                # Crash Zone: 60% red drops, 40% green dead-cat bounces
+                if random.random() < 0.60:
+                    change_percent = -random.uniform(0.015, 0.032)
                 else:
-                    change_percent = random.uniform(0.005, 0.016)
+                    change_percent = random.uniform(0.008, 0.018)
 
             else:
-                # Sideways Normal Market: Perfectly balanced symmetrical zero-drift random walk
+                # Sideways Normal Market: balanced zero-drift random walk
                 change_percent = random.uniform(-0.014, 0.014)
 
-            # 3. Valuation Gravity / Profit-Taking Damping (Prevents 40M runaway inflation!)
-            # When stock price is hugely inflated (e.g. > 10,000 Medals), natural institutional profit taking exerts downward pressure
-            if old_price > 5000:
-                drag = min(0.025, 0.004 * (old_price / 10000.0))
+            # 3. Valuation Gravity / Mean-Reversion Pull
+            # If stock is trading significantly above fair base value, profit taking pulls it down
+            if old_price > base_p * 1.35:
+                overval_ratio = (old_price - base_p * 1.35) / float(base_p)
+                drag = min(0.08, 0.03 * overval_ratio)
                 change_percent -= drag
-
-            # 4. Support Wall for Low Stocks
-            if old_price <= 30 and change_percent < 0:
-                # Value investors buy the floor
-                change_percent = random.uniform(0.02, 0.06)
+            elif old_price < base_p * 0.70 and change_percent < 0:
+                # Value support floor
+                change_percent = random.uniform(0.015, 0.035)
 
             diff = int(round(old_price * change_percent))
             if diff == 0:
                 diff = random.choice([-1, 0, 1])
 
-            # Hard Floor of 15 Medals (stocks never go to 0)
-            new_price = max(15, old_price + diff)
+            # HARD CLAMP: Enforce strict min and max bounds (absolutely impossible to exceed max)
+            new_price = max(min_p, min(max_p, old_price + diff))
             if new_price != old_price:
                 await self.db.update_stock_price(stock["id"], new_price)
 
@@ -234,7 +243,7 @@ class StockMarketEngine:
             pass
 
     async def _distribute_dividends(self):
-        """Distribute passive dividend payouts with safety caps."""
+        """Distribute passive dividend payouts with strict safety caps."""
         try:
             async with self.db._db.execute("""
                 SELECT us.user_id, us.stock_id, us.shares, s.price, s.symbol
@@ -251,8 +260,8 @@ class StockMarketEngine:
             for h in holders:
                 # 0.25% dividend yield based on current share price
                 div_per_share = max(1, int(round(h["price"] * 0.0025)))
-                # Capped at max 350 Medals per stock position to prevent infinite AFK printing
-                total_div = min(350, div_per_share * h["shares"])
+                # Capped at max 50 Medals per stock position to prevent inflation
+                total_div = min(50, div_per_share * h["shares"])
                 if total_div > 0:
                     await self.db.add_medals(h["user_id"], 0, total_div)
                     total_paid += total_div

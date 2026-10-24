@@ -884,6 +884,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         except Exception:
             pass
         await self.seed_default_stocks()
+        await self.sanitize_stock_exploit()
         await self.seed_default_estate_plots()
         await self.seed_default_earth_countries()
         await self.seed_default_earth_countries()
@@ -2517,6 +2518,64 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self._db.commit()
 
 
+
+    async def sanitize_stock_exploit(self):
+        """Sanitize any stock market runaway prices, refund/correct buy basis, and clamp exploited medal balances."""
+        try:
+            async with self._db.execute("SELECT count(*) FROM stocks WHERE price > 2000") as cur:
+                has_corrupt_stocks = (await cur.fetchone())[0] > 0
+
+            async with self._db.execute("SELECT count(*) FROM user_stocks WHERE avg_buy_price > 500") as cur:
+                has_corrupt_basis = (await cur.fetchone())[0] > 0
+
+            async with self._db.execute("SELECT count(*) FROM users WHERE medals > 2000000") as cur:
+                has_corrupt_wallets = (await cur.fetchone())[0] > 0
+
+            async with self._db.execute("SELECT count(*) FROM banks WHERE balance > 2000000") as cur:
+                has_corrupt_banks = (await cur.fetchone())[0] > 0
+
+            if not has_corrupt_stocks and not has_corrupt_basis and not has_corrupt_wallets and not has_corrupt_banks:
+                return
+
+            print("🛡️ [Sanitizer] Stock market & hyper-inflation remediation starting...", flush=True)
+
+            stock_baselines = {
+                "PRC": 140,
+                "TSC": 180,
+                "VNG": 125,
+                "AERO": 155,
+                "CRYP": 95,
+                "TSLA": 165,
+                "PANDA": 45
+            }
+            for sym, price in stock_baselines.items():
+                await self._db.execute("UPDATE stocks SET price = ? WHERE symbol = ?", (price, sym))
+
+            await self._db.execute("DELETE FROM stock_history WHERE price > 2000")
+
+            for sym, price in stock_baselines.items():
+                await self._db.execute("""
+                    UPDATE user_stocks
+                    SET avg_buy_price = ?
+                    WHERE stock_id = (SELECT id FROM stocks WHERE symbol = ?) AND avg_buy_price > 500
+                """, (float(price), sym))
+
+            await self._db.execute("""
+                UPDATE users
+                SET medals = 150000
+                WHERE medals > 1000000
+            """)
+
+            await self._db.execute("""
+                UPDATE banks
+                SET balance = 50000
+                WHERE balance > 1000000
+            """)
+
+            await self._db.commit()
+            print("✅ [Sanitizer] Stock prices reset, buy basis corrected, and excessive exploit medals removed.", flush=True)
+        except Exception as e:
+            print(f"⚠️ [Sanitizer Error] {e}", flush=True)
 
     async def get_all_stocks(self) -> list[dict]:
 
