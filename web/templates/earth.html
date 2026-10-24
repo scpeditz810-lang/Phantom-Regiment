@@ -3154,19 +3154,36 @@ function createWarshipMesh(isCarrier = false, hullColor = 0x475569) {
 
 function createArmyDivisionMesh(color = 0xef4444) {
     const unit = new THREE.Group();
-    const uniform = new THREE.MeshStandardMaterial({color, metalness:0.28, roughness:0.7});
-    const dark = new THREE.MeshStandardMaterial({color:0x1e293b, roughness:0.8});
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.42,0.95),uniform);
-    body.position.y=0.42; unit.add(body);
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.48,0.28,0.42),uniform);
-    cabin.position.set(0,0.73,-0.08); unit.add(cabin);
-    [-0.27,0.27].forEach(x => {
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,0.14,8),dark);
-        wheel.rotation.z=Math.PI/2; wheel.position.set(x,0.25,0); unit.add(wheel);
+    const uniform = new THREE.MeshStandardMaterial({color, metalness:0.08, roughness:0.82});
+    const skin = new THREE.MeshStandardMaterial({color:0xd69a78, roughness:0.9});
+    const dark = new THREE.MeshStandardMaterial({color:0x172033, roughness:0.85});
+    // A division is represented by a clearly human three-soldier squad.
+    [-0.48,0,0.48].forEach((x, index) => {
+        const soldier = new THREE.Group();
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.52,0.2),uniform);
+        torso.position.y=0.78; soldier.add(torso);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.14,10,8),skin);
+        head.position.y=1.18; soldier.add(head);
+        const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.155,10,6),dark);
+        helmet.scale.y=0.52; helmet.position.y=1.29; soldier.add(helmet);
+        [-0.09,0.09].forEach(legX => {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.09,0.38,0.1),dark);
+            leg.position.set(legX,0.32,0); soldier.add(leg);
+        });
+        [-0.2,0.2].forEach(armX => {
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.38,0.08),uniform);
+            arm.rotation.z=armX<0?-0.28:0.28; arm.position.set(armX,0.78,0); soldier.add(arm);
+        });
+        const rifle = new THREE.Mesh(new THREE.BoxGeometry(0.055,0.055,0.48),dark);
+        rifle.rotation.x=Math.PI/2; rifle.position.set(index===1?0.16:0.12,0.78,0.2); soldier.add(rifle);
+        soldier.position.x=x; soldier.position.z=(index===1?0.08:-0.12);
+        unit.add(soldier);
     });
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.24,0.16),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));
-    flag.position.set(0,1.03,0); unit.add(flag);
-    unit.scale.setScalar(0.72);
+    const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.85,6),dark);
+    flagPole.position.set(0,1.6,-0.1); unit.add(flagPole);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.32,0.2),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));
+    flag.position.set(0.16,1.82,-0.1); unit.add(flag);
+    unit.scale.setScalar(1.15);
     return unit;
 }
 
@@ -3200,7 +3217,7 @@ function createBattleTankMesh(color = 0xef4444) {
             wheel.rotation.z=Math.PI/2; wheel.position.set(x,0.28,z); tank.add(wheel);
         });
     });
-    tank.scale.setScalar(0.72);
+    tank.scale.setScalar(0.98);
     tank.userData.turret=turret; tank.userData.flash=flash;
     return tank;
 }
@@ -3817,7 +3834,7 @@ function animateMilitaryUnits(time) {
         const spread = Math.min(0.06, 0.018 * u.formationSize);
         const sideOffset = (u.formationIndex - (u.formationSize - 1) / 2) * spread;
         const p = Math.max(0.03, Math.min(0.97, centerP + sideOffset + (wave - 0.5) * 0.012));
-        const pos = u.groundCurve.getPointAt(p).normalize().multiplyScalar(GLOBE_RADIUS * 1.009);
+        const pos = u.groundCurve.getPointAt(p).normalize().multiplyScalar(GLOBE_RADIUS * 1.015);
         const lookP = Math.max(0.001, Math.min(0.999, p + (u.attacker ? 0.003 : -0.003)));
         const next = u.groundCurve.getPointAt(lookP).normalize().multiplyScalar(GLOBE_RADIUS * 1.009);
         unit.position.copy(pos);
@@ -5044,6 +5061,14 @@ function renderCabinetTab(c, isLeader, isOwner, container) {
             President and Ministers direct national portfolios. Appointed candidates must formally accept decrees before taking office.
 
         </div>
+
+        ${isOwner ? `
+            <div class="info-tile" style="margin-bottom:0.8rem;border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.06);">
+                <div style="font-weight:800;color:#fbbf24;margin-bottom:.25rem;">👑 Presidential Command Appointments</div>
+                <div style="font-size:.74rem;color:#cbd5e1;margin-bottom:.55rem;">Hire a Commander or nominate another cabinet minister. The candidate must accept the decree before receiving authority.</div>
+                <button class="hud-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 0 14px rgba(245,158,11,.32);" onclick="openAppointCabinetModal('defense','Army Commander','⚔️')">⚔️ Hire Commander</button>
+            </div>
+        ` : ''}
 
     `;
 
