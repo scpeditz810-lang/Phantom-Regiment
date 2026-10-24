@@ -5911,72 +5911,93 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
     # ─── Custom Global Alliances & Coalitions ──────────────────────────────────
 
     async def create_earth_alliance(self, user_id: int, country_id: int, name: str, banner_color: str = "#3b82f6") -> tuple[bool, str, int]:
-        """Establish a new named global sovereign coalition/alliance."""
+        """Establish a coalition and debit the charter fee atomically."""
         if self._db is None:
             await self.setup()
-
         can_lead = await self.has_earth_cabinet_permission(user_id, country_id, "diplomat")
         if not can_lead:
             return False, "⛔ Authorization Denied: Only the President or Chief Diplomat can charter international coalitions!", 0
-
-        name = name.strip()
+        name = " ".join(str(name).split())
         if len(name) < 3 or len(name) > 32:
             return False, "Alliance name must be between 3 and 32 characters.", 0
-
         cost = 500000
         econ = await self.get_global_economy(user_id)
         if econ.get("medals", 0) < cost:
             return False, f"Chartering a global alliance requires {cost:,} Medals.", 0
-
         now = time.time()
         try:
-            async with self._db.execute("""
-                INSERT INTO earth_alliances (name, creator_country_id, banner_color, created_at)
-                VALUES (?, ?, ?, ?)
-            """, (name, country_id, banner_color, now)) as cur:
+            await self._db.execute("BEGIN IMMEDIATE")
+            async with self._db.execute("SELECT alliance_id FROM earth_countries WHERE id=? AND owner_id IS NOT NULL", (country_id,)) as cur:
+                country = await cur.fetchone()
+            if not country:
+                await self._db.rollback()
+                return False, "Country not found or no longer controlled by you.", 0
+            if country[0]:
+                await self._db.rollback()
+                return False, "Your country is already in an alliance.", 0
+            async with self._db.execute(
+                "UPDATE global_economy SET medals=medals-? WHERE user_id=? AND medals>=?",
+                (cost, user_id, cost)
+            ) as cur:
+                if cur.rowcount != 1:
+                    await self._db.rollback()
+                    return False, "Your wallet changed before the charter completed.", 0
+            await self._db.execute("UPDATE users SET medals=(SELECT medals FROM global_economy WHERE user_id=?) WHERE user_id=?", (user_id, user_id))
+            async with self._db.execute(
+                "INSERT INTO earth_alliances (name, creator_country_id, banner_color, created_at) VALUES (?, ?, ?, ?)",
+                (name, country_id, banner_color, now)
+            ) as cur:
                 alliance_id = cur.lastrowid
-            await self._db.execute("UPDATE earth_countries SET alliance_id = ? WHERE id = ?", (alliance_id, country_id))
+            await self._db.execute("UPDATE earth_countries SET alliance_id=? WHERE id=?", (alliance_id, country_id))
             await self._db.commit()
-            await self.subtract_medals(user_id, cost)
-            return True, f"🌐 Treaty Established! Custom Coalition **'{name}'** officially chartered! Member nations gain mutual defensive pacts.", alliance_id
+            return True, f"🌐 Treaty Established! Custom Coalition **'{name}'** officially chartered.", alliance_id
         except Exception as e:
+            await self._db.rollback()
             return False, f"Alliance name already taken or invalid: {e}", 0
 
     async def join_earth_alliance(self, user_id: int, country_id: int, alliance_id: int) -> tuple[bool, str]:
-        """Join an existing international sovereign coalition."""
+        """Join an existing alliance directly when authorized; never overwrite membership."""
         if self._db is None:
             await self.setup()
-
-        can_lead = await self.has_earth_cabinet_permission(user_id, country_id, "diplomat")
-        if not can_lead:
+        if not await self.has_earth_cabinet_permission(user_id, country_id, "diplomat"):
             return False, "⛔ Authorization Denied: Only the President or Chief Diplomat can sign alliance accession protocols!"
-
-        async with self._db.execute("SELECT name FROM earth_alliances WHERE id = ?", (alliance_id,)) as cur:
-            row = await cur.fetchone()
-            if not row:
-                return False, "Coalition treaty not found."
-            al_name = row[0]
-
-        await self._db.execute("UPDATE earth_countries SET alliance_id = ? WHERE id = ?", (alliance_id, country_id))
+        async with self._db.execute("SELECT name FROM earth_alliances WHERE id=?", (alliance_id,)) as cur:
+            alliance = await cur.fetchone()
+        if not alliance:
+            return False, "Coalition treaty not found."
+        async with self._db.execute("SELECT alliance_id FROM earth_countries WHERE id=? AND owner_id IS NOT NULL", (country_id,)) as cur:
+            country = await cur.fetchone()
+        if not country:
+            return False, "Country not found."
+        if country[0] and int(country[0]) != int(alliance_id):
+            return False, "Leave your current alliance before joining another."
+        if country[0] == alliance_id:
+            return False, "Your country is already in this alliance."
+        await self._db.execute("UPDATE earth_countries SET alliance_id=? WHERE id=?", (alliance_id, country_id))
+        await self._db.execute("UPDATE earth_alliance_requests SET status='cancelled' WHERE country_id=? AND status='pending'", (country_id,))
         await self._db.commit()
-        return True, f"🤝 Acceded to **{al_name}**! Your nation is now under collective defense guarantees."
+        return True, f"🤝 Acceded to **{alliance[0]}**! Your nation is now under collective defense guarantees."
 
     async def request_earth_alliance(self, user_id: int, country_id: int, alliance_id: int) -> tuple[bool, str]:
         if self._db is None:
             await self.setup()
         if not await self.has_earth_cabinet_permission(user_id, country_id, "diplomat"):
             return False, "Only the President or Chief Diplomat can send alliance requests."
-        async with self._db.execute("SELECT alliance_id FROM earth_countries WHERE id = ? AND owner_id = ?", (country_id, user_id)) as cur:
+        async with self._db.execute("SELECT alliance_id FROM earth_countries WHERE id=?", (country_id,)) as cur:
             country = await cur.fetchone()
         if not country:
-            return False, "You do not control this country."
+            return False, "Country not found."
         if country[0]:
             return False, "Leave your current alliance before requesting another."
-        async with self._db.execute("SELECT 1 FROM earth_alliances WHERE id = ?", (alliance_id,)) as cur:
-            if not await cur.fetchone(): return False, "Alliance not found."
+        async with self._db.execute("SELECT 1 FROM earth_alliances WHERE id=?", (alliance_id,)) as cur:
+            if not await cur.fetchone():
+                return False, "Alliance not found."
         await self._db.execute("UPDATE earth_alliance_requests SET status='cancelled' WHERE country_id=? AND status='pending'", (country_id,))
         try:
-            await self._db.execute("INSERT INTO earth_alliance_requests (alliance_id,country_id,requester_id,status,created_at) VALUES (?,?,?,'pending',?)", (alliance_id,country_id,user_id,time.time()))
+            await self._db.execute(
+                "INSERT INTO earth_alliance_requests (alliance_id,country_id,requester_id,status,created_at) VALUES (?,?,?,'pending',?)",
+                (alliance_id, country_id, user_id, time.time())
+            )
             await self._db.commit()
         except Exception:
             await self._db.rollback()
@@ -5984,7 +6005,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         return True, "Alliance request sent to the coalition leader."
 
     async def get_earth_alliance_requests(self, user_id: int, country_id: int) -> list[dict]:
-        if self._db is None: await self.setup()
+        if self._db is None:
+            await self.setup()
         async with self._db.execute("""
             SELECT r.id, r.alliance_id, r.country_id, r.requester_id, r.created_at,
                    a.name AS alliance_name, c.name AS country_name, c.flag AS country_flag
@@ -5992,36 +6014,51 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             JOIN earth_alliances a ON a.id=r.alliance_id
             JOIN earth_countries creator ON creator.id=a.creator_country_id
             JOIN earth_countries c ON c.id=r.country_id
-            WHERE creator.owner_id=? AND r.status='pending' ORDER BY r.created_at DESC
+            WHERE creator.owner_id=? AND r.status='pending'
+            ORDER BY r.created_at DESC
         """, (user_id,)) as cur:
             return [dict(row) for row in await cur.fetchall()]
 
     async def respond_earth_alliance_request(self, user_id: int, request_id: int, accept: bool) -> tuple[bool, str]:
-        if self._db is None: await self.setup()
-        async with self._db.execute("""SELECT r.*, a.name, creator.id AS creator_id, creator.owner_id AS leader_id
-            FROM earth_alliance_requests r JOIN earth_alliances a ON a.id=r.alliance_id
-            JOIN earth_countries creator ON creator.id=a.creator_country_id
-            WHERE r.id=? AND r.status='pending'""", (request_id,)) as cur:
-            row=await cur.fetchone()
-        if not row or str(row["leader_id"]) != str(user_id): return False, "Only the alliance leader can respond to this request."
-        status="accepted" if accept else "rejected"
-        await self._db.execute("UPDATE earth_alliance_requests SET status=? WHERE id=?", (status,request_id))
-        if accept:
-            await self._db.execute("UPDATE earth_countries SET alliance_id=? WHERE id=?", (row["alliance_id"],row["country_id"]))
-            await self._db.execute("UPDATE earth_alliance_requests SET status='cancelled' WHERE country_id=? AND status='pending' AND id<>?", (row["country_id"],request_id))
-        await self._db.commit()
-        return True, ("Alliance request accepted." if accept else "Alliance request rejected.")
+        if self._db is None:
+            await self.setup()
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute("""
+                SELECT r.*, a.name, creator.owner_id AS leader_id, c.owner_id AS requester_owner, c.alliance_id AS current_alliance
+                FROM earth_alliance_requests r
+                JOIN earth_alliances a ON a.id=r.alliance_id
+                JOIN earth_countries creator ON creator.id=a.creator_country_id
+                JOIN earth_countries c ON c.id=r.country_id
+                WHERE r.id=? AND r.status='pending'
+            """, (request_id,)) as cur:
+                row = await cur.fetchone()
+            if not row or str(row["leader_id"]) != str(user_id):
+                await self._db.rollback()
+                return False, "Only the alliance leader can respond to this request."
+            if accept and (row["requester_owner"] is None or row["current_alliance"] is not None):
+                await self._db.execute("UPDATE earth_alliance_requests SET status='cancelled' WHERE id=?", (request_id,))
+                await self._db.commit()
+                return False, "This country is no longer eligible for alliance membership."
+            status = "accepted" if accept else "rejected"
+            await self._db.execute("UPDATE earth_alliance_requests SET status=? WHERE id=?", (status, request_id))
+            if accept:
+                await self._db.execute("UPDATE earth_countries SET alliance_id=? WHERE id=?", (row["alliance_id"], row["country_id"]))
+                await self._db.execute("UPDATE earth_alliance_requests SET status='cancelled' WHERE country_id=? AND status='pending' AND id<>?", (row["country_id"], request_id))
+            await self._db.commit()
+            return True, ("Alliance request accepted." if accept else "Alliance request rejected.")
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def leave_earth_alliance(self, user_id: int, country_id: int) -> tuple[bool, str]:
         """Withdraw from your current international coalition."""
         if self._db is None:
             await self.setup()
-
-        can_lead = await self.has_earth_cabinet_permission(user_id, country_id, "diplomat")
-        if not can_lead:
+        if not await self.has_earth_cabinet_permission(user_id, country_id, "diplomat"):
             return False, "⛔ Authorization Denied: Only the President or Chief Diplomat can renounce alliance membership!"
-
-        await self._db.execute("UPDATE earth_countries SET alliance_id = NULL WHERE id = ?", (country_id,))
+        await self._db.execute("UPDATE earth_countries SET alliance_id=NULL WHERE id=?", (country_id,))
+        await self._db.execute("UPDATE earth_alliance_requests SET status='cancelled' WHERE country_id=? AND status='pending'", (country_id,))
         await self._db.commit()
         return True, "Withdrew from alliance. Your nation is now non-aligned."
 
