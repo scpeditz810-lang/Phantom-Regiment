@@ -9,6 +9,7 @@ let currentBankAction = 'deposit';
 
 document.addEventListener("DOMContentLoaded", () => {
     initMarket();
+    initPlayerCompanyForm();
     loadLeaderboards();
     if (document.getElementById("portfolio-body")) {
         loadPortfolio();
@@ -28,6 +29,62 @@ async function initMarket() {
             loadChart(activeStockId);
         }
     }, 25000);
+}
+
+async function initPlayerCompanyForm() {
+    const form = document.getElementById("player-company-form");
+    if (!form) return;
+    const status = document.getElementById("company-owner-status");
+    try {
+        const response = await fetch("/api/companies/mine");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data.company) return;
+        status.innerText = data.company.name + " (" + data.company.symbol + ") is listed at " +
+            Number(data.company.price).toLocaleString() + " Medals per share. AI review: " + data.company.ai_status +
+            ". Company treasury: " + Number(data.company.treasury || 0).toLocaleString() + " Medals.";
+        form.hidden = true;
+    } catch (error) {
+        status.innerText = "Your company listing could not be loaded.";
+    }
+}
+
+async function submitPlayerCompany(event) {
+    event.preventDefault();
+    const form = document.getElementById("player-company-form");
+    const status = document.getElementById("company-owner-status");
+    const button = document.getElementById("company-submit");
+    if (!form || !status || !button) return;
+    button.disabled = true;
+    status.innerText = "Submitting the company and checking the reported figures...";
+    const payload = {
+        name: document.getElementById("company-name").value.trim(),
+        symbol: document.getElementById("company-symbol").value.trim().toUpperCase(),
+        sector: document.getElementById("company-sector").value,
+        valuation: document.getElementById("company-valuation").value,
+        annual_revenue: document.getElementById("company-revenue").value,
+        annual_profit: document.getElementById("company-profit").value,
+        debt: document.getElementById("company-debt").value,
+        description: document.getElementById("company-description").value.trim()
+    };
+    try {
+        const response = await fetch("/api/companies/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        status.innerText = data.message || "Company submission failed.";
+        if (response.ok && data.success) {
+            form.hidden = true;
+            await loadStocks(true);
+        } else {
+            button.disabled = false;
+        }
+    } catch (error) {
+        status.innerText = "Company submission failed. Please try again.";
+        button.disabled = false;
+    }
 }
 
 // ── Stock Loading & Rendering ────────────────────────────────────────────────
@@ -97,6 +154,7 @@ function renderStockCards() {
                     <div>
                         <div class="stock-symbol">${s.symbol}</div>
                         <div class="stock-company">${s.name}</div>
+                        ${s.company_owner_id ? `<div style="font-size:0.68rem;color:#94a3b8;">${s.company_sector || "Player company"}</div>` : ""}
                     </div>
                     <span class="${isUp ? 'tag-up' : 'tag-down'}">
                         ${sign}${s.change_pct}%
@@ -110,6 +168,7 @@ function renderStockCards() {
                     <span>Avail: ${s.available_shares} / ${s.total_supply}</span>
                     <span>Max: 250/usr</span>
                 </div>
+                ${s.company_owner_id ? `<div style="font-size:0.68rem;margin-top:0.35rem;color:${s.ai_status === "approved" ? "#86efac" : "#fca5a5"};">AI review: ${s.ai_status === "approved" ? "approved" : "crash-adjusted"} • fair value ${Number(s.fair_value || 0).toLocaleString()} M • treasury ${Number(s.company_treasury || 0).toLocaleString()} M</div>` : ""}
             </div>
         `;
     }).join("");
