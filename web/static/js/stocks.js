@@ -290,11 +290,11 @@ function renderStockCards() {
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div class="stock-price text-blue">${s.price.toLocaleString()} Medals</div>
-                    <span style="color:#22c55e; font-size:0.68rem; font-weight:800; background:rgba(34,197,94,0.12); padding:0.15rem 0.4rem; border-radius:4px;">💰 +2% Div</span>
+                    <span style="color:#22c55e; font-size:0.68rem; font-weight:800; background:rgba(34,197,94,0.12); padding:0.15rem 0.4rem; border-radius:4px;">💰 +${Number(s.dividend_yield_pct ?? 0.1).toFixed(1)}% Div</span>
                 </div>
                 <div class="stock-footer">
                     <span>Avail: ${s.available_shares} / ${s.total_supply}</span>
-                    <span>Max: 250/usr</span>
+                    <span>Max: ${Number(s.max_holding || 100).toLocaleString()}/usr</span>
                 </div>
                 ${s.company_owner_id ? `<div style="font-size:0.68rem;margin-top:0.35rem;color:${s.ai_status === "approved" ? "#86efac" : "#fca5a5"};">AI review: ${s.ai_status === "approved" ? "approved" : "crash-adjusted"} • fair value ${Number(s.fair_value || 0).toLocaleString()} M • treasury ${Number(s.company_treasury || 0).toLocaleString()} M</div>` : ""}
             </div>
