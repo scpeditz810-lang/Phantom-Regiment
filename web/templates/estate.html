@@ -1018,6 +1018,14 @@ let userInteractionTimeout = null;
 let countriesData = [];
 let warsData = [];
 let tradeRoutesData = [];
+let militaryAirGroup = null;
+let navalFleetsGroup = null;
+let combatFXGroup = null;
+let activeSortieJets = [];
+let combatPatrolJets = [];
+let deployedNavalVessels = [];
+let activeCombatExplosions = [];
+let activeCombatShockwaves = [];
 let statsData = {};
 let serverMembers = [];
 let unData = {};
@@ -1190,6 +1198,12 @@ function init3DWorld() {
     earthGroup.add(countryPinsGroup);
     earthGroup.add(warArcsGroup);
     earthGroup.add(tradeRoutesGroup);
+    militaryAirGroup = new THREE.Group();
+    navalFleetsGroup = new THREE.Group();
+    combatFXGroup = new THREE.Group();
+    earthGroup.add(militaryAirGroup);
+    earthGroup.add(navalFleetsGroup);
+    earthGroup.add(combatFXGroup);
 
     // Events
     window.addEventListener("resize", onWindowResize);
@@ -1253,83 +1267,641 @@ function renderCountryPins() {
         // Base coordinate strictly on surface of globe
         const pos = latLngToVector3(c.lat, c.lng, GLOBE_RADIUS * 1.012);
 
-        let color = 0x94a3b8;
-        const isSuperpower = c.gdp >= 100000000;
+        let color = 0x38bdf8;
+        const isSuperpower = (c.gdp || 0) >= 80000000;
+        const isMajorPower = (c.gdp || 0) >= 35000000;
         const isMine = Boolean(userCountry && userCountry.id === c.id);
         const isSelected = Boolean(selectedCountry && selectedCountry.id === c.id);
+        const isWar = (c.active_war_count || 0) > 0;
+        const isRioting = Boolean(c.is_rioting);
+        const isFrontier = !c.owner_id;
 
-        if (isMine) color = 0x10b981;
-        else if (c.is_rioting) color = 0xf59e0b;
-        else if (c.active_war_count > 0) color = 0xef4444;
-        else if (isSuperpower) color = 0x38bdf8;
-        else if (!c.owner_id) color = 0xa855f7;
+        if (isMine) color = 0x10b981; // Vibrant emerald green for player country
+        else if (isWar) color = 0xef4444; // Blazing red for active warzone
+        else if (isRioting) color = 0xf59e0b; // Amber for civil riots
+        else if (isSuperpower) color = 0x38bdf8; // Luminous cyan for superpowers
+        else if (isMajorPower) color = 0x60a5fa; // Sky blue for G20 major powers
+        else if (isFrontier) color = 0xc084fc; // Radiant amethyst for unclaimed frontier
+        else color = 0x93c5fd; // Claimed sovereign state
 
-        // Group positioned on globe surface looking at origin
+        // Marker group positioned on globe surface looking at center (local -Z is OUTWARD into space)
         const marker = new THREE.Group();
         marker.position.copy(pos);
         marker.lookAt(new THREE.Vector3(0, 0, 0));
         marker.userData = { countryId: c.id, countryData: c };
 
-        // 1. Surface Ring (flat on local ground, offset +0.05 outward from globe)
-        const ringRadius = isSelected || isMine ? 2.0 : 1.35;
-        const ringGeo = new THREE.RingGeometry(ringRadius * 0.55, ringRadius, 16);
+        // 1. Dual Glowing Ground Ripple Rings (Visible on terrain surface)
+        const ringOuter = isSelected || isMine ? 2.6 : (isWar ? 2.3 : 1.75);
+        const ringInner = ringOuter * 0.52;
+        const ringGeo = new THREE.RingGeometry(ringInner, ringOuter, 20);
         const ringMat = new THREE.MeshBasicMaterial({
             color: color,
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: isSelected || isMine ? 0.95 : 0.65
+            opacity: isSelected || isMine ? 0.95 : (isWar ? 0.9 : 0.72)
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
         ring.position.set(0, 0, 0.05);
         marker.add(ring);
 
-        // 2. Tactical Pin Cone (pointing tip outward into space along local -Z)
-        const pinHeight = isSelected || isMine ? 3.6 : 2.5;
-        const pinRadius = isSelected || isMine ? 0.65 : 0.45;
-        const pinGeo = new THREE.ConeGeometry(pinRadius, pinHeight, 8);
-        pinGeo.rotateX(-Math.PI / 2);
-        pinGeo.translate(0, 0, -pinHeight / 2);
-        const pinMat = new THREE.MeshBasicMaterial({ color: color });
-        const pinMesh = new THREE.Mesh(pinGeo, pinMat);
-        marker.add(pinMesh);
+        // 2. Vertical Luminous Beacon Light Pillar (Shooting up along local -Z)
+        const pillarHeight = isSelected || isMine ? 4.8 : (isWar ? 4.2 : 3.4);
+        const pillarGeo = new THREE.CylinderGeometry(0.18, 0.32, pillarHeight, 8);
+        pillarGeo.rotateX(-Math.PI / 2);
+        pillarGeo.translate(0, 0, -pillarHeight / 2);
+        const pillarMat = new THREE.MeshBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: isSelected || isMine ? 0.92 : 0.7
+        });
+        const pillarMesh = new THREE.Mesh(pillarGeo, pillarMat);
+        marker.add(pillarMesh);
 
-        // 3. Text Badge Sprite
-        // Display badge selectively: selected, user's country, superpowers, active wars, riots, or when unowned filter is active
-        const showBadge = isSelected || isMine || c.active_war_count > 0 || c.is_rioting || isSuperpower || (activeFilter === 'unclaimed' && !c.owner_id);
-        if (showBadge) {
-            const sprite = createTextSprite(`${c.flag} ${c.name}`);
-            sprite.position.set(0, 1.2, -pinHeight - 1.2);
-            marker.add(sprite);
-        }
+        // 3. Luminous Tactical Beacon Orb (Top of pillar)
+        const orbRadius = isSelected || isMine ? 1.55 : (isWar ? 1.4 : (isSuperpower ? 1.25 : 1.1));
+        const orbGeo = new THREE.SphereGeometry(orbRadius, 16, 16);
+        const orbMat = new THREE.MeshBasicMaterial({ color: color });
+        const orbMesh = new THREE.Mesh(orbGeo, orbMat);
+        orbMesh.position.set(0, 0, -pillarHeight);
+        marker.add(orbMesh);
+
+        // 4. Tactical Flag & Country Badge Sprite for ALL 48 NATIONS
+        const badgeLabel = isWar ? `⚔️ ${c.flag} ${c.name}` : (isMine ? `★ ${c.flag} ${c.name}` : `${c.flag} ${c.name}`);
+        const sprite = createTacticalBadgeSprite(badgeLabel, {
+            isMine: isMine,
+            isSelected: isSelected,
+            isWar: isWar,
+            isSuperpower: isSuperpower
+        });
+
+        const spriteElevation = -pillarHeight - (orbRadius + 1.2);
+        sprite.position.set(0, 0.4, spriteElevation);
+
+        const badgeScaleX = isSelected || isMine ? 7.8 : (isWar || isSuperpower ? 7.0 : 6.0);
+        const badgeScaleY = isSelected || isMine ? 1.8 : (isWar || isSuperpower ? 1.6 : 1.35);
+        sprite.scale.set(badgeScaleX, badgeScaleY, 1.0);
+        marker.add(sprite);
 
         countryPinsGroup.add(marker);
     });
 }
 
-function createTextSprite(text) {
+function createTacticalBadgeSprite(text, opts = {}) {
     const canvas = document.createElement("canvas");
-    canvas.width = 320;
-    canvas.height = 70;
+    canvas.width = 380;
+    canvas.height = 80;
     const ctx = canvas.getContext("2d");
 
-    ctx.fillStyle = "rgba(10, 15, 29, 0.85)";
-    ctx.strokeStyle = "rgba(56, 189, 248, 0.5)";
-    ctx.lineWidth = 2;
-    ctx.roundRect(5, 5, 310, 60, 10);
+    const isHighlight = opts.isMine || opts.isSelected || opts.isWar;
+    const borderCol = opts.isWar ? "rgba(239, 68, 68, 0.95)" : 
+                      (opts.isMine ? "rgba(16, 185, 129, 0.95)" : 
+                      (opts.isSelected ? "rgba(56, 189, 248, 0.95)" : 
+                      (opts.isSuperpower ? "rgba(56, 189, 248, 0.75)" : "rgba(148, 163, 184, 0.5)")));
+    
+    const bgCol = opts.isWar ? "rgba(35, 10, 15, 0.92)" :
+                  (opts.isMine ? "rgba(6, 35, 25, 0.92)" :
+                  (opts.isSelected ? "rgba(10, 25, 45, 0.92)" : "rgba(10, 15, 29, 0.88)"));
+
+    // Tactical Pill Body
+    ctx.fillStyle = bgCol;
+    ctx.strokeStyle = borderCol;
+    ctx.lineWidth = isHighlight ? 3.5 : 2.0;
+
+    ctx.beginPath();
+    ctx.roundRect(6, 6, 368, 68, 12);
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = "bold 24px 'Segoe UI', system-ui, sans-serif";
-    ctx.fillStyle = "#ffffff";
+    // Subtle glass reflection highlight
+    if (isHighlight) {
+        ctx.beginPath();
+        ctx.roundRect(8, 8, 364, 30, 8);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+        ctx.fill();
+    }
+
+    // Typography
+    ctx.font = isHighlight ? "bold 26px 'Segoe UI', system-ui, sans-serif" : "600 24px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = opts.isWar ? "#fca5a5" : (opts.isMine ? "#6ee7b7" : "#ffffff");
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(text, 160, 35);
+
+    let displayText = text;
+    if (displayText.length > 26) {
+        displayText = displayText.slice(0, 24) + "...";
+    }
+    ctx.fillText(displayText, 190, 40);
 
     const texture = new THREE.CanvasTexture(canvas);
-    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(6.8, 1.5, 1.0);
     return sprite;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ✈️ 3D MILITARY ASSETS & VISUAL COMBAT ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function createFighterJetMesh(primaryColor = 0x475569, exhaustColor = 0x00f0ff) {
+    const jet = new THREE.Group();
+
+    // 1. Sleek Aerodynamic Fuselage
+    const fuseGeo = new THREE.ConeGeometry(0.35, 2.8, 5);
+    fuseGeo.rotateX(Math.PI / 2);
+    fuseGeo.scale(1.0, 0.45, 1.0);
+    const fuseMat = new THREE.MeshStandardMaterial({
+        color: primaryColor,
+        roughness: 0.35,
+        metalness: 0.8
+    });
+    const fuseMesh = new THREE.Mesh(fuseGeo, fuseMat);
+    jet.add(fuseMesh);
+
+    // 2. Cockpit Canopy Glass
+    const canopyGeo = new THREE.ConeGeometry(0.2, 1.0, 4);
+    canopyGeo.rotateX(Math.PI / 2);
+    canopyGeo.scale(0.75, 0.5, 1.0);
+    const canopyMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        roughness: 0.1,
+        metalness: 0.95,
+        transparent: true,
+        opacity: 0.85
+    });
+    const canopyMesh = new THREE.Mesh(canopyGeo, canopyMat);
+    canopyMesh.position.set(0, 0.22, 0.25);
+    jet.add(canopyMesh);
+
+    // 3. Delta Wings
+    const wingShape = new THREE.Shape();
+    wingShape.moveTo(0, 0.6);
+    wingShape.lineTo(-2.2, -0.7);
+    wingShape.lineTo(-2.0, -1.0);
+    wingShape.lineTo(-0.4, -0.8);
+    wingShape.lineTo(0, -0.8);
+    wingShape.lineTo(0.4, -0.8);
+    wingShape.lineTo(2.0, -1.0);
+    wingShape.lineTo(2.2, -0.7);
+    wingShape.closePath();
+    const wingGeo = new THREE.ShapeGeometry(wingShape);
+    wingGeo.rotateX(-Math.PI / 2);
+    const wingMesh = new THREE.Mesh(wingGeo, fuseMat);
+    wingMesh.position.set(0, 0.02, 0);
+    jet.add(wingMesh);
+
+    // 4. Twin Canted Tail Stabilizers (angled outward)
+    const finShape = new THREE.Shape();
+    finShape.moveTo(0, 0);
+    finShape.lineTo(-0.35, 0.8);
+    finShape.lineTo(0.1, 0.8);
+    finShape.lineTo(0.4, 0);
+    finShape.closePath();
+    const finGeo = new THREE.ShapeGeometry(finShape);
+
+    // Left Fin
+    const leftFin = new THREE.Mesh(finGeo, fuseMat);
+    leftFin.position.set(-0.35, 0.05, -0.9);
+    leftFin.rotation.y = -0.15;
+    leftFin.rotation.z = 0.25;
+    jet.add(leftFin);
+
+    // Right Fin
+    const rightFin = new THREE.Mesh(finGeo, fuseMat);
+    rightFin.position.set(0.35, 0.05, -0.9);
+    rightFin.rotation.y = 0.15;
+    rightFin.rotation.z = -0.25;
+    jet.add(rightFin);
+
+    // 5. Twin Supersonic Afterburners (Pulsing Glow)
+    const exhaustMat = new THREE.MeshBasicMaterial({
+        color: exhaustColor,
+        transparent: true,
+        opacity: 0.95
+    });
+    const exhaustGeo = new THREE.CylinderGeometry(0.08, 0.18, 0.6, 6);
+    exhaustGeo.rotateX(Math.PI / 2);
+
+    const leftExhaust = new THREE.Mesh(exhaustGeo, exhaustMat);
+    leftExhaust.position.set(-0.25, 0, -1.4);
+    jet.add(leftExhaust);
+
+    const rightExhaust = new THREE.Mesh(exhaustGeo, exhaustMat);
+    rightExhaust.position.set(0.25, 0, -1.4);
+    jet.add(rightExhaust);
+
+    jet.userData.exhausts = [leftExhaust, rightExhaust];
+    jet.scale.set(0.7, 0.7, 0.7);
+    return jet;
+}
+
+function createWarshipMesh(isCarrier = false, hullColor = 0x475569) {
+    const ship = new THREE.Group();
+
+    if (isCarrier) {
+        // --- AIRCRAFT CARRIER ---
+        // 1. Heavy Hull
+        const hullGeo = new THREE.BoxGeometry(1.6, 0.65, 4.6);
+        const hullMat = new THREE.MeshStandardMaterial({
+            color: hullColor,
+            roughness: 0.55,
+            metalness: 0.4
+        });
+        const hullMesh = new THREE.Mesh(hullGeo, hullMat);
+        hullMesh.position.set(0, 0.32, 0);
+        ship.add(hullMesh);
+
+        // 2. Angled Flight Deck
+        const deckGeo = new THREE.BoxGeometry(2.0, 0.1, 4.8);
+        const deckMat = new THREE.MeshStandardMaterial({
+            color: 0x1e293b,
+            roughness: 0.8
+        });
+        const deckMesh = new THREE.Mesh(deckGeo, deckMat);
+        deckMesh.position.set(0, 0.68, 0);
+        ship.add(deckMesh);
+
+        // Runway line marking
+        const lineGeo = new THREE.BoxGeometry(0.12, 0.02, 3.8);
+        const lineMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+        const lineMesh = new THREE.Mesh(lineGeo, lineMat);
+        lineMesh.position.set(-0.25, 0.74, 0);
+        ship.add(lineMesh);
+
+        // 3. Island Superstructure (Starboard)
+        const islandGeo = new THREE.BoxGeometry(0.35, 0.6, 1.1);
+        const islandMesh = new THREE.Mesh(islandGeo, hullMat);
+        islandMesh.position.set(0.72, 1.0, -0.2);
+        ship.add(islandMesh);
+
+        // Radar Dome
+        const radarGeo = new THREE.SphereGeometry(0.14, 8, 8);
+        const radarMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const radarMesh = new THREE.Mesh(radarGeo, radarMat);
+        radarMesh.position.set(0.72, 1.4, -0.2);
+        ship.add(radarMesh);
+
+        // Parked carrier strike jet on deck
+        const miniJet = createFighterJetMesh(0x334155, 0x38bdf8);
+        miniJet.scale.set(0.28, 0.28, 0.28);
+        miniJet.position.set(0.4, 0.76, 1.2);
+        miniJet.rotation.y = 0.35;
+        ship.add(miniJet);
+
+    } else {
+        // --- GUIDED MISSILE DESTROYER / CRUISER ---
+        // 1. Long Sleek Hull
+        const hullGeo = new THREE.BoxGeometry(0.85, 0.5, 3.4);
+        const hullMat = new THREE.MeshStandardMaterial({
+            color: hullColor,
+            roughness: 0.5,
+            metalness: 0.45
+        });
+        const hullMesh = new THREE.Mesh(hullGeo, hullMat);
+        hullMesh.position.set(0, 0.25, 0);
+        ship.add(hullMesh);
+
+        // Pointed Bow Wedge
+        const bowGeo = new THREE.ConeGeometry(0.42, 1.2, 4);
+        bowGeo.rotateX(Math.PI / 2);
+        const bowMesh = new THREE.Mesh(bowGeo, hullMat);
+        bowMesh.position.set(0, 0.25, 2.2);
+        ship.add(bowMesh);
+
+        // 2. Conning Tower / Bridge Superstructure
+        const bridgeGeo = new THREE.BoxGeometry(0.5, 0.55, 1.3);
+        const bridgeMesh = new THREE.Mesh(bridgeGeo, hullMat);
+        bridgeMesh.position.set(0, 0.55, 0.2);
+        ship.add(bridgeMesh);
+
+        // Radar Mast & Aegis Phased-Array Dome
+        const radarGeo = new THREE.SphereGeometry(0.16, 8, 8);
+        const radarMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0 });
+        const radarMesh = new THREE.Mesh(radarGeo, radarMat);
+        radarMesh.position.set(0, 0.95, 0.2);
+        ship.add(radarMesh);
+
+        // 3. Forward Main Gun Turret
+        const turretGeo = new THREE.CylinderGeometry(0.14, 0.16, 0.18, 8);
+        const turretMesh = new THREE.Mesh(turretGeo, hullMat);
+        turretMesh.position.set(0, 0.42, 1.3);
+        ship.add(turretMesh);
+
+        const barrelGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.5, 4);
+        barrelGeo.rotateX(Math.PI / 2);
+        const barrelMesh = new THREE.Mesh(barrelGeo, hullMat);
+        barrelMesh.position.set(0, 0.45, 1.6);
+        ship.add(barrelMesh);
+    }
+
+    // 4. Foaming Ocean Wake Trail
+    const wakeGeo = new THREE.PlaneGeometry(1.6, 2.8);
+    wakeGeo.rotateX(-Math.PI / 2);
+    const wakeMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide
+    });
+    const wakeMesh = new THREE.Mesh(wakeGeo, wakeMat);
+    wakeMesh.position.set(0, 0.02, -2.6);
+    ship.add(wakeMesh);
+
+    ship.scale.set(0.65, 0.65, 0.65);
+    return ship;
+}
+
+const STRATEGIC_NAVAL_PORTS = [
+    // North America & Atlantic
+    { name: "Norfolk Naval Station", country: "USA", flag: "🇺🇸", lat: 36.8, lng: -74.2, carrier: true, rot: 0.5 },
+    { name: "San Diego Pacific Fleet", country: "USA", flag: "🇺🇸", lat: 32.4, lng: -118.6, carrier: false, rot: 1.8 },
+    { name: "Pearl Harbor Forward Base", country: "USA", flag: "🇺🇸", lat: 21.2, lng: -158.2, carrier: true, rot: 2.2 },
+    { name: "Halifax Atlantic Base", country: "CAN", flag: "🇨🇦", lat: 44.4, lng: -62.6, carrier: false, rot: 0.9 },
+    { name: "Rio de Janeiro South Atlantic Base", country: "BRA", flag: "🇧🇷", lat: -23.1, lng: -42.1, carrier: false, rot: -0.5 },
+
+    // Europe & Mediterranean
+    { name: "Portsmouth Royal Navy Base", country: "GBR", flag: "🇬🇧", lat: 50.4, lng: -0.6, carrier: true, rot: 1.2 },
+    { name: "Toulon Naval Base", country: "FRA", flag: "🇫🇷", lat: 42.7, lng: 6.4, carrier: true, rot: -1.0 },
+    { name: "Taranto Mediterranean Fleet", country: "ITA", flag: "🇮🇹", lat: 40.1, lng: 17.6, carrier: false, rot: 0.7 },
+    { name: "Wilhelmshaven North Sea Fleet", country: "DEU", flag: "🇩🇪", lat: 54.4, lng: 8.6, carrier: false, rot: -0.3 },
+    { name: "Rota Atlantic Fleet", country: "ESP", flag: "🇪🇸", lat: 36.3, lng: -6.9, carrier: false, rot: 1.4 },
+    { name: "Severomorsk Northern Fleet", country: "RUS", flag: "🇷🇺", lat: 69.7, lng: 34.5, carrier: true, rot: 2.3 },
+    { name: "Vladivostok Pacific Squadron", country: "RUS", flag: "🇷🇺", lat: 42.5, lng: 132.5, carrier: false, rot: -1.6 },
+    { name: "Black Sea Naval Squadron", country: "UKR", flag: "🇺🇦", lat: 45.6, lng: 31.8, carrier: false, rot: 0.8 },
+
+    // Middle East & Africa
+    { name: "Jubail Persian Gulf Base", country: "SAU", flag: "🇸🇦", lat: 27.4, lng: 50.3, carrier: false, rot: 2.5 },
+    { name: "Bandar Abbas Naval Command", country: "IRN", flag: "🇮🇷", lat: 26.6, lng: 56.6, carrier: false, rot: 0.7 },
+    { name: "Alexandria Mediterranean Fleet", country: "EGY", flag: "🇪🇬", lat: 31.5, lng: 29.8, carrier: false, rot: -0.4 },
+    { name: "Simon's Town Cape Base", country: "ZAF", flag: "🇿🇦", lat: -34.5, lng: 18.8, carrier: false, rot: 1.5 },
+
+    // Asia & Pacific
+    { name: "Qingdao Northern Theater Fleet", country: "CHN", flag: "🇨🇳", lat: 35.6, lng: 121.2, carrier: true, rot: 1.4 },
+    { name: "Sanya South China Sea Base", country: "CHN", flag: "🇨🇳", lat: 17.6, lng: 110.4, carrier: false, rot: -0.7 },
+    { name: "Yokosuka Naval Fleet", country: "JPN", flag: "🇯🇵", lat: 34.6, lng: 140.4, carrier: true, rot: 0.4 },
+    { name: "Busan Maritime Base", country: "KOR", flag: "🇰🇷", lat: 34.7, lng: 129.6, carrier: false, rot: 0.9 },
+    { name: "Mumbai Western Naval Fleet", country: "IND", flag: "🇮🇳", lat: 18.5, lng: 72.0, carrier: true, rot: -1.3 },
+    { name: "Visakhapatnam Eastern Fleet", country: "IND", flag: "🇮🇳", lat: 17.0, lng: 83.9, carrier: false, rot: 1.1 },
+    { name: "Karachi Naval Dockyard", country: "PAK", flag: "🇵🇰", lat: 24.4, lng: 66.6, carrier: false, rot: -0.8 },
+    { name: "Singapore Maritime Hub", country: "SGP", flag: "🇸🇬", lat: 1.4, lng: 104.3, carrier: false, rot: 1.9 },
+    { name: "Sydney Fleet Base East", country: "AUS", flag: "🇦🇺", lat: -34.1, lng: 152.0, carrier: true, rot: -0.6 }
+];
+
+function renderNavalFleets() {
+    while (navalFleetsGroup.children.length > 0) {
+        navalFleetsGroup.remove(navalFleetsGroup.children[0]);
+    }
+    deployedNavalVessels = [];
+
+    STRATEGIC_NAVAL_PORTS.forEach((port, idx) => {
+        const ship = createWarshipMesh(port.carrier);
+        
+        // Exact surface position on water (radius * 1.002)
+        const pos = latLngToVector3(port.lat, port.lng, GLOBE_RADIUS * 1.002);
+        ship.position.copy(pos);
+
+        // Align ship to globe surface normal
+        const normal = pos.clone().normalize();
+        const dummy = new THREE.Object3D();
+        dummy.position.copy(pos);
+        dummy.lookAt(new THREE.Vector3(0, 0, 0));
+        
+        ship.quaternion.copy(dummy.quaternion);
+        ship.rotateX(Math.PI / 2); // Lay flat on ocean surface
+        ship.rotateY(port.rot || 0);
+
+        ship.userData = {
+            basePos: pos.clone(),
+            normal: normal,
+            phase: idx * 0.73,
+            name: port.name,
+            country: port.country
+        };
+
+        navalFleetsGroup.add(ship);
+        deployedNavalVessels.push(ship);
+    });
+}
+
+function renderMilitaryAirAirspaces() {
+    while (militaryAirGroup.children.length > 0) {
+        militaryAirGroup.remove(militaryAirGroup.children[0]);
+    }
+    activeSortieJets = [];
+    combatPatrolJets = [];
+
+    // 1. ACTIVE COMBAT SORTIES (Between warring nations)
+    warsData.forEach((w, wIdx) => {
+        const vAtk = latLngToVector3(w.atk_lat, w.atk_lng, GLOBE_RADIUS * 1.014);
+        const vDfn = latLngToVector3(w.dfn_lat, w.dfn_lng, GLOBE_RADIUS * 1.014);
+
+        const vMid = vAtk.clone().add(vDfn).multiplyScalar(0.5);
+        const dist = vAtk.distanceTo(vDfn);
+        vMid.normalize().multiplyScalar(GLOBE_RADIUS + Math.min(42, dist * 0.45));
+
+        const attackCurve = new THREE.QuadraticBezierCurve3(vAtk, vMid, vDfn);
+        const interceptCurve = new THREE.QuadraticBezierCurve3(vDfn, vMid, vAtk);
+
+        // Attack Formation: Lead Strike Jet + Wingman
+        for (let i = 0; i < 2; i++) {
+            const strikeJet = createFighterJetMesh(0xef4444, 0xf97316); // Combat Red with blazing afterburner
+            strikeJet.userData = {
+                curve: attackCurve,
+                progress: (wIdx * 0.33 + i * 0.12) % 1.0,
+                speed: 0.0032,
+                offset: i === 0 ? new THREE.Vector3(0, 0, 0) : new THREE.Vector3(0.8, 0.4, 0),
+                type: 'strike',
+                war: w
+            };
+            militaryAirGroup.add(strikeJet);
+            activeSortieJets.push(strikeJet);
+        }
+
+        // Defender Interceptor Jet
+        const interceptJet = createFighterJetMesh(0x3b82f6, 0x06b6d4); // Cyan / Blue interceptor
+        interceptJet.userData = {
+            curve: interceptCurve,
+            progress: (wIdx * 0.5 + 0.45) % 1.0,
+            speed: 0.0036,
+            offset: new THREE.Vector3(0, 0, 0),
+            type: 'interceptor',
+            war: w
+        };
+        militaryAirGroup.add(interceptJet);
+        activeSortieJets.push(interceptJet);
+    });
+
+    // 2. COMBAT AIR PATROLS (CAP) - Flying tactical air defense circuits over major nations
+    const CAP_NATIONS = ['USA', 'RUS', 'CHN', 'IND', 'GBR', 'FRA', 'JPN', 'DEU', 'BRA', 'AUS', 'SAU'];
+    countriesData.forEach(c => {
+        const isMine = userCountry && userCountry.id === c.id;
+        if (CAP_NATIONS.includes(c.code) || isMine || (c.active_war_count || 0) > 0) {
+            const patJet = createFighterJetMesh(isMine ? 0x10b981 : 0x475569, isMine ? 0x34d399 : 0x38bdf8);
+            const centerPos = latLngToVector3(c.lat, c.lng, GLOBE_RADIUS * 1.035);
+            patJet.userData = {
+                center: centerPos,
+                normal: centerPos.clone().normalize(),
+                radius: 3.2 + (c.id % 3) * 0.8,
+                speed: 0.016 + (c.id % 5) * 0.003,
+                angle: (c.id * 1.37) % (Math.PI * 2),
+                country: c
+            };
+            militaryAirGroup.add(patJet);
+            combatPatrolJets.push(patJet);
+        }
+    });
+}
+
+function renderCombatWarzones() {
+    while (combatFXGroup.children.length > 0) {
+        combatFXGroup.remove(combatFXGroup.children[0]);
+    }
+    activeCombatExplosions = [];
+    activeCombatShockwaves = [];
+
+    warsData.forEach((w) => {
+        const dfnPos = latLngToVector3(w.dfn_lat, w.dfn_lng, GLOBE_RADIUS * 1.012);
+        const normal = dfnPos.clone().normalize();
+
+        // 1. Ground Impact Shockwave Ring
+        const ringGeo = new THREE.RingGeometry(0.5, 3.8, 24);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xef4444,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.8
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.copy(dfnPos);
+        ring.lookAt(new THREE.Vector3(0, 0, 0));
+        combatFXGroup.add(ring);
+        activeCombatShockwaves.push({ mesh: ring, scale: 0.2, opacity: 0.9, speed: 0.015 });
+
+        // 2. Anti-Air Flak Tracer Beams (shooting into sky from ground)
+        for (let i = 0; i < 3; i++) {
+            const flakGeo = new THREE.CylinderGeometry(0.04, 0.04, 8.0, 4);
+            flakGeo.translate(0, 4.0, 0);
+            const flakMat = new THREE.MeshBasicMaterial({
+                color: i % 2 === 0 ? 0xff4444 : 0xfacc15,
+                transparent: true,
+                opacity: 0.85
+            });
+            const flakMesh = new THREE.Mesh(flakGeo, flakMat);
+            flakMesh.position.copy(dfnPos);
+            flakMesh.lookAt(dfnPos.clone().add(normal));
+            flakMesh.rotateX(Math.PI / 2);
+            flakMesh.rotateZ((i * 1.2) - 0.6);
+            flakMesh.rotateX((i * 0.4) - 0.3);
+            combatFXGroup.add(flakMesh);
+            activeCombatExplosions.push({ mesh: flakMesh, type: 'tracer', phase: i * 1.5 });
+        }
+
+        // 3. Fiery Combat Explosion Burst
+        const burstGeo = new THREE.SphereGeometry(1.4, 12, 12);
+        const burstMat = new THREE.MeshBasicMaterial({
+            color: 0xff6600,
+            transparent: true,
+            opacity: 0.9
+        });
+        const burst = new THREE.Mesh(burstGeo, burstMat);
+        burst.position.copy(dfnPos);
+        combatFXGroup.add(burst);
+        activeCombatExplosions.push({ mesh: burst, type: 'burst', scale: 0.5, maxScale: 2.2, phase: 0 });
+    });
+}
+
+function animateMilitaryUnits(time) {
+    // 1. Animate Combat Sortie Jets along arcs
+    activeSortieJets.forEach(jet => {
+        const u = jet.userData;
+        u.progress += u.speed;
+        if (u.progress > 1.0) u.progress = 0;
+
+        const pos = u.curve.getPointAt(u.progress);
+        const tangent = u.curve.getTangentAt(u.progress).normalize();
+
+        jet.position.copy(pos);
+        if (u.offset && u.offset.lengthSq() > 0) {
+            const side = new THREE.Vector3().crossVectors(tangent, pos.clone().normalize()).normalize();
+            jet.position.addScaledVector(side, u.offset.x);
+            jet.position.addScaledVector(pos.clone().normalize(), u.offset.y);
+        }
+
+        jet.lookAt(jet.position.clone().add(tangent));
+
+        if (jet.userData.exhausts) {
+            const glow = 0.9 + 0.3 * Math.sin(time * 25 + u.progress * 10);
+            jet.userData.exhausts.forEach(ex => {
+                ex.scale.set(glow, glow, 1.0 + 0.5 * Math.sin(time * 30));
+            });
+        }
+    });
+
+    // 2. Animate Combat Air Patrols (circling in loops over major countries)
+    combatPatrolJets.forEach(jet => {
+        const u = jet.userData;
+        u.angle += u.speed;
+
+        const up = u.normal;
+        let arb = Math.abs(up.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+        const right = new THREE.Vector3().crossVectors(up, arb).normalize();
+        const fwd = new THREE.Vector3().crossVectors(right, up).normalize();
+
+        const x = Math.cos(u.angle) * u.radius;
+        const z = Math.sin(u.angle) * u.radius;
+
+        const newPos = u.center.clone()
+            .addScaledVector(right, x)
+            .addScaledVector(fwd, z);
+        jet.position.copy(newPos);
+
+        const tx = -Math.sin(u.angle);
+        const tz = Math.cos(u.angle);
+        const tangent = right.clone().multiplyScalar(tx).add(fwd.clone().multiplyScalar(tz)).normalize();
+
+        jet.lookAt(newPos.clone().add(tangent));
+        jet.rotateZ(-0.35); // Combat bank angle
+
+        if (jet.userData.exhausts) {
+            const glow = 0.9 + 0.25 * Math.sin(time * 20);
+            jet.userData.exhausts.forEach(ex => ex.scale.set(glow, glow, 1.0));
+        }
+    });
+
+    // 3. Animate Naval Warships (Ocean wave heaving & bobbing)
+    deployedNavalVessels.forEach(ship => {
+        const u = ship.userData;
+        const heave = Math.sin(time * 2.2 + u.phase) * 0.12;
+        const pitch = Math.cos(time * 1.8 + u.phase) * 0.025;
+        const roll = Math.sin(time * 1.5 + u.phase) * 0.035;
+
+        ship.position.copy(u.basePos).addScaledVector(u.normal, heave);
+        ship.rotation.x += pitch * 0.05;
+        ship.rotation.z += roll * 0.05;
+    });
+
+    // 4. Animate Combat FX (Shockwaves & Explosions)
+    activeCombatShockwaves.forEach(sw => {
+        sw.scale += sw.speed;
+        if (sw.scale > 2.8) {
+            sw.scale = 0.2;
+            sw.opacity = 0.95;
+        } else {
+            sw.opacity = Math.max(0, 0.95 * (1.0 - sw.scale / 2.8));
+        }
+        sw.mesh.scale.set(sw.scale, sw.scale, 1);
+        sw.mesh.material.opacity = sw.opacity;
+    });
+
+    activeCombatExplosions.forEach(fx => {
+        if (fx.type === 'tracer') {
+            fx.mesh.material.opacity = 0.2 + 0.8 * Math.abs(Math.sin(time * 12 + fx.phase));
+        } else if (fx.type === 'burst') {
+            const cycle = (time * 1.5 + fx.phase) % 1.0;
+            const curScale = 0.3 + 2.0 * cycle;
+            fx.mesh.scale.set(curScale, curScale, curScale);
+            fx.mesh.material.opacity = Math.max(0, 1.0 - cycle);
+        }
+    });
 }
 
 function renderWarTrajectories() {
@@ -1391,15 +1963,15 @@ function renderOceanTradeRoutes() {
 
 function shouldShowCountry(c) {
     if (currentFilter === 'all') return true;
-    if (currentFilter === 'my_country') return userCountry && userCountry.id === c.id;
-    if (currentFilter === 'superpowers') return c.gdp >= 80000000;
-    if (currentFilter === 'wars') return c.active_war_count > 0;
-    if (currentFilter === 'riots') return c.is_rioting;
+    if (currentFilter === 'my_country') return Boolean(userCountry && userCountry.id === c.id);
+    if (currentFilter === 'superpowers') return (c.gdp || 0) >= 60000000;
+    if (currentFilter === 'wars') return (c.active_war_count || 0) > 0;
+    if (currentFilter === 'riots') return Boolean(c.is_rioting);
     if (currentFilter === 'unclaimed') return !c.owner_id;
-    if (currentFilter === 'europe') return ['GBR', 'DEU', 'FRA', 'ITA', 'ESP', 'UKR', 'POL', 'NOR', 'CHE', 'GRC', 'SWE', 'NLD'].includes(c.code);
-    if (currentFilter === 'asia') return ['RUS', 'IND', 'CHN', 'JPN', 'KOR', 'IDN', 'PAK', 'VNM', 'SGP', 'THA', 'PHL', 'NZL', 'AUS'].includes(c.code);
+    if (currentFilter === 'europe') return ['GBR', 'DEU', 'FRA', 'ITA', 'ESP', 'UKR', 'POL', 'NOR', 'CHE', 'GRC', 'SWE', 'NLD', 'DNK', 'FIN', 'IRL', 'PRT'].includes(c.code);
+    if (currentFilter === 'asia') return ['RUS', 'IND', 'CHN', 'JPN', 'KOR', 'IDN', 'PAK', 'VNM', 'SGP', 'THA', 'PHL', 'NZL', 'AUS', 'MYS'].includes(c.code);
     if (currentFilter === 'americas') return ['USA', 'CAN', 'BRA', 'MEX', 'ARG', 'COL', 'CHL'].includes(c.code);
-    if (currentFilter === 'me_africa') return ['SAU', 'TUR', 'EGY', 'ZAF', 'IRN', 'NGA', 'ARE', 'KEN', 'MAR', 'ISR'].includes(c.code);
+    if (currentFilter === 'me_africa') return ['SAU', 'TUR', 'EGY', 'ZAF', 'IRN', 'NGA', 'ARE', 'KEN', 'MAR', 'ISR', 'QAT'].includes(c.code);
     return true;
 }
 
@@ -1408,6 +1980,7 @@ function setEarthFilter(filterKey, btn) {
     document.querySelectorAll(".earth-filter-pill").forEach(p => p.classList.remove("active"));
     if (btn) btn.classList.add("active");
     renderCountryPins();
+    renderMilitaryAirAirspaces();
 }
 
 function flyToCountry(c) {
@@ -1482,7 +2055,7 @@ function onWindowResize() {
     renderer.setSize(container.clientWidth, container.clientHeight);
 }
 
-function animate() {
+function animate(timestamp) {
     requestAnimationFrame(animate);
     TWEEN.update();
     controls.update();
@@ -1493,6 +2066,9 @@ function animate() {
     if (cloudsMesh) {
         cloudsMesh.rotation.y += 0.0002;
     }
+
+    const currentTime = (timestamp || performance.now()) * 0.001;
+    animateMilitaryUnits(currentTime);
 
     warArcsGroup.children.forEach(child => {
         if (child.userData && child.userData.curve) {
@@ -1561,6 +2137,9 @@ async function loadVirtualEarthData() {
         renderCountryPins();
         renderWarTrajectories();
         renderOceanTradeRoutes();
+        renderMilitaryAirAirspaces();
+        renderNavalFleets();
+        renderCombatWarzones();
 
         if (selectedCountry) {
             renderDockContent();
