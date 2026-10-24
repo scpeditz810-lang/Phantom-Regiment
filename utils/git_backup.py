@@ -82,12 +82,26 @@ class GitBackup:
         else:
             self._run(["git", "remote", "set-url", "origin", auth_url],
                       cwd=self.repo_dir, check=False)
-            try:
-                self._run(["git", "pull", "origin", "main", "--rebase"],
-                          cwd=self.repo_dir)
-                print("✅  Pulled latest database backup.")
-            except subprocess.CalledProcessError:
-                pass
+            # A valid local DB is newer live state. Never replace it with an
+            # older GitHub snapshot during a restart; only restore remotely when
+            # the local file is missing or fails SQLite integrity validation.
+            local_valid = False
+            if os.path.exists(self.db_path) and os.path.getsize(self.db_path) > 1000:
+                try:
+                    conn = sqlite3.connect(self.db_path)
+                    local_valid = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+                    conn.close()
+                except Exception:
+                    local_valid = False
+            if local_valid:
+                print("✅  Preserved valid local database; skipped rollback-prone remote pull.")
+            else:
+                try:
+                    self._run(["git", "pull", "origin", "main", "--rebase"],
+                              cwd=self.repo_dir)
+                    print("✅  Pulled latest database backup.")
+                except subprocess.CalledProcessError:
+                    pass
 
         self._fix_permissions()
 
