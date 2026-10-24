@@ -2017,6 +2017,25 @@ def api_earth_country_detail(country_id):
 
 
 
+    # Intelligence is private to the country's president/cabinet intelligence role.
+    current_user = session.get("user")
+    can_view_intelligence = False
+    if current_user and current_user.get("id") and c.get("owner_id") is not None:
+        try:
+            current_user_id = int(current_user["id"])
+            country_owner_id = int(c["owner_id"])
+        except (TypeError, ValueError):
+            current_user_id = None
+            country_owner_id = None
+        if current_user_id is not None and country_owner_id == current_user_id:
+            permissions = run_async(db.get_user_earth_permissions(current_user_id))
+            can_view_intelligence = str(country_owner_id) in permissions.get("intelligence", set())
+
+    c["can_view_intelligence"] = can_view_intelligence
+    if not can_view_intelligence:
+        c["spies"] = []
+        c["intelligence"] = []
+
     # Enrich cabinet names and avatars
 
     if c.get("owner_id"):
@@ -2458,7 +2477,7 @@ def api_earth_spy_recruit():
 
     success, msg = run_async(db.recruit_earth_spy(user_id, country_id, codename))
 
-    spies = run_async(db.get_earth_spies(country_id))
+    spies = run_async(db.get_earth_spies(country_id)) if success else []
 
     econ = run_async(db.get_global_economy(user_id))
 
@@ -2506,7 +2525,7 @@ def api_earth_spy_dispatch():
 
     success, msg, mission_data = run_async(db.dispatch_earth_spy(user_id, country_id, spy_id, target_country_id, mission))
 
-    spies = run_async(db.get_earth_spies(country_id))
+    spies = run_async(db.get_earth_spies(country_id)) if success else []
 
     return jsonify({
 
