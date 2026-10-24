@@ -3502,6 +3502,9 @@ function renderMilitaryAirAirspaces() {
         }
 
 
+        // Ground troops belong only to land campaigns. Air and naval wars should
+        // never leave infantry or tanks floating over the battlefield.
+        if (String(w.war_domain || "land").toLowerCase() !== "land") return;
         const groundStart = vAtk.clone().normalize().multiplyScalar(GLOBE_RADIUS * 1.006);
         const groundEnd = vDfn.clone().normalize().multiplyScalar(GLOBE_RADIUS * 1.006);
         const groundControl = vMid.clone().normalize().multiplyScalar(GLOBE_RADIUS * 1.008);
@@ -3831,13 +3834,22 @@ function animateMilitaryUnits(time) {
         const attackerP = 0.22 + u.momentum * 0.48;
         const defenderP = 0.78 + u.momentum * 0.14;
         const centerP = u.attacker ? attackerP : defenderP;
-        const spread = Math.min(0.06, 0.018 * u.formationSize);
-        const sideOffset = (u.formationIndex - (u.formationSize - 1) / 2) * spread;
-        const p = Math.max(0.03, Math.min(0.97, centerP + sideOffset + (wave - 0.5) * 0.012));
-        const pos = u.groundCurve.getPointAt(p).normalize().multiplyScalar(GLOBE_RADIUS * 1.015);
+        // Keep units on the same front position, then spread them laterally
+        // across the battlefield. Previously the spread changed p, placing units
+        // one behind another along the route.
+        const p = Math.max(0.03, Math.min(0.97, centerP + (wave - 0.5) * 0.012));
+        const rawPos = u.groundCurve.getPointAt(p);
+        const surfaceNormal = rawPos.clone().normalize();
+        const pos = surfaceNormal.clone().multiplyScalar(GLOBE_RADIUS * 1.015);
         const lookP = Math.max(0.001, Math.min(0.999, p + (u.attacker ? 0.003 : -0.003)));
-        const next = u.groundCurve.getPointAt(lookP).normalize().multiplyScalar(GLOBE_RADIUS * 1.015);
-        unit.position.copy(pos);
+        const rawNext = u.groundCurve.getPointAt(lookP);
+        const nextNormal = rawNext.clone().normalize();
+        const next = nextNormal.clone().multiplyScalar(GLOBE_RADIUS * 1.015);
+        const tangent = next.clone().sub(pos).projectOnPlane(surfaceNormal).normalize();
+        const lateral = new THREE.Vector3().crossVectors(tangent, surfaceNormal).normalize();
+        const spread = Math.min(2.6, 0.9 * u.formationSize);
+        const sideOffset = (u.formationIndex - (u.formationSize - 1) / 2) * spread;
+        unit.position.copy(pos).addScaledVector(lateral, sideOffset);
         orientMilitaryUnitOnGlobe(unit, pos, u.attacker ? next.clone().sub(pos) : pos.clone().sub(next));
         if (isTank) {
             u.turret.rotation.y = 0.18 * Math.sin(time * 1.7 + u.phase);
