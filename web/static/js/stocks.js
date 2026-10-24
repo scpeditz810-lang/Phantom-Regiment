@@ -10,6 +10,7 @@ let currentBankAction = 'deposit';
 document.addEventListener("DOMContentLoaded", () => {
     initMarket();
     initPlayerCompanyForm();
+    setInterval(() => { initPlayerCompanyForm(); }, 30000);
     loadLeaderboards();
     if (document.getElementById("portfolio-body")) {
         loadPortfolio();
@@ -72,12 +73,17 @@ async function refreshCompanyOffers() {
                 button.textContent = caption;
                 button.addEventListener("click", async () => {
                     button.disabled = true;
-                    const result = await fetch("/api/companies/offers/" + offer.id + "/" + action, {method:"POST"});
-                    const body = await result.json();
                     const status = document.getElementById("company-owner-status");
-                    if (status) status.textContent = body.message || "Offer updated.";
-                    await refreshCompanyOffers();
-                    if (result.ok && action === "accept") await initPlayerCompanyForm();
+                    try {
+                        const result = await fetch("/api/companies/offers/" + offer.id + "/" + action, {method:"POST"});
+                        const body = await result.json();
+                        if (status) status.textContent = body.message || "Offer updated.";
+                        await refreshCompanyOffers();
+                        if (result.ok && action === "accept") await initPlayerCompanyForm();
+                    } catch (error) {
+                        if (status) status.textContent = "Could not update this offer. Please retry.";
+                        button.disabled = false;
+                    }
                 });
                 card.appendChild(button);
             }
@@ -91,31 +97,47 @@ async function refreshCompanyOffers() {
 async function submitCompanyPlayerSale(event) {
     event.preventDefault();
     const status = document.getElementById("company-offer-status");
-    const payload = {
-        buyer_username: document.getElementById("company-buyer-username").value.trim(),
-        price: document.getElementById("company-player-sale-price").value
-    };
-    const response = await fetch("/api/companies/offers", {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
-    });
-    const data = await response.json();
-    if (status) status.textContent = data.message || "Offer could not be sent.";
-    if (response.ok) event.target.reset();
+    const button = event.target.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+        const payload = {
+            buyer_username: document.getElementById("company-buyer-username").value.trim(),
+            price: document.getElementById("company-player-sale-price").value
+        };
+        const response = await fetch("/api/companies/offers", {
+            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (status) status.textContent = data.message || "Offer could not be sent.";
+        if (response.ok) event.target.reset();
+    } catch (error) {
+        if (status) status.textContent = "Could not send the offer. Please retry.";
+    } finally {
+        if (button) button.disabled = false;
+    }
 }
 
 async function submitCompanyBankSale(event) {
     event.preventDefault();
     const status = document.getElementById("company-offer-status");
-    const price = document.getElementById("company-bank-sale-price").value;
-    const response = await fetch("/api/companies/sell-to-bank", {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({price})
-    });
-    const data = await response.json();
-    if (status) status.textContent = data.message || "Bank sale failed.";
-    if (response.ok) {
-        const panel = document.getElementById("company-sale-panel");
-        if (panel) panel.hidden = true;
-        await initPlayerCompanyForm();
+    const button = event.target.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+        const price = document.getElementById("company-bank-sale-price").value;
+        const response = await fetch("/api/companies/sell-to-bank", {
+            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({price})
+        });
+        const data = await response.json();
+        if (status) status.textContent = data.message || "Bank sale failed.";
+        if (response.ok) {
+            const panel = document.getElementById("company-sale-panel");
+            if (panel) panel.hidden = true;
+            await initPlayerCompanyForm();
+        }
+    } catch (error) {
+        if (status) status.textContent = "Could not complete the bank sale. Please retry.";
+    } finally {
+        if (button) button.disabled = false;
     }
 }
 
@@ -134,6 +156,9 @@ async function initPlayerCompanyForm() {
         }
         const data = await response.json();
         if (!data.company) {
+            form.hidden = false;
+            const salePanel = document.getElementById("company-sale-panel");
+            if (salePanel) salePanel.hidden = true;
             await refreshCompanyOffers();
             await refreshCompanyBankBalance();
             return;
@@ -180,6 +205,7 @@ async function submitPlayerCompany(event) {
         if (response.ok && data.success) {
             form.hidden = true;
             await loadStocks(true);
+            await initPlayerCompanyForm();
         } else {
             button.disabled = false;
         }
