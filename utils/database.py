@@ -1235,8 +1235,29 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             row = await cur.fetchone()
 
             if row:
-
-                return dict(row)
+                # global_economy is the canonical wallet, but older bot paths may have
+                # written only the users mirror. Reconcile to the highest persisted value
+                # so a 5-second web refresh can never make Medals disappear.
+                current_medals = int(row["medals"] or 0)
+                async with self._db.execute(
+                    "SELECT MAX(medals) FROM users WHERE user_id = ?", (user_id,)
+                ) as mirror_cur:
+                    mirror_row = await mirror_cur.fetchone()
+                mirror_medals = int(mirror_row[0] or 0) if mirror_row else 0
+                canonical_medals = max(0, current_medals, mirror_medals)
+                if current_medals != canonical_medals or mirror_medals != canonical_medals:
+                    await self._db.execute(
+                        "UPDATE global_economy SET medals = ? WHERE user_id = ?",
+                        (canonical_medals, user_id)
+                    )
+                    await self._db.execute(
+                        "UPDATE users SET medals = ? WHERE user_id = ?",
+                        (canonical_medals, user_id)
+                    )
+                    await self._db.commit()
+                result = dict(row)
+                result["medals"] = canonical_medals
+                return result
 
         # Row doesn't exist yet — seed it from the highest values across all guilds in users table
 
@@ -3774,15 +3795,19 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         await self._db.execute("BEGIN IMMEDIATE")
         try:
-            # Player currency, bank accounts, loans, insurance, and economy cooldowns.
-            await self._db.execute("""
-                UPDATE users SET medals = 0, last_daily = 0, last_work = 0,
-                    last_weekly = 0, last_crime = 0, last_scavenge = 0, last_trivia = 0
-            """)
-            await self._db.execute("""
-                UPDATE global_economy SET medals = 0, last_daily = 0, last_work = 0,
-                    last_weekly = 0, last_crime = 0, last_scavenge = 0, last_trivia = 0
-            """)
+            # Preserve existing wallets when upgrading an older database. A missing
+            # reset marker must never wipe live balances during a web/Discord restart.
+            async with self._db.execute("SELECT COUNT(*) FROM global_economy WHERE medals != 0") as cur:
+                has_existing_wallets = int((await cur.fetchone())[0] or 0) > 0
+            if not has_existing_wallets:
+                await self._db.execute("""
+                    UPDATE users SET medals = 0, last_daily = 0, last_work = 0,
+                        last_weekly = 0, last_crime = 0, last_scavenge = 0, last_trivia = 0
+                """)
+                await self._db.execute("""
+                    UPDATE global_economy SET medals = 0, last_daily = 0, last_work = 0,
+                        last_weekly = 0, last_crime = 0, last_scavenge = 0, last_trivia = 0
+                """)
             for table in ("banks", "bank_loans", "player_loans", "bank_insurance", "streaks", "role_purchases"):
                 await self._db.execute(f"DELETE FROM {table}")
 
@@ -5627,6 +5652,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if self._db is None:
             await self.setup()
         unit_type = str(unit_type or "").strip().lower()
+        unit_type = {"tanks": "tank", "jets": "jet", "ships": "ship"}.get(unit_type, unit_type)
         columns = {"tank": ("tanks", "land", 15), "jet": ("jets", "air", 25), "ship": ("ships", "naval", 25)}
         if unit_type not in columns:
             return False, "Choose tanks, jets, or ships."
@@ -5651,7 +5677,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             side = None
             selected_country_id = None
             candidates = (("attacker", int(war["attacker_country_id"])), ("defender", int(war["defender_country_id"])))
-            if country_id is not None:
+            if country_id is not None and int(country_id) > 0:
                 candidates = tuple((candidate, cid) for candidate, cid in candidates if cid == int(country_id))
             for candidate, cid in candidates:
                 if await self.has_earth_cabinet_permission(user_id, cid, "defense"):
