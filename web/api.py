@@ -1819,6 +1819,27 @@ def api_earth_war_declare():
         "war": war_data
     }), 200 if success else 400
 
+
+@api_bp.route("/earth/war/expedition", methods=["POST"])
+@login_required
+def api_earth_war_expedition():
+    data = request.get_json() or {}
+    try:
+        attacker_country_id = int(data.get("attacker_country_id", 0))
+        target_country_id = int(data.get("target_country_id", 0))
+        divisions = int(data.get("divisions", 10))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = int(session["user"]["id"])
+    db = get_db()
+    success, msg, res_data = run_async(db.expedition_attack_unclaimed(user_id, attacker_country_id, target_country_id, divisions))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "data": res_data
+    }), 200 if success else 400
+
 @api_bp.route("/earth/war/reinforce", methods=["POST"])
 @login_required
 def api_earth_war_reinforce():
