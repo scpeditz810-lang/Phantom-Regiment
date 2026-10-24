@@ -5254,7 +5254,17 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             pass
         now = time.time()
         async with self._db.execute("""
-            SELECT w.*, 
+            SELECT w.*,
+                   EXISTS (
+                       SELECT 1 FROM earth_nuclear_strikes ns
+                       WHERE ns.war_id = w.id AND ns.source_country_id = w.attacker_country_id
+                         AND ns.target_country_id = w.defender_country_id
+                   ) AS attacker_nuke_used,
+                   EXISTS (
+                       SELECT 1 FROM earth_nuclear_strikes ns
+                       WHERE ns.war_id = w.id AND ns.source_country_id = w.defender_country_id
+                         AND ns.target_country_id = w.attacker_country_id
+                   ) AS defender_nuke_used,
                    ac.name as attacker_name, ac.flag as attacker_flag, ac.lat as atk_lat, ac.lng as atk_lng,
                    dc.name as defender_name, dc.flag as defender_flag, dc.lat as dfn_lat, dc.lng as dfn_lng
             FROM earth_wars w
@@ -5294,6 +5304,13 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
             target_country_id = war[1] if source_country_id == war[0] else war[0]
             async with self._db.execute(
+                "SELECT 1 FROM earth_nuclear_strikes WHERE war_id = ? AND source_country_id = ? AND target_country_id = ? LIMIT 1",
+                (war_id, source_country_id, target_country_id)
+            ) as cur:
+                if await cur.fetchone():
+                    await self._db.rollback()
+                    return False, "Each country can be struck only once per active war."
+            async with self._db.execute(
                 "SELECT owner_id FROM earth_countries WHERE id = ?", (source_country_id,)
             ) as cur:
                 source = await cur.fetchone()
@@ -5306,12 +5323,19 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 return False, "Nuclear strikes require two different ruled countries in an active war."
 
             async with self._db.execute(
+                "SELECT 1 FROM earth_tools WHERE country_id = ? AND tool_key = 'nuclear_launch_pad'",
+                (source_country_id,)
+            ) as cur:
+                if not await cur.fetchone():
+                    await self._db.rollback()
+                    return False, "A Nuclear Launch Pad is required before launching a tactical nuke."
+            async with self._db.execute(
                 "SELECT 1 FROM earth_tools WHERE country_id = ? AND tool_key = 'tactical_nuke'",
                 (source_country_id,)
             ) as cur:
                 if not await cur.fetchone():
                     await self._db.rollback()
-                    return False, "This country has no tactical nuclear asset ready to launch."
+                    return False, "This country has no tactical nuclear weapon ready to launch."
 
             damage = max(0, int((target[1] or 0) * 0.20))
             now = time.time()
