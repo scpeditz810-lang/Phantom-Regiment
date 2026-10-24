@@ -1,91 +1,422 @@
 {% extends "base.html" %}
 
-{% block title %}City Hall | Mayor Executive Office - Phantom Regiment{% endblock %}
+{% block title %}UN Security Council & Mayor Executive Office - Phantom Regiment{% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="container" style="max-width: 1400px; margin: 0 auto; padding: 1.5rem 1rem;">
     <!-- Top Hero Split Layout -->
-    <div class="hero-split-grid">
-        <div class="surface-box" style="border-left: 4px solid #f1c40f;">
-            <div class="eyebrow-text" style="color: #f1c40f;">OFFICE OF THE MAYOR // HIGH EXECUTIVE SUITE</div>
-            <h1 class="hero-headline">
-                Mayoral Executive<br>
-                <span>Command Terminal</span>
+    <div class="hero-split-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+        <div class="surface-box" style="border-left: 4px solid #38bdf8; background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(56, 189, 248, 0.25);">
+            <div class="eyebrow-text" style="color: #38bdf8; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase;">UNITED NATIONS SECURITY COUNCIL // OFFICE OF THE MAYOR</div>
+            <h1 class="hero-headline" style="font-size: 1.85rem; font-weight: 900; margin: 0.5rem 0; line-height: 1.2; color: #fff;">
+                Global Security Council<br>
+                <span style="color: #38bdf8; text-shadow: 0 0 20px rgba(56,189,248,0.4);">& Mayoral Command Suite</span>
             </h1>
-            <p class="hero-desc">
-                Welcome, Mayor <strong>{{ user.global_name or user.username }}</strong>. You hold supreme civic, monetary, and territorial authority over Phantom Regiment. Zone new lands, tune global market tax rates, adjust corporate float, and monitor border skirmishes.
+            <p class="hero-desc" style="color: #94a3b8; font-size: 0.85rem; line-height: 1.5; margin-bottom: 1.25rem;">
+                Welcome, Presiding Officer <strong>{{ user.global_name or user.username }}</strong>. You hold supreme peacekeeping authority, monetary governance, municipal zoning, and geopolitical oversight across all 48 sovereign nations of Virtual Earth.
             </p>
-            <div style="display: flex; gap: 0.65rem; margin-top: 1.25rem; flex-wrap: wrap;">
-                <span class="status-pill active" style="background: rgba(241,196,15,0.15); color: #f1c40f; border-color: rgba(241,196,15,0.35);">
-                    🏛️ Active Mayoral Term: <strong>{{ term_days_left }}d {{ term_hours_left }}h Left</strong>
+            <div style="display: flex; gap: 0.65rem; flex-wrap: wrap;">
+                <span class="status-pill active" style="background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.35); padding: 0.35rem 0.75rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 700;">
+                    🏛️ Mayoral Term: <strong>{{ term_days_left }}d {{ term_hours_left }}h Remaining</strong>
                 </span>
-                <span class="status-pill" style="background: rgba(56,189,248,0.12); color: var(--blue-primary); border-color: rgba(56,189,248,0.3);">
-                    📈 Market Sales Tax: <strong id="hero-tax-val">{{ tax_pct }}%</strong>
+                <span class="status-pill" style="background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.3); padding: 0.35rem 0.75rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 700;">
+                    🌐 UN Treasury: <strong>{{ "{:,}".format(un_status.un_fund if un_status else 500000) }} Medals</strong>
                 </span>
-                <span class="status-pill" style="background: rgba(46,204,113,0.12); color: #2ecc71; border-color: rgba(46,204,113,0.3);">
-                    🗺️ City Plots: <strong>{{ total_plots }} Parcels</strong>
+                <span class="status-pill" style="background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); padding: 0.35rem 0.75rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 700;">
+                    ⚔️ Frontline Wars: <strong>{{ active_wars|length }} Active</strong>
+                </span>
+                <span class="status-pill" style="background: rgba(168,85,247,0.12); color: #a855f7; border: 1px solid rgba(168,85,247,0.3); padding: 0.35rem 0.75rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 700;">
+                    📈 Market Sales Tax: <strong>{{ tax_pct }}%</strong>
                 </span>
             </div>
         </div>
 
-        <div class="ghost-ui-box">
-            <div class="ghost-header" style="border-color: rgba(241,196,15,0.3);">
-                <span class="glow-dot-green" style="background: #f1c40f; box-shadow: 0 0 10px #f1c40f;"></span>
-                <span style="color: #f1c40f; font-weight: 700;">MAYORAL EXECUTIVE POWERS</span>
+        <div class="ghost-ui-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255, 255, 255, 0.08);">
+            <div class="ghost-header" style="border-bottom: 1px solid rgba(56,189,248,0.2); padding-bottom: 0.75rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span class="glow-dot-green" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 10px #38bdf8;"></span>
+                <span style="color: #38bdf8; font-weight: 800; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase;">SUPREME EXECUTIVE PRIVILEGES</span>
             </div>
 
-            <div class="ghost-grid-2x2">
-                <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">🗺️ Zone New Land</div>
-                    <div class="ghost-tile-sub">Expand city boundaries by creating new land and ocean oil parcels.</div>
+            <div class="ghost-grid-2x2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div class="ghost-feature-tile" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 0.75rem;">
+                    <div class="ghost-tile-title" style="color: #fff; font-size: 0.82rem; font-weight: 700;">🕊️ Emergency Ceasefires</div>
+                    <div class="ghost-tile-sub" style="color: #94a3b8; font-size: 0.72rem; margin-top: 0.25rem;">Halt illegal campaigns, restore status-quo borders, and penalize rogue warmongers.</div>
                 </div>
 
-                <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">📈 Market Tax Control</div>
-                    <div class="ghost-tile-sub">Set global transaction tax from 0% (tax free) up to 50%.</div>
+                <div class="ghost-feature-tile" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 0.75rem;">
+                    <div class="ghost-tile-title" style="color: #fff; font-size: 0.82rem; font-weight: 700;">🚫 UN Sanctions Desk</div>
+                    <div class="ghost-tile-sub" style="color: #94a3b8; font-size: 0.72rem; margin-top: 0.25rem;">Freeze rogue nations from trade routes and siphon tariffs into the UN fund.</div>
                 </div>
 
-                <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">📊 Share Float & IPOs</div>
-                    <div class="ghost-tile-sub">Inject/retire floating shares and authorize new corporate listings.</div>
+                <div class="ghost-feature-tile" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 0.75rem;">
+                    <div class="ghost-tile-title" style="color: #fff; font-size: 0.82rem; font-weight: 700;">🏥 Humanitarian Aid</div>
+                    <div class="ghost-tile-sub" style="color: #94a3b8; font-size: 0.72rem; margin-top: 0.25rem;">Deploy 50,000 M stability packages to quell urban riots and reduce unrest.</div>
                 </div>
 
-                <div class="ghost-feature-tile">
-                    <div class="ghost-tile-title">🛡️ Property Protection</div>
-                    <div class="ghost-tile-sub">Mayors cannot seize owned plots; state peacekeepers protect citizens.</div>
+                <div class="ghost-feature-tile" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 0.75rem;">
+                    <div class="ghost-tile-title" style="color: #fff; font-size: 0.82rem; font-weight: 700;">📈 Central Bank Fiscal Control</div>
+                    <div class="ghost-tile-sub" style="color: #94a3b8; font-size: 0.72rem; margin-top: 0.25rem;">Tune market sales tax (0-50%), adjust share float, and authorize new corporate IPOs.</div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Mayoral Subnavigation Tabs -->
-    <div class="admin-tabs-track" style="display: flex; gap: 0.65rem; margin-top: 1.75rem; margin-bottom: 1.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-        <button class="btn btn-pill-dark active-tab-btn" id="btn-zoning-tab" onclick="switchMayorTab('zoning-tab', this)" style="border-color: #f1c40f; color: #f1c40f;">
-            🗺️ E-State Territory Zoning
+    <div class="admin-tabs-track" style="display: flex; gap: 0.65rem; margin-bottom: 1.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <button class="btn btn-pill-dark active-tab-btn" id="btn-un-tab" onclick="switchMayorTab('un-tab', this)" style="border: 1px solid #38bdf8; color: #38bdf8; background: rgba(56,189,248,0.12); padding: 0.5rem 1rem; border-radius: 9999px; font-weight: 700; font-size: 0.84rem; cursor: pointer;">
+            🇺🇳 UN Security Council & Peacekeeping
         </button>
-        <button class="btn btn-pill-dark" id="btn-market-tab" onclick="switchMayorTab('market-tab', this)">
+        <button class="btn btn-pill-dark" id="btn-market-tab" onclick="switchMayorTab('market-tab', this)" style="border: 1px solid transparent; color: #94a3b8; background: rgba(255,255,255,0.04); padding: 0.5rem 1rem; border-radius: 9999px; font-weight: 700; font-size: 0.84rem; cursor: pointer;">
             📈 Central Bank & Stock Exchange
         </button>
-        <button class="btn btn-pill-dark" id="btn-defense-tab" onclick="switchMayorTab('defense-tab', this)">
-            🪖 High Command & Defense Radar
+        <button class="btn btn-pill-dark" id="btn-geopolitics-tab" onclick="switchMayorTab('geopolitics-tab', this)" style="border: 1px solid transparent; color: #94a3b8; background: rgba(255,255,255,0.04); padding: 0.5rem 1rem; border-radius: 9999px; font-weight: 700; font-size: 0.84rem; cursor: pointer;">
+            🌐 Geopolitics & War Monitor
+        </button>
+        <button class="btn btn-pill-dark" id="btn-zoning-tab" onclick="switchMayorTab('zoning-tab', this)" style="border: 1px solid transparent; color: #94a3b8; background: rgba(255,255,255,0.04); padding: 0.5rem 1rem; border-radius: 9999px; font-weight: 700; font-size: 0.84rem; cursor: pointer;">
+            🗺️ Civic Land Development & Zoning
         </button>
     </div>
 
-    <!-- Tab 1: E-State Territory Zoning & Map Expansion -->
-    <div id="zoning-tab" class="tab-content" style="display: block;">
-        <div class="hero-split-grid" style="margin-top: 0;">
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB 1: 🇺🇳 UN Security Council & Global Peacekeeping Terminal -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="un-tab" class="tab-content" style="display: block;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+            
+            <!-- Panel 1: Emergency Ceasefires Desk -->
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #ef4444; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">ARTICLE 42 // MILITARY CEASEFIRE DESK</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Emergency Ceasefire Interventions</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; line-height: 1.4;">
+                    Enforce an immediate, binding UN ceasefire on ongoing cross-border wars. Disbands offensive siege divisions and penalizes the aggressor state 100,000 Medals.
+                </p>
+
+                <div id="active-wars-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    {% if active_wars %}
+                        {% for w in active_wars %}
+                        <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(239,68,68,0.3); border-left: 3px solid #ef4444; border-radius: 8px; padding: 0.85rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                                <span style="font-size: 0.84rem; font-weight: 800; color: #fff;">
+                                    {{ w.attacker_flag }} {{ w.attacker_name }} <span style="color: #ef4444; font-weight: 900;">VS</span> {{ w.defender_flag }} {{ w.defender_name }}
+                                </span>
+                                <span style="font-size: 0.7rem; font-weight: 700; color: #fca5a5; text-transform: uppercase; background: rgba(239,68,68,0.15); padding: 0.15rem 0.5rem; border-radius: 4px;">
+                                    {{ w.scale }}
+                                </span>
+                            </div>
+                            <div style="font-size: 0.74rem; color: #94a3b8; display: flex; justify-content: space-between; align-items: center;">
+                                <span>Hostilities Ongoing • Frontline Siege</span>
+                                <button onclick="handleUNCeasefire({{ w.id }})" style="background: #ef4444; color: #fff; border: none; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.74rem; font-weight: 800; cursor: pointer; transition: 0.15s;">
+                                    🕊️ Issue UN Ceasefire
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div style="background: rgba(16,185,129,0.06); border: 1px dashed rgba(16,185,129,0.3); border-radius: 8px; padding: 1.5rem; text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🕊️</div>
+                            <div style="font-size: 0.88rem; font-weight: 700; color: #10b981;">Peace Reigns Worldwide</div>
+                            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem;">No active war campaigns declared between sovereign nations.</div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Panel 2: Humanitarian Aid Grants -->
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #10b981; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">UN RELIEF FUND // URBAN STABILITY DISPATCH</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Dispatch Humanitarian Relief Grant</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; line-height: 1.4;">
+                    Grant <strong>50,000 Medals</strong> directly from the UN Treasury to a distressed sovereign nation. Immediately suppresses civil unrest (-35%) and boosts stability (+20).
+                </p>
+
+                <form onsubmit="handleUNAid(event)">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.35rem; font-weight: 700;">Target Sovereign State</label>
+                        <select id="un-aid-country-select" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;" required>
+                            <option value="">-- Select Recipient Sovereign State --</option>
+                            {% for c in countries %}
+                            <option value="{{ c.id }}">{{ c.flag }} {{ c.name }} (Unrest: {{ c.unrest }}% • Stability: {{ c.stability }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 8px; padding: 0.75rem; font-size: 0.74rem; color: #6ee7b7; margin-bottom: 1rem;">
+                        💡 UN Humanitarian Aid restores civilian commerce, calms city riots, and prevents military mutinies.
+                    </div>
+                    <button type="submit" id="btn-submit-aid" style="width: 100%; background: #10b981; color: #000; font-weight: 800; padding: 0.65rem; border-radius: 8px; border: none; font-size: 0.82rem; cursor: pointer;">
+                        🏥 Dispatch 50,000 M Relief Aid
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Panel 3: Sanctions & Embargo Desk + Resolutions Ledger -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem;">
+            
+            <!-- Sanctions Desk -->
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #f59e0b; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">ECONOMIC WARFARE // EMBARGO CONTROL</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Impose Sovereign Trade Embargo</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; line-height: 1.4;">
+                    Blockade a nation's maritime trade routes for 24 hours. Their customs tariffs are redirected to the UN fund, cutting their trade revenue by 100%.
+                </p>
+
+                <form onsubmit="handleUNSanction(event)" style="margin-bottom: 1.25rem;">
+                    <div style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.35rem; font-weight: 700;">Target Rogue Country</label>
+                        <select id="un-sanction-country-select" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;" required>
+                            <option value="">-- Select Country to Sanction --</option>
+                            {% for c in countries %}
+                                {% if not c.is_sanctioned %}
+                                <option value="{{ c.id }}">{{ c.flag }} {{ c.name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 0.85rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.35rem; font-weight: 700;">Resolution Justification / Reason</label>
+                        <input type="text" id="un-sanction-reason-input" placeholder="e.g. Unprovoked military aggression against neutral border states" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;" required maxlength="120">
+                    </div>
+                    <button type="submit" id="btn-submit-sanction" style="width: 100%; background: #f59e0b; color: #000; font-weight: 800; padding: 0.65rem; border-radius: 8px; border: none; font-size: 0.82rem; cursor: pointer;">
+                        🚫 Enact UN Trade Sanctions
+                    </button>
+                </form>
+
+                <!-- Currently Sanctioned Nations -->
+                <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem;">
+                    <div style="font-size: 0.78rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.6rem;">Currently Sanctioned Nations</div>
+                    {% if un_status and un_status.sanctioned_countries %}
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            {% for s in un_status.sanctioned_countries %}
+                            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); border-radius: 6px; padding: 0.6rem 0.8rem;">
+                                <div>
+                                    <div style="font-size: 0.82rem; font-weight: 800; color: #f59e0b;">{{ s.flag }} {{ s.name }}</div>
+                                    <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.15rem;">{{ s.sanction_reason }}</div>
+                                </div>
+                                <button onclick="handleUNLiftSanction({{ s.id }})" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 0.3rem 0.65rem; border-radius: 4px; font-size: 0.72rem; cursor: pointer;">
+                                    Lift Embargo
+                                </button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div style="font-size: 0.75rem; color: #64748b; font-style: italic;">No active sanctions currently enforced.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- UN Resolution Ledger -->
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #38bdf8; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">SECURITY COUNCIL ARCHIVE // RESOLUTION LOG</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Official Council Resolutions</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; line-height: 1.4;">
+                    Historical record of international ceasefires, embargo decrees, and humanitarian aid dispatched by the UN Executive Suite.
+                </p>
+
+                <div id="un-resolutions-feed" style="display: flex; flex-direction: column; gap: 0.65rem; max-height: 380px; overflow-y: auto; padding-right: 0.25rem;">
+                    {% if un_status and un_status.resolutions %}
+                        {% for r in un_status.resolutions %}
+                        <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 0.75rem; border-left: 3px solid #38bdf8;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <strong style="font-size: 0.8rem; color: #38bdf8; text-transform: uppercase;">Resolution #{{ r.id }} • {{ r.resolution_type }}</strong>
+                                <span style="font-size: 0.68rem; color: #64748b;">{{ r.created_at | default('Recent') }}</span>
+                            </div>
+                            <div style="font-size: 0.76rem; color: #cbd5e1; line-height: 1.4;">{{ r.details }}</div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div style="text-align: center; color: #64748b; padding: 2rem; font-size: 0.8rem;">
+                            No international resolutions recorded yet. Global accords are intact.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB 2: 📈 Central Bank & Stock Market Desk -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="market-tab" class="tab-content" style="display: none;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem;">
+            <!-- Tax & Supply Control -->
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #f1c40f; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">MONETARY POLICY DESK</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Market Transaction Tax & Float</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.25rem;">
+                    Adjust global stock sales tax rates and fine-tune share quantities across all corporate equities.
+                </p>
+
+                <!-- Tax Policy Slider -->
+                <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.2rem; margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <label style="margin: 0; font-size: 0.92rem; font-weight: 700; color: #fff;">Transaction Sales Tax</label>
+                        <span style="font-size: 1.25rem; font-weight: 800; color: #f1c40f;" id="tax-slider-disp">{{ tax_pct }}%</span>
+                    </div>
+                    <input type="range" id="tax-slider" min="0" max="50" value="{{ tax_pct }}" style="width: 100%; accent-color: #f1c40f;" oninput="document.getElementById('tax-slider-disp').innerText = this.value + '%'">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #94a3b8; margin-top: 0.25rem;">
+                        <span>0% (Tax Free)</span>
+                        <span>25% (Standard)</span>
+                        <span>50% (Max Ceiling)</span>
+                    </div>
+                    <button class="btn btn-blue" onclick="handleUpdateTax()" style="margin-top: 1rem; width: 100%; background: #f1c40f; color: #000; font-weight: 800; border: none; padding: 0.65rem; border-radius: 8px; cursor: pointer;">
+                        📜 Enact New Fiscal Tax Order
+                    </button>
+                </div>
+
+                <!-- Share Float Control -->
+                <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.2rem;">
+                    <h4 style="margin: 0 0 0.35rem 0; font-size: 0.95rem; color: #fff;">Adjust Circulating Share Float</h4>
+                    <p style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 1rem;">Inject fresh shares (+value) or retire/buy back shares (-value) from the market float.</p>
+                    
+                    <div style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Select Stock</label>
+                        <select id="supply-stock-symbol" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
+                            {% for s in stocks %}
+                            <option value="{{ s.symbol }}">{{ s.symbol }} — {{ s.name }} (Float: {{ s.available_shares }}/{{ s.total_supply }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 0.85rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Float Adjustment Amount</label>
+                        <input type="number" id="supply-delta" placeholder="e.g. 500 to expand or -200 to retire" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;" required>
+                    </div>
+                    <button onclick="handleAdjustSupply()" style="width: 100%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 0.65rem; border-radius: 8px; font-weight: 700; cursor: pointer;">
+                        📊 Update Share Supply
+                    </button>
+                </div>
+            </div>
+
+            <!-- IPO Creator -->
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #2ecc71; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">EXCHANGE REGULATORY BOARD</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Authorize New Corporate IPO</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.25rem;">
+                    Issue an official Initial Public Offering to list a brand new company on the Global Stock Exchange.
+                </p>
+
+                <form id="create-stock-form" onsubmit="handleCreateStock(event)">
+                    <div style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Ticker Symbol (2-6 chars)</label>
+                        <input type="text" id="ipo-symbol" placeholder="e.g. CYBER" maxlength="6" required style="text-transform: uppercase; width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Company Name</label>
+                        <input type="text" id="ipo-name" placeholder="e.g. Cyberspace Intelligence Division" required style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.75rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Launch Price (M)</label>
+                            <input type="number" id="ipo-price" placeholder="min 20" min="20" required style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Initial Float Shares</label>
+                            <input type="number" id="ipo-supply" placeholder="e.g. 2500" min="100" max="50000" required style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Corporate Brief / Description</label>
+                        <textarea id="ipo-desc" rows="2" placeholder="Brief outline of company operations and tactical focus" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;"></textarea>
+                    </div>
+
+                    <button type="submit" id="btn-submit-ipo" style="width: 100%; background: #2ecc71; color: #000; font-weight: 800; border: none; padding: 0.65rem; border-radius: 8px; font-size: 0.82rem; cursor: pointer;">
+                        🔔 Authorize IPO & Open Trading
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB 3: 🌐 Geopolitics & Global War Monitor -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="geopolitics-tab" class="tab-content" style="display: none;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem;">
+            
+            <!-- Virtual Earth Geopolitics Status -->
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #38bdf8; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">48 SOVEREIGN NATIONS OVERVIEW</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Virtual Earth Geopolitics Radar</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.25rem;">
+                    Full radar survey across all 48 sovereign nations. Monitors imperial conquest counts (Max 4 conquered states per nation).
+                </p>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1.25rem;">
+                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 0.9rem; border-left: 3px solid #38bdf8;">
+                        <span style="font-size: 0.72rem; color: #94a3b8; display: block;">Total Sovereign Nations</span>
+                        <strong style="font-size: 1.35rem; color: #fff;">{{ countries|length }} States</strong>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 0.9rem; border-left: 3px solid #10b981;">
+                        <span style="font-size: 0.72rem; color: #94a3b8; display: block;">Claimed Territories</span>
+                        <strong style="font-size: 1.35rem; color: #10b981;">
+                            {{ countries|selectattr('owner_id')|list|length }} / {{ countries|length }}
+                        </strong>
+                    </div>
+                </div>
+
+                <div style="background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); border-radius: 8px; padding: 0.85rem; margin-bottom: 1.25rem; font-size: 0.76rem; color: #94a3b8; line-height: 1.4;">
+                    ⚖️ <strong>Imperial Expansion Treaty:</strong> Under UN Geopolitical Resolution #48, no ruler or country may conquer more than <strong>4 foreign states</strong> (maximum 5 territories total). Any surplus acquisitions trigger imperial destabilization protocols.
+                </div>
+
+                <div style="text-align: center;">
+                    <a href="{{ url_for('views.estate_page') }}" style="display: block; width: 100%; background: #38bdf8; color: #000; font-weight: 800; padding: 0.75rem; border-radius: 8px; text-decoration: none; font-size: 0.85rem;">
+                        🌐 Launch Interactive 3D Virtual Earth Console
+                    </a>
+                </div>
+            </div>
+
+            <!-- Military Tycoon Skirmish Feed -->
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #ef4444; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">MUNICIPAL SKIRMISH RADAR</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">District Border Incursions</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.25rem;">
+                    Recent military border raids launched between rival landowners in Phantom Regiment.
+                </p>
+
+                <div id="raids-feed" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 380px; overflow-y: auto;">
+                    {% if raids %}
+                    {% for r in raids %}
+                    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 0.85rem 1rem; border-left: 3px solid {% if r.success %}#2ecc71{% else %}#ef4444{% endif %};">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                            <strong style="color: #fff; font-size: 0.84rem;">Plot #{{ r.plot_id }} — {{ r.plot_name }}</strong>
+                            <span style="font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 700; background: {% if r.success %}rgba(46,204,113,0.15); color: #2ecc71;{% else %}rgba(239,68,68,0.15); color: #ef4444;{% endif %}">
+                                {% if r.success %}BREACH SUCCESSFUL{% else %}ASSAULT REPELLED{% endif %}
+                            </span>
+                        </div>
+                        <div style="font-size: 0.76rem; color: #94a3b8; line-height: 1.4;">
+                            Attacker: <strong style="color: #f87171;">{{ r.attacker_name | default(r.attacker_id) }}</strong> vs Defender: <strong style="color: #38bdf8;">{{ r.defender_name | default(r.defender_id) }}</strong>
+                            {% if r.success %}
+                            <div style="color: #2ecc71; font-weight: 600; margin-top: 0.2rem;">💰 Plunder: +{{ "{:,}".format(r.loot) }} Medals • 🛡️ 1-Hr Protection Deployed</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div style="text-align: center; color: #64748b; padding: 2rem; font-size: 0.85rem;">
+                        No tactical border skirmishes recorded yet. Peace reigns over the city!
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB 4: 🗺️ Civic Land Development & Zoning -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+    <div id="zoning-tab" class="tab-content" style="display: none;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem;">
             <!-- Zone New Plot Form -->
-            <div class="surface-box">
-                <div class="eyebrow-text" style="color: #f1c40f;">CIVIC DEVELOPMENT ACT</div>
-                <h3 style="margin-bottom: 0.25rem; font-size: 1.25rem;">Zone & Deploy New Territory Plot</h3>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #f1c40f; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">CIVIC DEVELOPMENT ACT</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Zone & Deploy New Territory Plot</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; line-height: 1.4;">
                     Create a brand new parcel on the map for citizens to buy and develop. You can zone land parcels or deepwater ocean oil platforms!
                 </p>
 
                 <div style="background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div style="font-size: 0.72rem; color: #7dd3fc; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;">Weekly Mayoral Zoning Quota</div>
-                        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Mayors are authorized to zone up to <strong>5 territory parcels per week</strong>.</div>
+                        <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 2px;">Mayors are authorized to zone up to <strong>5 territory parcels per week</strong>.</div>
                     </div>
                     <div style="text-align: right;">
                         <span id="quota-display" style="font-size: 1.25rem; font-weight: 900; color: {% if zoning_quota and zoning_quota.can_create %}#10b981{% else %}#ef4444{% endif %};">
@@ -95,15 +426,15 @@
                 </div>
 
                 <form id="create-plot-form" onsubmit="handleCreatePlot(event)">
-                    <div class="form-group">
-                        <label class="form-label">Parcel Designation / Name</label>
-                        <input type="text" id="plot-name" class="form-input" placeholder="e.g. Ironclad Harbor or Poseidon Rig" required maxlength="60">
+                    <div style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Parcel Designation / Name</label>
+                        <input type="text" id="plot-name" placeholder="e.g. Ironclad Harbor or Poseidon Rig" required maxlength="60" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
-                        <div class="form-group">
-                            <label class="form-label">District Sector</label>
-                            <select id="plot-district" class="form-input" required>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.75rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">District Sector</label>
+                            <select id="plot-district" required style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
                                 <option value="The Outskirts">🌲 The Outskirts</option>
                                 <option value="Riverside Commons">💧 Riverside Commons</option>
                                 <option value="Ironworks District">🏗️ Ironworks District</option>
@@ -112,9 +443,9 @@
                                 <option value="Deepwater Basin">🛢️ Deepwater Basin (Ocean)</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Terrain Environment</label>
-                            <select id="plot-terrain" class="form-input" required>
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Terrain Environment</label>
+                            <select id="plot-terrain" required style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
                                 <option value="plains">Plains (Standard Land)</option>
                                 <option value="forest">Forest (Woodland Ridge)</option>
                                 <option value="riverfront">Riverfront (Water Access)</option>
@@ -125,263 +456,58 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label">Initial Listing Price (Medals)</label>
-                        <input type="number" id="plot-price" class="form-input" placeholder="e.g. 150000" min="5000" max="25000000" required>
-                        <span style="font-size: 0.72rem; color: var(--text-muted);">Citizens will pay this amount to purchase and settle this plot.</span>
+                    <div style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Initial Listing Price (Medals)</label>
+                        <input type="number" id="plot-price" placeholder="e.g. 150000" min="5000" max="25000000" required style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
-                        <div class="form-group">
-                            <label class="form-label">Grid X (Optional)</label>
-                            <input type="number" id="plot-x" class="form-input" placeholder="Auto-allocate if blank" min="1" max="20">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Grid X (Optional)</label>
+                            <input type="number" id="plot-x" placeholder="Auto-allocate" min="1" max="20" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Grid Y (Optional)</label>
-                            <input type="number" id="plot-y" class="form-input" placeholder="Auto-allocate if blank" min="1" max="20">
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem;">Grid Y (Optional)</label>
+                            <input type="number" id="plot-y" placeholder="Auto-allocate" min="1" max="20" style="width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.55rem; border-radius: 8px; font-size: 0.82rem;">
                         </div>
-                    </div>
-
-                    <div style="background: rgba(241,196,15,0.08); border: 1px dashed rgba(241,196,15,0.3); border-radius: 8px; padding: 0.75rem; margin-bottom: 1.25rem; font-size: 0.76rem; color: var(--text-muted); line-height: 1.4;">
-                        ⚖️ <strong>Constitutional Guarantee:</strong> Mayors can zone and place new plots on the map to grow the city, but cannot seize or evict existing plots from citizens.
                     </div>
 
                     {% if zoning_quota and not zoning_quota.can_create %}
-                    <div style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.78rem; color: #fca5a5; text-align: center;">
-                        ⚠️ <strong>Weekly Zoning Cap Reached (5/5 plots placed):</strong> You have exhausted your mayoral zoning quota for this 7-day period.
-                    </div>
-                    <button type="submit" class="btn btn-blue" id="btn-submit-plot" disabled style="width: 100%; background: #475569; color: #94a3b8; font-weight: 800; border: none; cursor: not-allowed;">
+                    <button type="submit" id="btn-submit-plot" disabled style="width: 100%; background: #475569; color: #94a3b8; font-weight: 800; border: none; padding: 0.65rem; border-radius: 8px; font-size: 0.82rem; cursor: not-allowed;">
                         ⛔ Weekly Zoning Limit Reached (5/5 Placed)
                     </button>
                     {% else %}
-                    <button type="submit" class="btn btn-blue" id="btn-submit-plot" style="width: 100%; background: #f1c40f; color: #000; font-weight: 800; border: none;">
+                    <button type="submit" id="btn-submit-plot" style="width: 100%; background: #f1c40f; color: #000; font-weight: 800; border: none; padding: 0.65rem; border-radius: 8px; font-size: 0.82rem; cursor: pointer;">
                         🗺️ Authorize & Zone Plot onto Map
                     </button>
                     {% endif %}
                 </form>
             </div>
 
-            <!-- Territory Statistics & Overview -->
-            <div class="surface-box">
-                <div class="eyebrow-text">MUNICIPAL LAND REGISTRY</div>
-                <h3 style="margin-bottom: 0.25rem; font-size: 1.25rem;">Territory Valuations & Overview</h3>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem;">
-                    Real-time metrics on city land plots, citizen holdings, and development yields.
+            <!-- Territory Valuations -->
+            <div class="surface-box" style="background: rgba(15, 23, 42, 0.75); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08);">
+                <div class="eyebrow-text" style="color: #a855f7; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;">MUNICIPAL LAND REGISTRY</div>
+                <h3 style="margin: 0.35rem 0 0.5rem 0; font-size: 1.15rem; color: #fff;">Territory Valuations & Overview</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.25rem;">
+                    Real-time metrics on municipal land plots, citizen holdings, and development yields.
                 </p>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1.25rem;">
-                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid var(--blue-primary);">
-                        <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Total Parcels Zoned</span>
-                        <strong style="font-size: 1.5rem; color: var(--text-white);">{{ total_plots }}</strong>
+                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid #38bdf8;">
+                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Total Parcels Zoned</span>
+                        <strong style="font-size: 1.4rem; color: #fff;">{{ total_plots }}</strong>
                     </div>
-                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid #2ecc71;">
-                        <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Settled / Owned</span>
-                        <strong style="font-size: 1.5rem; color: #2ecc71;">{{ owned_count }}</strong>
+                    <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid #10b981;">
+                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Settled / Owned</span>
+                        <strong style="font-size: 1.4rem; color: #10b981;">{{ owned_count }}</strong>
                     </div>
                     <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid #f1c40f;">
-                        <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Available Unowned</span>
-                        <strong style="font-size: 1.5rem; color: #f1c40f;">{{ total_plots - owned_count }}</strong>
+                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Available Unowned</span>
+                        <strong style="font-size: 1.4rem; color: #f1c40f;">{{ total_plots - owned_count }}</strong>
                     </div>
                     <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 1rem; border-left: 3px solid #a855f7;">
-                        <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Total Land Valuation</span>
-                        <strong style="font-size: 1.2rem; color: #a855f7;">{{ "{:,}".format(total_land_val) }} M</strong>
-                    </div>
-                </div>
-
-                <div style="text-align: center; margin-top: 1.5rem;">
-                    <a href="{{ url_for('views.estate_page') }}" class="btn btn-pill-dark" style="width: 100%; border-color: rgba(255,255,255,0.15);">
-                        🌐 Launch Interactive 3D E-State Map
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tab 2: Central Bank & Stock Market Authority -->
-    <div id="market-tab" class="tab-content" style="display: none;">
-        <div class="hero-split-grid" style="margin-top: 0;">
-            <!-- Tax & Supply Control -->
-            <div class="surface-box">
-                <div class="eyebrow-text" style="color: #f1c40f;">MONETARY POLICY DESK</div>
-                <h3 style="margin-bottom: 0.25rem; font-size: 1.25rem;">Market Transaction Tax & Float</h3>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem;">
-                    Adjust global stock sales tax rates and fine-tune share quantities across all corporate equities.
-                </p>
-
-                <!-- Tax Policy Slider -->
-                <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.2rem; margin-bottom: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                        <label class="form-label" style="margin: 0; font-size: 0.95rem;">Transaction Sales Tax</label>
-                        <span style="font-size: 1.25rem; font-weight: 800; color: #f1c40f;" id="tax-slider-disp">{{ tax_pct }}%</span>
-                    </div>
-                    <input type="range" id="tax-slider" min="0" max="50" value="{{ tax_pct }}" style="width: 100%; accent-color: #f1c40f;" oninput="document.getElementById('tax-slider-disp').innerText = this.value + '%'">
-                    <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
-                        <span>0% (Tax Free)</span>
-                        <span>25% (Standard)</span>
-                        <span>50% (Max Ceiling)</span>
-                    </div>
-                    <button class="btn btn-blue" onclick="handleUpdateTax()" style="margin-top: 1rem; width: 100%; background: #f1c40f; color: #000; font-weight: 800; border: none;">
-                        📜 Enact New Fiscal Tax Order
-                    </button>
-                </div>
-
-                <!-- Share Float Control -->
-                <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.2rem;">
-                    <h4 style="margin-bottom: 0.35rem; font-size: 1rem;">Adjust Circulating Share Float</h4>
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Inject fresh shares (+value) or retire/buy back shares (-value) from the market float.</p>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Select Stock</label>
-                        <select id="supply-stock-symbol" class="form-input">
-                            {% for s in stocks %}
-                            <option value="{{ s.symbol }}">{{ s.symbol }} — {{ s.name }} (Float: {{ s.available_shares }}/{{ s.total_supply }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Float Adjustment Amount</label>
-                        <input type="number" id="supply-delta" class="form-input" placeholder="e.g. 500 to expand or -200 to retire" required>
-                    </div>
-                    <button class="btn btn-pill-dark" onclick="handleAdjustSupply()" style="width: 100%; border-color: rgba(255,255,255,0.2);">
-                        📊 Update Share Supply
-                    </button>
-                </div>
-            </div>
-
-            <!-- IPO Creator -->
-            <div class="surface-box">
-                <div class="eyebrow-text" style="color: #f1c40f;">EXCHANGE REGULATORY BOARD</div>
-                <h3 style="margin-bottom: 0.25rem; font-size: 1.25rem;">Authorize New Corporate IPO</h3>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem;">
-                    Issue an official Initial Public Offering to list a brand new company on the Global Stock Exchange.
-                </p>
-
-                <form id="create-stock-form" onsubmit="handleCreateStock(event)">
-                    <div class="form-group">
-                        <label class="form-label">Ticker Symbol (2-6 chars)</label>
-                        <input type="text" id="ipo-symbol" class="form-input" placeholder="e.g. CYBER" maxlength="6" required style="text-transform: uppercase;">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Company Name</label>
-                        <input type="text" id="ipo-name" class="form-input" placeholder="e.g. Cyberspace Intelligence Division" required>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
-                        <div class="form-group">
-                            <label class="form-label">Launch Price (M)</label>
-                            <input type="number" id="ipo-price" class="form-input" placeholder="min 20" min="20" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Initial Float Shares</label>
-                            <input type="number" id="ipo-supply" class="form-input" placeholder="e.g. 2500" min="100" max="50000" required>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Corporate Brief / Description</label>
-                        <textarea id="ipo-desc" class="form-input" rows="2" placeholder="Brief outline of company operations and tactical focus"></textarea>
-                    </div>
-
-                    <button type="submit" class="btn btn-blue" id="btn-submit-ipo" style="width: 100%; background: #2ecc71; color: #000; font-weight: 800; border: none;">
-                        🔔 Authorize IPO & Open Trading
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tab 3: Military High Command & Defense Radar -->
-    <div id="defense-tab" class="tab-content" style="display: none;">
-        <div class="hero-split-grid" style="margin-top: 0;">
-            <!-- Skirmish Log -->
-            <div class="surface-box">
-                <div class="eyebrow-text" style="color: #f1c40f;">COMBAT INCURSION LOG</div>
-                <h3 style="margin-bottom: 0.25rem; font-size: 1.25rem;">Live Territory Raid Skirmishes</h3>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem;">
-                    Recent military border raids launched between rival landowners across all districts.
-                </p>
-
-                <div id="raids-feed" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    {% if raids %}
-                    {% for r in raids %}
-                    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 0.85rem 1rem; border-left: 3px solid {% if r.success %}#2ecc71{% else %}#ef4444{% endif %};">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                            <strong style="color: var(--text-white); font-size: 0.88rem;">Plot #{{ r.plot_id }} — {{ r.plot_name }}</strong>
-                            <span style="font-size: 0.75rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 700; background: {% if r.success %}rgba(46,204,113,0.15); color: #2ecc71;{% else %}rgba(239,68,68,0.15); color: #ef4444;{% endif %}">
-                                {% if r.success %}BREACH SUCCESSFUL{% else %}ASSAULT REPELLED{% endif %}
-                            </span>
-                        </div>
-                        <div style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.35rem;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem;">
-                                <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                                    {% if r.attacker_avatar %}
-                                    <img src="{{ r.attacker_avatar }}" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(239,68,68,0.4);" alt="Attacker">
-                                    {% endif %}
-                                    Attacker: <strong style="color: #f87171;">{{ r.attacker_name | default(r.attacker_id) }}</strong>
-                                    <span style="color: var(--text-muted); font-size: 0.74rem;">(Roll: {{ r.attacker_power }})</span>
-                                </span>
-                                <span style="color: var(--text-muted); font-weight: 800; font-size: 0.75rem;">VS</span>
-                                <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                                    {% if r.defender_avatar %}
-                                    <img src="{{ r.defender_avatar }}" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(56,189,248,0.4);" alt="Defender">
-                                    {% endif %}
-                                    Defender: <strong style="color: #38bdf8;">{{ r.defender_name | default(r.defender_id) }}</strong>
-                                    <span style="color: var(--text-muted); font-size: 0.74rem;">(Roll: {{ r.defender_power }})</span>
-                                </span>
-                            </div>
-                            {% if r.success %}
-                            <div style="color: #2ecc71; font-weight: 600;">
-                                💰 Plunder Seized: +{{ "{:,}".format(r.loot) }} Medals • 🛡️ 1-Hour Bank Guard Deployed
-                            </div>
-                            {% else %}
-                            <div style="color: #94a3b8;">
-                                💥 Assault Repelled by Garrison & Allied Reinforcements
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                    {% else %}
-                    <div style="text-align: center; color: var(--text-muted); padding: 2rem; font-size: 0.88rem;">
-                        No tactical border skirmishes recorded yet. Peace reigns over the city!
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Military Tycoon Policy Overview -->
-            <div class="surface-box">
-                <div class="eyebrow-text">STRATEGIC GARRISON REGULATIONS</div>
-                <h3 style="margin-bottom: 0.25rem; font-size: 1.25rem;">Military Tycoon Regulations</h3>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem;">
-                    Executive rules governing armed conflict and landowner defense in Phantom Regiment.
-                </p>
-
-                <div style="display: flex; flex-direction: column; gap: 0.85rem;">
-                    <div style="background: rgba(0,0,0,0.25); border-radius: 10px; padding: 0.9rem; border-left: 3px solid var(--blue-primary);">
-                        <strong style="color: var(--text-white); font-size: 0.9rem; display: block; margin-bottom: 0.2rem;">1. Military Base Requirement</strong>
-                        <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
-                            Landowners must own a plot with an operational <strong>Military Base</strong> to launch raids with <code>/raid &lt;plot_id&gt;</code>. Upgrading base levels boosts strike force strength!
-                        </span>
-                    </div>
-
-                    <div style="background: rgba(0,0,0,0.25); border-radius: 10px; padding: 0.9rem; border-left: 3px solid #2ecc71;">
-                        <strong style="color: var(--text-white); font-size: 0.9rem; display: block; margin-bottom: 0.2rem;">2. Mutual Defense Alliances</strong>
-                        <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
-                            Players can seal defense pacts with <code>/ally @member</code>. Allies automatically reinforce each other during enemy raids (+35% defense per ally)!
-                        </span>
-                    </div>
-
-                    <div style="background: rgba(0,0,0,0.25); border-radius: 10px; padding: 0.9rem; border-left: 3px solid #f1c40f;">
-                        <strong style="color: var(--text-white); font-size: 0.9rem; display: block; margin-bottom: 0.2rem;">3. State Bank Peacekeeper Protection</strong>
-                        <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
-                            Whenever an attack succeeds, the Central State Bank immediately deploys elite forces to protect the victim parcel for <strong>1 Full Hour</strong>. The plot cannot be raided again until protection expires.
-                        </span>
-                    </div>
-
-                    <div style="background: rgba(0,0,0,0.25); border-radius: 10px; padding: 0.9rem; border-left: 3px solid #eab308;">
-                        <strong style="color: var(--text-white); font-size: 0.9rem; display: block; margin-bottom: 0.2rem;">4. Deepwater Offshore Oil Rigs</strong>
-                        <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
-                            Oil Rigs located in the Deepwater Basin produce <strong>4.0% daily yields</strong> (highest in the city), making them prime high-value targets for alliances and raids!
-                        </span>
+                        <span style="font-size: 0.75rem; color: #94a3b8; display: block;">Total Valuation</span>
+                        <strong style="font-size: 1.15rem; color: #a855f7;">{{ "{:,}".format(total_land_val) }} M</strong>
                     </div>
                 </div>
             </div>
@@ -394,55 +520,92 @@ function switchMayorTab(tabId, btn) {
     document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.admin-tabs-track button').forEach(el => {
         el.style.borderColor = 'transparent';
-        el.style.color = 'var(--text-muted)';
+        el.style.color = '#94a3b8';
+        el.style.background = 'rgba(255,255,255,0.04)';
     });
 
     const activeEl = document.getElementById(tabId);
     if (activeEl) activeEl.style.display = 'block';
 
-    btn.style.borderColor = '#f1c40f';
-    btn.style.color = '#f1c40f';
+    btn.style.borderColor = '#38bdf8';
+    btn.style.color = '#38bdf8';
+    btn.style.background = 'rgba(56,189,248,0.12)';
 }
 
-async function handleCreatePlot(e) {
-    e.preventDefault();
-    const btn = document.getElementById("btn-submit-plot");
-    btn.disabled = true;
-    btn.innerText = "Zoning Parcel onto Map...";
-
-    const payload = {
-        name: document.getElementById("plot-name").value.trim(),
-        district: document.getElementById("plot-district").value,
-        terrain: document.getElementById("plot-terrain").value,
-        price: parseInt(document.getElementById("plot-price").value),
-        x: document.getElementById("plot-x").value ? parseInt(document.getElementById("plot-x").value) : null,
-        y: document.getElementById("plot-y").value ? parseInt(document.getElementById("plot-y").value) : null
-    };
-
+async function handleUNCeasefire(warId) {
+    if (!confirm("Enact binding UN Security Council Emergency Ceasefire on War #" + warId + "? Aggressor divisions will be disbanded and penalized 100,000 Medals.")) return;
     try {
-        const res = await fetch("/api/mayor/plot/create", {
+        const res = await fetch("/api/earth/un/ceasefire", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ war_id: warId })
         });
         const data = await res.json();
-        if (data.success) {
-            alert("🎉 " + data.message);
-            window.location.reload();
-        } else {
-            alert("❌ " + data.message);
-        }
+        alert(data.message);
+        if (data.success) window.location.reload();
     } catch (err) {
-        alert("Error zoning plot: " + err);
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "🗺️ Authorize & Zone Plot onto Map";
+        alert("Ceasefire decree failed: " + err);
+    }
+}
+
+async function handleUNSanction(e) {
+    e.preventDefault();
+    const countryId = document.getElementById("un-sanction-country-select").value;
+    const reason = document.getElementById("un-sanction-reason-input").value.trim();
+    if (!countryId) return alert("Please select a target country.");
+
+    try {
+        const res = await fetch("/api/earth/un/sanction", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: parseInt(countryId), reason: reason })
+        });
+        const data = await res.json();
+        alert(data.message);
+        if (data.success) window.location.reload();
+    } catch (err) {
+        alert("Sanction decree failed: " + err);
+    }
+}
+
+async function handleUNLiftSanction(countryId) {
+    if (!confirm("Lift international trade embargo on this nation?")) return;
+    try {
+        const res = await fetch("/api/earth/un/lift_sanction", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId })
+        });
+        const data = await res.json();
+        alert(data.message);
+        if (data.success) window.location.reload();
+    } catch (err) {
+        alert("Lift sanction failed: " + err);
+    }
+}
+
+async function handleUNAid(e) {
+    e.preventDefault();
+    const countryId = document.getElementById("un-aid-country-select").value;
+    if (!countryId) return alert("Please select a recipient sovereign nation.");
+
+    try {
+        const res = await fetch("/api/earth/un/aid", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: parseInt(countryId) })
+        });
+        const data = await res.json();
+        alert(data.message);
+        if (data.success) window.location.reload();
+    } catch (err) {
+        alert("Aid dispatch failed: " + err);
     }
 }
 
 async function handleUpdateTax() {
     const val = parseInt(document.getElementById("tax-slider").value);
-    if (!confirm(`Enact new ${val}% Global Market Transaction Tax?`)) return;
+    if (!confirm("Enact new " + val + "% Global Market Transaction Tax?")) return;
 
     try {
         const res = await fetch("/api/mayor/stock/tax", {
@@ -453,7 +616,6 @@ async function handleUpdateTax() {
         const data = await res.json();
         if (data.success) {
             alert("📈 " + data.message);
-            document.getElementById("hero-tax-val").innerText = val + "%";
         } else {
             alert("❌ " + data.message);
         }
@@ -487,10 +649,6 @@ async function handleAdjustSupply() {
 
 async function handleCreateStock(e) {
     e.preventDefault();
-    const btn = document.getElementById("btn-submit-ipo");
-    btn.disabled = true;
-    btn.innerText = "Listing IPO...";
-
     const payload = {
         symbol: document.getElementById("ipo-symbol").value.trim().toUpperCase(),
         name: document.getElementById("ipo-name").value.trim(),
@@ -514,9 +672,35 @@ async function handleCreateStock(e) {
         }
     } catch (err) {
         alert("Error creating stock: " + err);
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "🔔 Authorize IPO & Open Trading";
+    }
+}
+
+async function handleCreatePlot(e) {
+    e.preventDefault();
+    const payload = {
+        name: document.getElementById("plot-name").value.trim(),
+        district: document.getElementById("plot-district").value,
+        terrain: document.getElementById("plot-terrain").value,
+        price: parseInt(document.getElementById("plot-price").value),
+        x: document.getElementById("plot-x").value ? parseInt(document.getElementById("plot-x").value) : null,
+        y: document.getElementById("plot-y").value ? parseInt(document.getElementById("plot-y").value) : null
+    };
+
+    try {
+        const res = await fetch("/api/mayor/plot/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert("🎉 " + data.message);
+            window.location.reload();
+        } else {
+            alert("❌ " + data.message);
+        }
+    } catch (err) {
+        alert("Error zoning plot: " + err);
     }
 }
 </script>

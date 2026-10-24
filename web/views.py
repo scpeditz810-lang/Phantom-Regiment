@@ -362,6 +362,9 @@ def mayor_page():
     total_land_val = sum(p.get("current_value", 0) for p in plots)
     owned_plots = [p for p in plots if p.get("owner_id")]
     zoning_quota = run_async(db.get_mayor_weekly_zoning_quota())
+    un_status = run_async(db.get_earth_un_status())
+    countries = run_async(db.get_earth_countries())
+    active_wars = un_status.get("active_wars", []) if un_status else []
 
     return render_template(
         "mayor.html",
@@ -375,7 +378,10 @@ def mayor_page():
         total_land_val=total_land_val,
         owned_count=len(owned_plots),
         total_plots=len(plots),
-        zoning_quota=zoning_quota
+        zoning_quota=zoning_quota,
+        un_status=un_status,
+        countries=countries,
+        active_wars=active_wars
     )
 
 @views_bp.route("/admin")

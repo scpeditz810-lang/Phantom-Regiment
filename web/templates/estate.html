@@ -367,6 +367,96 @@ body {
     pointer-events: none;
 }
 
+.dock-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.7);
+    flex-shrink: 0;
+}
+
+.dock-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #f8fafc;
+}
+
+.dock-nav-tabs {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.6rem 0.85rem;
+    background: rgba(0, 0, 0, 0.4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-shrink: 0;
+}
+
+.dock-nav-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.dock-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.dock-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #f8fafc;
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.dock-tab-btn.active {
+    background: rgba(56, 189, 248, 0.18) !important;
+    border-color: #38bdf8 !important;
+    color: #38bdf8 !important;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+}
+
+.dock-body {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+    overscroll-behavior: contain !important;
+    padding: 0.85rem 1rem 5rem 1rem !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(56, 189, 248, 0.4) rgba(0, 0, 0, 0.2);
+}
+
+.dock-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dock-body::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.dock-body::-webkit-scrollbar-thumb {
+    background: rgba(56, 189, 248, 0.4);
+    border-radius: 3px;
+}
+
 /* ─── MOBILE DRAWER & RESPONSIVE OVERRIDES ─── */
 @media (max-width: 768px) {
     .earth-viewport {
@@ -420,6 +510,10 @@ body {
         transform: translateY(0) !important;
         opacity: 1 !important;
         pointer-events: auto !important;
+    }
+    .dock-body {
+        max-height: calc(80dvh - 110px) !important;
+        padding-bottom: 6.5rem !important;
     }
     .mobile-drawer-handle {
         width: 48px;
@@ -1824,39 +1918,58 @@ function renderIntelTab(c, isLeader, isOwner, container) {
 
 function renderWarsTab(c, isLeader, isOwner, container) {
     const wars = warsData.filter(w => w.attacker_country_id === c.id || w.defender_country_id === c.id);
+    const isOwnCountry = userCountry && userCountry.id === c.id;
 
     let html = `
-        <div class="info-tile">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size: 0.8rem; font-weight: 700;">⚔️ Sovereign Conquest Operations</span>
-                ${(userCountry && userCountry.id !== c.id) ? `
-                    <button class="btn-danger-sm" onclick="openDeclareWarModal(${c.id}, '${c.name}', '${c.flag}')">
+        <div class="info-tile" style="margin-bottom: 1rem; border-color: rgba(239, 68, 68, 0.4);">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                <span style="font-size: 0.82rem; font-weight: 800; color: #f8fafc;">⚔️ Military Conquest & Frontier Command</span>
+                ${isOwnCountry ? `
+                    <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                        <button class="btn-danger-sm" onclick="openDeclareWarModal()">
+                            ⚔️ Declare War
+                        </button>
+                        <button class="hud-btn" style="padding:0.35rem 0.65rem; font-size:0.74rem;" onclick="openAttackFrontierModal()">
+                            🎖️ Attack Frontier
+                        </button>
+                    </div>
+                ` : (userCountry && c.owner_id ? `
+                    <button class="btn-danger-sm" onclick="openDeclareWarModal(${c.id}, '${escapeHtml(c.name)}', '${escapeHtml(c.flag)}')">
                         Declare Conquest!
                     </button>
-                ` : ''}
+                ` : (userCountry && !c.owner_id ? `
+                    <button class="hud-btn" style="padding:0.35rem 0.65rem; font-size:0.74rem;" onclick="openAttackFrontierModal(${c.id}, '${escapeHtml(c.name)}', '${escapeHtml(c.flag)}')">
+                        🎖️ Conquer Frontier!
+                    </button>
+                ` : ''))}
             </div>
+            ${isOwnCountry ? `
+                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.35rem; line-height: 1.4;">
+                    Wage multi-day sovereign conquest campaigns against rival nations or send armed frontier expeditions to claim unowned sovereign states into your empire (Max 4 conquered states).
+                </div>
+            ` : ''}
         </div>
     `;
 
     if (wars.length === 0) {
-        html += `<div style="text-align:center; padding:2rem; color:#94a3b8; font-size:0.8rem;">No active multi-day conquests involving this nation. The borders are secure.</div>`;
+        html += `<div style="text-align:center; padding:2rem; color:#94a3b8; font-size:0.8rem;">No active multi-day conquests involving this nation. Sovereign borders are intact.</div>`;
     } else {
         wars.forEach(w => {
             html += `
-                <div class="war-pulse-banner" style="flex-direction: column; align-items: flex-start;">
+                <div class="war-pulse-banner" style="flex-direction: column; align-items: flex-start; margin-bottom: 0.75rem;">
                     <div style="display:flex; justify-content:space-between; width:100%;">
                         <strong>${w.attacker_flag} ${w.attacker_name} vs ${w.defender_flag} ${w.defender_name}</strong>
-                        <span style="font-size: 0.72rem; color: #ef4444;">${w.hours_remaining}h left</span>
+                        <span style="font-size: 0.72rem; color: #ef4444; font-weight:800;">${w.hours_remaining}h left</span>
                     </div>
-                    <div style="font-size: 0.72rem; margin-top: 0.25rem;">
-                        Scale: <strong>${w.scale.toUpperCase()}</strong> • Assault Power: ${w.attacker_power} (${w.attacker_divisions} Divs) vs Defense: ${w.defender_power} (${w.defender_divisions} Divs)
+                    <div style="font-size: 0.72rem; margin-top: 0.25rem; color:#cbd5e1;">
+                        Scale: <strong>${w.scale.toUpperCase()}</strong> • Assault: ${w.attacker_power} (${w.attacker_divisions} Divs) vs Defense: ${w.defender_power} (${w.defender_divisions} Divs)
                     </div>
-                    <div class="stat-progress-bar" style="margin-top: 0.4rem;">
+                    <div class="stat-progress-bar" style="margin-top: 0.4rem; width:100%;">
                         <div class="stat-progress-fill" style="width: ${w.progress_pct}%; background: #ef4444;"></div>
                     </div>
-                    <div style="display:flex; justify-content:space-between; width:100%; margin-top:0.4rem;">
+                    <div style="display:flex; justify-content:space-between; width:100%; margin-top:0.4rem; align-items:center;">
                         <span style="font-size: 0.7rem; color: #94a3b8;">Campaign Progress: ${w.progress_pct}%</span>
-                        <button class="btn-action-sm" style="padding: 0.2rem 0.5rem; font-size:0.7rem;" onclick="openReinforceModal(${w.id}, '${w.attacker_name}', '${w.defender_name}')">
+                        <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}')">
                             🪖 Reinforce Front
                         </button>
                     </div>
@@ -2430,11 +2543,33 @@ async function submitDispatchSpy(spyId) {
 
 function openDeclareWarModal(targetId, targetName, targetFlag) {
     if (!userCountry) {
-        showToast("You must govern a sovereign nation to declare war!");
+        showToast("You must govern a sovereign nation to wage war!");
         return;
     }
-    const container = document.getElementById("modal-container");
 
+    let targetCountrySelectHtml = '';
+    if (!targetId) {
+        const eligibleTargets = countriesData.filter(x => x.id !== userCountry.id && x.owner_id);
+        if (eligibleTargets.length === 0) {
+            showToast("No foreign claimed nations available to wage war against. Attack an unclaimed frontier instead!");
+            openAttackFrontierModal();
+            return;
+        }
+        let opts = eligibleTargets.map(t => `<option value="${t.id}" data-flag="${t.flag}" data-name="${escapeHtml(t.name)}">${t.flag} ${escapeHtml(t.name)} (Ruler: ${escapeHtml(t.ruler_name || 'Autonomous')})</option>`).join('');
+        targetCountrySelectHtml = `
+            <div class="custom-form-group">
+                <label class="custom-form-label">Select Target Sovereign Nation</label>
+                <select class="custom-form-select" id="declare-war-target-select" onchange="updateWarModalTargetDisplay()">
+                    ${opts}
+                </select>
+            </div>
+        `;
+        targetId = eligibleTargets[0].id;
+        targetName = eligibleTargets[0].name;
+        targetFlag = eligibleTargets[0].flag;
+    }
+
+    const container = document.getElementById("modal-container");
     container.innerHTML = `
         <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
             <div class="custom-modal-card">
@@ -2445,8 +2580,10 @@ function openDeclareWarModal(targetId, targetName, targetFlag) {
                     <button class="btn-action-sm" onclick="closeModal()">✕</button>
                 </div>
 
+                ${targetCountrySelectHtml}
+
                 <div class="info-tile" style="margin-bottom: 1rem; text-align: center; border-color: rgba(239, 68, 68, 0.4);">
-                    <div style="font-size: 1.15rem; font-weight: 800;">
+                    <div id="war-modal-header-vs" style="font-size: 1.15rem; font-weight: 800;">
                         ${userCountry.flag} ${userCountry.name} ⚔️ ${targetFlag} ${targetName}
                     </div>
                     <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.25rem;">
@@ -2456,32 +2593,41 @@ function openDeclareWarModal(targetId, targetName, targetFlag) {
 
                 <div class="custom-form-group">
                     <label class="custom-form-label">Campaign Scale & Duration</label>
-                    
                     <div class="selectable-card active" id="war-scale-border" onclick="selectWarScale('border')">
                         <div style="font-weight: 800; color: #f8fafc;">⚔️ Border Skirmish (1 Day / 24 Hours)</div>
-                        <div style="font-size: 0.72rem; color: #94a3b8;">5 Min Divisions • 15% Treasury Loot • 100k Reparations</div>
+                        <div style="font-size: 0.72rem; color: #94a3b8;">5 Min Divisions • 15% Treasury Plunder • 100k War Reparations</div>
                     </div>
-
                     <div class="selectable-card" id="war-scale-annexation" onclick="selectWarScale('annexation')">
                         <div style="font-weight: 800; color: #f59e0b;">🚩 Strategic Annexation (3 Days / 72 Hours)</div>
-                        <div style="font-size: 0.72rem; color: #94a3b8;">15 Min Divisions • 40% Treasury Loot • 500k Reparations</div>
+                        <div style="font-size: 0.72rem; color: #94a3b8;">15 Min Divisions • 40% Treasury Plunder • <strong>Conquered state annexed into imperial domain (Max 4 states)</strong></div>
                     </div>
-
                     <div class="selectable-card" id="war-scale-world_war" onclick="selectWarScale('world_war')">
-                        <div style="font-weight: 800; color: #ef4444;">💥 Total Sovereign Conquest (5 Days / 120 Hours)</div>
-                        <div style="font-size: 0.72rem; color: #94a3b8;">30 Min Divisions • 75% Treasury Loot • 1,500,000 Reparations</div>
+                        <div style="font-weight: 800; color: #ef4444;">💥 Total World War (5 Days / 120 Hours)</div>
+                        <div style="font-size: 0.72rem; color: #94a3b8;">30 Min Divisions • 75% Treasury Plunder • Total imperial annexation & global mobilization</div>
                     </div>
                 </div>
 
                 <input type="hidden" id="selected-war-scale" value="border">
+                <input type="hidden" id="selected-war-target-id" value="${targetId}">
 
-                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem;">
                     <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
-                    <button class="btn-danger-sm" style="padding: 0.55rem 1.1rem;" onclick="submitDeclareWar(${targetId})">Issue Declaration of War</button>
+                    <button class="btn-danger-sm" style="padding: 0.55rem 1.1rem;" onclick="submitDeclareWarFromModal()">Issue Declaration of War</button>
                 </div>
             </div>
         </div>
     `;
+}
+
+function updateWarModalTargetDisplay() {
+    const sel = document.getElementById("declare-war-target-select");
+    if (!sel) return;
+    const opt = sel.options[sel.selectedIndex];
+    const flag = opt.getAttribute("data-flag");
+    const name = opt.getAttribute("data-name");
+    document.getElementById("selected-war-target-id").value = sel.value;
+    const vs = document.getElementById("war-modal-header-vs");
+    if (vs) vs.innerHTML = `${userCountry.flag} ${userCountry.name} ⚔️ ${flag} ${name}`;
 }
 
 function selectWarScale(scale) {
@@ -2491,7 +2637,8 @@ function selectWarScale(scale) {
     document.getElementById("war-scale-world_war").classList.toggle("active", scale === 'world_war');
 }
 
-async function submitDeclareWar(targetId) {
+async function submitDeclareWarFromModal() {
+    const targetId = document.getElementById("selected-war-target-id").value;
     const scale = document.getElementById("selected-war-scale").value;
     closeModal();
     try {
@@ -2500,7 +2647,7 @@ async function submitDeclareWar(targetId) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 attacker_country_id: userCountry.id,
-                defender_country_id: targetId,
+                defender_country_id: parseInt(targetId),
                 scale: scale
             })
         });
@@ -2509,6 +2656,136 @@ async function submitDeclareWar(targetId) {
         loadVirtualEarthData();
     } catch(e) {
         showToast("War declaration failed.");
+    }
+}
+
+async function submitDeclareWar(targetId) {
+    const scale = document.getElementById("selected-war-scale") ? document.getElementById("selected-war-scale").value : 'border';
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/war/declare", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                attacker_country_id: userCountry.id,
+                defender_country_id: parseInt(targetId),
+                scale: scale
+            })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("War declaration failed.");
+    }
+}
+
+function openAttackFrontierModal(targetId, targetName, targetFlag) {
+    if (!userCountry) {
+        showToast("You must govern or belong to a sovereign nation to launch frontier expeditions!");
+        return;
+    }
+
+    let targetCountrySelectHtml = '';
+    if (!targetId) {
+        const unclaimed = countriesData.filter(x => !x.owner_id);
+        if (unclaimed.length === 0) {
+            showToast("All 48 sovereign nations are currently claimed! Declare conquest on an existing country instead.");
+            openDeclareWarModal();
+            return;
+        }
+        let opts = unclaimed.map(t => `<option value="${t.id}" data-flag="${t.flag}" data-name="${escapeHtml(t.name)}">${t.flag} ${escapeHtml(t.name)} (Defense: ${t.defense_score || 50} pts)</option>`).join('');
+        targetCountrySelectHtml = `
+            <div class="custom-form-group">
+                <label class="custom-form-label">Select Unclaimed Frontier Nation</label>
+                <select class="custom-form-select" id="frontier-target-select" onchange="updateFrontierModalTargetDisplay()">
+                    ${opts}
+                </select>
+            </div>
+        `;
+        targetId = unclaimed[0].id;
+        targetName = unclaimed[0].name;
+        targetFlag = unclaimed[0].flag;
+    }
+
+    const container = document.getElementById("modal-container");
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title" style="color: #38bdf8;">
+                        <span>🎖️</span> Launch Frontier Military Expedition
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                ${targetCountrySelectHtml}
+
+                <div class="info-tile" style="margin-bottom: 1rem; border-color: rgba(56, 189, 248, 0.4);">
+                    <div id="frontier-modal-header" style="font-size: 1.1rem; font-weight: 800; color: #fff;">
+                        ${userCountry.flag} ${userCountry.name} ➔ ${targetFlag} ${targetName}
+                    </div>
+                    <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.25rem;">
+                        Deploy armed expeditionary forces to pacify local militias and annex this unclaimed frontier into your nation's sovereign imperial domain.
+                    </div>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Expedition Divisions to Deploy (Min 10)</label>
+                    <input type="number" id="frontier-divisions-input" class="custom-form-input" value="10" min="10" max="250" placeholder="10">
+                    <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.25rem;">
+                        Each division requires 5,000 Medals from the national treasury for logistics and armaments.
+                    </div>
+                </div>
+
+                <div class="info-tile" style="margin-bottom: 1rem; background: rgba(56,189,248,0.06);">
+                    <div style="font-size: 0.74rem; font-weight: 800; color: #38bdf8;">⚖️ Sovereign Annexation Limit:</div>
+                    <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.2rem;">
+                        A nation can rule up to <strong>4 conquered states</strong> (5 territories total). Upon victory, ${targetName} becomes part of your imperial realm!
+                    </div>
+                </div>
+
+                <input type="hidden" id="selected-frontier-target-id" value="${targetId}">
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                    <button class="hud-btn" style="padding: 0.55rem 1.1rem;" onclick="submitAttackFrontier()">Authorize Frontier Expedition</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function updateFrontierModalTargetDisplay() {
+    const sel = document.getElementById("frontier-target-select");
+    if (!sel) return;
+    const opt = sel.options[sel.selectedIndex];
+    const flag = opt.getAttribute("data-flag");
+    const name = opt.getAttribute("data-name");
+    document.getElementById("selected-frontier-target-id").value = sel.value;
+    const hdr = document.getElementById("frontier-modal-header");
+    if (hdr) hdr.innerHTML = `${userCountry.flag} ${userCountry.name} ➔ ${flag} ${name}`;
+}
+
+async function submitAttackFrontier() {
+    const targetId = document.getElementById("selected-frontier-target-id").value;
+    const divs = parseInt(document.getElementById("frontier-divisions-input").value) || 10;
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/war/expedition", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                attacker_country_id: userCountry.id,
+                target_country_id: parseInt(targetId),
+                divisions: divs
+            })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Frontier expedition request failed.");
     }
 }
 
@@ -3429,6 +3706,19 @@ window.addEventListener("DOMContentLoaded", () => {
     init3DWorld();
     loadVirtualEarthData();
     setInterval(loadVirtualEarthData, 30000);
+
+    const dockEl = document.getElementById("earth-dock");
+    if (dockEl) {
+        dockEl.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
+        dockEl.addEventListener("touchmove", (e) => e.stopPropagation(), { passive: true });
+        dockEl.addEventListener("pointerdown", (e) => e.stopPropagation());
+    }
+    const modalEl = document.getElementById("modal-container");
+    if (modalEl) {
+        modalEl.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
+        modalEl.addEventListener("touchmove", (e) => e.stopPropagation(), { passive: true });
+        modalEl.addEventListener("pointerdown", (e) => e.stopPropagation());
+    }
 });
 
 // ─── UNITED NATIONS SECURITY COUNCIL PEACEKEEPING MODAL ───
