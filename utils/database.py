@@ -2541,7 +2541,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
     async def sanitize_stock_exploit(self):
         """Safety check to ensure stock prices never exceed the maximum ceiling."""
         try:
-            async with self._db.execute("SELECT count(*) FROM stocks WHERE price > 300000") as cur:
+            # Keep every listing inside a predictable, affordable trading band.
+            # This prevents compounding buy pressure from making one company
+            # dominate the entire Medal economy.
+            async with self._db.execute("SELECT count(*) FROM stocks WHERE price > 75000 OR price < 20") as cur:
                 has_runaway_stocks = (await cur.fetchone())[0] > 0
 
             if not has_runaway_stocks:
@@ -2549,18 +2552,17 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
             print("[Safety] Clamping runaway stock prices to ceiling...", flush=True)
             stock_ceilings = {
-                "PRC": 120000,
-                "TSC": 250000,
-                "VNG": 45000,
-                "AERO": 65000,
-                "CRYP": 95000,
-                "TSLA": 250000,
-                "PANDA": 35000
+                "PRC": 75000, "TSC": 75000, "VNG": 75000,
+                "AERO": 75000, "CRYP": 75000, "TSLA": 75000, "PANDA": 75000
             }
             for sym, ceiling in stock_ceilings.items():
-                await self._db.execute("UPDATE stocks SET price = min(price, ?) WHERE symbol = ?", (ceiling, sym))
+                await self._db.execute(
+                    "UPDATE stocks SET price = min(75000, max(20, price)) WHERE symbol = ?",
+                    (sym,)
+                )
 
-            await self._db.execute("DELETE FROM stock_history WHERE price > 350000")
+            await self._db.execute("UPDATE stocks SET price = min(75000, max(20, price))")
+            await self._db.execute("DELETE FROM stock_history WHERE price > 75000 OR price < 20")
             await self._db.commit()
         except Exception as e:
             print(f"[Sanitizer Notice] {e}", flush=True)
@@ -2935,8 +2937,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         plausible = valuation <= fair_value * 2
         # Plausible claims have exactly a 50/50 approve/crash review; inflated claims fail the fundamentals review.
         approved = plausible and random.random() < 0.5
-        claim_price = max(20, min(800_000, int(round(valuation / 2500))))
-        fair_price = max(20, min(800_000, int(round(fair_value / 2500))))
+        # A company may be valuable, but no single share can become an
+        # economy-breaking reserve asset.
+        claim_price = max(20, min(75_000, int(round(valuation / 2500))))
+        fair_price = max(20, min(75_000, int(round(fair_value / 2500))))
         if approved:
             opening_price = min(claim_price, fair_price * 2)
             ai_status = "approved"
@@ -3040,7 +3044,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
     async def update_stock_price(self, stock_id: int, new_price: int):
 
-        new_price = max(1, new_price)
+        new_price = max(20, min(75000, int(new_price)))
 
         await self._db.execute("UPDATE stocks SET price = ? WHERE id = ?", (new_price, stock_id))
 
@@ -3132,10 +3136,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if current_shares + shares > MAX_HOLDING:
             return False, f"Holding limit reached. You can only hold a maximum of {MAX_HOLDING} shares per stock (Currently hold: {current_shares})."
 
-        # Balanced price impact: 0.005% per share (capped at 1.5% per order)
-        pct_impact = min(0.015, 0.00005 * shares)
+        # Bounded price impact: no order can move a listing more than 0.5%.
+        pct_impact = min(0.005, 0.00002 * shares)
         price_bump = max(1, int(round(stock["price"] * pct_impact)))
-        new_price = stock["price"] + price_bump
+        new_price = min(75000, stock["price"] + price_bump)
 
         # Average execution price along the order book curve (slippage protection)
         effective_buy_price = (stock["price"] + new_price) / 2.0
@@ -3200,8 +3204,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             remaining = int(600 - elapsed)
             return False, f"Anti-Arbitrage Lock: You recently purchased this stock. You must hold shares for at least 3 minutes before selling ({remaining}s remaining)."
 
-        # Balanced price drop: 0.005% per share (capped at 1.5% maximum drop)
-        pct_impact = min(0.015, 0.00005 * shares)
+        # Bounded price impact: no order can move a listing more than 0.5%.
+        pct_impact = min(0.005, 0.00002 * shares)
         price_drop = max(1, int(round(stock["price"] * pct_impact)))
         new_price = max(20, stock["price"] - price_drop)
 
