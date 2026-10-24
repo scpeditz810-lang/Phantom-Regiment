@@ -3,9 +3,11 @@
 Phantom Regiment Stock Market Engine
 Features:
 - Realistic Multi-Regime Dynamics: Green Zones (Bull Rallies), Stock Crashes (Bear Markets), and Sideways Consolidation
-- Real-life Catalyst Events: Positive contract blowouts & Negative catastrophic crashes / scandals
-- Strict Mathematical Price Bounds & Mean-Reversion Valuation Gravity: Completely prevents runaway hyper-inflation
-- Passive Dividends with safety caps (max 50 Medals/position)
+- Real-life Catalyst Events: Positive contract blowouts & Negative crashes / scandals
+- High-Value Equities: Realistic trading in the 5,000 - 250,000 Medals range
+- Strict Upper Ceilings: Prevents runaway hyper-inflation past max brackets
+- Mean-Reversion Valuation Gravity: Pulls over-extended stocks back to baseline
+- Passive Dividends with safety caps (max 1,500 Medals/position)
 """
 
 import time
@@ -14,13 +16,13 @@ import threading
 import asyncio
 
 DEFAULT_STOCK_BOUNDS = {
-    "PRC": {"base": 140, "min": 35, "max": 450},
-    "TSC": {"base": 180, "min": 45, "max": 550},
-    "VNG": {"base": 125, "min": 30, "max": 420},
-    "AERO": {"base": 155, "min": 35, "max": 480},
-    "CRYP": {"base": 95, "min": 25, "max": 350},
-    "TSLA": {"base": 165, "min": 40, "max": 500},
-    "PANDA": {"base": 45, "min": 15, "max": 180},
+    "PRC": {"base": 42000, "min": 15000, "max": 120000},
+    "TSC": {"base": 120000, "min": 35000, "max": 250000},
+    "VNG": {"base": 5000, "min": 1200, "max": 45000},
+    "AERO": {"base": 15000, "min": 3500, "max": 65000},
+    "CRYP": {"base": 28000, "min": 7500, "max": 95000},
+    "TSLA": {"base": 115000, "min": 35000, "max": 250000},
+    "PANDA": {"base": 9000, "min": 2500, "max": 35000},
 }
 
 BULL_CATALYSTS = [
@@ -83,7 +85,7 @@ class StockMarketEngine:
         self._running = True
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        print("[Stock Market Engine] Started background price fluctuation ticker with strict mathematical caps & valuation gravity.", flush=True)
+        print("[Stock Market Engine] Started background price fluctuation ticker with natural brackets & valuation gravity.", flush=True)
 
     def stop(self):
         self._running = False
@@ -159,15 +161,15 @@ class StockMarketEngine:
         for stock in stocks:
             old_price = stock["price"]
             sym = stock["symbol"]
-            bounds = DEFAULT_STOCK_BOUNDS.get(sym, {"base": 100, "min": 20, "max": 500})
+            bounds = DEFAULT_STOCK_BOUNDS.get(sym, {"base": 30000, "min": 5000, "max": 150000})
             base_p = bounds["base"]
             min_p = bounds["min"]
             max_p = bounds["max"]
 
-            # Safety check: if existing DB price is corrupt/runaway, clamp immediately
+            # Safety check: if existing DB price is runaway past ceiling, clamp immediately
             if old_price > max_p:
-                old_price = base_p
-                await self.db.update_stock_price(stock["id"], base_p)
+                old_price = max_p
+                await self.db.update_stock_price(stock["id"], max_p)
 
             # 1. Catalyst Override
             if catalyst_symbol == sym or catalyst_symbol == "GLOBAL":
@@ -210,7 +212,7 @@ class StockMarketEngine:
             # If stock is trading significantly above fair base value, profit taking pulls it down
             if old_price > base_p * 1.35:
                 overval_ratio = (old_price - base_p * 1.35) / float(base_p)
-                drag = min(0.08, 0.03 * overval_ratio)
+                drag = min(0.06, 0.025 * overval_ratio)
                 change_percent -= drag
             elif old_price < base_p * 0.70 and change_percent < 0:
                 # Value support floor
@@ -220,7 +222,7 @@ class StockMarketEngine:
             if diff == 0:
                 diff = random.choice([-1, 0, 1])
 
-            # HARD CLAMP: Enforce strict min and max bounds (absolutely impossible to exceed max)
+            # HARD CLAMP: Enforce strict min and max bounds (absolutely impossible to exceed max ceiling)
             new_price = max(min_p, min(max_p, old_price + diff))
             if new_price != old_price:
                 await self.db.update_stock_price(stock["id"], new_price)
@@ -243,7 +245,7 @@ class StockMarketEngine:
             pass
 
     async def _distribute_dividends(self):
-        """Distribute passive dividend payouts with strict safety caps."""
+        """Distribute passive dividend payouts with natural safety caps."""
         try:
             async with self.db._db.execute("""
                 SELECT us.user_id, us.stock_id, us.shares, s.price, s.symbol
@@ -258,10 +260,10 @@ class StockMarketEngine:
 
             total_paid = 0
             for h in holders:
-                # 0.25% dividend yield based on current share price
-                div_per_share = max(1, int(round(h["price"] * 0.0025)))
-                # Capped at max 50 Medals per stock position to prevent inflation
-                total_div = min(50, div_per_share * h["shares"])
+                # 0.15% dividend yield based on current share price
+                div_per_share = max(1, int(round(h["price"] * 0.0015)))
+                # Capped at max 1,500 Medals per stock position
+                total_div = min(1500, div_per_share * h["shares"])
                 if total_div > 0:
                     await self.db.add_medals(h["user_id"], 0, total_div)
                     total_paid += total_div
