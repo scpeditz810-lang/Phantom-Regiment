@@ -172,6 +172,22 @@
             </div>
             <button class="btn btn-blue" id="company-submit" type="submit" style="grid-column:1/-1;">Submit company for AI market review — 25,000 Medals</button>
         </form>
+                    <div id="company-sale-panel" hidden style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color,#334155);">
+                <h3 style="margin:0 0 .5rem;">Sell company</h3>
+                <p id="company-market-bank-balance" role="status" aria-live="polite" style="font-size:.8rem;color:var(--text-muted);"></p>
+                <p style="font-size:.8rem;color:var(--text-muted);">A buyer pays from their wallet. The seller receives the price after the current market tax. Bank buyouts are limited to the market bank's tax-funded balance.</p>
+                <form id="company-player-sale-form" onsubmit="submitCompanyPlayerSale(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.65rem;">
+                    <div class="form-group"><label class="form-label" for="company-buyer-username">Player buyer username</label><input class="form-input" id="company-buyer-username" maxlength="80" required></div>
+                    <div class="form-group"><label class="form-label" for="company-player-sale-price">Total price including tax (Medals)</label><input class="form-input" id="company-player-sale-price" type="number" min="1" max="2000000000" step="1" required></div>
+                    <button class="btn btn-blue" type="submit">Send player offer</button>
+                </form>
+                <form id="company-bank-sale-form" onsubmit="submitCompanyBankSale(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.65rem;margin-top:.6rem;">
+                    <div class="form-group"><label class="form-label" for="company-bank-sale-price">Bank sale price (Medals)</label><input class="form-input" id="company-bank-sale-price" type="number" min="1" max="2000000000" step="1" required></div>
+                    <button class="btn btn-blue" type="submit">Sell to market bank</button>
+                </form>
+                <div id="company-offer-status" role="status" aria-live="polite" style="font-size:.82rem;margin-top:.5rem;"></div>
+            </div>
+            <div id="company-incoming-offers" style="margin-top:1rem;"></div>
     </section>
     {% endif %}
 
