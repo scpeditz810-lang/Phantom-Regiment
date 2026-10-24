@@ -358,7 +358,7 @@ class BankingCog(commands.Cog):
                             f"**Interest:** {interest}%\n"
                             f"**Total Owed:** {amount + interest_medals:,} medals\n"
                             f"**Duration:** {days} days\n\n"
-                            f"If you don't repay on time, a **20% late fee** is added and any medals you earn will go toward paying it off.\n\n"
+                            f"If you don't repay on time, a **20% late fee** is added and earnings are not withheld automatically; repay the loan explicitly.\n\n"
                             f"Type `/loan accept {loan_id}` in the server to accept it. *(Expires in 24 hours)*")
         except:
             pass
@@ -381,7 +381,7 @@ class BankingCog(commands.Cog):
         
         await interaction.response.send_message(f"✅ You accepted the loan! **{loan['principal']:,} medals** have been added to your wallet.\n"
                                                 f"Make sure to repay **{loan['total_owed']:,} medals** before it expires.\n\n"
-                                                f"If you don't repay on time, a **20% late fee** is added and any medals you earn will go toward paying it off.")
+                                                f"If you don't repay on time, a **20% late fee** is added and earnings are not withheld automatically; repay the loan explicitly.")
 
     @loan.command(name="reject", description="Reject a loan offer")
     @app_commands.describe(loan_id="The ID of the loan offer")
