@@ -5263,7 +5263,22 @@ function renderInfraTab(c, isLeader, isOwner, container) {
 
         </div>
 
-    `;
+    
+        <div class="info-tile" style="border-color: rgba(56, 189, 248, 0.35); margin-bottom: 0.7rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem;">
+                <div>
+                    <div style="font-weight:800; color:#38bdf8;">📊 National Economy & Tax</div>
+                    <div style="font-size:0.72rem; color:#94a3b8; margin-top:0.2rem;">
+                        Tax rate: <strong>${Number(c.tax_rate ?? 10)}%</strong> · Treasury: <strong>${Number(c.treasury || 0).toLocaleString()} M</strong>
+                    </div>
+                </div>
+                ${canBuild ? `<button class="btn-action-sm" onclick="openPoliciesModal()">Set Tax & Policy</button>` : ''}
+            </div>
+            <div style="font-size:0.72rem; color:#94a3b8; margin-top:0.45rem;">
+                ${c.is_coastal ? 'Coastal access: Offshore oil rigs, naval ports, and ocean bases are available below.' : 'This country is landlocked; offshore oil rigs require a coastal country.'}
+            </div>
+        </div>
+`;
 
 
 
@@ -5786,7 +5801,7 @@ function renderTradeTab(c, isLeader, isOwner, container) {
 
                 <span style="font-size: 0.8rem; font-weight: 700;">🚢 Maritime Ocean Trade Lanes</span>
 
-                ${(isLeader && c.is_coastal) ? `
+                ${(c.can_manage_diplomacy && c.is_coastal) ? `
 
                     <button class="btn-action-sm" onclick="openProposeTradeModal(${c.id})">+ Inaugurate Sealane</button>
 
@@ -5804,7 +5819,7 @@ function renderTradeTab(c, isLeader, isOwner, container) {
 
                 <span style="font-size: 0.8rem; font-weight: 700;">🌐 International Coalition</span>
 
-                ${isLeader ? `
+                ${c.can_manage_diplomacy ? `
 
                     <button class="btn-action-sm" onclick="openAllianceModal(${c.id}, '${c.alliance_name || ''}')">
 
@@ -7633,6 +7648,7 @@ async function openAllianceModal(countryId, currentAllianceName) {
 
     `;
 
+    loadAllianceRequests(countryId);
 }
 
 
