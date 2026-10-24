@@ -3976,6 +3976,21 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 return await self.get_earth_country(row[0])
         return None
 
+    async def get_earth_country_by_code_or_name(self, value: str) -> dict | None:
+        """Resolve an Earth country by its exact country code or case-insensitive name."""
+        if self._db is None:
+            await self.setup()
+        value = " ".join(str(value or "").strip().split())
+        if not value:
+            return None
+        async with self._db.execute("""
+            SELECT id FROM earth_countries
+            WHERE UPPER(code) = UPPER(?) OR LOWER(name) = LOWER(?)
+            ORDER BY id ASC LIMIT 1
+        """, (value, value)) as cur:
+            row = await cur.fetchone()
+        return await self.get_earth_country(row[0]) if row else None
+
     async def get_user_earth_country(self, user_id: int) -> dict | None:
         """Fetch the country where the user is President/PM or a Cabinet Minister."""
         if self._db is None:
