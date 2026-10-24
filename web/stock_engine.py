@@ -162,6 +162,18 @@ class StockMarketEngine:
             old_price = stock["price"]
             sym = stock["symbol"]
             bounds = DEFAULT_STOCK_BOUNDS.get(sym, {"base": 30000, "min": 5000, "max": 150000})
+            # Player companies use their reviewed fair value rather than the
+            # generic market brackets, preventing runaway valuation bubbles.
+            is_company_stock = bool(stock.get("company_owner_id"))
+            if is_company_stock:
+                fair_value = max(100_000, int(stock.get("fair_value") or 0))
+                supply = max(1, int(stock.get("total_supply") or 2500))
+                fair_share = max(20, fair_value / supply)
+                bounds = {
+                    "base": int(round(fair_share)),
+                    "min": max(20, int(round(fair_share * 0.25))),
+                    "max": max(20, int(round(fair_share * 2.5))),
+                }
             base_p = bounds["base"]
             min_p = bounds["min"]
             max_p = bounds["max"]
@@ -218,6 +230,11 @@ class StockMarketEngine:
                 # Value support floor
                 change_percent = random.uniform(0.015, 0.035)
 
+            # Company circuit breaker: a single market tick cannot move a
+            # player-company share more than 0.75% in either direction.
+            if is_company_stock:
+                change_percent = max(-0.0075, min(0.0075, change_percent))
+
             diff = int(round(old_price * change_percent))
             if diff == 0:
                 diff = random.choice([-1, 0, 1])
@@ -260,10 +277,10 @@ class StockMarketEngine:
 
             total_paid = 0
             for h in holders:
-                # 0.15% dividend yield based on current share price
-                div_per_share = max(1, int(round(h["price"] * 0.0015)))
-                # Capped at max 1,500 Medals per stock position
-                total_div = min(1500, div_per_share * h["shares"])
+                # Conservative 0.05% dividend yield based on current share price
+                div_per_share = max(1, int(round(h["price"] * 0.0005)))
+                # Capped at 250 Medals per stock position per payout cycle
+                total_div = min(250, div_per_share * h["shares"])
                 if total_div > 0:
                     await self.db.add_medals(h["user_id"], 0, total_div)
                     total_paid += total_div
