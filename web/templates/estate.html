@@ -8,6 +8,16 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════════
+// Keep the fullscreen globe viewport aligned to the actual wrapped navbar height.
+function syncEarthNavbarHeight() {
+    const navbar = document.querySelector(".navbar");
+    const height = navbar ? navbar.getBoundingClientRect().height : 0;
+    document.documentElement.style.setProperty("--earth-nav-height", `${height}px`);
+}
+window.addEventListener("load", syncEarthNavbarHeight, { once: true });
+window.addEventListener("resize", syncEarthNavbarHeight, { passive: true });
+window.addEventListener("orientationchange", syncEarthNavbarHeight, { passive: true });
+
 // 🎓 SPY TRAINING ACADEMY & INTEL DOSSIER PURCHASE MODALS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2265,9 +2275,11 @@ async function renderDockContent() {
         const res = await fetch(`/api/earth/country/${countryId}?_t=` + Date.now());
         if (res.ok) {
             const fresh = await res.json();
-            if (selectedCountry && selectedCountry.id === countryId) {
-                selectedCountry = fresh;
-                renderActiveTabContent(selectedCountry, body);
+            if (selectedCountry && selectedCountry.id === countryId) {
+                const previousScrollTop = body.scrollTop;
+                selectedCountry = fresh;
+                renderActiveTabContent(selectedCountry, body);
+                body.scrollTop = Math.min(previousScrollTop, Math.max(0, body.scrollHeight - body.clientHeight));
             }
         }
     } catch(err) {
@@ -2321,7 +2333,7 @@ function renderDossierTab(c, isLeader, isOwner, container) {
         <div class="info-tile" style="display:flex; align-items:center; justify-content:space-between; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.35); padding: 0.65rem 0.85rem; margin-bottom: 0.75rem;">
             <div>
                 <div style="font-size: 0.82rem; font-weight: 700; color: #10b981;">🌱 Organic National Growth Active</div>
-                <div style="font-size: 0.72rem; color: #94a3b8;">Slow natural development: +0.3%/hr passive GDP growth ? Troops drilling ? Civic maturation</div>
+                <div style="font-size: 0.72rem; color: #94a3b8;">Slow natural development: +0.01%/hr passive GDP growth ? Troops drilling ? Civic maturation</div>
             </div>
             ${isLeader ? `<button class="btn-action-sm" style="border-color:#f59e0b; color:#fbbf24;" onclick="switchDockTab('tools', this)">⚡ Fast-Track Tech</button>` : ''}
         </div>
@@ -3466,7 +3478,7 @@ function openAttackFrontierModal(targetId, targetName, targetFlag) {
     if (!targetId) {
         const unclaimed = countriesData.filter(x => !x.owner_id);
         if (unclaimed.length === 0) {
-            showToast("All 48 sovereign nations are currently claimed! Declare conquest on an existing country instead.");
+            showToast("All countries are currently claimed! Declare conquest on an existing country instead.");
             openDeclareWarModal();
             return;
         }
