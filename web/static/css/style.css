@@ -2067,27 +2067,27 @@ html, body {
 
 /* ── 7. E-State Tycoon Mobile Controls & Option Slider ── */
 @media (max-width: 900px) {
-    .estate-hero {
+    .earth-hero {
         padding: 1.15rem 1rem !important;
         border-radius: 14px !important;
     }
 
-    .estate-hero-top {
+    .earth-hero-top {
         gap: 1rem !important;
     }
 
-    .estate-claim-box {
+    .earth-claim-box {
         width: 100% !important;
         justify-content: space-between !important;
         padding: 0.75rem 1rem !important;
     }
 
-    .estate-stats-grid {
+    .earth-stats-grid {
         grid-template-columns: 1fr 1fr !important;
         gap: 0.65rem !important;
     }
 
-    .estate-controls-bar {
+    .earth-controls-bar {
         flex-direction: column !important;
         align-items: stretch !important;
         gap: 0.75rem !important;
@@ -2147,14 +2147,14 @@ html, body {
         height: 360px !important;
     }
 
-    .estate-inspector {
+    .earth-inspector {
         border-radius: 14px !important;
         padding: 1.15rem 1rem !important;
     }
 }
 
 @media (max-width: 480px) {
-    .estate-stats-grid {
+    .earth-stats-grid {
         grid-template-columns: 1fr !important;
     }
 }
