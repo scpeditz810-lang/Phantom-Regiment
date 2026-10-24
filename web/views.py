@@ -329,6 +329,8 @@ def mayor_page():
     db = current_app.config["DB"]
     user = session.get("user")
     stocks = run_async(db.get_all_stocks())
+    companies = run_async(db.get_all_player_companies())
+    mayor_wallet = run_async(db.get_global_economy(user["id"])).get("medals", 0)
     try:
         tax_pct = int(round(run_async(db.get_stock_tax_rate()) * 100))
     except Exception:
@@ -352,6 +354,8 @@ def mayor_page():
         user=user,
         stocks=stocks,
         tax_pct=tax_pct,
+        companies=companies,
+        mayor_wallet=mayor_wallet,
         term_days_left=term_days_left,
         term_hours_left=term_hours_left,
         un_status=un_status,
