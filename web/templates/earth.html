@@ -6053,11 +6053,12 @@ function openAppointCabinetModal(roleKey, roleTitle, roleEmoji) {
 
     let optionsHtml = `<option value="">-- Choose Server Citizen --</option>`;
 
-    serverMembers.forEach(m => {
-
+    serverMembers.filter(m => !m.is_president).forEach(m => {
         optionsHtml += `<option value="${m.user_id}" data-username="${escapeHtml(m.username)}">@${escapeHtml(m.username)} (ID: ${m.user_id})</option>`;
-
     });
+    if (!serverMembers.some(m => !m.is_president)) {
+        optionsHtml = '<option value="">No eligible non-president citizens found</option>';
+    }
 
 
 
