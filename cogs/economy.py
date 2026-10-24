@@ -1520,38 +1520,31 @@ class EconomyCog(commands.Cog):
         
 
         if streak >= 30:
-
-            amount = 1000
-
-        elif streak >= 14:
-
             amount = 500
-
+            next_goal = "30-day streak reached — you are at the daily reward cap."
+        elif streak >= 14:
+            amount = 350
+            next_goal = f"{30 - streak} more day(s) to the 30-day milestone."
         elif streak >= 7:
-
-            amount = 300
-
+            amount = 250
+            next_goal = f"{14 - streak} more day(s) to the 14-day milestone."
         elif streak >= 5:
-
             amount = 200
-
+            next_goal = f"{7 - streak} more day(s) to the 7-day milestone."
         elif streak >= 3:
-
             amount = 150
-
+            next_goal = f"{5 - streak} more day(s) to the 5-day milestone."
         elif streak >= 2:
-
             amount = 120
-
+            next_goal = f"{3 - streak} more day(s) to the 3-day milestone."
         else:
-
             amount = 100
-
-            
+            next_goal = "1 more day to the 2-day milestone."
 
         await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, amount)
-
-        await interaction.response.send_message(f"You claimed your daily **{amount} Medals**! (Current Streak: {streak} days)")
+        await interaction.response.send_message(
+            f"Daily campaign: **{amount} Medals** claimed. Streak: **{streak} day(s)**. {next_goal}"
+        )
 
 
 
@@ -2909,6 +2902,7 @@ class EconomyCog(commands.Cog):
                 "• **Live Web Exchange:** Trade 7 corporate equities (`PRC`, `TSC`, `VNG`, `AERO`, `CRYP`, `TSLA`, `PANDA`) on the web portal: **https://phantom-regiment.onrender.com/medals**\n"
 
                 "• **Passive Dividends (Nerfed):** Holding stocks pays **0.4% passive dividends** (capped at 250 Medals per stock payout) every 15 minutes!\n"
+                "• **Market fee:** The server-set transaction rate (0–50%) applies to both stock purchases and sales; the fee is shown before/after each trade.\n"
 
                 "• **Real-Time Order Book:** Share purchases drive prices up, while sells lower prices with order curve protection.\n"
 
@@ -3121,7 +3115,7 @@ class EconomyCog(commands.Cog):
 
                 "Live market equities on the sovereign trading index.\n"
 
-                "Dividends pay **0.4%** every 15 minutes to active shareholders (Max 250 M/payout)!\n"
+                "Dividends pay **0.4%** every 15 minutes (max 250 M per payout). A market fee applies to purchases and sales.\n"
 
                 "Minimum price floor: **20 Medals** (Institutional Backing)."
 
@@ -3161,7 +3155,7 @@ class EconomyCog(commands.Cog):
 
         view.add_item(discord.ui.Button(label="📈 Open Web Stock Exchange", url="https://phantom-regiment.onrender.com/medals", style=discord.ButtonStyle.link, emoji="📈"))
 
-        embed.set_footer(text="Trade instantly on the web portal • 15% Market Tax on Sales • Max 50 Shares/User")
+        embed.set_footer(text="Trade on the web portal • Server-set 0–50% fee on buys and sells • Max 250 shares per stock")
 
         await interaction.response.send_message(embed=embed, view=view)
 
