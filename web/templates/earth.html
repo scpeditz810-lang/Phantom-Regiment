@@ -8366,6 +8366,18 @@ async function submitClaimCountry(countryId) {
 
 
 
+async function openCitizensModal(countryId, countryName) {
+    const container = document.getElementById('modal-container');
+    container.innerHTML = '<div class="custom-modal-overlay"><div class="custom-modal-card"><div class="custom-modal-header"><div class="custom-modal-title">👥 Citizens of ' + escapeHtml(countryName) + '</div><button class="btn-action-sm" onclick="closeModal()">✕</button></div><div id="citizens-list" style="max-height:22rem;overflow:auto;color:#cbd5e1;font-size:.78rem;">Loading citizens…</div></div></div>';
+    try {
+        const res = await fetch('/api/earth/citizens?country_id=' + encodeURIComponent(countryId));
+        const citizens = await res.json();
+        const list = document.getElementById('citizens-list');
+        list.innerHTML = citizens.length ? citizens.map((cit, i) => '<div class="minister-card"><span>👤 ' + escapeHtml(cit.username || cit.roblox_username || ('Citizen ' + (i + 1))) + '</span><span class="hud-tag">' + Number(cit.reputation || 100) + ' rep</span></div>').join('') : '<div style="padding:1rem;text-align:center;color:#94a3b8;">No registered citizens.</div>';
+    } catch (e) {
+        const list = document.getElementById('citizens-list'); if (list) list.textContent = 'Unable to load citizens.';
+    }
+}
 async function joinCountry(countryId, countryName) {
 
     if (!confirm(`Pledge allegiance and become an official citizen of ${countryName}?`)) return;
