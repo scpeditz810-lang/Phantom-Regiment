@@ -406,17 +406,23 @@ async def main():
     bot.web_db_ready = asyncio.Event()
     threading.Thread(target=_run_flask, args=(loop,), daemon=True).start()
 
-    # Git operations are synchronous and can block for minutes on a cold deploy.
-    # Run them off the Discord/web event loop so Flask API requests remain alive.
-    await asyncio.to_thread(backup.restore)
-
-    # Ensure database schema and stock market seeding are ready
-    await bot.db.setup()
-    bot.web_db_ready.set()
+    # Git operations are synchronous and can block on a cold deploy. Run them
+    # off the event loop and continue with a local DB if GitHub is unavailable.
     try:
-        await bot.db.seed_default_stocks()
+        await asyncio.wait_for(asyncio.to_thread(backup.restore), timeout=60)
     except Exception as e:
-        print(f"⚠️ Stock seeding notice: {e}", flush=True)
+        print(f"⚠️ Backup restore skipped; continuing with local database: {e}", flush=True)
+
+    # Ensure database schema and stock market seeding are ready. Always release
+    # waiting web requests, even if a non-critical seed operation fails.
+    try:
+        await bot.db.setup()
+        try:
+            await bot.db.seed_default_stocks()
+        except Exception as e:
+            print(f"⚠️ Stock seeding notice: {e}", flush=True)
+    finally:
+        bot.web_db_ready.set()
 
     token = os.environ.get("DISCORD_TOKEN")
 
