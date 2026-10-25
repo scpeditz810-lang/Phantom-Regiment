@@ -3467,10 +3467,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
 
 
-        await self.add_medals(user_id, 0, -amount)
-
-        await self.deposit_bank(user_id, 0, amount)
-
+        # deposit_bank performs the single atomic wallet->vault transfer.
+        # Do not debit the wallet separately here.
+        success = await self.deposit_bank(user_id, int(bank.get("guild_id", 0)), amount)
+        if not success:
+            return False, "Your wallet or vault changed before the deposit completed."
         return True, f"Deposited {amount:,} Medals into your vault."
 
 
@@ -3493,10 +3494,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
 
 
-        await self.withdraw_bank(user_id, 0, amount)
-
-        await self.add_medals(user_id, 0, amount)
-
+        # withdraw_bank performs the single atomic vault->wallet transfer.
+        # Do not credit the wallet a second time here.
+        success = await self.withdraw_bank(user_id, int(bank.get("guild_id", 0)), amount)
+        if not success:
+            return False, "Your vault changed before the withdrawal completed."
         return True, f"Withdrew {amount:,} Medals from your vault."
 
 
