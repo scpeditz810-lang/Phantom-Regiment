@@ -978,6 +978,26 @@ body.virtual-earth-page {
 
 
 
+.commander-quick-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin: 0 0 .8rem;
+    padding: .75rem .85rem;
+    border: 1px solid rgba(245,158,11,.5);
+    border-radius: 10px;
+    background: rgba(245,158,11,.08);
+}
+.commander-quick-action strong,
+.commander-quick-action span { display: block; }
+.commander-quick-action strong { color: #fbbf24; font-size: .82rem; }
+.commander-quick-action span { color: #cbd5e1; font-size: .72rem; margin-top: .2rem; }
+@media (max-width: 600px) {
+    .commander-quick-action { align-items: stretch; flex-direction: column; }
+    .commander-quick-action .hud-btn { width: 100%; min-height: 2.75rem; }
+}
+
 .dock-body {
 
     flex: 1 1 0 !important;
@@ -4664,13 +4684,22 @@ async function renderActiveTabContent(c, body) {
         if (dossierTab) dossierTab.classList.add("active");
     }
 
-    const sameSovereign = Boolean(userCountry && userCountry.owner_id && c.owner_id &&
-
-        String(userCountry.owner_id) === String(c.owner_id));
-
-    const isLeader = Boolean(sameSovereign && userCountry.user_role !== 'citizen');
-
-    const isOwner = Boolean(sameSovereign && (userCountry.user_role === 'president' || (statsData.user && String(c.owner_id) === String(statsData.user.id))));
+    // Use the authenticated session as the source of truth. The cached
+    // userCountry object can be stale while a country detail is refreshing,
+    // which previously hid president-only controls on both desktop and mobile.
+    const viewerId = statsData.user && statsData.user.id != null ? String(statsData.user.id) : "";
+    const countryOwnerId = c.owner_id != null ? String(c.owner_id) : "";
+    const directOwner = Boolean(viewerId && countryOwnerId && viewerId === countryOwnerId);
+    const sameSovereign = Boolean(
+        directOwner ||
+        (userCountry && userCountry.owner_id && countryOwnerId &&
+            String(userCountry.owner_id) === countryOwnerId)
+    );
+    const isLeader = Boolean(sameSovereign && userCountry && userCountry.user_role !== 'citizen');
+    const isOwner = Boolean(
+        directOwner ||
+        (sameSovereign && userCountry && userCountry.user_role === 'president')
+    );
 
 
 
@@ -5074,10 +5103,18 @@ function renderCabinetTab(c, isLeader, isOwner, container) {
 
         </div>
 
+        ${isOwner ? `<div class="commander-quick-action">
+            <div>
+                <strong>⚔️ Army Commander</strong>
+                <span>Appoint a non-president citizen to command this country’s defense forces.</span>
+            </div>
+            <button id="hire-commander-btn" type="button" class="hud-btn" onclick="openAppointCabinetModal('defense','Army Commander','⚔️')">Hire Commander</button>
+        </div>` : ''}
+
         <div class="info-tile" style="margin-bottom:0.8rem;border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.06);">
             <div style="font-weight:800;color:#fbbf24;margin-bottom:.25rem;">👑 Presidential Command Appointments</div>
             <div style="font-size:.74rem;color:#cbd5e1;margin-bottom:.55rem;">Hire a Commander or nominate another cabinet minister. The candidate must accept the decree before receiving authority.</div>
-            <button class="hud-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 0 14px rgba(245,158,11,.32);" ${isOwner ? "onclick=\"openAppointCabinetModal('defense','Army Commander','⚔️')\"" : "disabled title=\"Only the current president can hire a commander\""}>⚔️ Hire Commander${isOwner ? "" : " (President Only)"}</button>
+            <button id="hire-commander-btn-cabinet" type="button" class="hud-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 0 14px rgba(245,158,11,.32);width:100%;min-height:2.5rem;" ${isOwner ? "onclick=\"openAppointCabinetModal('defense','Army Commander','⚔️')\"" : "disabled title=\"Only the current president can hire a commander\""}>⚔️ Hire Commander${isOwner ? "" : " (President Only)"}</button>
         </div>
 
     `;
