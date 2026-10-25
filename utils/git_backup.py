@@ -331,8 +331,13 @@ class GitBackup:
 
     @staticmethod
     def _run(cmd, *, cwd=None, check=True, capture=False, capture_binary=False):
+        # Never let a network/git operation stall application startup forever.
+        # Render can temporarily lose access to GitHub during cold deploys.
+        timeout = int(os.environ.get("GIT_COMMAND_TIMEOUT", "45"))
         if capture_binary:
-            proc = subprocess.run(cmd, cwd=cwd, check=check, capture_output=True)
+            proc = subprocess.run(
+                cmd, cwd=cwd, check=check, capture_output=True, timeout=timeout
+            )
             return proc.stdout
         return subprocess.run(
             cmd,
@@ -340,4 +345,5 @@ class GitBackup:
             check=check,
             capture_output=capture,
             text=True,
+            timeout=timeout,
         )
