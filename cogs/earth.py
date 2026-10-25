@@ -98,6 +98,9 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     earth_group = app_commands.Group(name="earth", description="🌍 Virtual Earth: Global Geopolitics Simulation")
     cabinet_group = app_commands.Group(name="cabinet", parent=earth_group, description="🏛️ Sovereign Cabinet & Ministers")
+    # Discord allows at most 25 direct child commands per slash-command group.
+    # Keep UN actions under /earth un so all Earth commands can register.
+    un_group = app_commands.Group(name="un", parent=earth_group, description="🇺🇳 United Nations peacekeeping actions")
 
     # ─── Country Overview ─────────────────────────────────────────────────────
 
@@ -981,7 +984,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             return True
         return False
 
-    @earth_group.command(name="un_status", description="View United Nations (UN) Secretary-General status and active global sanctions.")
+    @un_group.command(name="status", description="View United Nations (UN) Secretary-General status and active global sanctions.")
     async def earth_un_status(self, interaction: discord.Interaction):
         await interaction.response.defer()
         status = await self.bot.db.get_earth_un_status()
@@ -1019,7 +1022,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         embed.set_footer(text="Virtual Earth 3D • United Nations Diplomatic Suite")
         await interaction.followup.send(embed=embed)
 
-    @earth_group.command(name="un_ceasefire", description="[Mayor / UN] Enforce an immediate binding UN Ceasefire decree halting an active war.")
+    @un_group.command(name="ceasefire", description="[Mayor / UN] Enforce an immediate binding UN Ceasefire decree halting an active war.")
     @app_commands.describe(war_id="ID of the active war to halt")
     async def earth_un_ceasefire(self, interaction: discord.Interaction, war_id: int):
         await interaction.response.defer()
@@ -1044,7 +1047,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         embed.set_footer(text="Virtual Earth 3D • UN Security Council Resolution")
         await interaction.followup.send(embed=embed)
 
-    @earth_group.command(name="un_sanction", description="[Mayor / UN] Impose international trade embargo and warfare sanctions on a rogue country.")
+    @un_group.command(name="sanction", description="[Mayor / UN] Impose international trade embargo and warfare sanctions on a rogue country.")
     @app_commands.describe(
         country="Country code or name to sanction",
         reason="Official reason for UN Security Council sanctions"
@@ -1078,7 +1081,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         embed.set_footer(text="Virtual Earth 3D • United Nations Diplomatic Suite")
         await interaction.followup.send(embed=embed)
 
-    @earth_group.command(name="un_aid", description="[Mayor / UN] Disburse 50,000 Medals in UN emergency relief to quell riots and rebuild stability.")
+    @un_group.command(name="aid", description="[Mayor / UN] Disburse 50,000 Medals in UN emergency relief to quell riots and rebuild stability.")
     @app_commands.describe(country="Country code or name to receive humanitarian aid")
     async def earth_un_aid(self, interaction: discord.Interaction, country: str):
         await interaction.response.defer()
