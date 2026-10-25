@@ -15,6 +15,8 @@ def create_app(bot=None, db=None, loop=None):
 
     app.config["DISCORD_BOT"] = bot
     app.config["DB"] = db
+    # Flask runs in a worker thread; keep the bot's asyncio loop explicit.
+    app.config["BOT_LOOP"] = loop
 
     # Context processors for all Jinja2 templates
     @app.context_processor
