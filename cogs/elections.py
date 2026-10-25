@@ -217,6 +217,54 @@ class ElectionsCog(commands.Cog):
 
     # ── Election Command Group ────────────────────────────────────────────────
     election = app_commands.Group(name="election", description="City Mayoral democratic elections")
+    end = app_commands.Group(name="end", description="Owner emergency controls")
+    elect = app_commands.Group(name="elect", description="Owner appointment controls")
+
+    @staticmethod
+    def _is_server_owner(interaction: discord.Interaction) -> bool:
+        return bool(interaction.guild and interaction.guild.owner_id == interaction.user.id)
+
+    @end.command(name="mayorterm", description="[Server Owner] End the current Mayor's term immediately")
+    async def end_mayor_term(self, interaction: discord.Interaction):
+        if not self._is_server_owner(interaction):
+            return await interaction.response.send_message("⛔ Only the server owner can end a Mayor's term.", ephemeral=True)
+        former_id = await self.bot.db.end_mayor_term(interaction.guild_id)
+        if former_id is None:
+            return await interaction.response.send_message("There is no active Mayor term to end.", ephemeral=True)
+        mayor_role = discord.utils.get(interaction.guild.roles, name="🏛️ Mayor")
+        former = interaction.guild.get_member(former_id)
+        if mayor_role and former:
+            try:
+                await former.remove_roles(mayor_role, reason="Mayoral term ended by server owner")
+            except discord.Forbidden:
+                pass
+        await interaction.response.send_message(f"🏛️ The Mayoral term for <@{former_id}> has been ended by the server owner.")
+
+    @elect.command(name="mayor", description="[Server Owner] Appoint a Mayor immediately")
+    @app_commands.describe(user="Member to appoint as Mayor")
+    async def elect_mayor(self, interaction: discord.Interaction, user: discord.Member):
+        if not self._is_server_owner(interaction):
+            return await interaction.response.send_message("⛔ Only the server owner can appoint a Mayor.", ephemeral=True)
+        await interaction.response.defer()
+        term = await self.bot.db.appoint_mayor(interaction.guild_id, user.id)
+        mayor_role, candidate_role = await self.get_or_create_roles(interaction.guild)
+        if mayor_role:
+            for member in mayor_role.members:
+                if member.id != user.id:
+                    try:
+                        await member.remove_roles(mayor_role, reason="Mayoral appointment by server owner")
+                    except discord.Forbidden:
+                        pass
+            try:
+                await user.add_roles(mayor_role, reason="Appointed Mayor by server owner")
+            except discord.Forbidden:
+                pass
+        if candidate_role:
+            try:
+                await user.remove_roles(candidate_role, reason="Appointed Mayor")
+            except discord.Forbidden:
+                pass
+        await interaction.followup.send(f"🏛️ {user.mention} has been appointed Mayor by the server owner. Term ends <t:{int(term['term_end'])}:R>.")
 
     @election.command(name="status", description="View current Mayoral election status, countdown, registered candidates, and ballots")
     async def election_status(self, interaction: discord.Interaction):

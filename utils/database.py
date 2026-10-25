@@ -971,6 +971,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self.reset_earth_world_to_zero_once()
         await self.release_user_earth_claims_once(1147451922459136070, "IRN")
         await self.cap_excess_medals_once()
+        await self.force_full_season_reset_once()
 
 
 
@@ -3879,6 +3880,45 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             row = await cur.fetchone()
             return dict(row) if row else None
 
+    async def end_mayor_term(self, guild_id: int) -> int | None:
+        """End the active mayoral term immediately and return the former mayor ID."""
+        if self._db is None:
+            await self.setup()
+        current = await self.get_current_commander(guild_id)
+        if not current:
+            return None
+        await self._db.execute(
+            "UPDATE elections SET term_end = ? WHERE id = ?", (time.time(), current["id"])
+        )
+        await self._db.commit()
+        return int(current["winner_id"])
+
+    async def appoint_mayor(self, guild_id: int, user_id: int, term_days: int = 14) -> dict:
+        """Owner-only administrative appointment; records a normal concluded term."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            await self._db.execute(
+                "UPDATE elections SET term_end = ? WHERE guild_id = ? AND status = 'concluded' AND term_end > ?",
+                (now, guild_id, now),
+            )
+            await self._db.execute(
+                "UPDATE elections SET status = 'cancelled', end_time = ? WHERE guild_id = ? AND status = 'active'",
+                (now, guild_id),
+            )
+            async with self._db.execute(
+                "INSERT INTO elections (guild_id, status, start_time, end_time, winner_id, term_end, created_at) VALUES (?, 'concluded', ?, ?, ?, ?, ?)",
+                (guild_id, now, now, int(user_id), now + max(1, int(term_days)) * 86400, now),
+            ) as cur:
+                election_id = int(cur.lastrowid)
+            await self._db.commit()
+            return {"id": election_id, "winner_id": int(user_id), "term_end": now + max(1, int(term_days)) * 86400}
+        except Exception:
+            await self._db.rollback()
+            raise
+
     async def get_commander_awards_count(self, election_id: int, commander_id: int) -> int:
         if self._db is None:
             await self.setup()
@@ -4051,6 +4091,39 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
             await self._db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (reset_key, "complete"))
             await self._db.commit()
+            return True
+        except Exception:
+            await self._db.rollback()
+            raise
+
+    async def force_full_season_reset_once(self) -> bool:
+        """Owner-authorized complete season reset. Runs exactly once on deployment."""
+        reset_key = "owner_authorized_full_reset_2026_10_26"
+        if await self.get_meta(reset_key) == "complete":
+            return False
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            # Personal economy and market.
+            await self._db.execute("UPDATE global_economy SET medals = 0")
+            await self._db.execute("UPDATE users SET medals = 0")
+            await self._db.execute("UPDATE banks SET balance = 0")
+            for table in ("user_stocks", "stock_history", "player_company_offers", "player_companies", "stocks"):
+                await self._db.execute(f"DELETE FROM {table}")
+            await self._db.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('company_market_balance', '0')")
+
+            # Virtual Earth: remove every player state and restore only the base world.
+            for table in (
+                "earth_country_offers", "earth_trade_routes", "earth_wars", "earth_alliances",
+                "earth_intelligence", "earth_spies", "earth_tools", "earth_nuclear_strikes",
+                "earth_military_log", "earth_citizens", "earth_cabinet_invites", "earth_cabinet",
+                "earth_buildings", "earth_un_resolutions", "earth_claim_fingerprints"
+            ):
+                await self._db.execute(f"DELETE FROM {table}")
+            await self._db.execute("DELETE FROM earth_countries")
+            await self._db.execute("INSERT OR REPLACE INTO meta(key, value) VALUES (?, 'complete')", (reset_key,))
+            await self._db.commit()
+            await self.seed_default_stocks()
+            await self.seed_default_earth_countries()
             return True
         except Exception:
             await self._db.rollback()
