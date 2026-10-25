@@ -57,28 +57,41 @@ class GitBackup:
 
         git_dir = os.path.join(self.repo_dir, ".git")
         if not os.path.isdir(git_dir):
-            # Fresh start — try to clone into data/
+            # Fresh Render instances must fetch only the latest snapshot. The
+            # backup repository is updated frequently, so a full-history clone
+            # can take longer than the startup window and leave an empty DB.
+            tmp = self.repo_dir + "_tmp"
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
             try:
-                tmp = self.repo_dir + "_tmp"
-                self._run(["git", "clone", auth_url, tmp])
+                self._run([
+                    "git", "clone", "--depth", "1", "--single-branch",
+                    "--branch", "main", auth_url, tmp
+                ])
                 for item in os.listdir(tmp):
                     src = os.path.join(tmp, item)
                     dst = os.path.join(self.repo_dir, item)
                     if not os.path.exists(dst):
                         os.rename(src, dst)
                     elif item == ".git":
-                        import shutil
                         if os.path.isdir(dst):
                             shutil.rmtree(dst)
                         os.rename(src, dst)
-                import shutil
                 shutil.rmtree(tmp, ignore_errors=True)
-                print("✅  Backup repo cloned — database restored.")
-            except subprocess.CalledProcessError:
-                self._run(["git", "init"], cwd=self.repo_dir)
-                self._run(["git", "remote", "add", "origin", auth_url],
-                          cwd=self.repo_dir, check=False)
-                print("✅  Initialised fresh backup repo.")
+                if not os.path.exists(self.db_path):
+                    raise FileNotFoundError("backup repository clone did not contain bot.db")
+                conn = sqlite3.connect(self.db_path)
+                healthy = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+                conn.close()
+                if not healthy:
+                    raise sqlite3.DatabaseError("restored bot.db failed integrity_check")
+                print("✅  Latest database snapshot restored from backup repo.", flush=True)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, sqlite3.DatabaseError) as exc:
+                shutil.rmtree(tmp, ignore_errors=True)
+                print(f"❌ Could not restore database from backup repo: {exc}", flush=True)
+                # Do not turn a failed restore into an empty database. Startup
+                # must stop so it cannot seed or push zeroed player data.
+                raise RuntimeError("Database backup restore failed") from exc
         else:
             self._run(["git", "remote", "set-url", "origin", auth_url],
                       cwd=self.repo_dir, check=False)
@@ -101,6 +114,18 @@ class GitBackup:
                     print("✅  Pulled latest database backup.")
                 except subprocess.CalledProcessError:
                     pass
+
+        # Refuse to mark restore successful unless the expected SQLite file
+        # exists and passes integrity verification.
+        if not os.path.exists(self.db_path) or os.path.getsize(self.db_path) < 1000:
+            raise RuntimeError(f"Backup restore did not produce {self.db_path}")
+        conn = sqlite3.connect(self.db_path)
+        try:
+            integrity = conn.execute("PRAGMA integrity_check").fetchone()
+        finally:
+            conn.close()
+        if not integrity or integrity[0] != "ok":
+            raise sqlite3.DatabaseError(f"Restored database {self.db_path} failed integrity_check")
 
         self._fix_permissions()
 

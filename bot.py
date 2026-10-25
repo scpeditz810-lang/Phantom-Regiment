@@ -17,7 +17,6 @@ import asyncio
 import threading
 
 import logging
-import shutil
 import sqlite3
 
 
@@ -411,27 +410,25 @@ async def main():
     # Git operations are synchronous and can block on a cold deploy. Run them
     # off the event loop and continue with a local DB if GitHub is unavailable.
     try:
-        await asyncio.wait_for(asyncio.to_thread(backup.restore), timeout=60)
+        restored = await asyncio.wait_for(asyncio.to_thread(backup.restore), timeout=60)
+        if backup.is_render() and not restored:
+            raise RuntimeError("No database backup was restored on Render.")
     except Exception as e:
-        print(f"⚠️ Backup restore skipped; continuing with local database: {e}", flush=True)
-
-        # Render containers are ephemeral. If the remote backup is unavailable,
-        # recover the last known-good snapshot shipped with the application,
-        # but never overwrite an existing non-empty local database.
-        bundled_db = os.path.join(os.path.dirname(__file__), "bot.db")
+        print(f"❌ Database backup restore failed: {e}", flush=True)
+        # Continue only when an existing local DB is present and verified.
+        # This prevents a bad token, slow clone, or missing backup from
+        # silently booting with zero wallets and then pushing that empty DB.
         local_db = bot.db.db_path
-        local_missing = not os.path.exists(local_db) or os.path.getsize(local_db) < 1000
-        if local_missing and os.path.exists(bundled_db):
+        local_valid = False
+        if os.path.exists(local_db) and os.path.getsize(local_db) > 1000:
             try:
-                conn = sqlite3.connect(bundled_db)
-                healthy = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+                conn = sqlite3.connect(local_db)
+                local_valid = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
                 conn.close()
-                if healthy:
-                    os.makedirs(os.path.dirname(local_db) or ".", exist_ok=True)
-                    shutil.copy2(bundled_db, local_db)
-                    print("✅ Recovered bundled bot.db snapshot after backup restore failure.", flush=True)
-            except Exception as recovery_error:
-                print(f"⚠️ Bundled database recovery failed: {recovery_error}", flush=True)
+            except Exception:
+                local_valid = False
+        if backup.is_render() and not local_valid:
+            raise RuntimeError("Refusing to initialize an empty Render database; restore the saved backup first.") from e
 
     # Open SQLite first, then release web requests. Stock seeding is
     # non-critical and must never hold every page behind the readiness gate.
