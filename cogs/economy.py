@@ -1845,13 +1845,11 @@ class EconomyCog(commands.Cog):
 
         final_amount = amount - tax
 
-        
+        success, credited = await self.bot.db.transfer_medals(interaction.user.id, recipient.id, amount, 0.30)
+        if not success:
+            return await interaction.response.send_message("❌ Transfer failed: your wallet changed or the recipient could not be credited. No medals were removed.", ephemeral=True)
 
-        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -amount)
-
-        await self.bot.db.add_medals(recipient.id, interaction.guild_id, final_amount)
-
-        await interaction.response.send_message(f"You transferred **{amount:,} Medals** to {recipient.mention}.\nAfter a 30% tax (**-{tax:,}**), they received **{final_amount:,} Medals**.")
+        await interaction.response.send_message(f"You transferred **{amount:,} Medals** to {recipient.mention}.\nAfter a 30% tax (**-{tax:,}**), they received **{credited:,} Medals**.")
 
 
 
