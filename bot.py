@@ -17,6 +17,8 @@ import asyncio
 import threading
 
 import logging
+import shutil
+import sqlite3
 
 
 
@@ -412,6 +414,24 @@ async def main():
         await asyncio.wait_for(asyncio.to_thread(backup.restore), timeout=60)
     except Exception as e:
         print(f"⚠️ Backup restore skipped; continuing with local database: {e}", flush=True)
+
+        # Render containers are ephemeral. If the remote backup is unavailable,
+        # recover the last known-good snapshot shipped with the application,
+        # but never overwrite an existing non-empty local database.
+        bundled_db = os.path.join(os.path.dirname(__file__), "bot.db")
+        local_db = bot.db.db_path
+        local_missing = not os.path.exists(local_db) or os.path.getsize(local_db) < 1000
+        if local_missing and os.path.exists(bundled_db):
+            try:
+                conn = sqlite3.connect(bundled_db)
+                healthy = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+                conn.close()
+                if healthy:
+                    os.makedirs(os.path.dirname(local_db) or ".", exist_ok=True)
+                    shutil.copy2(bundled_db, local_db)
+                    print("✅ Recovered bundled bot.db snapshot after backup restore failure.", flush=True)
+            except Exception as recovery_error:
+                print(f"⚠️ Bundled database recovery failed: {recovery_error}", flush=True)
 
     # Open SQLite first, then release web requests. Stock seeding is
     # non-critical and must never hold every page behind the readiness gate.
