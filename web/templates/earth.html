@@ -5073,6 +5073,14 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
 
 
+function handleHireCommanderClick(countryId, canManage) {
+    if (!canManage) {
+        showToast("⛔ You cannot hire a Commander for this country. Only its current ruler can do that.");
+        return;
+    }
+    openAppointCabinetModal('defense', 'Army Commander', '⚔️');
+}
+
 function renderCabinetTab(c, isLeader, isOwner, container) {
 
     const cab = c.cabinet || {};
@@ -5103,18 +5111,18 @@ function renderCabinetTab(c, isLeader, isOwner, container) {
 
         </div>
 
-        ${isOwner ? `<div class="commander-quick-action">
+        <div class="commander-quick-action">
             <div>
                 <strong>⚔️ Army Commander</strong>
-                <span>Appoint a non-president citizen to command this country’s defense forces.</span>
+                <span>Only this country’s ruler can issue the appointment. The nominee receives the request in their Commanders page.</span>
             </div>
-            <button id="hire-commander-btn" type="button" class="hud-btn" onclick="openAppointCabinetModal('defense','Army Commander','⚔️')">Hire Commander</button>
-        </div>` : ''}
+            <button id="hire-commander-btn" type="button" class="hud-btn" onclick="handleHireCommanderClick(${c.id}, ${isOwner})">Hire Commander</button>
+        </div>
 
         <div class="info-tile" style="margin-bottom:0.8rem;border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.06);">
             <div style="font-weight:800;color:#fbbf24;margin-bottom:.25rem;">👑 Presidential Command Appointments</div>
             <div style="font-size:.74rem;color:#cbd5e1;margin-bottom:.55rem;">Hire a Commander or nominate another cabinet minister. The candidate must accept the decree before receiving authority.</div>
-            <button id="hire-commander-btn-cabinet" type="button" class="hud-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 0 14px rgba(245,158,11,.32);width:100%;min-height:2.5rem;" ${isOwner ? "onclick=\"openAppointCabinetModal('defense','Army Commander','⚔️')\"" : "disabled title=\"Only the current president can hire a commander\""}>⚔️ Hire Commander${isOwner ? "" : " (President Only)"}</button>
+            <button id="hire-commander-btn-cabinet" type="button" class="hud-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 0 14px rgba(245,158,11,.32);width:100%;min-height:2.5rem;" onclick="handleHireCommanderClick(${c.id}, ${isOwner})">⚔️ Hire Commander</button>
         </div>
 
     `;
