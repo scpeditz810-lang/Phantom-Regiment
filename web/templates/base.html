@@ -132,5 +132,438 @@
         }
     </script>
     {% block scripts %}{% endblock %}
+
+    <!-- Phantom Tactical Advisor AI Chatbot Widget -->
+    <div id="advisor-widget-container">
+        <!-- Floating Toggle Button -->
+        <button id="advisor-toggle-btn" title="Open Phantom Tactical Advisor AI" onclick="toggleAdvisorChat()">
+            <div class="advisor-btn-pulse"></div>
+            <span class="advisor-btn-icon">🤖</span>
+            <span class="advisor-btn-label">Tactical AI</span>
+        </button>
+
+        <!-- Chat Modal / Window -->
+        <div id="advisor-chat-window" class="advisor-hidden">
+            <div class="advisor-header">
+                <div class="advisor-header-title">
+                    <span class="advisor-status-dot"></span>
+                    <div>
+                        <div class="advisor-name">Phantom Tactical Advisor</div>
+                        <div class="advisor-subtitle">Live Stock Scanner & War Intel AI</div>
+                    </div>
+                </div>
+                <div class="advisor-header-actions">
+                    <button class="advisor-icon-btn" onclick="clearAdvisorChat()" title="Clear Chat">🗑️</button>
+                    <button class="advisor-icon-btn" onclick="toggleAdvisorChat()" title="Close">✕</button>
+                </div>
+            </div>
+
+            <!-- Quick Action Chips -->
+            <div class="advisor-quick-chips">
+                <button class="advisor-chip" onclick="sendAdvisorPrompt('Scan the live stock market and show top shares')">📈 Scan Stocks</button>
+                <button class="advisor-chip" onclick="sendAdvisorPrompt('Report all ongoing wars and military battles')">⚔️ Active Wars</button>
+                <button class="advisor-chip" onclick="sendAdvisorPrompt('How do medals, daily work, and banks work?')">🎖️ Portal Guide</button>
+            </div>
+
+            <!-- Chat Messages Log -->
+            <div id="advisor-messages" class="advisor-messages">
+                <div class="advisor-msg advisor-msg-bot">
+                    <div class="advisor-msg-avatar">🤖</div>
+                    <div class="advisor-msg-content">
+                        <strong>Greetings, Commander.</strong> I am your Tactical AI Assistant. I can scan the live stock market, provide price analytics, report active Virtual Earth warzones, and explain portal mechanics.<br><br>
+                        <em>How can I assist your operations today?</em>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Bar -->
+            <div class="advisor-input-bar">
+                <input type="text" id="advisor-input" placeholder="Ask about stocks, wars, or mechanics..." onkeydown="handleAdvisorKey(event)">
+                <button id="advisor-send-btn" onclick="submitAdvisorMessage()">
+                    <span>Send</span> ➔
+                </button>
+            </div>
+            <div class="advisor-footer-note">
+                <span id="advisor-source-indicator">Powered by Free Public AI & Live Game Database</span>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        #advisor-widget-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 99999;
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        }
+
+        #advisor-toggle-btn {
+            background: linear-gradient(135deg, #0ea5e9, #2563eb);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            padding: 12px 20px;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(14, 165, 233, 0.4);
+            font-weight: 700;
+            font-size: 0.95rem;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        #advisor-toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 28px rgba(14, 165, 233, 0.55);
+        }
+        .advisor-btn-pulse {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 9px;
+            height: 9px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            animation: advisorPulse 2s infinite;
+        }
+        @keyframes advisorPulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        #advisor-chat-window {
+            width: 380px;
+            max-width: calc(100vw - 32px);
+            height: 520px;
+            max-height: calc(100vh - 100px);
+            background: #0b1120;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 18px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.7), 0 0 25px rgba(14, 165, 233, 0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: absolute;
+            bottom: 60px;
+            right: 0;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(12px);
+        }
+        #advisor-chat-window.advisor-hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(20px) scale(0.96);
+        }
+
+        .advisor-header {
+            background: #111d33;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .advisor-header-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .advisor-status-dot {
+            width: 10px;
+            height: 10px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #22c55e;
+        }
+        .advisor-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #f8fafc;
+        }
+        .advisor-subtitle {
+            font-size: 0.7rem;
+            color: #94a3b8;
+        }
+        .advisor-header-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .advisor-icon-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 0.95rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+        }
+        .advisor-icon-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        .advisor-quick-chips {
+            display: flex;
+            gap: 6px;
+            padding: 10px 14px;
+            background: #0f172a;
+            overflow-x: auto;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            scrollbar-width: none;
+        }
+        .advisor-quick-chips::-webkit-scrollbar { display: none; }
+        .advisor-chip {
+            white-space: nowrap;
+            background: rgba(14, 165, 233, 0.12);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            padding: 5px 10px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .advisor-chip:hover {
+            background: rgba(14, 165, 233, 0.25);
+            color: #ffffff;
+        }
+
+        .advisor-messages {
+            flex: 1;
+            padding: 14px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #090e1a;
+        }
+        .advisor-msg {
+            display: flex;
+            gap: 10px;
+            max-width: 90%;
+            font-size: 0.85rem;
+            line-height: 1.45;
+        }
+        .advisor-msg-bot {
+            align-self: flex-start;
+        }
+        .advisor-msg-user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        .advisor-msg-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .advisor-msg-content {
+            padding: 10px 13px;
+            border-radius: 12px;
+            word-break: break-word;
+            white-space: pre-wrap;
+        }
+        .advisor-msg-bot .advisor-msg-content {
+            background: #151f33;
+            color: #e2e8f0;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-top-left-radius: 2px;
+        }
+        .advisor-msg-user .advisor-msg-content {
+            background: linear-gradient(135deg, #0284c7, #2563eb);
+            color: #ffffff;
+            border-top-right-radius: 2px;
+        }
+
+        .advisor-input-bar {
+            display: flex;
+            padding: 10px 12px;
+            background: #0f172a;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            gap: 8px;
+        }
+        #advisor-input {
+            flex: 1;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 10px 14px;
+            border-radius: 10px;
+            color: #ffffff;
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        #advisor-input:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+        #advisor-send-btn {
+            background: #0284c7;
+            color: #ffffff;
+            border: none;
+            padding: 0 16px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        #advisor-send-btn:hover {
+            background: #0369a1;
+        }
+
+        .advisor-footer-note {
+            padding: 4px 12px 8px;
+            font-size: 0.65rem;
+            color: #64748b;
+            background: #0f172a;
+            text-align: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.02);
+        }
+    </style>
+
+    <script>
+        function toggleAdvisorChat() {
+            const win = document.getElementById("advisor-chat-window");
+            if (win) {
+                win.classList.toggle("advisor-hidden");
+                if (!win.classList.contains("advisor-hidden")) {
+                    const input = document.getElementById("advisor-input");
+                    if (input) setTimeout(() => input.focus(), 150);
+                }
+            }
+        }
+
+        function clearAdvisorChat() {
+            const container = document.getElementById("advisor-messages");
+            if (container) {
+                container.innerHTML = `
+                    <div class="advisor-msg advisor-msg-bot">
+                        <div class="advisor-msg-avatar">🤖</div>
+                        <div class="advisor-msg-content">
+                            <strong>Chat reset.</strong> I am ready to scan current stock trends, active Virtual Earth warzones, or explain gameplay operations.
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function sendAdvisorPrompt(text) {
+            const input = document.getElementById("advisor-input");
+            if (input) {
+                input.value = text;
+                submitAdvisorMessage();
+            }
+        }
+
+        function handleAdvisorKey(e) {
+            if (e.key === "Enter") {
+                submitAdvisorMessage();
+            }
+        }
+
+        async function submitAdvisorMessage() {
+            const input = document.getElementById("advisor-input");
+            const sendBtn = document.getElementById("advisor-send-btn");
+            const container = document.getElementById("advisor-messages");
+            if (!input || !container) return;
+
+            const text = input.value.trim();
+            if (!text) return;
+
+            // Add user message to UI
+            input.value = "";
+            const userMsg = document.createElement("div");
+            userMsg.className = "advisor-msg advisor-msg-user";
+            userMsg.innerHTML = `<div class="advisor-msg-content">${escapeAdvisorHtml(text)}</div>`;
+            container.appendChild(userMsg);
+
+            // Add typing indicator
+            const typingMsg = document.createElement("div");
+            typingMsg.className = "advisor-msg advisor-msg-bot";
+            typingMsg.id = "advisor-typing-indicator";
+            typingMsg.innerHTML = `
+                <div class="advisor-msg-avatar">🤖</div>
+                <div class="advisor-msg-content"><em>Scanning live markets and active wars...</em></div>
+            `;
+            container.appendChild(typingMsg);
+            container.scrollTop = container.scrollHeight;
+
+            if (sendBtn) sendBtn.disabled = true;
+
+            try {
+                const response = await fetch("/api/advisor/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await response.json();
+                
+                // Remove typing indicator
+                const typing = document.getElementById("advisor-typing-indicator");
+                if (typing) typing.remove();
+
+                const botMsg = document.createElement("div");
+                botMsg.className = "advisor-msg advisor-msg-bot";
+                
+                const replyText = data.response || data.error || "No response received.";
+                botMsg.innerHTML = `
+                    <div class="advisor-msg-avatar">🤖</div>
+                    <div class="advisor-msg-content">${formatAdvisorMarkdown(replyText)}</div>
+                `;
+                container.appendChild(botMsg);
+                
+                const indicator = document.getElementById("advisor-source-indicator");
+                if (indicator && data.source) {
+                    indicator.innerText = `${data.source} (${data.latency_ms || 0}ms)`;
+                }
+            } catch (err) {
+                const typing = document.getElementById("advisor-typing-indicator");
+                if (typing) typing.remove();
+
+                const botMsg = document.createElement("div");
+                botMsg.className = "advisor-msg advisor-msg-bot";
+                botMsg.innerHTML = `
+                    <div class="advisor-msg-avatar">⚠️</div>
+                    <div class="advisor-msg-content">Connection error. Please try again. (${escapeAdvisorHtml(err.message)})</div>
+                `;
+                container.appendChild(botMsg);
+            } finally {
+                if (sendBtn) sendBtn.disabled = false;
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function escapeAdvisorHtml(text) {
+            const div = document.createElement("div");
+            div.innerText = text;
+            return div.innerHTML;
+        }
+
+        function formatAdvisorMarkdown(text) {
+            let escaped = escapeAdvisorHtml(text);
+            // Replace bold
+            escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            // Replace inline code
+            escaped = escaped.replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.1);padding:2px 4px;border-radius:4px;font-family:monospace;font-size:0.8rem;">$1</code>');
+            return escaped;
+        }
+    </script>
+
 </body>
 </html>
