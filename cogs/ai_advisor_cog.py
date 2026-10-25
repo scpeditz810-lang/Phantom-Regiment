@@ -14,6 +14,8 @@ Security & Self-Awareness:
 - Tells the offender: "I cannot ping or mention everyone. I have informed the moderators."
 - Always enforces allowed_mentions=discord.AllowedMentions(everyone=False, roles=False).
 
+Brain: web/ai_advisor.py (real LLM first, keyword engine only as fail-safe). Admin command: !aistatus
+
 Full Knowledge Base:
 - Current Mayor & Election status (dynamically queried from DB & Guild)
 - Staff Applications (/staffapplications, positions: Server Staff, Recruitment, Events, DM interview flow)
@@ -172,51 +174,31 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
             "managers": managers[:6] if managers else ["Server Staff Team"]
         }
 
-    def build_extended_context(self, mayor_info: dict, leadership: dict) -> str:
-        """Build comprehensive context prompt for the AI model."""
-        return (
-            "KNOWLEDGE BASE & SERVER PROFILE:\n"
-            "• CLAN IDENTITY: Phantom Regiment (PR). Created on September 18, 2026 as an official branch of TS Clan.\n"
-            f"• SERVER LEADERSHIP: Server Owner: {leadership['owner']} | Vetted Managers: {', '.join(leadership['managers'])}\n"
-            f"• CURRENT MAYOR: {mayor_info['name']} (ID: {mayor_info['user_id'] or 'None'}). Status: {mayor_info['status']}.\n"
-            "• STAFF APPLICATIONS & HOW TO BECOME STAFF:\n"
-            "  - Applications open when High Command runs `/staffapplications`.\n"
-            "  - Citizens apply by selecting a role from the dropdown: 1. Server Staff (moderation & rule enforcement), 2. Recruitment Management (review applications & recruit), 3. Giveaways & Events Management (host tournaments & events).\n"
-            "  - Flow: DM sequential interview with 7-8 questions (age, timezone, experience, situational judgment). Answers sent to #staff-app-review for Commander evaluation.\n"
-            "• GAMBLING & CASINO COMMANDS (Max bet 150,000 Medals):\n"
-            "  - /coinflip <bet>: 50/50 double-or-nothing coin toss against the bot.\n"
-            "  - /blackjack <bet>: Interactive 21 card game with Hit/Stand/Double Down.\n"
-            "  - /roulette <bet> <bet_type>: Roulette wheel (Red 2x, Black 2x, Even 2x, Odd 2x, Green 36x).\n"
-            "  - /scratch <tier>: Lottery scratch cards (Bronze 500M, Silver 2.5kM, Gold 10kM) with up to 10x jackpot multipliers.\n"
-            "  - /fight <@opponent> <bet>: 1v1 PvP combat arena (bet 1-150k Medals). Both players equip shop loadouts (weapons/potions) via modal, then take turns clicking Attack or Use Potion until one player is defeated.\n"
-            "  - /rps <@opponent> <bet>: PvP Rock-Paper-Scissors.\n"
-            "• MAYOR POWERS & COMMANDS (/mayor):\n"
-            "  - /mayor salary: Collect daily mayoral salary (+12,500 Medals/day).\n"
-            "  - /mayor tax <pct>: Adjust global stock transaction tax (0% - 50%).\n"
-            "  - /mayor doublexp: Activate server-wide 2X Double XP for 24h (max 3 times per 2 weeks).\n"
-            "  - /mayor stimulus: Drop public stimulus crate in chat for active citizens.\n"
-            "  - /mayor award <@user>: Bestow Key to the City (+15,000 Medals).\n"
-            "  - /mayor pardon <@user>: Clear a citizen's disciplinary / criminal record.\n"
-            "  - /mayor stock_supply <sym> <qty>: Adjust circulating stock shares.\n"
-            "  - /mayor stock_create: Launch an official company IPO on the stock market.\n"
-            "  - /mayor create_plot: Zone and create a new territory plot on the 3D map.\n"
-            "• ELECTIONS SYSTEM (/election):\n"
-            "  - Democratic mayoral elections run every 7 days (48-hour voting window).\n"
-            "  - /election status, /election register (400k medals fee), /election vote <@candidate>.\n"
-            "• ECONOMY COMMANDS:\n"
-            "  - /daily, /work, /weekly, /crime, /scavenge, /trivia (earn medals on cooldowns).\n"
-            "  - /balance, /transfer, /medalleaderboard, /globallb, /shop, /buyrole.\n"
-            "• BANKING SYSTEM (/bank):\n"
-            "  - /bank create, /bank deposit, /bank withdraw, /bank balance, /bank upgrade (10 vault tiers, up to 1M interest/day).\n"
-            "  - /rob: High-stakes bank robbery (requires lockpicks/C4).\n"
-            "• VIRTUAL EARTH (/earth):\n"
-            "  - Sovereign countries with GDP, treasury, stability, and tax yields.\n"
-            "  - Cabinet system (Foreign Minister, Defense Minister, Intelligence Director).\n"
-            "  - Warfare & Military: /earth military (buy jets, tanks, warships), declare wars, ceasefire.\n"
-            "• SQUADS:\n"
-            "  - Frontline (Tactical Combat), Los Bluchigis (Elite Cavalry), Nocturne Pheonix (Archery & Shields).\n"
-            "• STRICT SECURITY RULE: NEVER ping or mention @everyone or @here. If asked, refuse immediately.\n"
-        )
+    def _split_reply(self, text: str, limit: int = 1900) -> list:
+        """Split a long reply into Discord-safe chunks, preferring line breaks."""
+        chunks = []
+        while len(text) > limit:
+            cut = text.rfind("\n", 0, limit)
+            if cut < limit // 2:
+                cut = text.rfind(" ", 0, limit)
+            if cut < limit // 2:
+                cut = limit
+            chunks.append(text[:cut].rstrip())
+            text = text[cut:].lstrip()
+        if text:
+            chunks.append(text)
+        return chunks[:3]
+
+    def _providers_configured(self) -> str:
+        names = []
+        for label, env in (("Anthropic", "ANTHROPIC_API_KEY"), ("Gemini", "GEMINI_API_KEY"),
+                           ("Groq", "GROQ_API_KEY"), ("OpenRouter", "OPENROUTER_API_KEY"),
+                           ("OpenAI", "OPENAI_API_KEY")):
+            if os.getenv(env, "").strip():
+                names.append(label)
+        if os.getenv("AI_ALLOW_KEYLESS", "1") != "0":
+            names.append("Pollinations (keyless)")
+        return ", ".join(names) if names else "none"
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -232,11 +214,26 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
         if not user_prompt and not message.attachments:
             return
 
+        # 0. Admin diagnostics: "!aistatus" shows which brain is answering and why
+        if user_prompt.lower() == "!aistatus":
+            perms = getattr(message.author, "guild_permissions", None)
+            if perms and perms.administrator:
+                await message.reply(
+                    f"🧠 **AI Status**\n"
+                    f"• Providers configured: {self._providers_configured()}\n"
+                    f"• Last answer source: {self.advisor.last_source or 'none yet'}\n"
+                    f"• Last error: {self.advisor.last_error or 'none'}",
+                    mention_author=False,
+                    allowed_mentions=discord.AllowedMentions.none()
+                )
+            return
+
+        if not user_prompt:
+            return
+
         # 1. Self-Awareness: Check for attempt to mention everyone
         if self.is_mass_mention_attempt(user_prompt):
-            # Send alert to moderator channel
             await self.report_mass_mention_attempt(message)
-            # Inform the user directly
             warning_reply = (
                 f"🛡️ **Security Alert:** {message.author.mention}, I cannot ping or mention everyone. "
                 "I have informed the moderators of your attempt."
@@ -256,30 +253,41 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
 
             server_info = {
                 "mayor_name": mayor_info.get("name", "None"),
-                "owner_name": leadership.get("owner", "Server Owner")
+                "owner_name": leadership.get("owner", "Server Owner"),
+                "managers": leadership.get("managers", []),
+                "asker_name": message.author.display_name,
             }
 
             try:
-                # Pass clean user_prompt directly to advisor with server_info
-                result = await asyncio.to_thread(self.advisor.ask, user_prompt, server_info)
+                # LLM brain answers independently; per-user memory keyed by Discord user ID
+                result = await asyncio.to_thread(
+                    self.advisor.ask, user_prompt, server_info, message.author.id
+                )
                 reply_text = result.get("response") or "Tactical systems reporting nominal. How may I assist your operations?"
+                print(f"[AI Advisor Cog] Answered via: {result.get('source')} ({result.get('latency_ms')} ms)")
             except Exception as e:
-                stocks = await asyncio.to_thread(self.advisor.get_market_data)
-                wars = await asyncio.to_thread(self.advisor.get_wars_data)
-                reply_text = self.advisor.generate_tactical_fallback(user_prompt, stocks, wars, server_info)
+                print(f"[AI Advisor Cog] ask() crashed, using local fail-safe: {e}")
+                try:
+                    stocks = await asyncio.to_thread(self.advisor.get_market_data)
+                    wars = await asyncio.to_thread(self.advisor.get_wars_data)
+                    reply_text = self.advisor.generate_tactical_fallback(user_prompt, stocks, wars, server_info)
+                except Exception as e2:
+                    print(f"[AI Advisor Cog] Fallback failed too: {e2}")
+                    reply_text = "⚠️ My systems hit an error. Please try again in a moment."
 
-            # Extra defense: sanitize any zero-width or escaped @everyone or @here in the generated output
+            # Extra defense: neutralise any @everyone / @here in the generated output
             reply_text = reply_text.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
 
-            # Truncate if over Discord's 2000 character limit
-            if len(reply_text) > 1950:
-                reply_text = reply_text[:1940] + "\n... *(intel truncated)*"
-
             safe_mentions = discord.AllowedMentions(everyone=False, roles=False, users=True)
-            try:
-                await message.reply(reply_text, mention_author=False, allowed_mentions=safe_mentions)
-            except discord.HTTPException:
-                await message.channel.send(reply_text, allowed_mentions=safe_mentions)
+            chunks = self._split_reply(reply_text)
+            for i, chunk in enumerate(chunks):
+                try:
+                    if i == 0:
+                        await message.reply(chunk, mention_author=False, allowed_mentions=safe_mentions)
+                    else:
+                        await message.channel.send(chunk, allowed_mentions=safe_mentions)
+                except discord.HTTPException:
+                    await message.channel.send(chunk, allowed_mentions=safe_mentions)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AIAdvisorDiscordCog(bot))
