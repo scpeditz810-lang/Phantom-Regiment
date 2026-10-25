@@ -164,10 +164,11 @@ class BankingCog(commands.Cog):
         if wallet < amount:
             return await interaction.response.send_message(f"❌ You don't have enough medals! Your wallet has **{wallet:,}**.", ephemeral=True)
             
-        # Transfer
-        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -amount)
-        await self.bot.db.deposit_bank(interaction.user.id, interaction.guild_id, amount)
-        
+        # Atomic wallet → bank transfer. This prevents a race or double-click
+        # from debiting the wallet without crediting the bank.
+        success = await self.bot.db.deposit_bank(interaction.user.id, interaction.guild_id, amount)
+        if not success:
+            return await interaction.response.send_message("❌ Deposit failed: your wallet or bank balance changed. Try again.", ephemeral=True)
         await interaction.response.send_message(f"✅ Successfully deposited **{amount:,} medals** into your bank.")
 
     @bank.command(name="withdraw", description="Withdraw medals from your bank")
@@ -183,10 +184,9 @@ class BankingCog(commands.Cog):
         if bank["balance"] < amount:
             return await interaction.response.send_message(f"❌ You don't have enough in your bank! Your bank balance is **{bank['balance']:,}**.", ephemeral=True)
             
-        # Transfer
+        # Atomic bank → wallet transfer; the database checks the balance again.
         success = await self.bot.db.withdraw_bank(interaction.user.id, interaction.guild_id, amount)
         if success:
-            await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, amount)
             await interaction.response.send_message(f"✅ Successfully withdrew **{amount:,} medals** from your bank.")
         else:
             await interaction.response.send_message("❌ Something went wrong.", ephemeral=True)
@@ -312,10 +312,9 @@ class BankingCog(commands.Cog):
         if wallet < owed:
             return await interaction.response.send_message(f"❌ You don't have enough medals to repay the loan. You owe **{owed:,}** but only have **{wallet:,}** in your wallet.", ephemeral=True)
             
-        # Repay
-        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -owed)
-        await self.bot.db.repay_bank_loan(loan["id"], owed)
-        
+        # Atomic and idempotent repayment; duplicate clicks cannot charge twice.
+        if not await self.bot.db.settle_bank_loan(interaction.user.id, loan["id"], owed):
+            return await interaction.response.send_message("❌ Repayment failed or was already processed. Your wallet was not charged.", ephemeral=True)
         await interaction.response.send_message(f"✅ You successfully repaid your bank loan of **{owed:,} medals**!")
 
     # ── Player Loans ────────────────────────────────────────────────────────
@@ -417,11 +416,9 @@ class BankingCog(commands.Cog):
         if wallet < owed:
             return await interaction.response.send_message(f"❌ You don't have enough medals to repay! You owe **{owed:,}**.", ephemeral=True)
             
-        # Transfer money from borrower to lender
-        await self.bot.db.add_medals(interaction.user.id, interaction.guild_id, -owed)
-        await self.bot.db.add_medals(loan["lender_id"], interaction.guild_id, owed)
-        await self.bot.db.repay_player_loan(loan_id)
-        
+        # Atomic and idempotent borrower → lender settlement.
+        if not await self.bot.db.settle_player_loan(interaction.user.id, loan_id):
+            return await interaction.response.send_message("❌ Repayment failed or was already processed. Your wallet was not charged.", ephemeral=True)
         await interaction.response.send_message(f"✅ Successfully repaid **{owed:,} medals** to the lender for loan #{loan_id}!")
 
     @loan.command(name="list", description="List your active player loans")
