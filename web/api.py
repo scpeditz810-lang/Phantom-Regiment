@@ -3738,3 +3738,20 @@ def api_earth_un_aid():
 
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
+
+
+@api_bp.route("/advisor/chat", methods=["POST"])
+def api_advisor_chat():
+    try:
+        data = request.get_json(silent=True) or {}
+        message = (data.get("message") or "").strip()
+        if not message:
+            return jsonify({"success": False, "error": "Please enter a message or question."}), 400
+
+        from web.ai_advisor import get_advisor
+        db = get_db()
+        advisor = get_advisor(db=db)
+        result = advisor.ask(message)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
