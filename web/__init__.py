@@ -17,6 +17,7 @@ def create_app(bot=None, db=None, loop=None):
     app.config["DB"] = db
     # Keep the bot event loop explicit for Flask's synchronous worker thread.
     app.config["BOT_LOOP"] = loop
+    app.config["DB_READY"] = getattr(bot, "web_db_ready", None) if bot else None
 
     # Context processors for all Jinja2 templates
     @app.context_processor

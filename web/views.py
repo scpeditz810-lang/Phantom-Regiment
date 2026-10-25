@@ -5,10 +5,18 @@ from web.auth import login_required, admin_required, mayor_required
 views_bp = Blueprint("views", __name__)
 
 def run_async(coro):
+    """Run a DB coroutine on the bot loop after startup is ready."""
     bot_loop = current_app.config.get("BOT_LOOP")
+    db_ready = current_app.config.get("DB_READY")
+
+    async def invoke():
+        if db_ready is not None:
+            await db_ready.wait()
+        return await coro
+
     if bot_loop and bot_loop.is_running():
-        future = asyncio.run_coroutine_threadsafe(coro, bot_loop)
-        return future.result(timeout=10)
+        future = asyncio.run_coroutine_threadsafe(invoke(), bot_loop)
+        return future.result(timeout=30)
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -17,8 +25,8 @@ def run_async(coro):
     if loop and loop.is_running():
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(lambda: asyncio.run(coro)).result(timeout=10)
-    return asyncio.run(coro)
+            return pool.submit(lambda: asyncio.run(invoke())).result(timeout=30)
+    return asyncio.run(invoke())
 
 def get_pr_guild():
     bot = current_app.config.get("DISCORD_BOT")
