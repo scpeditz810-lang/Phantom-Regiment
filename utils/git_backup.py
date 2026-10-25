@@ -249,6 +249,14 @@ class GitBackup:
                 if remote_hash == local_hash:
                     return False  # Up to date
 
+                # A valid live database is authoritative. The GitHub backup can
+                # lag behind the bot by several seconds, so replacing the live
+                # file here would silently roll back wallets, stocks, loans, and
+                # country state. Restore/sync is only allowed when the local DB is
+                # missing or corrupt; never clobber a healthy live database.
+                print("⚠️ Remote DB differs from a valid live DB; skipped stale snapshot replacement.")
+                return False
+
                 # Flush WAL and remove WAL/SHM before updating
                 self._checkpoint()
                 wal_path = self.db_path + "-wal"
