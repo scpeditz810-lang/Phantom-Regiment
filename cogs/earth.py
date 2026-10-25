@@ -101,6 +101,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     # Discord allows at most 25 direct child commands per slash-command group.
     # Keep UN actions under /earth un so all Earth commands can register.
     un_group = app_commands.Group(name="un", parent=earth_group, description="🇺🇳 United Nations peacekeeping actions")
+    security_group = app_commands.Group(name="security", parent=earth_group, description="🛡️ Counter-intelligence and detainee operations")
 
     # ─── Country Overview ─────────────────────────────────────────────────────
 
@@ -735,7 +736,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
         await interaction.followup.send(embed=embed)
 
-    @earth_group.command(name="sweep", description="Run a Counter-Intelligence Security Sweep to detect spies and review detained operatives.")
+    @security_group.command(name="sweep", description="Run a Counter-Intelligence Security Sweep to detect spies and review detained operatives.")
     async def earth_sweep(self, interaction: discord.Interaction):
         await interaction.response.defer()
         c = await self.bot.db.get_user_earth_country(interaction.user.id)
@@ -761,11 +762,11 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         detained = report.get("detained_spies", [])
         if detained:
             lines = [f"? **Agent {s['codename']}** (From {s['origin_country_flag']} {s['origin_country_name']}) ? ID: `{s['id']}`" for s in detained[:5]]
-            embed.add_field(name="Detained Prisoners of War", value="\n".join(lines) + "\n*Use `/earth interrogate <id>` or the website to question them.*", inline=False)
+            embed.add_field(name="Detained Prisoners of War", value="\n".join(lines) + "\n*Use `/earth security interrogate <id>` or the website to question them.*", inline=False)
 
         await interaction.followup.send(embed=embed)
 
-    @earth_group.command(name="interrogate", description="Interrogate a captured foreign spy held in military custody.")
+    @security_group.command(name="interrogate", description="Interrogate a captured foreign spy held in military custody.")
     @app_commands.describe(spy_id="ID of the captured foreign agent")
     async def earth_interrogate(self, interaction: discord.Interaction, spy_id: int):
         await interaction.response.defer()
@@ -792,7 +793,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         )
         await interaction.followup.send(embed=embed)
 
-    @earth_group.command(name="execute", description="Execute a convicted foreign spy held in custody.")
+    @security_group.command(name="execute", description="Execute a convicted foreign spy held in custody.")
     @app_commands.describe(spy_id="ID of the captured foreign agent")
     async def earth_execute(self, interaction: discord.Interaction, spy_id: int):
         await interaction.response.defer()
@@ -875,7 +876,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         await interaction.followup.send(embed=embed)
 
 
-    @earth_group.command(name="train_spy", description="Enroll an operative in the National Intelligence Academy to rank up.")
+    @security_group.command(name="train_spy", description="Enroll an operative in the National Intelligence Academy to rank up.")
     @app_commands.describe(
         spy_id="ID of the idle operative to train",
         target_level="Target rank level (2: Field Operative, 3: Sabotage Specialist, 4: Cyber Infiltrator, 5: Phantom Ghost)"
@@ -912,7 +913,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         embed.set_footer(text="Virtual Earth 3D • Covert Operations Bureau")
         await interaction.followup.send(embed=embed)
 
-    @earth_group.command(name="buy_intel", description="Purchase classified foreign intelligence dossiers from intelligence brokers.")
+    @security_group.command(name="buy_intel", description="Purchase classified foreign intelligence dossiers from intelligence brokers.")
     @app_commands.describe(
         target_country="3-letter code or name of target country",
         intel_type="Type of classified intelligence dossier to procure"
