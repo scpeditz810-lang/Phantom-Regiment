@@ -123,9 +123,51 @@ class GitBackup:
                             except OSError:
                                 pass
                     if not recovered:
-                        raise sqlite3.DatabaseError(
-                            "latest remote bot.db and recent saved snapshots failed integrity_check"
-                        )
+                        # The current and recent history may share the same damaged
+                        # SQLite pages. Salvage readable rows from HEAD as a last
+                        # recovery path instead of leaving the entire site offline.
+                        # Never replace the source unless the recovered file passes
+                        # integrity_check and contains application tables.
+                        salvaged = os.path.join(tmp, "bot.db.salvaged")
+                        try:
+                            recovery = self._run(
+                                ["sqlite3", remote_db, ".recover"],
+                                cwd=tmp, capture=True,
+                            )
+                            if not recovery.stdout.strip():
+                                raise sqlite3.DatabaseError("sqlite3 .recover returned no SQL")
+                            subprocess.run(
+                                ["sqlite3", salvaged],
+                                input=recovery.stdout,
+                                cwd=tmp,
+                                check=True,
+                                capture_output=True,
+                                text=True,
+                                timeout=int(os.environ.get("GIT_COMMAND_TIMEOUT", "45")),
+                            )
+                            if not _sqlite_integrity(salvaged):
+                                raise sqlite3.DatabaseError("salvaged database failed integrity_check")
+                            conn = sqlite3.connect(salvaged)
+                            try:
+                                tables = conn.execute(
+                                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
+                                    "AND name NOT LIKE 'sqlite_%'"
+                                ).fetchone()[0]
+                            finally:
+                                conn.close()
+                            if not tables:
+                                raise sqlite3.DatabaseError("salvaged database contains no application tables")
+                            os.replace(salvaged, remote_db)
+                            print(
+                                f"⚠️ Recovered a readable SQLite database from the damaged latest snapshot "
+                                f"({tables} tables). Some damaged rows may be unavailable.",
+                                flush=True,
+                            )
+                        except Exception as salvage_error:
+                            raise sqlite3.DatabaseError(
+                                "latest and historical bot.db snapshots failed integrity_check, "
+                                f"and SQLite salvage failed: {salvage_error}"
+                            ) from salvage_error
 
                 # On a fresh checkout the backup repository is authoritative.
                 # Replace stale local copies atomically, including a valid but
