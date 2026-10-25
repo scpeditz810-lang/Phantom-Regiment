@@ -5,9 +5,9 @@ from web.auth import login_required, admin_required, mayor_required
 views_bp = Blueprint("views", __name__)
 
 def run_async(coro):
-    bot = current_app.config.get("DISCORD_BOT")
-    if bot and bot.loop and bot.loop.is_running():
-        future = asyncio.run_coroutine_threadsafe(coro, bot.loop)
+    bot_loop = current_app.config.get("BOT_LOOP")
+    if bot_loop and bot_loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(coro, bot_loop)
         return future.result(timeout=10)
     try:
         loop = asyncio.get_running_loop()
