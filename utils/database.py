@@ -2151,43 +2151,63 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
 
 
-    async def deposit_bank(self, user_id: int, guild_id: int, amount: int):
-
-        await self._db.execute(
-
-            "UPDATE banks SET balance = balance + ? WHERE user_id = ?",
-
-            (amount, user_id)
-
-        )
-
-        await self._db.commit()
-
-
+    async def deposit_bank(self, user_id: int, guild_id: int, amount: int) -> bool:
+        """Atomically move medals from the canonical wallet into the bank."""
+        amount = int(amount)
+        if amount <= 0:
+            return False
+        await self.get_global_economy(user_id)
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            cur = await self._db.execute(
+                "UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?",
+                (amount, user_id, amount)
+            )
+            if cur.rowcount != 1:
+                await self._db.rollback()
+                return False
+            await self._db.execute(
+                "UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?",
+                (user_id, user_id)
+            )
+            bank_cur = await self._db.execute(
+                "UPDATE banks SET balance = balance + ? WHERE user_id = ?",
+                (amount, user_id)
+            )
+            if bank_cur.rowcount != 1:
+                await self._db.rollback()
+                return False
+            await self._db.commit()
+            return True
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def withdraw_bank(self, user_id: int, guild_id: int, amount: int) -> bool:
-
-        """Returns True if successful, False if insufficient balance."""
-
-        bank = await self.get_bank(user_id, guild_id)
-
-        if bank and bank["balance"] >= amount:
-
-            await self._db.execute(
-
-                "UPDATE banks SET balance = balance - ? WHERE user_id = ?",
-
-                (amount, user_id)
-
+        """Atomically move medals from the bank into the canonical wallet."""
+        amount = int(amount)
+        if amount <= 0:
+            return False
+        await self.get_global_economy(user_id)
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            cur = await self._db.execute(
+                "UPDATE banks SET balance = balance - ? WHERE user_id = ? AND balance >= ?",
+                (amount, user_id, amount)
             )
-
+            if cur.rowcount != 1:
+                await self._db.rollback()
+                return False
+            await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (amount, user_id))
+            await self._db.execute(
+                "UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?",
+                (user_id, user_id)
+            )
             await self._db.commit()
-
             return True
-
-        return False
-
-
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def create_bank_loan(self, user_id: int, guild_id: int, principal: int, interest: int, due_at: float):
 
@@ -2218,6 +2238,86 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             return dict(row) if row else None
 
 
+
+    async def settle_bank_loan(self, user_id: int, loan_id: int, amount: int) -> bool:
+        """Atomically debit the borrower and advance a bank loan repayment."""
+        await self.get_global_economy(user_id)
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute("SELECT total_owed, repaid FROM bank_loans WHERE id = ? AND user_id = ?", (loan_id, user_id)) as cur:
+                row = await cur.fetchone()
+            if not row:
+                await self._db.rollback()
+                return False
+            owed = max(0, int(row[0] or 0) - int(row[1] or 0))
+            pay = min(int(amount), owed)
+            if pay <= 0:
+                await self._db.rollback()
+                return False
+            debit = await self._db.execute(
+                "UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?",
+                (pay, user_id, pay)
+            )
+            if debit.rowcount != 1:
+                await self._db.rollback()
+                return False
+            await self._db.execute("UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?", (user_id, user_id))
+            updated = await self._db.execute(
+                "UPDATE bank_loans SET repaid = repaid + ? WHERE id = ? AND user_id = ? AND repaid = ?",
+                (pay, loan_id, user_id, int(row[1] or 0))
+            )
+            if updated.rowcount != 1:
+                await self._db.rollback()
+                return False
+            await self._db.commit()
+            return True
+        except Exception:
+            await self._db.rollback()
+            raise
+
+    async def settle_player_loan(self, borrower_id: int, loan_id: int) -> bool:
+        """Atomically debit borrower, credit lender, and close a player loan once."""
+        await self.get_global_economy(borrower_id)
+        async with self._db.execute("SELECT 1 FROM global_economy WHERE user_id = ? AND medals >= 0", (borrower_id,)) as cur:
+            if not await cur.fetchone():
+                await self._db.rollback()
+                return False
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            async with self._db.execute(
+                "SELECT lender_id, total_owed FROM player_loans WHERE id = ? AND borrower_id = ? AND status = 'active'",
+                (loan_id, borrower_id)
+            ) as cur:
+                row = await cur.fetchone()
+            if not row:
+                await self._db.rollback()
+                return False
+            lender_id, owed = int(row[0]), int(row[1] or 0)
+            debit = await self._db.execute(
+                "UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?",
+                (owed, borrower_id, owed)
+            )
+            if debit.rowcount != 1:
+                await self._db.rollback()
+                return False
+            await self._db.execute("UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?", (borrower_id, borrower_id))
+            credit = await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (owed, lender_id))
+            if credit.rowcount != 1:
+                await self._db.rollback()
+                return False
+            await self._db.execute("UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?", (lender_id, lender_id))
+            updated = await self._db.execute(
+                "UPDATE player_loans SET status = 'repaid' WHERE id = ? AND borrower_id = ? AND status = 'active'",
+                (loan_id, borrower_id)
+            )
+            if updated.rowcount != 1:
+                await self._db.rollback()
+                return False
+            await self._db.commit()
+            return True
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def repay_bank_loan(self, loan_id: int, amount: int):
 
