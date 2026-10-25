@@ -1468,24 +1468,31 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # transfers must never disappear silently when a debt is overdue.
 
         if amount != 0:
+            # Guard deductions at the database boundary. A stale command
+            # response or two simultaneous spends must fail cleanly instead
+            # of tripping the negative-wallet trigger and crashing the bot.
+            if amount < 0:
+                debit = -amount
+                cur = await self._db.execute(
+                    "UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?",
+                    (debit, user_id, debit)
+                )
+                if cur.rowcount != 1:
+                    await self._db.rollback()
+                    return False
+            else:
+                await self._db.execute(
+                    "UPDATE global_economy SET medals = medals + ? WHERE user_id = ?",
+                    (amount, user_id)
+                )
 
             await self._db.execute(
-
-                "UPDATE global_economy SET medals = medals + ? WHERE user_id = ?",
-
-                (amount, user_id)
-
-            )
-
-            await self._db.execute(
-
                 "UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?",
-
                 (user_id, user_id)
-
             )
 
         await self._db.commit()
+        return True
 
 
 
