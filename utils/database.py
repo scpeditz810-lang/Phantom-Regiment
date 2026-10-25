@@ -2142,13 +2142,15 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
 
     async def get_bank(self, user_id: int, guild_id: int = None) -> dict | None:
-
-        async with self._db.execute("SELECT * FROM banks WHERE user_id = ? ORDER BY balance DESC, tier DESC LIMIT 1", (user_id,)) as cur:
-
+        if guild_id is None:
+            query = "SELECT * FROM banks WHERE user_id = ? ORDER BY balance DESC, tier DESC LIMIT 1"
+            params = (user_id,)
+        else:
+            query = "SELECT * FROM banks WHERE user_id = ? AND guild_id = ? LIMIT 1"
+            params = (user_id, guild_id)
+        async with self._db.execute(query, params) as cur:
             row = await cur.fetchone()
-
             return dict(row) if row else None
-
 
 
     async def deposit_bank(self, user_id: int, guild_id: int, amount: int) -> bool:
@@ -2171,8 +2173,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 (user_id, user_id)
             )
             bank_cur = await self._db.execute(
-                "UPDATE banks SET balance = balance + ? WHERE user_id = ?",
-                (amount, user_id)
+                "UPDATE banks SET balance = balance + ? WHERE user_id = ? AND guild_id = ?",
+                (amount, user_id, guild_id)
             )
             if bank_cur.rowcount != 1:
                 await self._db.rollback()
@@ -2192,8 +2194,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self._db.execute("BEGIN IMMEDIATE")
         try:
             cur = await self._db.execute(
-                "UPDATE banks SET balance = balance - ? WHERE user_id = ? AND balance >= ?",
-                (amount, user_id, amount)
+                "UPDATE banks SET balance = balance - ? WHERE user_id = ? AND guild_id = ? AND balance >= ?",
+                (amount, user_id, guild_id, amount)
             )
             if cur.rowcount != 1:
                 await self._db.rollback()
