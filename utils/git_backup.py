@@ -65,21 +65,67 @@ class GitBackup:
             shutil.rmtree(tmp, ignore_errors=True)
             try:
                 self._run([
-                    "git", "clone", "--depth", "1", "--single-branch",
+                    "git", "clone", "--depth", "200", "--single-branch",
                     "--branch", "main", auth_url, tmp
                 ])
 
-                # Validate the remote snapshot before touching any local copy.
+                # Validate the newest snapshot before touching any local copy.
+                # Git backups can capture SQLite while a write/checkpoint is in
+                # flight. If HEAD is corrupt, walk older bot.db snapshots and
+                # recover the newest one that SQLite can verify.
                 remote_db = os.path.join(tmp, os.path.basename(self.db_path))
                 if not os.path.exists(remote_db) or os.path.getsize(remote_db) < 1000:
                     raise FileNotFoundError("backup repository clone did not contain bot.db")
-                conn = sqlite3.connect(remote_db)
-                try:
-                    integrity = conn.execute("PRAGMA integrity_check").fetchone()
-                finally:
-                    conn.close()
-                if not integrity or integrity[0] != "ok":
-                    raise sqlite3.DatabaseError("remote bot.db failed integrity_check")
+
+                def _sqlite_integrity(path: str) -> bool:
+                    try:
+                        conn = sqlite3.connect(path)
+                        try:
+                            result = conn.execute("PRAGMA integrity_check").fetchone()
+                            return bool(result and result[0] == "ok")
+                        finally:
+                            conn.close()
+                    except sqlite3.DatabaseError:
+                        return False
+
+                if not _sqlite_integrity(remote_db):
+                    print("⚠️ Latest remote bot.db is corrupt; searching recent saved snapshots.", flush=True)
+                    commits = self._run(
+                        ["git", "log", "--format=%H", "--", os.path.basename(self.db_path)],
+                        cwd=tmp, capture=True,
+                    ).stdout.splitlines()
+                    recovered = False
+                    candidate = os.path.join(tmp, "bot.db.recovery-candidate")
+                    for commit in commits[1:]:
+                        try:
+                            blob = self._run(
+                                ["git", "show", f"{commit}:{os.path.basename(self.db_path)}"],
+                                cwd=tmp, capture_binary=True,
+                            )
+                            if len(blob) < 1000:
+                                continue
+                            with open(candidate, "wb") as candidate_file:
+                                candidate_file.write(blob)
+                            if _sqlite_integrity(candidate):
+                                os.replace(candidate, remote_db)
+                                print(
+                                    f"✅ Recovered verified database snapshot {commit[:12]} from backup history.",
+                                    flush=True,
+                                )
+                                recovered = True
+                                break
+                        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+                            continue
+                        finally:
+                            try:
+                                if os.path.exists(candidate):
+                                    os.remove(candidate)
+                            except OSError:
+                                pass
+                    if not recovered:
+                        raise sqlite3.DatabaseError(
+                            "latest remote bot.db and recent saved snapshots failed integrity_check"
+                        )
 
                 # On a fresh checkout the backup repository is authoritative.
                 # Replace stale local copies atomically, including a valid but
