@@ -143,7 +143,13 @@ class TacticalAdvisor:
             response_parts.append("• **`/blackjack <bet>`** — Play Blackjack (21) against the dealer with Hit, Stand, and Double Down interactive buttons (Max bet: 150,000 Medals).")
             response_parts.append("• **`/roulette <bet> <bet_type>`** — Bet on `Red` (2x), `Black` (2x), `Even` (2x), `Odd` (2x), or high-risk `Green` (36x)! (Max bet: 150,000 Medals).")
             response_parts.append("• **`/scratch <tier>`** — Buy an interactive scratch-off lottery ticket (`bronze` 500M, `silver` 2.5kM, `gold` 10kM) for up to 10x jackpot multipliers!")
-            response_parts.append("• **`/fight <@opponent> <bet>`** — Challenge another citizen to a PvP battle arena with interactive Attack, Defend, and Special Ability buttons!")
+            response_parts.append(
+                "• **`/fight <@opponent> <bet>`** — Challenge another citizen to a 1v1 PvP combat arena for wagered Medals (1 to 150,000)!\n"
+                "  └ **How it works:**\n"
+                "    1. Both players click **Equip Loadout** to select Weapons and Utilities (Armor, Medkit, Adrenaline) from their inventory (`/shop`).\n"
+                "    2. Interactive combat begins where players take turns choosing **Attack** (deals weapon damage + critical hits) or **Use Potion** (restores health).\n"
+                "    3. The last fighter standing claims the total wagered medal pot!"
+            )
             response_parts.append("• **`/rps <@opponent> <bet>`** — High-stakes Rock-Paper-Scissors against another player for wagered medals.")
 
         # 3. Stock Market Inquiry

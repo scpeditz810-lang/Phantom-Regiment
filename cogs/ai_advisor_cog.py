@@ -188,7 +188,7 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
             "  - /blackjack <bet>: Interactive 21 card game with Hit/Stand/Double Down.\n"
             "  - /roulette <bet> <bet_type>: Roulette wheel (Red 2x, Black 2x, Even 2x, Odd 2x, Green 36x).\n"
             "  - /scratch <tier>: Lottery scratch cards (Bronze 500M, Silver 2.5kM, Gold 10kM) with up to 10x jackpot multipliers.\n"
-            "  - /fight <@opponent> <bet>: PvP interactive combat arena with Attack/Defend/Special moves.\n"
+            "  - /fight <@opponent> <bet>: 1v1 PvP combat arena (bet 1-150k Medals). Both players equip shop loadouts (weapons/potions) via modal, then take turns clicking Attack or Use Potion until one player is defeated.\n"
             "  - /rps <@opponent> <bet>: PvP Rock-Paper-Scissors.\n"
             "• MAYOR POWERS & COMMANDS (/mayor):\n"
             "  - /mayor salary: Collect daily mayoral salary (+12,500 Medals/day).\n"
