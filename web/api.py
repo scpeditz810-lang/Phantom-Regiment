@@ -1886,7 +1886,7 @@ def api_earth_countries():
 
         item["y"] = int(round(c.get("lng", 0)))
 
-        item["current_value"] = c.get("gdp", 10000000)
+        item["current_value"] = c.get("gdp", 0) if can_view_economy else None
 
         enriched.append(item)
 
