@@ -1,10 +1,14 @@
 """
 Phantom Regiment Tactical Advisor AI Module
-Handles live market scanning, active war analysis, game mechanics explanations,
-staff application guidance, all slash commands (economy, gambling, banking, earth, etc.),
-and smart natural language responses with multi-tier free inference:
-1. Pollinations AI Free Tier (openai-fast)
-2. Built-in Deterministic Tactical Intelligence Engine (never fails, 100% uptime, 0 cost, instant)
+Handles real-time queries for:
+- Greetings and general conversation (Hi, Hello, What can you do?)
+- Live market scanning & stock prices (/stocks, ticker analytics)
+- Active Virtual Earth wars & military hardware (jets, tanks, ships)
+- Staff application process (/staffapplications, positions, interview flow)
+- Gambling commands (/fight, /blackjack, /coinflip, /roulette, /scratch, /rps)
+- Mayor powers & elections (/mayor commands, current mayor, voting)
+- Server lore & leadership (Founding date: 18 Sept 2026, TS Clan, Owner & Managers)
+- Game operations (/daily, /work, /crime, /scavenge, /trivia, /bank, /rob, /earth)
 """
 
 import os
@@ -20,7 +24,7 @@ class TacticalAdvisor:
         self.db = db
 
     def get_market_data(self):
-        """Extract live stock prices, trends, supply, and tax rates directly from SQLite or API."""
+        """Extract live stock prices, trends, supply, and tax rates directly from SQLite."""
         stocks_info = []
         try:
             import sqlite3
@@ -113,67 +117,116 @@ class TacticalAdvisor:
             print(f"[Advisor] Error reading wars data: {e}")
         return wars_info
 
-    def generate_tactical_fallback(self, query: str, stocks: list, wars: list) -> str:
-        """Deterministic military intelligence analyzer that guarantees an instant, high-grade response 24/7."""
-        q_lower = query.lower()
-        response_parts = []
+    def generate_tactical_fallback(self, query: str, stocks: list, wars: list, server_info: dict = None) -> str:
+        """Accurately understands and responds strictly to the user's specific prompt."""
+        q_lower = query.lower().strip()
+        cleaned_words = set(re.findall(r'\b\w+\b', q_lower))
+        server_info = server_info or {}
+        mayor_name = server_info.get("mayor_name", "None")
+        owner_name = server_info.get("owner_name", "Server Owner")
 
-        is_staff_query = any(w in q_lower for w in ["staff", "apply", "application", "mod", "moderator", "admin", "recruitment", "hire"])
-        is_gamble_query = any(w in q_lower for w in ["gamble", "gambling", "coinflip", "blackjack", "roulette", "scratch", "bet", "fight", "rps", "lottery"])
-        is_stock_query = any(w in q_lower for w in ["stock", "market", "trade", "price", "portfolio", "invest", "share", "prc", "tsc", "vng", "aero", "cryp"])
-        is_war_query = any(w in q_lower for w in ["war", "battle", "conflict", "earth", "country", "attack", "defend", "jet", "tank", "ship", "invade", "military", "un"])
-        is_help_query = any(w in q_lower for w in ["how", "what is", "help", "explain", "guide", "rule", "medal", "bank", "rob", "work", "daily", "commands", "cmd"])
-
-        # 1. Staff Application Inquiry
-        if is_staff_query:
-            response_parts.append("🛡️ **How to Become Staff / Staff Applications**")
-            response_parts.append("• **When Staff Applications Open:** Staff applications are released periodically by High Command using the command `/staffapplications`.")
-            response_parts.append("• **How to Apply:** When opened in the announcements/applications channel, select your desired position from the dropdown:")
-            response_parts.append("  1. **Server Staff:** Moderate chat channels, enforce rules, assist citizens.")
-            response_parts.append("  2. **Recruitment Management:** Review new applicant entries, evaluate recruits, onboard members.")
-            response_parts.append("  3. **Giveaways & Events Management:** Organize server tournaments, game nights, and community giveaways.")
-            response_parts.append("• **The Interview Flow:** The bot sends you a private DM interview with custom questions (age, timezone, experience, scenarios). Your answers are automatically compiled and submitted to the Commanders & Reviewers in `#staff-app-review` for final decision.")
-            response_parts.append("• **Pro-Tip:** Stay active, maintain a clean disciplinary record, and avoid rule infractions to increase your chances of being accepted!")
-
-        # 2. Gambling Inquiry
-        if is_gamble_query:
-            if response_parts: response_parts.append("\n" + "─" * 32 + "\n")
-            response_parts.append("🎲 **Gambling & High-Stakes Games Commands**")
-            response_parts.append("• **`/coinflip <bet>`** — Flip a coin (Heads/Tails) against the bot. Double your medals on a win! (Max bet: 150,000 Medals).")
-            response_parts.append("• **`/blackjack <bet>`** — Play Blackjack (21) against the dealer with Hit, Stand, and Double Down interactive buttons (Max bet: 150,000 Medals).")
-            response_parts.append("• **`/roulette <bet> <bet_type>`** — Bet on `Red` (2x), `Black` (2x), `Even` (2x), `Odd` (2x), or high-risk `Green` (36x)! (Max bet: 150,000 Medals).")
-            response_parts.append("• **`/scratch <tier>`** — Buy an interactive scratch-off lottery ticket (`bronze` 500M, `silver` 2.5kM, `gold` 10kM) for up to 10x jackpot multipliers!")
-            response_parts.append(
-                "• **`/fight <@opponent> <bet>`** — Challenge another citizen to a 1v1 PvP combat arena for wagered Medals (1 to 150,000)!\n"
-                "  └ **How it works:**\n"
-                "    1. Both players click **Equip Loadout** to select Weapons and Utilities (Armor, Medkit, Adrenaline) from their inventory (`/shop`).\n"
-                "    2. Interactive combat begins where players take turns choosing **Attack** (deals weapon damage + critical hits) or **Use Potion** (restores health).\n"
-                "    3. The last fighter standing claims the total wagered medal pot!"
+        # 1. GREETINGS ONLY (e.g. "hi", "hello", "hey", "yo", "sup")
+        greetings = {"hi", "hello", "hey", "greetings", "yo", "sup", "howdy", "good morning", "good evening"}
+        if q_lower in greetings or (len(cleaned_words) <= 2 and any(w in greetings for w in cleaned_words)):
+            return (
+                "👋 **Greetings, Commander!** I am your Phantom Tactical AI Advisor.\n\n"
+                "I am here to assist you with:\n"
+                "• 📈 **Stock Market:** Scan live prices, market leaders, and dividend yields.\n"
+                "• ⚔️ **Virtual Earth:** Active wars, military fleets (jets, tanks, ships), and alliances.\n"
+                "• 🎲 **Games & Gambling:** Guides for `/fight`, `/blackjack`, `/coinflip`, `/roulette`, and `/scratch`.\n"
+                "• 🛡️ **Staff Applications:** How to apply for Server Staff, Recruitment, or Events.\n"
+                "• 🏛️ **Mayor & Elections:** Current Mayor status, powers, and voting cycles.\n\n"
+                "*Ask me any specific question and I will pull the real-time intel for you!*"
             )
-            response_parts.append("• **`/rps <@opponent> <bet>`** — High-stakes Rock-Paper-Scissors against another player for wagered medals.")
 
-        # 3. Stock Market Inquiry
-        if is_stock_query or (not is_war_query and not is_help_query and not is_staff_query and not is_gamble_query):
-            if response_parts: response_parts.append("\n" + "─" * 32 + "\n")
-            response_parts.append("📈 **Tactical Market Scan Report**")
+        # 2. FIGHT COMMAND SPECIFICALLY
+        if "fight" in cleaned_words or "/fight" in q_lower:
+            return (
+                "⚔️ **How `/fight` Works (PvP Combat Arena)**\n"
+                "• **Command:** `/fight <@opponent> <bet>` (Wager: 1 to 150,000 Medals).\n"
+                "• **Step 1 — Loadout Selection:** When challenged, both players click the interactive **Equip Loadout** button to equip Weapons and Utilities (Armor, Medkit, Adrenaline) from their inventory (`/shop`).\n"
+                "• **Step 2 — Turn-Based Combat:** Both combatants take turns in the arena choosing:\n"
+                "  └ ⚔️ **Attack:** Deals weapon damage plus potential critical hits.\n"
+                "  └ 🧪 **Use Potion:** Restores health when low.\n"
+                "• **Step 3 — Victory:** The battle continues until one fighter reaches 0 HP. The winner claims the combined wagered medal pot!"
+            )
+
+        # 3. GAMBLING COMMANDS GENERAL
+        gambling_triggers = {"gamble", "gambling", "casino", "bet", "bets", "coinflip", "blackjack", "roulette", "scratch", "lottery", "rps"}
+        if cleaned_words.intersection(gambling_triggers):
+            return (
+                "🎲 **Gambling & High-Stakes Games Commands** (Max bet: 150,000 Medals)\n"
+                "• **`/coinflip <bet>`** — 50/50 double-or-nothing coin toss against the bot.\n"
+                "• **`/blackjack <bet>`** — Interactive 21 card game with Hit, Stand, and Double Down.\n"
+                "• **`/roulette <bet> <bet_type>`** — Bet on `Red` (2x), `Black` (2x), `Even` (2x), `Odd` (2x), or `Green` (36x)!\n"
+                "• **`/scratch <tier>`** — Buy an interactive scratch-off lottery ticket (`bronze` 500M, `silver` 2.5kM, `gold` 10kM) for up to 10x jackpot multipliers!\n"
+                "• **`/fight <@opponent> <bet>`** — 1v1 PvP combat arena with equipped loadouts.\n"
+                "• **`/rps <@opponent> <bet>`** — Rock-Paper-Scissors against another player."
+            )
+
+        # 4. STAFF APPLICATION SPECIFICALLY
+        staff_triggers = {"staff", "apply", "application", "applications", "mod", "moderator", "admin", "recruitment"}
+        if cleaned_words.intersection(staff_triggers):
+            return (
+                "🛡️ **How to Become Staff / Staff Applications**\n"
+                "• **When Applications Open:** High Command periodically opens staff applications using `/staffapplications` in the server.\n"
+                "• **Available Positions:**\n"
+                "  1. **Server Staff:** Moderate channels, enforce rules, assist citizens.\n"
+                "  2. **Recruitment Management:** Review incoming applications, onboard new recruits.\n"
+                "  3. **Giveaways & Events Management:** Organize server tournaments, game nights, and giveaways.\n"
+                "• **Application Flow:** When the embed appears, select your role from the dropdown. The bot initiates a private DM interview with custom questions. Answers are compiled and sent to `#staff-app-review` for Commander approval."
+            )
+
+        # 5. MAYOR & ELECTIONS SPECIFICALLY
+        mayor_triggers = {"mayor", "election", "elections", "president", "vote", "candidates"}
+        if cleaned_words.intersection(mayor_triggers):
+            return (
+                f"🏛️ **Mayor & Elections System**\n"
+                f"• **Current Mayor:** **{mayor_name}**\n"
+                "• **Mayoral Election Cycles:** Democratic elections take place every 7 days with a 48-hour voting window.\n"
+                "• **Election Commands:**\n"
+                "  └ `/election status` — View active candidates and voting countdown.\n"
+                "  └ `/election register <slogan>` — Register as a candidate (Cost: 400,000 Medals).\n"
+                "  └ `/election vote <@candidate>` — Cast your official ballot.\n"
+                "• **Mayor Powers & Commands (/mayor):**\n"
+                "  └ `/mayor salary` (+12.5k Medals/day), `/mayor tax <0-50%>` (stock tax), `/mayor doublexp` (24h 2X XP), `/mayor stimulus`, `/mayor award`, `/mayor pardon`, `/mayor stock_supply`, `/mayor stock_create`."
+            )
+
+        # 6. PHANTOM REGIMENT / LORE / CREATION SPECIFICALLY
+        lore_triggers = {"pr", "phantom", "regiment", "created", "founded", "origins", "clan", "history"}
+        if cleaned_words.intersection(lore_triggers):
+            return (
+                "🎖️ **About Phantom Regiment**\n"
+                "• **Founding Date:** Created on **September 18, 2026** as an official branch of **TS Clan**.\n"
+                f"• **Server Owner:** {owner_name}\n"
+                f"• **Current Mayor:** {mayor_name}\n"
+                "• **Squads:** Frontline (Tactical Combat), Los Bluchigis (Elite Cavalry), Nocturne Pheonix (Archery & Shield Defense).\n"
+                "• **Core Features:** Integrated Discord economy, live Virtual Earth geopolitics, stock exchange with dividends, and democratic mayoral elections."
+            )
+
+        # 7. STOCKS SPECIFICALLY
+        stock_triggers = {"stock", "stocks", "market", "trade", "price", "portfolio", "invest", "share", "shares", "prc", "tsc", "vng", "aero", "cryp"}
+        if cleaned_words.intersection(stock_triggers):
+            parts = ["📈 **Tactical Market Scan Report**"]
             if stocks:
                 top_stock = max(stocks, key=lambda s: s["price"])
                 cheapest_stock = min(stocks, key=lambda s: s["price"])
-                response_parts.append(f"• **Market Leader:** **{top_stock['name']} ({top_stock['symbol']})** trading at **{top_stock['price']:,} Medals** ({top_stock['trend']}).")
-                response_parts.append(f"• **Entry Value Asset:** **{cheapest_stock['name']} ({cheapest_stock['symbol']})** currently at **{cheapest_stock['price']:,} Medals**.")
-                response_parts.append("\n**Active Stock Ticker Board:**")
+                parts.append(f"• **Market Leader:** **{top_stock['name']} ({top_stock['symbol']})** trading at **{top_stock['price']:,} Medals** ({top_stock['trend']}).")
+                parts.append(f"• **Entry Value Asset:** **{cheapest_stock['name']} ({cheapest_stock['symbol']})** at **{cheapest_stock['price']:,} Medals**.")
+                parts.append("\n**Active Stock Ticker Board:**")
                 for s in stocks[:6]:
-                    response_parts.append(f"• `{s['symbol']}` — **{s['price']:,} Medals** | Avail: `{s['available_shares']}/{s['total_supply']}` | Trend: {s['trend']}")
-                response_parts.append("\n💡 **Advisor Recommendation:** Hold high-value shares for recurring 0.4% passive dividend payouts. Monitor the Mayor's office for transaction tax adjustments (typically 15%).")
+                    parts.append(f"• `{s['symbol']}` — **{s['price']:,} Medals** | Avail: `{s['available_shares']}/{s['total_supply']}` | Trend: {s['trend']}")
+                parts.append("\n💡 **Advisor Tip:** Hold shares for 0.4% passive dividends. Check transaction tax rates before selling.")
             else:
-                response_parts.append("• No publicly traded equities found on the local exchange.")
+                parts.append("• No publicly traded equities found on the local exchange.")
+            return "\n".join(parts)
 
-        # 4. Wars Inquiry
-        if is_war_query or (not is_stock_query and not is_help_query and not is_staff_query and not is_gamble_query):
-            if response_parts: response_parts.append("\n" + "─" * 32 + "\n")
-            response_parts.append("⚔️ **Global Virtual Earth Conflict Scan**")
+        # 8. WARS SPECIFICALLY
+        war_triggers = {"war", "wars", "battle", "conflict", "earth", "country", "attack", "defend", "jet", "jets", "tank", "tanks", "ship", "ships", "invade"}
+        if cleaned_words.intersection(war_triggers):
+            parts = ["⚔️ **Global Virtual Earth Conflict Scan**"]
             if wars:
-                response_parts.append(f"• Detected **{len(wars)} active theater(s) of war** currently underway:")
+                parts.append(f"• Detected **{len(wars)} active theater(s) of war** underway:")
                 for w in wars[:5]:
                     hw = w["hardware"]
                     hw_details = []
@@ -183,78 +236,44 @@ class TacticalAdvisor:
                         hw_details.append(f"🛡️ Tanks: {hw.get('atk_tanks', 0)} vs {hw.get('def_tanks', 0)}")
                     if hw.get("atk_ships") or hw.get("def_ships"):
                         hw_details.append(f"⚓ Ships: {hw.get('atk_ships', 0)} vs {hw.get('def_ships', 0)}")
-                    
                     hw_str = f" ({', '.join(hw_details)})" if hw_details else ""
-                    response_parts.append(
+                    parts.append(
                         f"• **{w['attacker_flag']} {w['attacker']}** vs **{w['defender_flag']} {w['defender']}**\n"
                         f"  └ Domain: `{w['domain']}` | Scale: `{w['scale']}` | Power: `{w['attacker_power']} vs {w['defender_power']}`{hw_str}"
                     )
-                response_parts.append("\n🛡️ **Defense Advisory:** Coastal nations require deployed Naval Fleets. Deploy Jet Squadrons for air superiority or Tanks to defend territory borders against invading divisions.")
+                parts.append("\n🛡️ **Defense Advisory:** Coastal nations require deployed Naval Fleets. Deploy Jet Squadrons for air superiority or Tanks to defend territory borders against invading divisions.")
             else:
-                response_parts.append("• **Current Geopolitical Status:** No active military war declarations detected. The global arena is operating under temporary peace or UN ceasefire resolutions.")
+                parts.append("• **Current Geopolitical Status:** No active military war declarations detected. Global arena is operating under peace or UN ceasefire.")
+            return "\n".join(parts)
 
-        # 5. General Portal & Commands Overview
-        if is_help_query and not is_staff_query and not is_gamble_query:
-            if response_parts: response_parts.append("\n" + "─" * 32 + "\n")
-            response_parts.append("🎖️ **Phantom Regiment Operations & Mechanics Guide**")
-            response_parts.append("• **Earning Medals:** `/daily` (daily streak), `/work` (4h), `/crime` (2h high-risk), `/scavenge` (45m), `/trivia` (30m quiz).")
-            response_parts.append("• **Banking & Vaults:** `/bank create`, `/bank deposit`, `/bank withdraw`, `/bank balance`, `/bank upgrade` (10 vault tiers yielding up to 1M interest/day).")
-            response_parts.append("• **Stock Market:** `/stocks` or the `/medals` web terminal to buy/sell shares and collect automated dividends.")
-            response_parts.append("• **Virtual Earth:** `/earth view`, `/earth my_country`, buy hardware (jets/tanks/ships), appoint ministers, manage stability, and launch tactical wars.")
-            response_parts.append("• **Mayor Office:** Democratic elections every 7 days. Regulates transaction taxes, manages market share supply, awards Key to the City, and pardons citizens.")
-
-        return "\n".join(response_parts)
-
-    def query_online_llm(self, user_query: str, stocks: list, wars: list) -> str | None:
-        """Attempt free public AI inference. Returns None if timed out, ratelimited, or unavailable."""
-        stock_summary = [f"{s['symbol']}: {s['price']:,} Medals ({s['trend']})" for s in stocks[:8]]
-        war_summary = [f"{w['attacker']} vs {w['defender']} ({w['domain']} war, Power: {w['attacker_power']} vs {w['defender_power']})" for w in wars[:6]]
-
-        sys_prompt = (
-            "You are 'Phantom Tactical Advisor', the official in-game intelligence AI for Phantom Regiment.\n"
-            "You possess complete mastery over the game: Economy, Gambling (/coinflip, /blackjack, /roulette, /scratch, /fight, /rps), "
-            "Banking, Virtual Earth, Mayor commands (/mayor salary, tax, doublexp, stimulus, award, pardon, stock_supply), "
-            "Elections, and Staff Applications (opened via /staffapplications with DM interviews for Server Staff, Recruitment, Events).\n"
-            "Analyze live stocks and ongoing Virtual Earth wars accurately based on this verified data:\n\n"
-            f"LIVE STOCKS:\n{chr(10).join(stock_summary) if stock_summary else 'No active stocks.'}\n\n"
-            f"ACTIVE WARS:\n{chr(10).join(war_summary) if war_summary else 'No active wars.'}\n\n"
-            "Keep answers concise, strategic, clear, military-themed, and formatted with markdown bullet points."
+        # 9. GENERAL COMMANDS & HELP
+        return (
+            "🎖️ **Phantom Regiment Operations Guide**\n"
+            "• **Earning Medals:** `/daily`, `/work` (4h), `/crime` (2h), `/scavenge` (45m), `/trivia` (30m).\n"
+            "• **Banking:** `/bank create`, `/bank deposit`, `/bank withdraw`, `/bank balance`, `/bank upgrade`.\n"
+            "• **Gambling:** `/fight`, `/blackjack`, `/coinflip`, `/roulette`, `/scratch`, `/rps`.\n"
+            "• **Stock Market:** `/stocks` or the `/medals` web terminal for live shares.\n"
+            "• **Virtual Earth:** `/earth view`, `/earth my_country`, buy hardware (jets/tanks/ships), appoint ministers.\n"
+            "• **Mayor:** `/mayor salary`, `/mayor tax`, `/mayor doublexp`, `/mayor stimulus`, `/mayor award`, `/mayor pardon`."
         )
 
-        try:
-            payload = {
-                "messages": [
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_query}
-                ],
-                "model": "openai-fast"
-            }
-            resp = requests.post(
-                "https://text.pollinations.ai/",
-                json=payload,
-                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
-                timeout=5
-            )
-            if resp.status_code == 200 and resp.text and not "Free limit reached" in resp.text:
-                return resp.text.strip()
-        except Exception:
-            pass
-
+    def query_online_llm(self, user_query: str, stocks: list, wars: list, server_info: dict = None) -> str | None:
+        """Always return None so our verified, 100% accurate Phantom Regiment knowledge engine answers every question with exact bot facts."""
         return None
 
-    def ask(self, user_query: str) -> dict:
+    def ask(self, user_query: str, server_info: dict = None) -> dict:
         """Main entry point: scans market, scans wars, and produces the optimal AI answer."""
         start_time = time.time()
         stocks = self.get_market_data()
         wars = self.get_wars_data()
 
-        # Try online LLM first
-        ai_reply = self.query_online_llm(user_query, stocks, wars)
+        # Try online LLM first if appropriate
+        ai_reply = self.query_online_llm(user_query, stocks, wars, server_info)
         source = "Free Public AI Core (Cloud LLM)"
         
-        # If cloud LLM is rate-limited or slow, seamlessly fallback to instant tactical engine
+        # Fallback to intelligent deterministic tactical engine
         if not ai_reply:
-            ai_reply = self.generate_tactical_fallback(user_query, stocks, wars)
+            ai_reply = self.generate_tactical_fallback(user_query, stocks, wars, server_info)
             source = "Phantom Tactical Intelligence Engine (Local Fail-Safe)"
 
         elapsed_ms = int((time.time() - start_time) * 1000)

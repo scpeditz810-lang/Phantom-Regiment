@@ -253,32 +253,20 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
             guild = message.guild or self.bot.get_guild(MAIN_GUILD_ID)
             mayor_info = await self.get_current_mayor_info(guild)
             leadership = self.get_leadership_info(guild)
-            extra_context = self.build_extended_context(mayor_info, leadership)
 
-            full_prompt = f"{extra_context}\nUser Question: {user_prompt}"
-            
+            server_info = {
+                "mayor_name": mayor_info.get("name", "None"),
+                "owner_name": leadership.get("owner", "Server Owner")
+            }
+
             try:
-                result = await asyncio.to_thread(self.advisor.ask, full_prompt)
+                # Pass clean user_prompt directly to advisor with server_info
+                result = await asyncio.to_thread(self.advisor.ask, user_prompt, server_info)
                 reply_text = result.get("response") or "Tactical systems reporting nominal. How may I assist your operations?"
             except Exception as e:
                 stocks = await asyncio.to_thread(self.advisor.get_market_data)
                 wars = await asyncio.to_thread(self.advisor.get_wars_data)
-                reply_text = self.advisor.generate_tactical_fallback(user_prompt, stocks, wars)
-                reply_text = f"**Current Mayor:** {mayor_info['name']}\n\n" + reply_text
-
-            # If user specifically asked about the mayor
-            if any(k in user_prompt.lower() for k in ["mayor", "elections", "president", "leader", "who is mayor"]):
-                if mayor_info["name"] not in reply_text:
-                    reply_text = f"🏛️ **Current Mayor:** **{mayor_info['name']}** ({mayor_info['status']})\n\n" + reply_text
-
-            # If user asked about PR or when created
-            if any(k in user_prompt.lower() for k in ["what is pr", "phantom regiment", "created", "founded", "members"]):
-                if "September 18, 2026" not in reply_text:
-                    reply_text = (
-                        f"🎖️ **Phantom Regiment (PR)** was founded on **September 18, 2026** as an official branch of **TS Clan**.\n"
-                        f"• **Server Owner:** {leadership['owner']}\n"
-                        f"• **Active Mayor:** {mayor_info['name']}\n\n"
-                    ) + reply_text
+                reply_text = self.advisor.generate_tactical_fallback(user_prompt, stocks, wars, server_info)
 
             # Extra defense: sanitize any zero-width or escaped @everyone or @here in the generated output
             reply_text = reply_text.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
