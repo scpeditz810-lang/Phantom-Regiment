@@ -1,9 +1,10 @@
 """
 Git-based auto-backup for the SQLite database.
 
-On startup  → clones / pulls the backup repo into data/ to restore the DB.
-Every 10 s  → on Render (production): if the DB changed, commits & pushes to GitHub.
-            → on Local (development/admin portal): pulls & syncs latest DB from GitHub.
+On startup  → restores the latest verified SQLite snapshot from GitHub.
+Every 10 s  → on Render (production): uses SQLite's online backup API to create a
+              consistent snapshot file, then commits & pushes that file to GitHub.
+            → on Local (development/admin portal): pulls & syncs the latest backup.
 
 Required env vars:
     GITHUB_TOKEN   — Personal Access Token with repo scope
@@ -29,6 +30,8 @@ class GitBackup:
         self._enabled = False
         self._last_sync_time: float = 0
         self._sync_lock = threading.Lock()
+        self._push_lock = threading.Lock()
+        self.snapshot_name = "bot_snapshot.db"
 
     @staticmethod
     def is_render() -> bool:
@@ -73,9 +76,13 @@ class GitBackup:
                 # Git backups can capture SQLite while a write/checkpoint is in
                 # flight. If HEAD is corrupt, walk older bot.db snapshots and
                 # recover the newest one that SQLite can verify.
-                remote_db = os.path.join(tmp, os.path.basename(self.db_path))
+                # New backups use SQLite's online backup API into a standalone file.
+                # Fall back to the legacy root bot.db for the first upgrade deploy.
+                legacy_name = os.path.basename(self.db_path)
+                source_name = self.snapshot_name if os.path.exists(os.path.join(tmp, self.snapshot_name)) else legacy_name
+                remote_db = os.path.join(tmp, source_name)
                 if not os.path.exists(remote_db) or os.path.getsize(remote_db) < 1000:
-                    raise FileNotFoundError("backup repository clone did not contain bot.db")
+                    raise FileNotFoundError("backup repository clone did not contain a database snapshot")
 
                 def _sqlite_integrity(path: str) -> bool:
                     try:
@@ -91,7 +98,7 @@ class GitBackup:
                 if not _sqlite_integrity(remote_db):
                     print("⚠️ Latest remote bot.db is corrupt; searching recent saved snapshots.", flush=True)
                     commits = self._run(
-                        ["git", "log", "--format=%H", "--", os.path.basename(self.db_path)],
+                        ["git", "log", "--format=%H", "--", source_name],
                         cwd=tmp, capture=True,
                     ).stdout.splitlines()
                     recovered = False
@@ -99,7 +106,7 @@ class GitBackup:
                     for commit in commits[1:]:
                         try:
                             blob = self._run(
-                                ["git", "show", f"{commit}:{os.path.basename(self.db_path)}"],
+                                ["git", "show", f"{commit}:{source_name}"],
                                 cwd=tmp, capture_binary=True,
                             )
                             if len(blob) < 1000:
@@ -123,11 +130,35 @@ class GitBackup:
                             except OSError:
                                 pass
                     if not recovered:
-                        # The current and recent history may share the same damaged
-                        # SQLite pages. Salvage readable rows from HEAD as a last
-                        # recovery path instead of leaving the entire site offline.
-                        # Never replace the source unless the recovered file passes
-                        # integrity_check and contains application tables.
+                        # The observed corruption is an index/tree mismatch. Rebuilding
+                        # indexes from table rows preserves data when possible, which is
+                        # safer than raw row salvage.
+                        reindexed = os.path.join(tmp, "bot.db.reindexed")
+                        try:
+                            import shutil
+                            shutil.copy2(remote_db, reindexed)
+                            conn = sqlite3.connect(reindexed, timeout=30.0)
+                            try:
+                                conn.execute("REINDEX")
+                                conn.commit()
+                            finally:
+                                conn.close()
+                            if _sqlite_integrity(reindexed):
+                                os.replace(reindexed, remote_db)
+                                print("✅ Rebuilt corrupt SQLite indexes from stored rows.", flush=True)
+                                recovered = True
+                        except Exception as reindex_error:
+                            print(f"⚠️ SQLite index rebuild did not repair snapshot: {reindex_error}", flush=True)
+                        finally:
+                            try:
+                                if os.path.exists(reindexed):
+                                    os.remove(reindexed)
+                            except OSError:
+                                pass
+
+                    if not recovered:
+                        # If indexes cannot be rebuilt, salvage rows from the damaged
+                        # snapshot as a last recovery path. Do not initialize empty data.
                         salvaged = os.path.join(tmp, "bot.db.salvaged")
                         try:
                             recovery = self._run(
@@ -165,15 +196,20 @@ class GitBackup:
                             )
                         except Exception as salvage_error:
                             raise sqlite3.DatabaseError(
-                                "latest and historical bot.db snapshots failed integrity_check, "
-                                f"and SQLite salvage failed: {salvage_error}"
+                                "latest and historical database snapshots failed integrity_check, "
+                                f"index rebuild failed, and SQLite salvage failed: {salvage_error}"
                             ) from salvage_error
 
                 # On a fresh checkout the backup repository is authoritative.
-                # Replace stale local copies atomically, including a valid but
-                # outdated root-snapshot copy from an earlier deployment.
+                # Keep the validated snapshot as the tracked Git backup and copy it
+                # separately to the live DB path used by Discord and the website.
                 os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
-                os.replace(remote_db, self.db_path)
+                local_snapshot = os.path.join(self.repo_dir, self.snapshot_name)
+                if source_name == self.snapshot_name:
+                    shutil.copy2(remote_db, local_snapshot)
+                elif os.path.exists(local_snapshot):
+                    os.remove(local_snapshot)
+                shutil.copy2(remote_db, self.db_path)
                 for item in os.listdir(tmp):
                     if item == os.path.basename(self.db_path):
                         continue
@@ -241,11 +277,22 @@ class GitBackup:
             self._run(["git", "config", "merge.ours.driver", "true"],
                       cwd=self.repo_dir, check=False)
             gitattributes_path = os.path.join(self.repo_dir, ".gitattributes")
-            if not os.path.exists(gitattributes_path):
-                with open(gitattributes_path, "w") as f:
+            existing_attributes = ""
+            if os.path.exists(gitattributes_path):
+                with open(gitattributes_path, "r", encoding="utf-8") as f:
+                    existing_attributes = f.read()
+            with open(gitattributes_path, "a", encoding="utf-8") as f:
+                if existing_attributes and not existing_attributes.endswith("\n"):
+                    f.write("\n")
+                if "bot.db merge=ours" not in existing_attributes:
                     f.write("bot.db merge=ours\nbot.db binary\n")
+                if f"{self.snapshot_name} merge=ours" not in existing_attributes:
+                    f.write(f"{self.snapshot_name} merge=ours\n{self.snapshot_name} binary\n")
 
-        self._last_hash = self._file_hash()
+        # Force creation of the first online backup snapshot when upgrading
+        # an older repository that only contains the live bot.db file.
+        snapshot_path = os.path.join(self.repo_dir, self.snapshot_name)
+        self._last_hash = self._file_hash() if os.path.exists(snapshot_path) else None
         self._enabled = True
         return True
 
@@ -259,65 +306,57 @@ class GitBackup:
             pass
 
     def push_if_changed(self) -> bool:
-        """Commit & push if the DB file changed since last check.
-        Safe to call from a thread (no async).
-        Only the production Render bot pushes backups to GitHub.
-        Local instances will instead pull/sync from remote."""
-        if not self.is_render():
-            # Local development / web portal:
-            # DO NOT push to GitHub (would clobber production bot database),
-            # and DO NOT automatically overwrite local database every 10 seconds.
-            return False
+        """Commit a consistent SQLite online-backup snapshot to GitHub."""
+        with self._push_lock:
+            return self._push_snapshot_if_changed()
 
-        if not self._enabled:
+    def _push_snapshot_if_changed(self) -> bool:
+        if not self.is_render() or not self._enabled:
             return False
-
-        # Checkpoint WAL so git sees the latest data in the main file
-        self._checkpoint()
 
         current = self._file_hash()
         if current == self._last_hash:
             return False
-        self._last_hash = current
 
         try:
-            self._run(["git", "add", "bot.db"], cwd=self.repo_dir)
+            snapshot = self._write_snapshot()
+            self._run(["git", "add", self.snapshot_name], cwd=self.repo_dir)
             status = self._run(
-                ["git", "status", "--porcelain"],
+                ["git", "status", "--porcelain", "--", self.snapshot_name],
                 cwd=self.repo_dir, capture=True,
             )
             if not status.stdout.strip():
+                self._last_hash = current
                 return False
 
-            self._run(
-                ["git", "commit", "-m", "Auto-backup"],
-                cwd=self.repo_dir,
-            )
-            self._run(
-                ["git", "push", "-u", "origin", "main"],
-                cwd=self.repo_dir,
-            )
+            self._run(["git", "commit", "-m", "Auto-backup"], cwd=self.repo_dir)
+            self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
+            self._last_hash = current
+            print(f"✅ Consistent SQLite snapshot backed up ({os.path.getsize(snapshot):,} bytes).", flush=True)
             return True
         except subprocess.CalledProcessError as exc:
-            print(f"⚠️  Git backup push failed: {exc}")
+            print(f"⚠️ Git backup push failed: {exc}", flush=True)
             try:
-                # Abort any in-progress merge or rebase conflict immediately
                 self._run(["git", "merge", "--abort"], cwd=self.repo_dir, check=False)
                 self._run(["git", "rebase", "--abort"], cwd=self.repo_dir, check=False)
-
-                # Fetch and pull remote with -X ours to prioritize the active live cloud database
-                self._run(["git", "pull", "--no-rebase", "-X", "ours", "--no-edit", "origin", "main"], cwd=self.repo_dir, check=False)
-                self._run(["git", "checkout", "--ours", "bot.db"], cwd=self.repo_dir, check=False)
+                self._run(
+                    ["git", "pull", "--no-rebase", "-X", "ours", "--no-edit", "origin", "main"],
+                    cwd=self.repo_dir, check=False,
+                )
+                self._run(["git", "checkout", "--ours", self.snapshot_name], cwd=self.repo_dir, check=False)
                 self._fix_permissions()
-                self._run(["git", "add", "bot.db"], cwd=self.repo_dir, check=False)
+                self._run(["git", "add", self.snapshot_name], cwd=self.repo_dir, check=False)
                 self._run(["git", "commit", "-m", "Auto-backup resolution"], cwd=self.repo_dir, check=False)
                 self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
-                print("✅  Successfully resolved binary conflict and pushed backup!")
+                self._last_hash = current
+                print("✅ Resolved snapshot conflict and pushed current SQLite backup.", flush=True)
                 return True
             except Exception as e:
-                print(f"⚠️  Auto-backup recovery attempt: {e}")
-                # Do NOT force push - allow developer code commits to take precedence
+                print(f"⚠️ Auto-backup recovery attempt: {e}", flush=True)
                 return False
+        except Exception as e:
+            print(f"⚠️ Could not create a consistent SQLite snapshot: {e}", flush=True)
+            return False
 
     def sync_from_remote(self, force: bool = False) -> bool:
         """Sync the local database with the latest backup on GitHub origin/main.
@@ -339,9 +378,14 @@ class GitBackup:
                 self._run(["git", "fetch", auth_url, "main"], cwd=self.repo_dir, check=True)
 
                 remote_blob = self._run(
-                    ["git", "show", "FETCH_HEAD:bot.db"],
-                    cwd=self.repo_dir, check=True, capture_binary=True
+                    ["git", "show", f"FETCH_HEAD:{self.snapshot_name}"],
+                    cwd=self.repo_dir, check=False, capture_binary=True
                 )
+                if not remote_blob:
+                    remote_blob = self._run(
+                        ["git", "show", "FETCH_HEAD:bot.db"],
+                        cwd=self.repo_dir, check=True, capture_binary=True
+                    )
                 if not remote_blob or len(remote_blob) < 1000:
                     return False
 
@@ -379,57 +423,66 @@ class GitBackup:
                 print("⚠️ Remote DB differs from a valid live DB; skipped stale snapshot replacement.")
                 return False
 
-                # Flush WAL and remove WAL/SHM before updating
-                self._checkpoint()
-                wal_path = self.db_path + "-wal"
-                shm_path = self.db_path + "-shm"
-                for p in [wal_path, shm_path]:
-                    if os.path.exists(p):
-                        try:
-                            os.remove(p)
-                        except Exception:
-                            pass
-
-                # Write the new database content
-                with open(self.db_path, "wb") as f:
-                    f.write(remote_blob)
-
-                # Also keep root bot.db in sync if it exists
-                root_db = os.path.abspath(os.path.join(self.repo_dir, "..", "bot.db"))
-                if os.path.exists(root_db) and os.path.abspath(root_db) != os.path.abspath(self.db_path):
-                    try:
-                        with open(root_db, "wb") as f:
-                            f.write(remote_blob)
-                    except Exception:
-                        pass
-
-                self._last_hash = remote_hash
-                print(f"🔄 [Sync] Successfully synced database from GitHub! ({len(remote_blob):,} bytes)")
-                return True
+                # A healthy running database is never replaced by a remote snapshot.
+                return False
             except Exception as e:
                 return False
 
     def push_admin_update(self, commit_msg: str = "Admin update from web portal") -> bool:
-        """Explicitly commit and push an administrative change from the web portal to GitHub."""
+        """Create and push a consistent SQLite snapshot after an explicit admin update."""
         token = os.environ.get("GITHUB_TOKEN", "").strip()
         repo = os.environ.get("GITHUB_REPO", "").strip()
         if not token or not repo:
             return False
 
-        self._checkpoint()
         try:
-            auth_url = repo.replace("https://", f"https://{token}@")
-            self._run(["git", "add", "bot.db"], cwd=self.repo_dir, check=False)
-            self._run(["git", "commit", "-m", commit_msg], cwd=self.repo_dir, check=False)
-            self._run(["git", "push", auth_url, "main"], cwd=self.repo_dir, check=False)
-            self._last_hash = self._file_hash()
-            print(f"✅ [Admin Push] Pushed DB change to GitHub: {commit_msg}")
-            return True
+            with self._push_lock:
+                self._write_snapshot()
+                auth_url = repo.replace("https://", f"https://{token}@")
+                self._run(["git", "add", self.snapshot_name], cwd=self.repo_dir, check=False)
+                self._run(["git", "commit", "-m", commit_msg], cwd=self.repo_dir, check=False)
+                self._run(["git", "push", auth_url, "main"], cwd=self.repo_dir, check=False)
+                self._last_hash = self._file_hash()
+                print(f"✅ [Admin Push] Pushed consistent database snapshot: {commit_msg}", flush=True)
+                return True
         except Exception as e:
-            print(f"⚠️ push_admin_update failed: {e}")
+            print(f"⚠️ push_admin_update failed: {e}", flush=True)
             return False
 
     # ── internals ───────────────────────────────────────────────────────────
+
+    def _write_snapshot(self) -> str:
+        """Write an atomic, transaction-consistent SQLite backup outside the live DB."""
+        os.makedirs(self.repo_dir, exist_ok=True)
+        snapshot_path = os.path.join(self.repo_dir, self.snapshot_name)
+        temporary_path = snapshot_path + ".tmp"
+        try:
+            if os.path.exists(temporary_path):
+                os.remove(temporary_path)
+            source = sqlite3.connect(self.db_path, timeout=30.0)
+            destination = sqlite3.connect(temporary_path, timeout=30.0)
+            try:
+                source.backup(destination, pages=256, sleep=0.05)
+                destination.commit()
+            finally:
+                destination.close()
+                source.close()
+
+            check = sqlite3.connect(temporary_path, timeout=30.0)
+            try:
+                result = check.execute("PRAGMA integrity_check").fetchone()
+            finally:
+                check.close()
+            if not result or result[0] != "ok":
+                raise sqlite3.DatabaseError(f"online backup failed integrity_check: {result}")
+            os.replace(temporary_path, snapshot_path)
+            return snapshot_path
+        finally:
+            try:
+                if os.path.exists(temporary_path):
+                    os.remove(temporary_path)
+            except OSError:
+                pass
 
     def _file_hash(self) -> str | None:
         if not os.path.exists(self.db_path):
@@ -439,17 +492,6 @@ class GitBackup:
             for chunk in iter(lambda: f.read(8192), b""):
                 h.update(chunk)
         return h.hexdigest()
-
-    def _checkpoint(self):
-        """Flush WAL to the main database file."""
-        if not os.path.exists(self.db_path):
-            return
-        try:
-            conn = sqlite3.connect(self.db_path)
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            conn.close()
-        except Exception:
-            pass
 
     @staticmethod
     def _run(cmd, *, cwd=None, check=True, capture=False, capture_binary=False):
