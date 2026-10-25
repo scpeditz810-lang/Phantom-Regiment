@@ -115,6 +115,18 @@ class GitBackup:
                 except subprocess.CalledProcessError:
                     pass
 
+        # Refuse to mark restore successful unless the expected SQLite file
+        # exists and passes integrity verification.
+        if not os.path.exists(self.db_path) or os.path.getsize(self.db_path) < 1000:
+            raise RuntimeError(f"Backup restore did not produce {self.db_path}")
+        conn = sqlite3.connect(self.db_path)
+        try:
+            integrity = conn.execute("PRAGMA integrity_check").fetchone()
+        finally:
+            conn.close()
+        if not integrity or integrity[0] != "ok":
+            raise sqlite3.DatabaseError(f"Restored database {self.db_path} failed integrity_check")
+
         self._fix_permissions()
 
         # Configure identity
