@@ -38,6 +38,149 @@ MEMORY_TTL_SECONDS = 30 * 60
 MAX_REPLY_TOKENS = 700
 
 
+# ----------------------------------------------------------------------------
+# VIRTUAL EARTH DETAIL (taken from the bot's own code). Only the sections that
+# match the question are sent to the model, which keeps free-tier token limits safe.
+# ----------------------------------------------------------------------------
+EARTH_SECTIONS = {
+    "population": (
+        "POPULATION: every country starts at 100 and grows +2% per day (at least +1), compounding, capped at "
+        "1,000,000. It updates when the country is loaded (/earth my_country, /earth view, website), catching up "
+        "to 30 missed days. NO command or building adds population directly, so time and not losing people is the "
+        "way to grow it. It is reduced by recruiting divisions (5 civilians each), war casualties (winner loses ~15% "
+        "of committed divisions as civilians, loser ~35%) and nuclear strikes (~5%). Population caps the army: "
+        "max divisions = pop/5, tanks = pop/25, jets = pop/50, ships = pop/50."
+    ),
+    "strength": (
+        "STRONGEST COUNTRY: no official title. The country list is sorted by GDP (economic strength). Military power "
+        "(list view) = 20 + divisions x4 + tanks x35 + jets x28 + ships x18 + buildings x15. Full combat score starts "
+        "at 20 attack / 30 defense; tanks add 35/18, jets 28/10, ships 18/12 (attack/defense); buildings and advanced "
+        "tools add their bonuses x level; then multiplied by military doctrine (Professional x1.15, Conscription x1.40, "
+        "Mechanized x1.60). A dominant country has high GDP, stability, population, many units, strong buildings "
+        "(heavy factory, bunker), advanced tools and allies. Use LIVE COUNTRY RANKINGS to name who leads right now."
+    ),
+    "economy": (
+        "ECONOMY: Two money pools: your personal wallet (Medals) and the national treasury. Rulers collect hourly "
+        "dividends (Economy dashboard button or the website): sum of all non-sabotaged building yields (yield x "
+        "level) + 3,500/hour per active trade route, x economic doctrine multiplier (Free Market x1.25, Mixed x1.10, "
+        "Command x0.90), accumulating up to 24 hours; 5-minute cooldown. Unrest >=30 cuts dividends 15%, unrest >=60 "
+        "cuts 50% (riots). 20% of each payout is also deposited into the treasury. Citizens (non-rulers) get a stipend: "
+        "3,500 (citizen) or 8,500 (minister) per claim minus the country's tax rate, and the tax goes to the treasury. "
+        "Organic growth: GDP grows slowly each hour of peace (scaled by stability) and treasury gains tax rate x 250 "
+        "per hour x stability factor, only for ruled countries. TAX: set 0-50% with /earth policy via the Economy "
+        "dashboard or website (President or Economy Minister; the simulated Policy Council approves only 50% of "
+        "proposals, 15-minute cooldown between reviews). Tax >25% adds +15 unrest on approval, >15% adds +5. Every 6 hours "
+        "tax above 20% adds unrest pressure; if unrest reaches 85 with tax >=25% a REVOLUTION removes the ruler and "
+        "cabinet. Treasury withdrawal (President only): max 20% of the treasury at once, 25% corruption loss, treasury "
+        "must have at least 10,000. To grow wealth: build mines/rigs/ports/industrial core, sign trade routes, keep "
+        "stability high and tax moderate."
+    ),
+    "buildings": (
+        "BUILDINGS (/earth build; President or Economy Minister). Cost of the next level = base x multiplier^current "
+        "level. Each build also adds GDP = 5 x hourly yield, stability and unrest changes. "
+        "School: base 100k (x1.5), +6 stability, -5 unrest, 2,500/hr. "
+        "Hospital: 150k (x1.5), +8 stability, -12 unrest, 3,000/hr. "
+        "Gold mine: 250k (x1.6), 8,500/hr. "
+        "Oil rig: 450k (x1.7), 16,000/hr, coastal only. "
+        "Heavy factory: 350k (x1.6), 7,000/hr, +25 attack/+15 defense, +2 stability. "
+        "Bunker (SAM): 300k (x1.5), 2,000/hr, +10 attack/+65 defense, +4 stability, raises spy capture odds. "
+        "Naval port: 400k (x1.6), 12,000/hr, +15/+25, +3 stability, REQUIRED for trade routes, coastal only. "
+        "Ocean base: 650k (x1.7), 4,000/hr, +45/+55, coastal only. "
+        "Ports, ocean bases and oil rigs need a coastal country."
+    ),
+    "trade": (
+        "TRADE ROUTES (Diplomacy or Economy dashboard, website): signed by the President, Chief Diplomat or Finance "
+        "Minister. Requirements: both countries ruled by players, both coastal, and at least one of them has a Naval "
+        "Port. Only one route per pair. Each active route adds 3,500 Medals/hour (~85k/day) to the dividends of the "
+        "countries involved, boosted by economic doctrine. Isolationist countries cannot sign ocean trade routes. "
+        "UN sanctions halve yields."
+    ),
+    "spy": (
+        "ESPIONAGE (Intelligence dashboard, /earth spy, /earth security; President or Director of Intelligence). "
+        "Recruit an operative: 120,000 Medals, max 6 per country. Missions (timed; effects only after they finish; "
+        "duration shortens with skill): INTEL 30 min, 20% base capture risk, reveals GDP, treasury, population, "
+        "army, arsenal, stability and recent military orders; SABOTAGE 60 min, 35% risk, disables one random building "
+        "for 12 hours (no yield); INCITE RIOT 90 min, 40% risk, +8 unrest and -5 stability (cannot change leaders). "
+        "Capture risk = base + 3% per target bunker level - 2.5% per agent skill level (min 8%, max 72%). A "
+        "successful mission raises the agent's skill by 1 (max 5). Captured agents are held by the target. "
+        "ACADEMY (/earth security train_spy): level 2 Field Infiltration 20k, level 3 Sabotage 45k, level 4 Cyber "
+        "80k, level 5 Phantom Ghost 130k (one level at a time, agent must be idle; paid from wallet or treasury). "
+        "BROKER DOSSIERS (/earth security buy_intel): covert history 35k, military readiness 50k, economic vault 25k "
+        "(valid 7 days). COUNTER-INTEL: /earth security sweep, detection rating 65% + 5% per bunker level (max 98%). "
+        "Interrogate a captured spy (+5 stability, reveals the sponsor country) or execute (-5 unrest). "
+        "Isolationist countries are immune to foreign spy incitement. Cyber Grid arsenal tool helps catch spies and "
+        "protects infrastructure from sabotage."
+    ),
+    "arsenal": (
+        "ARSENAL / ADVANCED TOOLS (/earth arsenal to view, /earth buy_tool to buy; attack/defense power, hourly yield): "
+        "Orbital Recon Satellite 250k (40/35, 4k/hr, +20% infiltration stealth, early attack warnings); "
+        "AI Strike Drone Swarm 450k (95/45, 6k/hr, bypasses 25% of enemy bunkers); "
+        "Iron Dome & Aegis Shield 550k (30/130, 5k/hr, -50% bombardment damage); "
+        "Cyber-Warfare Citadel 380k (45/60, 7.5k/hr, +15% spy capture, sabotage protection); "
+        "Hypersonic Missile Battery 950k (210/70, 10k/hr); "
+        "Nuclear Launch Pad 1.2M (0/35, required to fire a nuke); "
+        "Tactical Nuclear Complex 2.5M (380/260, 20k/hr); "
+        "Automated Mega-Industrial Core 600k (50/40, 38k/hr, the best economy tool). "
+        "Basic units: division 25k (1-20 per order, costs 5 civilians), tank 200k, jet 350k, ship 300k (1-10 per order, "
+        "coastal only), limited by population caps. Only the President or Army Commander buys military."
+    ),
+    "war": (
+        "WAR (/earth war, Defense dashboard; President or Army Commander). Scales: Border Skirmish 24h (min 5 divisions, "
+        "plunder 15% of defender treasury, 100k reparations); Strategic Annexation 72h (min 15 divisions, plunder 40%, "
+        "500k reparations); Total Sovereign Conquest 120h (min 30 divisions, plunder 75%, 1.5M reparations). Domains: "
+        "land, air or naval; you may commit up to 50 equipment (tanks/jets/ships). You cannot attack unclaimed "
+        "countries, yourself, your own other states, or fellow alliance members, and only one active campaign per pair. "
+        "Resolution when the timer ends: score = side power + divisions x3 + random 10-50; higher score wins. Attacker "
+        "win: plunders treasury, defender +20 unrest, and a LAND annexation/total war also captures the country (max 5 "
+        "countries per ruler; captured state gets 35 unrest, 50 stability, cabinet cleared). Defender win: gains reparations. "
+        "Losses: winner loses ~10% of committed equipment and ~12% of divisions, loser ~35% and ~32%. Reinforce an active war "
+        "with more units. NUCLEAR STRIKE: needs a Launch Pad AND a Tactical Nuke, only during an active war, once per "
+        "country per war; deals damage equal to 20% of target GDP, -20 stability, +25 unrest, ~5% population. "
+        "UN SANCTIONS bar offensive warfare for the sanctioned country."
+    ),
+    "diplomacy": (
+        "DIPLOMACY & ALLIANCES: chartering an alliance costs 500,000 Medals (President or Chief Diplomat, name 3-32 "
+        "characters). A country can be in one alliance; members cannot attack each other. Join requests are approved "
+        "by the alliance. Diplomatic stances: Neutral (standard), Interventionist (can defend allied members in "
+        "multi-day wars), Isolationist (immune to spy incitement, cannot sign ocean trade). Governments: socialist, "
+        "democracy, communism, monarchy, dictatorship. Military doctrines: Professional x1.15 power; Conscription "
+        "x1.40 power but +10 unrest; Mechanized x1.60 power but 5,000 Medals/hr upkeep."
+    ),
+    "politics": (
+        "POLITICS & CABINET: the ruler is the President. Cabinet ministers (/earth cabinet appoint, accept, decline, "
+        "dismiss, pending, resign): Defense/Army Commander (divisions, war, hardware), Economy/Finance Minister "
+        "(buildings, tax, policy, trade), Diplomat (alliances, trade treaties), Intelligence/Spy Chief (spies, intel). "
+        "The President has all powers. /earth claim takes an unclaimed country (one starting country per player, offer "
+        "0-2 billion Medals, no tax); /earth join makes you a citizen of a ruled country; /earth leave renounces it. "
+        "Rulers can also list a country for sale (market price) and receive buyout offers on the website. "
+        "/earth quell pacifies unrest: relief 150k (-25 unrest, +15 stability), police 80k (-35 unrest, -8 liberty), "
+        "jubilee 60k (-15 unrest, +20 stability). UN (/earth un): the Mayor acts as Secretary-General and can "
+        "impose sanctions (yields halved, offensive war barred), lift them, order a ceasefire, or send 50,000 Medals "
+        "in aid (-35 unrest, +20 stability)."
+    ),
+}
+
+EARTH_KEYWORDS = {
+    "population": ["population", "citizens", "people", "grow", "growth", "increase", "civilians"],
+    "strength": ["strongest", "powerful", "superpower", "richest", "biggest", "mightiest", "best country", "top country", "rank", "ranking", "leader"],
+    "economy": ["economy", "economic", "gdp", "treasury", "tax", "taxes", "money", "medals", "income", "dividend", "dividends", "yield", "revenue", "profit", "rich", "earn", "policy", "revolution", "stipend", "unrest", "riot", "stability", "doctrine"],
+    "buildings": ["build", "building", "buildings", "school", "hospital", "mine", "oil", "factory", "bunker", "port", "ocean base", "infrastructure", "upgrade"],
+    "trade": ["trade", "route", "routes", "tariff", "shipping", "export", "ocean"],
+    "spy": ["spy", "spies", "espionage", "intel", "intelligence", "agent", "agents", "sabotage", "infiltrate", "dossier", "counter", "sweep", "interrogate", "execute", "academy", "riot", "incite"],
+    "arsenal": ["arsenal", "tool", "tools", "satellite", "drone", "iron dome", "cyber", "hypersonic", "nuke", "nuclear", "missile", "launch pad", "buy_tool", "weapon", "weapons", "tank", "tanks", "jet", "jets", "ship", "ships", "division", "divisions", "military", "army", "recruit"],
+    "war": ["war", "wars", "attack", "invade", "conquer", "conquest", "annex", "annexation", "defend", "battle", "campaign", "ceasefire", "sanction", "sanctions", "plunder", "nuke", "nuclear"],
+    "diplomacy": ["alliance", "alliances", "diplomacy", "diplomat", "treaty", "stance", "coalition", "government", "isolationist", "interventionist", "neutral"],
+    "politics": ["cabinet", "minister", "president", "claim", "join", "leave", "citizen", "quell", "un", "united nations", "secretary", "offer", "sell", "buy country", "ruler", "rule"],
+}
+EARTH_TRIGGER_WORDS = {"earth", "country", "countries", "nation", "nations", "virtual"}
+EARTH_SPECIFIC_TERMS = (
+    "espionage", "sabotage", "annexation", "naval port", "iron dome", "hypersonic", "launch pad", "buy_tool",
+    "trade route", "alliance", "cabinet", "quell", "dossier", "counter-intel", "counter intel", "spy",
+    "divisions", "nuclear", "nuke", "sanction", "gdp", "stability", "unrest", "oil rig", "gold mine", "bunker",
+    "population",
+)
+
+
 class TacticalAdvisor:
     def __init__(self, db=None):
         self.db = db
@@ -209,6 +352,42 @@ class TacticalAdvisor:
                 "*Ask me any specific question and I will pull the real-time intel for you!*"
             )
 
+        # 7b. VIRTUAL EARTH POPULATION / GROWTH
+        pop_triggers = {"population", "populations", "citizens", "grow", "growth", "increase", "people"}
+        if cleaned_words.intersection(pop_triggers) and ("earth" in cleaned_words or "country" in cleaned_words
+                                                        or "population" in cleaned_words):
+            return (
+                "🌍 **Virtual Earth: Population Guide**\n"
+                "• **Start:** every country begins with 100 citizens.\n"
+                "• **Growth:** +2% per day (minimum +1), compounding, up to a hard cap of 1,000,000. "
+                "It updates when your country is loaded (`/earth my_country`, `/earth view`, the website).\n"
+                "• **No direct boost:** no command or building adds population; time is the main factor.\n"
+                "• **What lowers it:** recruiting divisions (5 civilians each), war casualties, and nuclear strikes (~5%).\n"
+                "• **Why it matters:** max divisions = pop/5, tanks = pop/25, jets = pop/50, ships = pop/50.\n"
+                "• **Tip:** avoid needless wars and over-recruiting, and keep stability high with schools and hospitals."
+            )
+
+        # 7c. STRONGEST / BIGGEST / RICHEST COUNTRY
+        power_triggers = {"strongest", "powerful", "superpower", "richest", "biggest", "mightiest", "best", "top"}
+        if cleaned_words.intersection(power_triggers) and cleaned_words.intersection(
+                {"country", "countries", "nation", "nations", "earth", "army", "military"}):
+            ranking = self._ranking_text(self.get_countries_data())
+            return (
+                "🌍 **Strongest Country in Virtual Earth**\n"
+                "• There is no official title; strength is judged two ways: **economy (GDP)** and **military power**.\n"
+                "• **Military power** = 20 + divisions×4 + tanks×35 + jets×28 + ships×18 + buildings×15 "
+                "(the full combat score adds building/tool bonuses and a doctrine multiplier).\n"
+                "• **Stability** and **population** matter too: population caps how big the army can be.\n"
+                + (f"\n**Live rankings right now:**\n{ranking}" if ranking else "")
+            )
+
+        # 7d. ANY OTHER VIRTUAL EARTH TOPIC (economy, trade, spies, arsenal, war rules, diplomacy...)
+        live_words = {"active", "current", "currently", "ongoing", "happening", "now", "live", "today"}
+        earth_detail = "" if (cleaned_words & live_words) else self.select_earth_detail(query)
+        if earth_detail:
+            body = earth_detail.replace("EARTH DETAIL:\n", "", 1)
+            return "🌍 **Virtual Earth Guide**\n" + body
+
         # 2. FIGHT COMMAND SPECIFICALLY
         if "fight" in cleaned_words or "/fight" in q_lower:
             return (
@@ -291,35 +470,6 @@ class TacticalAdvisor:
                 parts.append("• No publicly traded equities found on the local exchange.")
             return "\n".join(parts)
 
-        # 7b. VIRTUAL EARTH POPULATION / GROWTH
-        pop_triggers = {"population", "populations", "citizens", "grow", "growth", "increase", "people"}
-        if cleaned_words.intersection(pop_triggers) and ("earth" in cleaned_words or "country" in cleaned_words
-                                                        or "population" in cleaned_words):
-            return (
-                "🌍 **Virtual Earth: Population Guide**\n"
-                "• **Start:** every country begins with 100 citizens.\n"
-                "• **Growth:** +2% per day (minimum +1), compounding, up to a hard cap of 1,000,000. "
-                "It updates when your country is loaded (`/earth my_country`, `/earth view`, the website).\n"
-                "• **No direct boost:** no command or building adds population; time is the main factor.\n"
-                "• **What lowers it:** recruiting divisions (5 civilians each), war casualties, and nuclear strikes (~5%).\n"
-                "• **Why it matters:** max divisions = pop/5, tanks = pop/25, jets = pop/50, ships = pop/50.\n"
-                "• **Tip:** avoid needless wars and over-recruiting, and keep stability high with schools and hospitals."
-            )
-
-        # 7c. STRONGEST / BIGGEST / RICHEST COUNTRY
-        power_triggers = {"strongest", "powerful", "superpower", "richest", "biggest", "mightiest", "best", "top"}
-        if cleaned_words.intersection(power_triggers) and cleaned_words.intersection(
-                {"country", "countries", "nation", "nations", "earth", "army", "military"}):
-            ranking = self._ranking_text(self.get_countries_data())
-            return (
-                "🌍 **Strongest Country in Virtual Earth**\n"
-                "• There is no official title; strength is judged two ways: **economy (GDP)** and **military power**.\n"
-                "• **Military power** = 20 + divisions×4 + tanks×35 + jets×28 + ships×18 + buildings×15 "
-                "(the full combat score adds building/tool bonuses and a doctrine multiplier).\n"
-                "• **Stability** and **population** matter too: population caps how big the army can be.\n"
-                + (f"\n**Live rankings right now:**\n{ranking}" if ranking else "")
-            )
-
         # 8. WARS SPECIFICALLY
         war_triggers = {"war", "wars", "battle", "conflict", "earth", "country", "attack", "defend", "jet", "jets", "tank", "tanks", "ship", "ships", "invade"}
         if cleaned_words.intersection(war_triggers):
@@ -389,47 +539,36 @@ class TacticalAdvisor:
             "- VIRTUAL EARTH (/earth): sovereign countries with GDP, treasury, stability, tax yields; cabinet "
             "(Foreign Minister, Defense Minister, Intelligence Director); /earth military (jets, tanks, warships), "
             "wars, ceasefire.\n"
-            "- VIRTUAL EARTH DETAILED MECHANICS (exact rules from the bot code):\n"
-            "  * POPULATION: every country starts at 100. It grows automatically +2% per day (at least +1/day), "
-            "compounding, up to a hard cap of 1,000,000. It updates when the country is loaded (e.g. /earth view, "
-            "/earth my_country, the website), catching up to 30 missed days at once. There is NO command or building "
-            "that directly adds population, so the way to 'increase population' is: keep your country alive, "
-            "avoid losing it, and do not spend it. Time is the main factor.\n"
-            "  * WHAT REDUCES POPULATION: recruiting divisions (each division uses 5 civilians), war casualties "
-            "(a winner loses about 15% of the divisions it committed in civilians, a loser about 35%), and "
-            "nuclear strikes (about 5% of population). Avoid needless wars and over-recruiting to let it regrow.\n"
-            "  * POPULATION LIMITS YOUR ARMY: max divisions = population / 5; max tanks = population / 25; max jets = "
-            "population / 50; max ships = population / 50 (ships need a coastal country). To field more military, "
-            "grow population first.\n"
-            "  * UNIT COSTS (Medals, paid from the buyer's wallet): division 25,000 each (1-20 per order); tank 200,000; "
-            "jet 350,000; ship 300,000 (1-10 per order). Only the President or Army Commander can buy.\n"
-            "  * ECONOMY: GDP grows slowly each hour of peace, scaled by stability; treasury income depends on tax rate "
-            "and stability. Higher stability = faster growth. Unrest cools down over time.\n"
-            "  * BUILDINGS (/earth build): school (+6 stability, -5 unrest, 100k), hospital (+8 stability, -12 unrest, "
-            "150k), gold mine (250k, ~8.5k Medals/hour), oil rig (450k, ~16k/hour), heavy factory (350k, military power), "
-            "bunker (defense), naval port (ocean trade), ocean base. Upgrades get more expensive each level. Buildings "
-            "boost stability and income, not population directly.\n"
-            "  * WHAT MAKES THE 'STRONGEST COUNTRY': there is no official title. The country list is sorted by GDP "
-            "(economic strength), and military strength is a power score. Military power (list view) = 20 + divisions x4 "
-            "+ tanks x35 + jets x28 + ships x18 + number of buildings x15. The full combat score in a country's "
-            "dossier starts at 20 attack / 30 defense, adds tanks 35/18, jets 28/10, ships 18/12 (attack/defense), plus "
-            "building and advanced-tool bonuses (each x its level), then multiplies by the military doctrine: "
-            "Professional Army x1.15, Conscription x1.40 (+10 unrest), Mechanized Armor x1.60. Defense also counts "
-            "divisions x2 when scouted by spies. Wars are decided by score = side power + divisions x3 + a random 10-50, "
-            "so higher power wins most of the time but not always; the winner loses ~10% of committed tanks/jets/ships "
-            "and ~12% of divisions, the loser ~35% and ~32%. A truly dominant country has high GDP, high stability, a "
-            "large population (it limits army size), many units, strong buildings (heavy factory, bunker), advanced "
-            "tools, and allies. Use the LIVE RANKINGS in the live data to name who is strongest right now.\n"
-            "  * KEEP ORDER: /earth quell stops riots (relief 150k, police 80k, jubilee 60k). Hospitals and schools "
-            "keep unrest low.\n"
-            "  * GETTING STARTED: /earth claim <country> <offer> takes an unowned country; /earth join <country> "
-            "makes you a citizen; /earth my_country shows your country; /earth leave renounces citizenship. "
-            "Presidents appoint ministers with /earth cabinet appoint (Defense, Economy, Diplomat, Intelligence).\n"
-            "  * WAR: /earth war declares a 1-5 day campaign; /earth arsenal and /earth buy_tool for advanced tools; "
-            "/earth spy and /earth security for espionage; UN (/earth un) can ceasefire, sanction or send aid.\n"
+            "- VIRTUAL EARTH (overview): players rule real-world countries (/earth claim, /earth join). A country "
+            "has GDP, treasury, stability, unrest, population, army (divisions, tanks, jets, ships), buildings, a "
+            "cabinet, spies and an arsenal. Players run it through /earth dashboards (economy, defense, diplomacy, "
+            "intelligence, president, ministry) and the website 3D command deck. Detailed rules for the topic asked "
+            "are provided below under EARTH DETAIL when relevant.\n"
             "- SQUADS: Frontline (Tactical Combat), Los Bluchigis (Elite Cavalry), Nocturne Pheonix "
             "(Archery & Shields).\n"
         )
+
+    def select_earth_detail(self, query: str, history: list = None) -> str:
+        """Pick only the Virtual Earth sections relevant to this question (and its recent context)."""
+        text = (query or "").lower()
+        if history:
+            text += " " + " ".join(m["content"] for m in history[-2:] if m.get("role") == "user").lower()
+        words = set(re.findall(r"[a-z_]+", text))
+        about_earth = bool(words & EARTH_TRIGGER_WORDS) or any(
+            k in text for k in ("/earth", "virtual earth", "my country", "my nation"))
+        has_specific = any(t in text for t in EARTH_SPECIFIC_TERMS)
+        if not (about_earth or has_specific):
+            return ""
+
+        scores = {}
+        for name, kws in EARTH_KEYWORDS.items():
+            n = sum(1 for kw in kws if ((kw in text) if " " in kw else (kw in words)))
+            if n:
+                scores[name] = n
+        picked = [k for k, _ in sorted(scores.items(), key=lambda kv: -kv[1])][:3]
+        if not picked:
+            picked = ["politics", "economy"]
+        return "EARTH DETAIL:\n" + "\n".join(EARTH_SECTIONS[p] for p in picked)
 
     def _format_live_data(self, stocks: list, wars: list, countries: list = None) -> str:
         lines = ["LIVE DATA (real-time from the bot database):"]
@@ -450,7 +589,9 @@ class TacticalAdvisor:
             lines.append("LIVE COUNTRY RANKINGS:\n" + ranking)
         return "\n".join(lines)
 
-    def build_system_prompt(self, stocks: list, wars: list, server_info: dict = None, countries: list = None) -> str:
+    def build_system_prompt(self, stocks: list, wars: list, server_info: dict = None, countries: list = None,
+                            query: str = "", history: list = None) -> str:
+        earth_detail = self.select_earth_detail(query, history)
         return (
             "You are the Phantom Tactical AI Advisor, the resident AI of the Phantom Regiment Discord "
             "server and its bot. You are a capable, independent assistant: chat naturally, reason about "
@@ -470,6 +611,7 @@ class TacticalAdvisor:
             "- Refuse harmful or illegal requests briefly and politely.\n"
             f"- Current UTC time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}.\n\n"
             + self.build_knowledge_base(server_info) + "\n"
+            + (earth_detail + "\n\n" if earth_detail else "")
             + self._format_live_data(stocks, wars, countries)
         )
 
@@ -623,8 +765,9 @@ class TacticalAdvisor:
         order = [p.strip().lower() for p in
                  os.getenv("AI_PROVIDER_ORDER", DEFAULT_PROVIDER_ORDER).split(",") if p.strip()]
         memory_key = user_id if user_id is not None else "web"
-        system = self.build_system_prompt(stocks, wars, server_info, countries)
-        messages = self._get_history(memory_key) + [{"role": "user", "content": user_query}]
+        history = self._get_history(memory_key)
+        system = self.build_system_prompt(stocks, wars, server_info, countries, user_query, history)
+        messages = history + [{"role": "user", "content": user_query}]
 
         tried = 0
         for name in order:
