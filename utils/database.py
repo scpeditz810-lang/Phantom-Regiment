@@ -1489,6 +1489,36 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
 
 
+    async def transfer_medals(self, sender_id: int, recipient_id: int, amount: int, tax_rate: float = 0.30) -> tuple[bool, int]:
+        """Atomically transfer wallet medals and return the recipient amount."""
+        amount = int(amount)
+        if amount <= 0 or sender_id == recipient_id:
+            return False, 0
+        tax = max(0, min(amount, int(amount * float(tax_rate))))
+        recipient_amount = amount - tax
+        await self.get_global_economy(sender_id)
+        await self.get_global_economy(recipient_id)
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            debit = await self._db.execute(
+                "UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?",
+                (amount, sender_id, amount)
+            )
+            if debit.rowcount != 1:
+                await self._db.rollback()
+                return False, 0
+            await self._db.execute("UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?", (sender_id, sender_id))
+            credit = await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (recipient_amount, recipient_id))
+            if credit.rowcount != 1:
+                await self._db.rollback()
+                return False, 0
+            await self._db.execute("UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?", (recipient_id, recipient_id))
+            await self._db.commit()
+            return True, recipient_amount
+        except Exception:
+            await self._db.rollback()
+            raise
+
     async def set_last_daily(self, user_id: int, guild_id: int, timestamp: float):
 
         await self.ensure_user(user_id, guild_id)
