@@ -31,7 +31,7 @@ import urllib.parse
 from datetime import datetime
 
 DEFAULT_PROVIDER_ORDER = "gemini,groq,openrouter,pollinations,anthropic,openai"
-LLM_TIMEOUT = 25
+LLM_TIMEOUT = 12
 PROVIDER_COOLDOWN_SECONDS = 60
 MEMORY_TURNS = 8
 MEMORY_TTL_SECONDS = 30 * 60
@@ -46,6 +46,7 @@ class TacticalAdvisor:
         self._cooldowns = {}
         self.last_error = None
         self.last_source = None
+        self._provider_errors = {}
 
     def get_market_data(self):
         """Extract live stock prices, trends, supply, and tax rates directly from SQLite."""
@@ -552,35 +553,83 @@ class TacticalAdvisor:
         system = self.build_system_prompt(stocks, wars, server_info)
         messages = self._get_history(memory_key) + [{"role": "user", "content": user_query}]
 
-        errors = []
+        tried = 0
         for name in order:
             if not self._provider_available(name):
                 continue
+            tried += 1
             try:
                 reply = self._clean_reply(self._call_provider(name, system, messages))
                 if reply:
                     self._remember(memory_key, user_query, reply)
+                    self._provider_errors.pop(name, None)
                     self.last_error = None
                     return reply, name
-                errors.append(f"{name}: empty reply")
+                self._provider_errors[name] = "empty reply"
             except requests.HTTPError as e:
                 code = e.response.status_code if e.response is not None else "?"
-                errors.append(f"{name}: HTTP {code}")
-                # bad key / rate limit / quota -> don't hammer it for a while
+                detail = ""
+                try:
+                    detail = (e.response.text or "")[:120].replace("\n", " ")
+                except Exception:
+                    pass
+                self._provider_errors[name] = f"HTTP {code} {detail}".strip()
                 self._cooldowns[name] = time.time() + (
                     PROVIDER_COOLDOWN_SECONDS * (5 if code in (401, 403) else 1))
             except Exception as e:
-                errors.append(f"{name}: {type(e).__name__}: {e}")
+                self._provider_errors[name] = f"{type(e).__name__}: {str(e)[:120]}"
                 self._cooldowns[name] = time.time() + PROVIDER_COOLDOWN_SECONDS
 
-        if errors:
-            self.last_error = " | ".join(errors)
-            print(f"[Advisor] All LLM providers failed -> using local fail-safe. {self.last_error}")
-        else:
-            self.last_error = ("No LLM provider configured. Set ANTHROPIC_API_KEY, GEMINI_API_KEY, "
-                               "GROQ_API_KEY, OPENROUTER_API_KEY or OPENAI_API_KEY.")
-            print(f"[Advisor] {self.last_error}")
+        self.last_error = self.describe_errors(order)
+        print(f"[Advisor] LLM unavailable -> local fail-safe. {self.last_error}")
         return None, None
+
+    def describe_errors(self, order=None) -> str:
+        """Human-readable reason the brain is not answering (real per-provider errors first)."""
+        if self._provider_errors:
+            return " | ".join(f"{k}: {v}" for k, v in self._provider_errors.items())
+        names = [n for n in (order or []) if self._provider_available(n)]
+        if not names:
+            return ("No API key found in the environment and keyless mode is off. Set GEMINI_API_KEY "
+                    "or GROQ_API_KEY in Render, save, and wait for the redeploy.")
+        return "No error recorded yet."
+
+    def test_providers(self) -> list:
+        """Live-test every provider that has a key (ignores cooldowns). Returns [(name, ok, detail)]."""
+        order = [p.strip().lower() for p in
+                 os.getenv("AI_PROVIDER_ORDER", DEFAULT_PROVIDER_ORDER).split(",") if p.strip()]
+        results = []
+        for name in order:
+            if name == "pollinations":
+                if os.getenv("AI_ALLOW_KEYLESS", "1") == "0":
+                    continue
+            else:
+                env = {"anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY",
+                       "groq": "GROQ_API_KEY", "openrouter": "OPENROUTER_API_KEY",
+                       "openai": "OPENAI_API_KEY"}.get(name)
+                if not env or not os.getenv(env, "").strip():
+                    results.append((name, False, "no key in environment"))
+                    continue
+            try:
+                t = time.time()
+                out = self._call_provider(name, "Reply with the single word: pong",
+                                          [{"role": "user", "content": "ping"}])
+                ms = int((time.time() - t) * 1000)
+                results.append((name, bool(out.strip()), f"{ms} ms, replied: {out.strip()[:30]!r}"))
+                if out.strip():
+                    self._provider_errors.pop(name, None)
+                    self._cooldowns.pop(name, None)
+            except requests.HTTPError as e:
+                code = e.response.status_code if e.response is not None else "?"
+                body = ""
+                try:
+                    body = (e.response.text or "")[:150].replace("\n", " ")
+                except Exception:
+                    pass
+                results.append((name, False, f"HTTP {code} {body}"))
+            except Exception as e:
+                results.append((name, False, f"{type(e).__name__}: {str(e)[:120]}"))
+        return results
 
     def ask(self, user_query: str, server_info: dict = None, user_id=None) -> dict:
         """Main entry point: scans market + wars, then lets the LLM brain answer on its own."""

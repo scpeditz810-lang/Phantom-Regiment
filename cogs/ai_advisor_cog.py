@@ -14,7 +14,7 @@ Security & Self-Awareness:
 - Tells the offender: "I cannot ping or mention everyone. I have informed the moderators."
 - Always enforces allowed_mentions=discord.AllowedMentions(everyone=False, roles=False).
 
-Brain: web/ai_advisor.py (real LLM first, keyword engine only as fail-safe). Admin command: !aistatus
+Brain: web/ai_advisor.py (real LLM first, keyword engine only as fail-safe). Admin commands: !aistatus, !aitest
 
 Full Knowledge Base:
 - Current Mayor & Election status (dynamically queried from DB & Guild)
@@ -222,7 +222,22 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
                     f"🧠 **AI Status**\n"
                     f"• Providers configured: {self._providers_configured()}\n"
                     f"• Last answer source: {self.advisor.last_source or 'none yet'}\n"
-                    f"• Last error: {self.advisor.last_error or 'none'}",
+                    f"• Last error: {self.advisor.last_error or 'none'}\n"
+                    f"• Run `!aitest` to test every provider live.",
+                    mention_author=False,
+                    allowed_mentions=discord.AllowedMentions.none()
+                )
+            return
+
+        # 0b. Admin live test: "!aitest" calls every configured provider and shows the real result
+        if user_prompt.lower() == "!aitest":
+            perms = getattr(message.author, "guild_permissions", None)
+            if perms and perms.administrator:
+                async with message.channel.typing():
+                    results = await asyncio.to_thread(self.advisor.test_providers)
+                lines = [f"{'✅' if ok else '❌'} **{name}** — {detail}" for name, ok, detail in results]
+                await message.reply(
+                    "🧪 **AI Provider Test**\n" + ("\n".join(lines) if lines else "No providers to test."),
                     mention_author=False,
                     allowed_mentions=discord.AllowedMentions.none()
                 )
