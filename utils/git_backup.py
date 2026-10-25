@@ -88,11 +88,10 @@ class GitBackup:
                 print("✅  Latest database snapshot restored from backup repo.", flush=True)
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, sqlite3.DatabaseError) as exc:
                 shutil.rmtree(tmp, ignore_errors=True)
-                print(f"⚠️  Could not restore database from backup repo: {exc}", flush=True)
-                self._run(["git", "init"], cwd=self.repo_dir)
-                self._run(["git", "remote", "add", "origin", auth_url],
-                          cwd=self.repo_dir, check=False)
-                print("⚠️  Initialized empty backup workspace; database was not restored.", flush=True)
+                print(f"❌ Could not restore database from backup repo: {exc}", flush=True)
+                # Do not turn a failed restore into an empty database. Startup
+                # must stop so it cannot seed or push zeroed player data.
+                raise RuntimeError("Database backup restore failed") from exc
         else:
             self._run(["git", "remote", "set-url", "origin", auth_url],
                       cwd=self.repo_dir, check=False)
