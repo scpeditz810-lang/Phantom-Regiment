@@ -68,23 +68,32 @@ class GitBackup:
                     "git", "clone", "--depth", "1", "--single-branch",
                     "--branch", "main", auth_url, tmp
                 ])
+
+                # Validate the remote snapshot before touching any local copy.
+                remote_db = os.path.join(tmp, os.path.basename(self.db_path))
+                if not os.path.exists(remote_db) or os.path.getsize(remote_db) < 1000:
+                    raise FileNotFoundError("backup repository clone did not contain bot.db")
+                conn = sqlite3.connect(remote_db)
+                try:
+                    integrity = conn.execute("PRAGMA integrity_check").fetchone()
+                finally:
+                    conn.close()
+                if not integrity or integrity[0] != "ok":
+                    raise sqlite3.DatabaseError("remote bot.db failed integrity_check")
+
+                # On a fresh checkout the backup repository is authoritative.
+                # Replace stale local copies atomically, including a valid but
+                # outdated root-snapshot copy from an earlier deployment.
+                os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
+                os.replace(remote_db, self.db_path)
                 for item in os.listdir(tmp):
+                    if item == os.path.basename(self.db_path):
+                        continue
                     src = os.path.join(tmp, item)
                     dst = os.path.join(self.repo_dir, item)
                     if not os.path.exists(dst):
                         os.rename(src, dst)
-                    elif item == ".git":
-                        if os.path.isdir(dst):
-                            shutil.rmtree(dst)
-                        os.rename(src, dst)
                 shutil.rmtree(tmp, ignore_errors=True)
-                if not os.path.exists(self.db_path):
-                    raise FileNotFoundError("backup repository clone did not contain bot.db")
-                conn = sqlite3.connect(self.db_path)
-                healthy = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-                conn.close()
-                if not healthy:
-                    raise sqlite3.DatabaseError("restored bot.db failed integrity_check")
                 print("✅  Latest database snapshot restored from backup repo.", flush=True)
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, sqlite3.DatabaseError) as exc:
                 shutil.rmtree(tmp, ignore_errors=True)

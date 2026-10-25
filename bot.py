@@ -415,12 +415,13 @@ async def main():
             raise RuntimeError("No database backup was restored on Render.")
     except Exception as e:
         print(f"❌ Database backup restore failed: {e}", flush=True)
-        # Continue only when an existing local DB is present and verified.
-        # This prevents a bad token, slow clone, or missing backup from
-        # silently booting with zero wallets and then pushing that empty DB.
+        # A valid SQLite file without backup Git metadata may be the stale
+        # bundled snapshot from an earlier deploy. Only trust local data when
+        # it is paired with its restored backup checkout.
         local_db = bot.db.db_path
         local_valid = False
-        if os.path.exists(local_db) and os.path.getsize(local_db) > 1000:
+        has_backup_checkout = os.path.isdir(os.path.join(os.path.dirname(local_db) or ".", ".git"))
+        if has_backup_checkout and os.path.exists(local_db) and os.path.getsize(local_db) > 1000:
             try:
                 conn = sqlite3.connect(local_db)
                 local_valid = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
@@ -428,7 +429,7 @@ async def main():
             except Exception:
                 local_valid = False
         if backup.is_render() and not local_valid:
-            raise RuntimeError("Refusing to initialize an empty Render database; restore the saved backup first.") from e
+            raise RuntimeError("Refusing to initialize from an unverified local database; restore the saved backup first.") from e
 
     # Open SQLite first, then release web requests. Stock seeding is
     # non-critical and must never hold every page behind the readiness gate.

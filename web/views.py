@@ -16,7 +16,7 @@ def run_async(coro):
 
     if bot_loop and bot_loop.is_running():
         future = asyncio.run_coroutine_threadsafe(invoke(), bot_loop)
-        return future.result(timeout=30)
+        return future.result(timeout=120)
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:

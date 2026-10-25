@@ -44,7 +44,7 @@ def run_async(coro):
 
         future = asyncio.run_coroutine_threadsafe(invoke(), bot_loop)
 
-        return future.result(timeout=30)
+        return future.result(timeout=120)
 
 
 
