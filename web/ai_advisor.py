@@ -10,13 +10,15 @@ Providers are tried in order (AI_PROVIDER_ORDER), skipping any without a key.
 FREE options (no payment needed): GEMINI_API_KEY (Google AI Studio), GROQ_API_KEY (console.groq.com),
 OPENROUTER_API_KEY (":free" models), plus the keyless pollinations endpoint. Free tiers can change their
 limits, so configure 2-3 of them for redundancy; the bot rotates automatically when one fails.
+Models are auto-discovered from each provider (they retire models often); set GEMINI_MODEL / GROQ_MODEL /
+OPENROUTER_MODEL only if you want to force a specific one.
 Paid options (only used if you add a key): ANTHROPIC_API_KEY, OPENAI_API_KEY.
 Set at least ONE of these environment variables:
-    ANTHROPIC_API_KEY   (model: ANTHROPIC_MODEL,  default claude-haiku-4-5)
-    GEMINI_API_KEY      (model: GEMINI_MODEL,     default gemini-2.0-flash)
-    GROQ_API_KEY        (model: GROQ_MODEL,       default llama-3.3-70b-versatile)
-    OPENROUTER_API_KEY  (model: OPENROUTER_MODEL, default meta-llama/llama-3.3-70b-instruct:free)
-    OPENAI_API_KEY      (model: OPENAI_MODEL,     default gpt-4o-mini)
+    ANTHROPIC_API_KEY   
+    GEMINI_API_KEY      
+    GROQ_API_KEY        
+    OPENROUTER_API_KEY  
+    OPENAI_API_KEY      
 A keyless public endpoint (pollinations) is the last resort; disable it with
 AI_ALLOW_KEYLESS=0.
 """
@@ -190,6 +192,8 @@ class TacticalAdvisor:
         self.last_error = None
         self.last_source = None
         self._provider_errors = {}
+        self._model_cache = {}
+        self._working_model = {}
 
     def get_market_data(self):
         """Extract live stock prices, trends, supply, and tax rates directly from SQLite."""
@@ -663,65 +667,176 @@ class TacticalAdvisor:
         }.get(name)
         return bool(env and os.getenv(env, "").strip())
 
-    def _call_anthropic(self, system: str, messages: list) -> str:
-        r = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": os.getenv("ANTHROPIC_API_KEY", "").strip(),
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),
-                "max_tokens": MAX_REPLY_TOKENS,
-                "system": system,
-                "messages": messages,
-            },
-            timeout=LLM_TIMEOUT,
-        )
-        r.raise_for_status()
-        blocks = r.json().get("content", [])
-        return "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+    # ---- model discovery: providers retire models often, so ask each one what works ----
+    _STATIC_MODELS = {
+        "gemini": ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-2.5-flash"],
+        "groq": ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "llama-3.1-8b-instant"],
+        "openrouter": ["meta-llama/llama-3.3-70b-instruct:free", "openai/gpt-oss-120b:free"],
+        "openai": ["gpt-4o-mini"],
+        "anthropic": ["claude-haiku-4-5"],
+        "pollinations": ["openai"],
+    }
+    _MODEL_ENV = {"gemini": "GEMINI_MODEL", "groq": "GROQ_MODEL", "openrouter": "OPENROUTER_MODEL",
+                  "openai": "OPENAI_MODEL", "anthropic": "ANTHROPIC_MODEL"}
+    MODEL_CACHE_TTL = 6 * 3600
 
-    def _call_gemini(self, system: str, messages: list) -> str:
-        model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-        contents = [
-            {"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]}
-            for m in messages
-        ]
-        r = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-            headers={"x-goog-api-key": os.getenv("GEMINI_API_KEY", "").strip(),
-                     "content-type": "application/json"},
-            json={
-                "system_instruction": {"parts": [{"text": system}]},
-                "contents": contents,
-                "generationConfig": {"maxOutputTokens": MAX_REPLY_TOKENS, "temperature": 0.7},
-            },
-            timeout=LLM_TIMEOUT,
-        )
-        r.raise_for_status()
-        cands = r.json().get("candidates") or []
-        if not cands:
-            return ""
-        parts = cands[0].get("content", {}).get("parts", [])
-        return "".join(p.get("text", "") for p in parts)
+    def _discover_models(self, name: str) -> list:
+        """Ask the provider which chat models this key can use, best first. Returns [] on failure."""
+        try:
+            if name == "gemini":
+                r = requests.get(
+                    "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
+                    headers={"x-goog-api-key": os.getenv("GEMINI_API_KEY", "").strip()}, timeout=10)
+                r.raise_for_status()
+                ids = []
+                for m in r.json().get("models", []):
+                    mid = (m.get("name") or "").replace("models/", "")
+                    low = mid.lower()
+                    if "generateContent" not in (m.get("supportedGenerationMethods") or []):
+                        continue
+                    if not low.startswith("gemini-"):
+                        continue
+                    if "flash" not in low:  # flash family = the free-tier workhorses
+                        continue
+                    if any(x in low for x in ("image", "tts", "live", "embedding", "audio", "robotics",
+                                              "computer", "imagen", "veo", "vision", "customtools", "research")):
+                        continue
+                    ids.append(mid)
+
+                def gkey(mid):
+                    low = mid.lower()
+                    alias = 1 if low.endswith("-latest") else 0          # auto-updating alias = best
+                    stable = 0 if any(x in low for x in ("preview", "exp")) else 1
+                    lite = 0 if "lite" in low else 1
+                    ver = re.search(r"gemini-(\d+(?:\.\d+)?)", low)
+                    return (alias, lite, stable, float(ver.group(1)) if ver else 0.0)
+                return sorted(set(ids), key=gkey, reverse=True)
+
+            if name == "groq":
+                r = requests.get("https://api.groq.com/openai/v1/models",
+                                 headers={"authorization": f"Bearer {os.getenv('GROQ_API_KEY', '').strip()}"},
+                                 timeout=10)
+                r.raise_for_status()
+                ids = []
+                for m in r.json().get("data", []):
+                    mid = m.get("id") or ""
+                    low = mid.lower()
+                    if m.get("active") is False:
+                        continue
+                    if any(x in low for x in ("whisper", "guard", "tts", "playai", "orpheus", "embed",
+                                              "safeguard", "compound", "distil")):
+                        continue
+                    ids.append(mid)
+                prefs = ["llama-3.3-70b", "gpt-oss-120b", "llama-4", "qwen", "kimi", "gpt-oss-20b", "llama-3.1-8b"]
+
+                def rank(mid):
+                    for i, pat in enumerate(prefs):
+                        if pat in mid.lower():
+                            return i
+                    return 99
+                return sorted(set(ids), key=rank)
+
+            if name == "openrouter":
+                r = requests.get("https://openrouter.ai/api/v1/models", timeout=10)
+                r.raise_for_status()
+                rows = []
+                for m in r.json().get("data", []):
+                    mid = m.get("id") or ""
+                    low = mid.lower()
+                    if not mid.endswith(":free"):
+                        continue
+                    if any(x in low for x in ("vision", "image", "audio", "embed")):
+                        continue
+                    outs = (m.get("architecture") or {}).get("output_modalities")
+                    if outs and "text" not in outs:
+                        continue
+                    rows.append((mid, int(m.get("context_length") or 0)))
+                prefs = ["llama-3.3-70b", "gpt-oss-120b", "qwen3", "gemma", "deepseek", "mistral", "llama"]
+
+                def orank(row):
+                    for i, pat in enumerate(prefs):
+                        if pat in row[0].lower():
+                            return (i, -row[1])
+                    return (99, -row[1])
+                return [mid for mid, _ in sorted(rows, key=orank)]
+        except Exception as e:
+            print(f"[Advisor] Model discovery failed for {name}: {type(e).__name__}: {str(e)[:100]}")
+        return []
+
+    def _model_candidates(self, name: str) -> list:
+        """Ordered models to try: env override, last working model, discovered list, static fallbacks."""
+        cands = []
+        env = os.getenv(self._MODEL_ENV.get(name, ""), "").strip() if name in self._MODEL_ENV else ""
+        if env:
+            cands.append(env)
+        working = getattr(self, "_working_model", {}).get(name)
+        if working:
+            cands.append(working)
+        if name in ("gemini", "groq", "openrouter"):
+            cache = self._model_cache.get(name)
+            if not cache or time.time() - cache["t"] > self.MODEL_CACHE_TTL:
+                cache = {"t": time.time(), "ids": self._discover_models(name)}
+                if cache["ids"]:
+                    self._model_cache[name] = cache
+            cands.extend(cache["ids"][:4])
+        cands.extend(self._STATIC_MODELS.get(name, []))
+        seen, out = set(), []
+        for c in cands:
+            if c and c not in seen:
+                seen.add(c)
+                out.append(c)
+        return out[:5]
+
+    def _invoke(self, name: str, model: str, system: str, messages: list) -> str:
+        if name == "anthropic":
+            r = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": os.getenv("ANTHROPIC_API_KEY", "").strip(),
+                         "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                json={"model": model, "max_tokens": MAX_REPLY_TOKENS, "system": system, "messages": messages},
+                timeout=LLM_TIMEOUT)
+            r.raise_for_status()
+            return "".join(b.get("text", "") for b in r.json().get("content", []) if b.get("type") == "text")
+
+        if name == "gemini":
+            contents = [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]}
+                        for m in messages]
+            r = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                headers={"x-goog-api-key": os.getenv("GEMINI_API_KEY", "").strip(),
+                         "content-type": "application/json"},
+                json={"system_instruction": {"parts": [{"text": system}]}, "contents": contents,
+                      "generationConfig": {"maxOutputTokens": 2048, "temperature": 0.7}},  # newer Gemini models spend tokens "thinking"
+                timeout=LLM_TIMEOUT)
+            r.raise_for_status()
+            cands = r.json().get("candidates") or []
+            if not cands:
+                return ""
+            parts = cands[0].get("content", {}).get("parts", [])
+            return "".join(pt.get("text", "") for pt in parts if not pt.get("thought"))
+
+        urls = {
+            "groq": ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY"),
+            "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY"),
+            "openai": ("https://api.openai.com/v1/chat/completions", "OPENAI_API_KEY"),
+            "pollinations": ("https://text.pollinations.ai/openai", ""),
+        }
+        if name in urls:
+            url, env_key = urls[name]
+            key = os.getenv(env_key, "").strip() if env_key else ""
+            return self._call_openai_compat(url, key, model, system, messages)
+        return ""
 
     def _call_openai_compat(self, url: str, key: str, model: str, system: str, messages: list) -> str:
         headers = {"content-type": "application/json"}
         if key:
             headers["authorization"] = f"Bearer {key}"
         r = requests.post(
-            url,
-            headers=headers,
-            json={
-                "model": model,
-                "messages": [{"role": "system", "content": system}] + messages,
-                "max_tokens": MAX_REPLY_TOKENS,
-                "temperature": 0.7,
-            },
-            timeout=LLM_TIMEOUT,
-        )
+            url, headers=headers,
+            json={"model": model,
+                  "messages": [{"role": "system", "content": system}] + messages,
+                  "max_tokens": MAX_REPLY_TOKENS, "temperature": 0.7},
+            timeout=LLM_TIMEOUT)
         r.raise_for_status()
         choices = r.json().get("choices") or []
         if not choices:
@@ -729,28 +844,26 @@ class TacticalAdvisor:
         return (choices[0].get("message") or {}).get("content") or ""
 
     def _call_provider(self, name: str, system: str, messages: list) -> str:
-        if name == "anthropic":
-            return self._call_anthropic(system, messages)
-        if name == "gemini":
-            return self._call_gemini(system, messages)
-        if name == "groq":
-            return self._call_openai_compat(
-                "https://api.groq.com/openai/v1/chat/completions",
-                os.getenv("GROQ_API_KEY", "").strip(),
-                os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"), system, messages)
-        if name == "openrouter":
-            return self._call_openai_compat(
-                "https://openrouter.ai/api/v1/chat/completions",
-                os.getenv("OPENROUTER_API_KEY", "").strip(),
-                os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free"), system, messages)
-        if name == "openai":
-            return self._call_openai_compat(
-                "https://api.openai.com/v1/chat/completions",
-                os.getenv("OPENAI_API_KEY", "").strip(),
-                os.getenv("OPENAI_MODEL", "gpt-4o-mini"), system, messages)
-        if name == "pollinations":
-            return self._call_openai_compat(
-                "https://text.pollinations.ai/openai", "", "openai", system, messages)
+        """Try this provider's models in order; a retired/unknown model just moves to the next one."""
+        last_exc = None
+        for model in self._model_candidates(name):
+            try:
+                out = self._invoke(name, model, system, messages)
+                if out and out.strip():
+                    self._working_model[name] = model
+                    return out
+                last_exc = RuntimeError(f"empty reply from {model}")
+            except requests.HTTPError as e:
+                code = e.response.status_code if e.response is not None else 0
+                last_exc = e
+                if code == 401:
+                    raise  # bad key: no point trying other models
+                if code in (404, 400):
+                    self._working_model.pop(name, None)
+                    self._model_cache.pop(name, None)  # force re-discovery next time
+                continue  # 403 / 404 / 429 / 5xx on this model: try the next one
+        if last_exc:
+            raise last_exc
         return ""
 
     @staticmethod
@@ -831,7 +944,7 @@ class TacticalAdvisor:
                 out = self._call_provider(name, "Reply with the single word: pong",
                                           [{"role": "user", "content": "ping"}])
                 ms = int((time.time() - t) * 1000)
-                results.append((name, bool(out.strip()), f"{ms} ms, replied: {out.strip()[:30]!r}"))
+                results.append((name, bool(out.strip()), f"model {self._working_model.get(name, '?')}, {ms} ms, replied: {out.strip()[:30]!r}"))
                 if out.strip():
                     self._provider_errors.pop(name, None)
                     self._cooldowns.pop(name, None)
@@ -856,7 +969,7 @@ class TacticalAdvisor:
 
         ai_reply, provider = self.query_online_llm(user_query, stocks, wars, server_info, user_id, countries)
         if ai_reply:
-            source = f"Phantom AI Brain ({provider})"
+            source = f"Phantom AI Brain ({provider}: {self._working_model.get(provider, '?')})"
             tier = 3
         else:
             ai_reply = self.generate_tactical_fallback(user_query, stocks, wars, server_info)
