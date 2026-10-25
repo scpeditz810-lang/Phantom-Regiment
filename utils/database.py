@@ -880,6 +880,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
 
 
+        # Repair legacy snapshots created before wallet deductions were guarded.
+        # A negative canonical balance must never prevent the service from booting.
+        await self._db.execute("UPDATE global_economy SET medals = 0 WHERE medals < 0")
+        await self._db.execute("UPDATE users SET medals = 0 WHERE medals < 0")
+
         # Migrate existing users economy data into global_economy — always take the higher value
 
         await self._db.execute("""
@@ -894,7 +899,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
             ON CONFLICT(user_id) DO UPDATE SET
 
-                medals = MAX(global_economy.medals, excluded.medals),
+                medals = MAX(0, global_economy.medals, excluded.medals),
 
                 last_daily = MAX(global_economy.last_daily, excluded.last_daily),
 
