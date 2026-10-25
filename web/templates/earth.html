@@ -2042,7 +2042,7 @@ body.virtual-earth-page {
 
             </button>
 
-            <button class="dock-tab-btn" onclick="switchDockTab('infra', this)">
+            <button id="dock-economy-tab" class="dock-tab-btn" onclick="switchDockTab('infra', this)">
 
                 <i class="fa-solid fa-industry"></i> Economy
 
@@ -2066,7 +2066,7 @@ body.virtual-earth-page {
 
             </button>
 
-            <button class="dock-tab-btn" onclick="switchDockTab('tools', this)">
+            <button id="dock-arsenal-tab" class="dock-tab-btn" onclick="switchDockTab('tools', this)">
 
                 <i class="fa-solid fa-microchip"></i> Arsenal
 
@@ -4652,11 +4652,19 @@ async function renderActiveTabContent(c, body) {
 
     if (!c || !body) return;
 
-    const intelTab = document.getElementById("dock-intel-tab");
-    const canViewIntel = c.can_view_intelligence === true;
-    if (intelTab) intelTab.style.display = canViewIntel ? "" : "none";
-    if (!canViewIntel && activeTab === 'intel') {
-        activeTab = 'dossier';
+    // Confidential country systems are invisible unless the signed-in user owns
+    // the country or holds the matching cabinet portfolio.
+    const privateTabs = [
+        { id: "dock-intel-tab", tab: "intel", allowed: c.can_view_intelligence === true },
+        { id: "dock-economy-tab", tab: "infra", allowed: c.can_view_economy === true },
+        { id: "dock-arsenal-tab", tab: "tools", allowed: c.can_view_arsenal === true }
+    ];
+    privateTabs.forEach(({ id, tab, allowed }) => {
+        const button = document.getElementById(id);
+        if (button) button.style.display = allowed ? "" : "none";
+        if (!allowed && activeTab === tab) activeTab = "dossier";
+    });
+    if (activeTab === "dossier") {
         document.querySelectorAll(".dock-tab-btn").forEach(b => b.classList.remove("active"));
         const dossierTab = Array.from(document.querySelectorAll(".dock-tab-btn")).find(
             b => (b.getAttribute("onclick") || "").includes("'dossier'")
@@ -4911,25 +4919,22 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
 
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
-
-            <div class="info-tile">
-
-                <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">GDP Valuation</div>
-
-                <div style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">${Number(c.gdp || 0).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">M</span></div>
-
+        ${c.can_view_economy === true ? `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
+                <div class="info-tile">
+                    <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">GDP Valuation</div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">${Number(c.gdp || 0).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">M</span></div>
+                </div>
+                <div class="info-tile">
+                    <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">Treasury Reserves</div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #38bdf8;">${Number(c.treasury || 0).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">M</span></div>
+                </div>
             </div>
-
-            <div class="info-tile">
-
-                <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">Treasury Reserves</div>
-
-                <div style="font-size: 1.15rem; font-weight: 800; color: #38bdf8;">${Number(c.treasury || 0).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">M</span></div>
-
+        ` : `
+            <div class="info-tile" style="text-align:center; color:#94a3b8; font-size:0.76rem;">
+                🔒 Economic information is classified. Obtain intelligence or receive a cabinet appointment to access it.
             </div>
-
-        </div>
+        `}
 
 
 
