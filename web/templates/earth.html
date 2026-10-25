@@ -5670,7 +5670,9 @@ function renderWarsTab(c, isLeader, isOwner, container) {
 
     const wars = warsData.filter(w => Number(w.attacker_country_id) === Number(c.id) || Number(w.defender_country_id) === Number(c.id));
 
-    const isOwnCountry = userCountry && userCountry.id === c.id;
+    // The selected country can be an annexed/conquered state. The signed-in
+    // ruler's permission is authoritative, not the first country in the cache.
+    const isOwnCountry = Boolean(isOwner);
 
 
 
@@ -8220,7 +8222,12 @@ async function collectDividends() {
 
     try {
 
-        const res = await fetch("/api/earth/collect_yield", { method: "POST" });
+        const countryId = selectedCountry?.id || userCountry?.id || null;
+        const res = await fetch("/api/earth/collect_yield", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId })
+        });
 
         const data = await res.json();
 

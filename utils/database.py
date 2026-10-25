@@ -638,6 +638,7 @@ class Database:
                 country_id INTEGER NOT NULL,
                 joined_at REAL NOT NULL,
                 reputation INTEGER DEFAULT 100,
+                last_yield_claim REAL DEFAULT 0,
                 FOREIGN KEY(country_id) REFERENCES earth_countries(id)
             );
 
@@ -866,6 +867,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             "ALTER TABLE earth_wars ADD COLUMN defender_jets INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE earth_wars ADD COLUMN attacker_ships INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE earth_wars ADD COLUMN defender_ships INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE earth_citizens ADD COLUMN last_yield_claim REAL DEFAULT 0",
             "PRAGMA journal_mode=WAL"
 
         ]:
@@ -968,11 +970,41 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self.seed_default_earth_countries()
         await self.reset_earth_world_to_zero_once()
         await self.release_user_earth_claims_once(1147451922459136070, "IRN")
+        await self.cap_excess_medals_once()
 
 
 
 
     # ─── UNITED NATIONS & MAYOR PEACEKEEPING SYSTEM ───
+
+    async def cap_excess_medals_once(self) -> list[int]:
+        """Apply the one-time economy correction requested by the server owner.
+
+        Wallets and vaults above one million are reset to 200,000.  The marker
+        guarantees that normal restarts never repeat this administrative action.
+        """
+        marker = "economy_cap_over_1m_to_200k_2026_10_26"
+        if await self.get_meta(marker) == "complete":
+            return []
+        async with self._db.execute("""
+            SELECT DISTINCT user_id FROM (
+                SELECT user_id FROM global_economy WHERE medals > 1000000
+                UNION
+                SELECT user_id FROM banks WHERE balance > 1000000
+            )
+        """) as cur:
+            affected = [int(row[0]) for row in await cur.fetchall()]
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            await self._db.execute("UPDATE global_economy SET medals = 200000 WHERE medals > 1000000")
+            await self._db.execute("UPDATE users SET medals = 200000 WHERE medals > 1000000")
+            await self._db.execute("UPDATE banks SET balance = 200000 WHERE balance > 1000000")
+            await self._db.execute("INSERT OR REPLACE INTO meta(key, value) VALUES (?, 'complete')", (marker,))
+            await self._db.commit()
+            return affected
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def get_earth_un_status(self) -> dict:
         """Get UN Security Council status, presiding Mayor/Secretary-General, active wars, sanctions, and fund."""
@@ -2825,7 +2857,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             return False, "You do not own a listed company.", None
         reviewed_value = int(company["fair_value"] or 0)
         market_value = int(company["price"] or 0) * int(company["total_supply"] or 0)
-        max_player_price = max(25_000, min(reviewed_value or 25_000, market_value or reviewed_value or 25_000))
+        # A control sale is not a blank cheque: fair value and market cap both
+        # matter, and no one company can transfer more than 200k Medals.
+        max_player_price = min(200_000, max(25_000, min(reviewed_value or 25_000, market_value or reviewed_value or 25_000)))
         if gross_price > max_player_price:
             return False, f"Player sale price is capped at {max_player_price:,} Medals by the reviewed valuation and current market cap.", None
 
@@ -2976,7 +3010,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 valuation_row = await cur.fetchone()
             reviewed_value = int(valuation_row[0] or 0) if valuation_row else 0
             market_value = int(valuation_row[1] or 0) * int(valuation_row[2] or 0) if valuation_row else 0
-            max_bank_price = max(25_000, min(reviewed_value or 25_000, market_value or reviewed_value or 25_000))
+            max_bank_price = min(200_000, max(25_000, min(reviewed_value or 25_000, market_value or reviewed_value or 25_000)))
             if gross_price > max_bank_price:
                 await self._db.rollback()
                 return False, f"Bank buyout is capped at {max_bank_price:,} Medals by the reviewed valuation and current market cap."
@@ -3136,6 +3170,15 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 if await cur.fetchone():
                     await self._db.rollback()
                     return False, "Each player can found one listed company.", None
+            # A sale to the market bank must not let someone repeatedly IPO new
+            # companies to farm founding/exit mechanics. Three lifetime IPOs is
+            # enough room to try again without becoming an infinite money loop.
+            founding_key = f"company_founding_count:{user_id}"
+            async with self._db.execute("SELECT value FROM meta WHERE key = ?", (founding_key,)) as cur:
+                founding_row = await cur.fetchone()
+            if founding_row and int(founding_row[0] or 0) >= 3:
+                await self._db.rollback()
+                return False, "Company founding limit reached: at most three IPOs per player this season.", None
             async with self._db.execute("SELECT 1 FROM stocks WHERE UPPER(symbol) = UPPER(?)", (symbol,)) as cur:
                 if await cur.fetchone():
                     await self._db.rollback()
@@ -3171,6 +3214,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             """, (user_id, name, symbol, sector, description, valuation,
                   annual_revenue, annual_profit, debt, fair_value, ai_status,
                   ai_report, stock_id, now))
+            await self._db.execute("""
+                INSERT INTO meta(key, value) VALUES (?, '1')
+                ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)
+            """, (founding_key,))
             await self._db.commit()
             company = await self.get_player_company(user_id)
             result_text = "AI review approved." if approved else "AI review rejected the valuation and the stock crashed."
@@ -5089,13 +5136,20 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self._db.rollback()
             raise
 
-    async def collect_earth_yield(self, user_id: int) -> tuple[int, str]:
+    async def collect_earth_yield(self, user_id: int, country_id: int | None = None) -> tuple[int, str]:
         """Harvest hourly passive dividends from all national mines, rigs, schools, and ocean trade."""
         if self._db is None:
             await self.setup()
         from utils.constants import EARTH_DOCTRINES
 
-        async with self._db.execute("SELECT * FROM earth_countries WHERE owner_id = ?", (user_id,)) as cur:
+        country_id = int(country_id or 0)
+        query = "SELECT * FROM earth_countries WHERE owner_id = ?"
+        args = (user_id,)
+        if country_id:
+            query += " AND id = ?"
+            args = (user_id, country_id)
+        query += " ORDER BY id ASC LIMIT 1"
+        async with self._db.execute(query, args) as cur:
             row = await cur.fetchone()
             if row:
                 c = dict(row)
@@ -5104,9 +5158,31 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 is_ruler = False
 
         if not is_ruler:
-            user_country = await self.get_user_earth_country(user_id)
+            if country_id:
+                async with self._db.execute("""
+                    SELECT c.*, cz.last_yield_claim AS citizen_last_yield_claim, 'citizen' AS user_role
+                    FROM earth_citizens cz JOIN earth_countries c ON c.id = cz.country_id
+                    WHERE cz.user_id = ? AND cz.country_id = ?
+                """, (user_id, country_id)) as cur:
+                    row = await cur.fetchone()
+                    user_country = dict(row) if row else None
+            else:
+                user_country = await self.get_user_earth_country(user_id)
             if not user_country:
                 return 0, "You do not belong to a sovereign nation! You can buy/found a country or join an existing one as a citizen."
+            now = time.time()
+            if not country_id:
+                async with self._db.execute(
+                    "SELECT last_yield_claim FROM earth_citizens WHERE user_id = ? AND country_id = ?",
+                    (user_id, user_country["id"])
+                ) as cur:
+                    citizen_claim = await cur.fetchone()
+                if citizen_claim:
+                    user_country["citizen_last_yield_claim"] = citizen_claim[0]
+            last_stipend = float(user_country.get("citizen_last_yield_claim", 0) or 0)
+            if last_stipend and now - last_stipend < 3600:
+                remaining = max(1, int((3600 - (now - last_stipend)) // 60) + 1)
+                return 0, f"Your national stipend was already collected. Try again in about {remaining} minutes."
             c = user_country
             gross_stipend = 3500 if c.get("user_role") == "citizen" else 8500
             tax_rate = max(0, min(50, int(c.get("tax_rate", 10))))
@@ -5116,6 +5192,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self._db.execute(
                 "UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?",
                 (tax, c["id"])
+            )
+            await self._db.execute(
+                "UPDATE earth_citizens SET last_yield_claim = ? WHERE user_id = ? AND country_id = ?",
+                (now, user_id, c["id"])
             )
             await self._db.commit()
             return stipend, (
