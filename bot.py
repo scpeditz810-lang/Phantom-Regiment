@@ -249,6 +249,7 @@ COGS = [
     "cogs.banking",
     "cogs.elections",
     "cogs.earth",
+    "cogs.ai_advisor_cog",
 
 ]
 
