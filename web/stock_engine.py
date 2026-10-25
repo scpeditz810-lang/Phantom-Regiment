@@ -103,6 +103,10 @@ class StockMarketEngine:
                 print(f"[Stock Market Engine] Tick error: {e}", flush=True)
 
     async def _tick(self):
+        # Flask binds before the database restore on cold Render deploys.
+        # Skip market work until aiosqlite has finished opening the DB.
+        if getattr(self.db, "_db", None) is None:
+            return
         self.tick_count += 1
         self.regime_ticks_left -= 1
 
