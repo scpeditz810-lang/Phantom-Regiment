@@ -1867,6 +1867,19 @@ def api_earth_countries():
 
         item["can_manage_intelligence"] = bool(owner_key and owner_key in permissions.get("intelligence", set()))
 
+        # Financial and upgrade details belong to a country's ruler and relevant
+        # cabinet ministers. The public map must not leak them.
+        can_view_economy = bool(item["is_my_country"] or item["can_manage_economy"])
+        can_view_arsenal = bool(item["is_my_country"] or item["can_command_defense"])
+        item["can_view_economy"] = can_view_economy
+        item["can_view_arsenal"] = can_view_arsenal
+        if not can_view_economy:
+            for key in ("gdp", "treasury", "tax_rate", "economic_doctrine", "government_type"):
+                item.pop(key, None)
+        if not can_view_arsenal:
+            for key in ("tools", "total_military_power", "total_defense_power"):
+                item.pop(key, None)
+
         # Compatibility fields for legacy consumers
 
         item["x"] = int(round(c.get("lat", 0)))
@@ -2043,7 +2056,23 @@ def api_earth_country_detail(country_id):
             run_async(db.has_earth_cabinet_permission(current_user["id"], country_id, "diplomat"))
         )
 
-
+    # Economy and arsenal upgrades are confidential, just like intelligence.
+    # Country owners retain access; ministers receive only their own portfolio.
+    is_country_owner = bool(
+        current_user_id is not None
+        and country_owner_id is not None
+        and str(current_user_id) == str(country_owner_id)
+    )
+    c["can_view_economy"] = bool(is_country_owner or c.get("can_manage_economy"))
+    c["can_view_arsenal"] = bool(is_country_owner or c.get("can_command_defense"))
+    if not c["can_view_economy"]:
+        for key in ("gdp", "treasury", "tax_rate", "economic_doctrine", "government_type"):
+            c.pop(key, None)
+        c["buildings"] = []
+    if not c["can_view_arsenal"]:
+        c["tools"] = []
+        for key in ("total_military_power", "total_defense_power"):
+            c.pop(key, None)
 
     # Intelligence is private to the country's president/cabinet intelligence role.
     current_user = session.get("user")
@@ -3422,6 +3451,10 @@ def api_earth_tools():
     from utils.constants import EARTH_ADVANCED_TOOLS
 
     db = get_db()
+    user_id = session["user"]["id"]
+    # Do not disclose another country's advanced arsenal through this endpoint.
+    if not run_async(db.has_earth_cabinet_permission(user_id, country_id, "defense")):
+        return jsonify({"success": False, "message": "This country's arsenal is classified."}), 403
 
     owned_tools = run_async(db.get_country_tools(country_id))
 
