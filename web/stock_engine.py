@@ -168,11 +168,15 @@ class StockMarketEngine:
             if is_company_stock:
                 fair_value = max(100_000, int(stock.get("fair_value") or 0))
                 supply = max(1, int(stock.get("total_supply") or 2500))
-                fair_share = max(20, fair_value / supply)
+                # The exchange has a 2,000–80,000 price range. The old
+                # company calculation produced fair shares such as 40 M
+                # (100,000 valuation / 2,500 shares), then every update was
+                # clamped back to 2,000, making the stock permanently stuck.
+                fair_share = max(2_000, min(80_000, fair_value / supply))
                 bounds = {
                     "base": int(round(fair_share)),
-                    "min": max(20, int(round(fair_share * 0.25))),
-                    "max": max(20, int(round(fair_share * 2.5))),
+                    "min": max(2_000, int(round(fair_share * 0.25))),
+                    "max": min(80_000, max(2_000, int(round(fair_share * 2.5)))),
                 }
             base_p = bounds["base"]
             min_p = bounds["min"]
