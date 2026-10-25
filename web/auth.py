@@ -1,4 +1,5 @@
 import os
+import asyncio
 import requests
 from urllib.parse import urlparse
 from functools import wraps
@@ -196,6 +197,16 @@ def callback():
 
         # Check Manager / Owner status from bot guild
         bot = current_app.config.get("DISCORD_BOT")
+        ban_check = current_app.config.get("BAN_CHECK")
+        bot_loop = current_app.config.get("BOT_LOOP")
+        if ban_check and bot_loop and bot_loop.is_running():
+            try:
+                if asyncio.run_coroutine_threadsafe(ban_check(user_id), bot_loop).result(timeout=5):
+                    session.clear()
+                    return "Access denied: you are banned from Phantom Regiment.", 403
+            except Exception:
+                # The global request gate retries after the bot becomes ready.
+                pass
         is_owner = False
         is_manager = False
 
