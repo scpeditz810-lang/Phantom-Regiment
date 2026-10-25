@@ -978,26 +978,6 @@ body.virtual-earth-page {
 
 
 
-.commander-quick-action {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: .75rem;
-    margin: 0 0 .8rem;
-    padding: .75rem .85rem;
-    border: 1px solid rgba(245,158,11,.5);
-    border-radius: 10px;
-    background: rgba(245,158,11,.08);
-}
-.commander-quick-action strong,
-.commander-quick-action span { display: block; }
-.commander-quick-action strong { color: #fbbf24; font-size: .82rem; }
-.commander-quick-action span { color: #cbd5e1; font-size: .72rem; margin-top: .2rem; }
-@media (max-width: 600px) {
-    .commander-quick-action { align-items: stretch; flex-direction: column; }
-    .commander-quick-action .hud-btn { width: 100%; min-height: 2.75rem; }
-}
-
 .dock-body {
 
     flex: 1 1 0 !important;
@@ -5111,19 +5091,14 @@ function renderCabinetTab(c, isLeader, isOwner, container) {
 
         </div>
 
-        <div class="commander-quick-action">
-            <div>
-                <strong>⚔️ Army Commander</strong>
-                <span>Only this country’s ruler can issue the appointment. The nominee receives the request in their Commanders page.</span>
-            </div>
-            <button id="hire-commander-btn" type="button" class="hud-btn" onclick="handleHireCommanderClick(${c.id}, ${isOwner})">Hire Commander</button>
-        </div>
-
+        ${isOwner ? `
         <div class="info-tile" style="margin-bottom:0.8rem;border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.06);">
             <div style="font-weight:800;color:#fbbf24;margin-bottom:.25rem;">👑 Presidential Command Appointments</div>
             <div style="font-size:.74rem;color:#cbd5e1;margin-bottom:.55rem;">Hire a Commander or nominate another cabinet minister. The candidate must accept the decree before receiving authority.</div>
             <button id="hire-commander-btn-cabinet" type="button" class="hud-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 0 14px rgba(245,158,11,.32);width:100%;min-height:2.5rem;" onclick="handleHireCommanderClick(${c.id}, ${isOwner})">⚔️ Hire Commander</button>
         </div>
+        ` : ''}
+
 
     `;
 
