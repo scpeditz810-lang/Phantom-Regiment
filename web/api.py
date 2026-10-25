@@ -2963,10 +2963,15 @@ def api_earth_alliances():
 def api_earth_collect_yield():
 
     user_id = session["user"]["id"]
+    data = request.get_json(silent=True) or {}
+    try:
+        country_id = int(data.get("country_id", 0)) or None
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Invalid country selection."}), 400
 
     db = get_db()
 
-    yield_amount, msg = run_async(db.collect_earth_yield(user_id))
+    yield_amount, msg = run_async(db.collect_earth_yield(user_id, country_id))
 
     econ = run_async(db.get_global_economy(user_id))
 
