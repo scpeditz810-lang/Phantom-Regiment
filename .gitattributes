@@ -1,1 +1,2 @@
 bot.db binary -text
+bot_snapshot.db binary -text
