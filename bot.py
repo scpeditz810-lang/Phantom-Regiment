@@ -14,6 +14,8 @@ import os
 
 import asyncio
 
+import time
+
 import threading
 
 import logging
@@ -76,6 +78,60 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 bot.db = Database("data/bot.db")
+
+# Bans from the original Phantom Regiment guild apply to every bot surface.
+# The short cache avoids a REST request for every command while keeping bans prompt.
+ORIGINAL_PR_GUILD_ID = int(os.environ.get("GUILD_ID", 1550544659217125467))
+_ban_cache: dict[int, tuple[bool, float]] = {}
+
+
+async def is_banned_from_original_pr(user_id: int) -> bool:
+    user_id = int(user_id)
+    cached = _ban_cache.get(user_id)
+    now = time.monotonic()
+    if cached and cached[1] > now:
+        return cached[0]
+    guild = bot.get_guild(ORIGINAL_PR_GUILD_ID)
+    if guild is None:
+        return False
+    try:
+        await guild.fetch_ban(discord.Object(id=user_id))
+        banned = True
+    except discord.NotFound:
+        banned = False
+    except (discord.Forbidden, discord.HTTPException) as exc:
+        print(f"⚠️ Could not verify original-server ban for {user_id}: {exc}", flush=True)
+        return False
+    _ban_cache[user_id] = (banned, now + 60.0)
+    return banned
+
+
+# Flask receives the bot object, so expose the central authorization check there.
+bot.is_banned_from_original_pr = is_banned_from_original_pr
+
+
+@bot.check
+async def block_banned_prefix_commands(ctx: commands.Context) -> bool:
+    if await is_banned_from_original_pr(ctx.author.id):
+        raise commands.CheckFailure("You are banned from Phantom Regiment and cannot use this bot.")
+    return True
+
+
+async def block_banned_app_commands(interaction: discord.Interaction) -> bool:
+    if await is_banned_from_original_pr(interaction.user.id):
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                "⛔ You are banned from Phantom Regiment and cannot use this application.",
+                ephemeral=True,
+            )
+        return False
+    return True
+
+
+# CommandTree exposes interaction_check as an overridable coroutine, not a
+# decorator. Replace the default global check so slash/context-menu commands
+# receive the same ban gate as prefix commands.
+bot.tree.interaction_check = block_banned_app_commands
 
 
 
@@ -157,6 +213,18 @@ async def on_guild_join(guild: discord.Guild):
     except Exception as e:
 
         print(f"⚠️ Failed to register joined guild {guild.id}: {e}")
+
+
+@bot.event
+async def on_member_ban(guild: discord.Guild, user: discord.User):
+    if guild.id == ORIGINAL_PR_GUILD_ID:
+        _ban_cache[int(user.id)] = (True, time.monotonic() + 3600.0)
+
+
+@bot.event
+async def on_member_unban(guild: discord.Guild, user: discord.User):
+    if guild.id == ORIGINAL_PR_GUILD_ID:
+        _ban_cache[int(user.id)] = (False, time.monotonic() + 60.0)
 
 
 

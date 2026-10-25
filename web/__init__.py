@@ -1,5 +1,6 @@
 import os
-from flask import Flask, request, redirect, session, url_for
+import asyncio
+from flask import Flask, request, redirect, session, url_for, jsonify
 from web.auth import auth_bp
 from web.views import views_bp
 from web.api import api_bp
@@ -18,6 +19,7 @@ def create_app(bot=None, db=None, loop=None):
     # Keep the bot event loop explicit for Flask's synchronous worker thread.
     app.config["BOT_LOOP"] = loop
     app.config["DB_READY"] = getattr(bot, "web_db_ready", None) if bot else None
+    app.config["BAN_CHECK"] = getattr(bot, "is_banned_from_original_pr", None) if bot else None
 
     # Context processors for all Jinja2 templates
     @app.context_processor
@@ -61,6 +63,23 @@ def create_app(bot=None, db=None, loop=None):
 
             next_target = request.full_path.rstrip("?") if request.query_string else request.path
             return redirect(url_for("views.verify", next=next_target))
+
+        # Apply original Phantom Regiment bans to all existing web/API sessions.
+        ban_check = app.config.get("BAN_CHECK")
+        bot_loop = app.config.get("BOT_LOOP")
+        user_id = session.get("user", {}).get("id")
+        if ban_check and bot_loop and bot_loop.is_running() and user_id:
+            try:
+                banned = asyncio.run_coroutine_threadsafe(
+                    ban_check(int(user_id)), bot_loop
+                ).result(timeout=5)
+            except Exception:
+                banned = False
+            if banned:
+                session.clear()
+                if path.startswith("/api/"):
+                    return jsonify({"error": "You are banned from Phantom Regiment and cannot use this service."}), 403
+                return "Access denied: you are banned from Phantom Regiment.", 403
 
     # Start stock market simulation engine
     if db:
