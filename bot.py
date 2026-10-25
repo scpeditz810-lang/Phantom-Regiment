@@ -102,7 +102,10 @@ async def backup_loop():
 
 async def on_ready():
 
-    await bot.db.setup()
+    # main() initializes the database before connecting; only initialize here
+    # when a reconnect starts without an initialized connection.
+    if getattr(bot.db, "_db", None) is None:
+        await bot.db.setup()
 
     print(f"✅  {bot.user} is online!  (ID {bot.user.id})", flush=True)
 
@@ -398,13 +401,18 @@ async def main():
     # clone can take minutes on a cold deploy; starting Flask first lets
     # Render pass its port/health check while the database is prepared.
     loop = asyncio.get_running_loop()
+    # Keep web requests from racing database restore/setup while still binding
+    # Render's health port immediately.
+    bot.web_db_ready = asyncio.Event()
     threading.Thread(target=_run_flask, args=(loop,), daemon=True).start()
 
-    # Restore DB from GitHub backup (runs before bot connects)
-    backup.restore()
+    # Git operations are synchronous and can block for minutes on a cold deploy.
+    # Run them off the Discord/web event loop so Flask API requests remain alive.
+    await asyncio.to_thread(backup.restore)
 
     # Ensure database schema and stock market seeding are ready
     await bot.db.setup()
+    bot.web_db_ready.set()
     try:
         await bot.db.seed_default_stocks()
     except Exception as e:
