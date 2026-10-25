@@ -405,6 +405,30 @@ class Database:
 
 
 
+            CREATE TABLE IF NOT EXISTS medal_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                old_medals INTEGER NOT NULL,
+                new_medals INTEGER NOT NULL,
+                delta INTEGER NOT NULL,
+                created_at REAL NOT NULL
+            );
+
+            CREATE TRIGGER IF NOT EXISTS prevent_negative_global_medals
+            BEFORE UPDATE OF medals ON global_economy
+            WHEN NEW.medals < 0
+            BEGIN
+                SELECT RAISE(ABORT, 'wallet balance cannot be negative');
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS audit_global_medal_changes
+            AFTER UPDATE OF medals ON global_economy
+            WHEN OLD.medals != NEW.medals
+            BEGIN
+                INSERT INTO medal_audit(user_id, old_medals, new_medals, delta, created_at)
+                VALUES (OLD.user_id, OLD.medals, NEW.medals, NEW.medals - OLD.medals, strftime('%s','now'));
+            END;
+
             CREATE TABLE IF NOT EXISTS stocks (
 
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
