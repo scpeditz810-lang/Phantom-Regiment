@@ -394,32 +394,21 @@ async def _start_client(client, client_token):
 
 async def main():
 
-    # Restore DB from GitHub backup (runs before bot connects)
-
-    backup.restore()
-
-
-
-    # Ensure database schema and stock market seeding are ready
-
-    await bot.db.setup()
-
-    try:
-
-        await bot.db.seed_default_stocks()
-
-    except Exception as e:
-
-        print(f"⚠️ Stock seeding notice: {e}", flush=True)
-
-
-
-    # Start Flask in a daemon thread
-
+    # Bind Render's health/web port before slow backup restoration. A Git
+    # clone can take minutes on a cold deploy; starting Flask first lets
+    # Render pass its port/health check while the database is prepared.
     loop = asyncio.get_running_loop()
     threading.Thread(target=_run_flask, args=(loop,), daemon=True).start()
 
+    # Restore DB from GitHub backup (runs before bot connects)
+    backup.restore()
 
+    # Ensure database schema and stock market seeding are ready
+    await bot.db.setup()
+    try:
+        await bot.db.seed_default_stocks()
+    except Exception as e:
+        print(f"⚠️ Stock seeding notice: {e}", flush=True)
 
     token = os.environ.get("DISCORD_TOKEN")
 
