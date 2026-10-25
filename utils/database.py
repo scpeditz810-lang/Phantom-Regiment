@@ -2913,8 +2913,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             tax_rate = await self.get_stock_tax_rate()
             tax = min(gross, int(round(gross * tax_rate)))
             net = gross - tax
-            await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (gross, buyer_id))
-            await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (gross, buyer_id))
+            debit = await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?", (gross, buyer_id, gross))
+            if debit.rowcount != 1:
+                await self._db.rollback()
+                return False, "Buyer wallet changed before the company purchase completed."
+            await self._db.execute("UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?", (buyer_id, buyer_id))
             await self._db.execute("UPDATE global_economy SET medals = medals + ? WHERE user_id = ?", (net, offer["seller_id"]))
             await self._db.execute("UPDATE users SET medals = medals + ? WHERE user_id = ?", (net, offer["seller_id"]))
             await self._credit_company_market_balance(tax)
@@ -3050,11 +3053,14 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.rollback()
                 return False, f"Mayor needs {grant:,} wallet Medals to fund this grant.", None
 
-            await self._db.execute(
-                "UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (grant, mayor_id)
+            debit = await self._db.execute(
+                "UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?", (grant, mayor_id, grant)
             )
+            if debit.rowcount != 1:
+                await self._db.rollback()
+                return False, "Mayor wallet changed before the company grant completed.", None
             await self._db.execute(
-                "UPDATE users SET medals = medals - ? WHERE user_id = ?", (grant, mayor_id)
+                "UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?", (mayor_id, mayor_id)
             )
             await self._db.execute("""
                 UPDATE player_companies
@@ -3135,8 +3141,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.rollback()
                 return False, f"Founding a company costs {fee:,} Medals.", None
 
-            await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (fee, user_id))
-            await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (fee, user_id))
+            debit = await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?", (fee, user_id, fee))
+            if debit.rowcount != 1:
+                await self._db.rollback()
+                return False, "Your wallet changed before the company founding completed.", None
+            await self._db.execute("UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?", (user_id, user_id))
             supply = 2500
             await self._db.execute(
                 "INSERT INTO stocks (symbol, name, price, total_supply, available_shares, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -3318,8 +3327,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if user_econ.get("medals", 0) < total_cost:
             return False, f"Insufficient Wallet Medals. You need {total_cost:,} Medals including {int(round(tax_rate * 100))}% market fee ({tax_amount:,} Medals; shares cost {gross_cost:,}), but only have {user_econ.get('medals', 0):,} in your wallet. (Withdraw from your /bank if needed!)"
 
-        await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
-        await self._db.execute("UPDATE users SET medals = medals - ? WHERE user_id = ?", (total_cost, user_id))
+        debit = await self._db.execute("UPDATE global_economy SET medals = medals - ? WHERE user_id = ? AND medals >= ?", (total_cost, user_id, total_cost))
+        if debit.rowcount != 1:
+            return False, "Your wallet changed before the stock purchase completed."
+        await self._db.execute("UPDATE users SET medals = (SELECT medals FROM global_economy WHERE user_id = ?) WHERE user_id = ?", (user_id, user_id))
         await self._db.execute("UPDATE stocks SET available_shares = available_shares - ? WHERE id = ?", (shares, stock_id))
 
         new_total_shares = current_shares + shares
