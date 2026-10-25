@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import sqlite3
 import subprocess
 import tempfile
@@ -60,9 +61,8 @@ class GitBackup:
 
         git_dir = os.path.join(self.repo_dir, ".git")
         if not os.path.isdir(git_dir):
-            # Fresh Render instances must fetch only the latest snapshot. The
-            # backup repository is updated frequently, so a full-history clone
-            # can take longer than the startup window and leave an empty DB.
+            # Fresh Render instances fetch a bounded history for recovery, then
+            # validate the current snapshot before exposing game data.
             tmp = self.repo_dir + "_tmp"
             import shutil
             shutil.rmtree(tmp, ignore_errors=True)
@@ -232,21 +232,81 @@ class GitBackup:
             # roll back live wallets during a restart.
             local_valid = False
             if os.path.exists(self.db_path) and os.path.getsize(self.db_path) > 1000:
+                conn = None
                 try:
-                    conn = sqlite3.connect(self.db_path)
-                    local_valid = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-                    conn.close()
-                except Exception:
+                    conn = sqlite3.connect(self.db_path, timeout=30.0)
+                    integrity = conn.execute("PRAGMA integrity_check").fetchone()
+                    local_valid = bool(integrity and integrity[0] == "ok")
+                    if not local_valid:
+                        # The known failure is a stale/corrupt auto-index. Rebuild
+                        # from the table before falling back to an older cloud copy.
+                        conn.execute("REINDEX")
+                        conn.commit()
+                        integrity = conn.execute("PRAGMA integrity_check").fetchone()
+                        local_valid = bool(integrity and integrity[0] == "ok")
+                        if local_valid:
+                            print("✅ Rebuilt corrupt indexes in the existing SQLite database.", flush=True)
+                except Exception as e:
+                    print(f"⚠️ Existing local database could not be repaired in place: {e}", flush=True)
                     local_valid = False
+                finally:
+                    if conn is not None:
+                        conn.close()
             if local_valid:
                 print("✅  Preserved valid local database; skipped remote pull.")
             else:
+                # Local state is missing or could not be repaired. Fetch and
+                # validate a remote snapshot before replacing it; never initialize
+                # a blank database or pull directly over the live file.
+                restore_tmp = self.db_path + ".restore.tmp"
+                restored_name = None
                 try:
-                    self._run(["git", "pull", "origin", "main", "--rebase"],
-                              cwd=self.repo_dir)
-                    print("✅  Pulled latest database backup.")
-                except subprocess.CalledProcessError:
-                    pass
+                    self._run(["git", "fetch", "origin", "main"], cwd=self.repo_dir)
+                    for candidate_name in (self.snapshot_name, os.path.basename(self.db_path)):
+                        blob = self._run(
+                            ["git", "show", f"FETCH_HEAD:{candidate_name}"],
+                            cwd=self.repo_dir, check=False, capture_binary=True,
+                        )
+                        if not blob or len(blob) < 1000:
+                            continue
+                        with open(restore_tmp, "wb") as restore_file:
+                            restore_file.write(blob)
+                        conn = sqlite3.connect(restore_tmp, timeout=30.0)
+                        try:
+                            integrity = conn.execute("PRAGMA integrity_check").fetchone()
+                            if not integrity or integrity[0] != "ok":
+                                conn.execute("REINDEX")
+                                conn.commit()
+                                integrity = conn.execute("PRAGMA integrity_check").fetchone()
+                        finally:
+                            conn.close()
+                        if integrity and integrity[0] == "ok":
+                            restored_name = candidate_name
+                            break
+                        os.remove(restore_tmp)
+
+                    if not restored_name:
+                        raise sqlite3.DatabaseError("no valid remote SQLite snapshot found")
+                    for suffix in ("-wal", "-shm"):
+                        sidecar = self.db_path + suffix
+                        if os.path.exists(sidecar):
+                            os.remove(sidecar)
+                    os.replace(restore_tmp, self.db_path)
+                    local_snapshot = os.path.join(self.repo_dir, self.snapshot_name)
+                    if restored_name == self.snapshot_name:
+                        shutil.copy2(self.db_path, local_snapshot)
+                    elif os.path.exists(local_snapshot):
+                        os.remove(local_snapshot)
+                    print(f"✅ Restored valid database from remote {restored_name}.", flush=True)
+                except Exception as restore_error:
+                    print(f"❌ Could not restore a valid remote database: {restore_error}", flush=True)
+                    raise RuntimeError("No valid local or remote SQLite database is available.") from restore_error
+                finally:
+                    try:
+                        if os.path.exists(restore_tmp):
+                            os.remove(restore_tmp)
+                    except OSError:
+                        pass
 
         # Refuse to mark restore successful unless the expected SQLite file
         # exists and passes integrity verification.
@@ -289,10 +349,9 @@ class GitBackup:
                 if f"{self.snapshot_name} merge=ours" not in existing_attributes:
                     f.write(f"{self.snapshot_name} merge=ours\n{self.snapshot_name} binary\n")
 
-        # Force creation of the first online backup snapshot when upgrading
-        # an older repository that only contains the live bot.db file.
-        snapshot_path = os.path.join(self.repo_dir, self.snapshot_name)
-        self._last_hash = self._file_hash() if os.path.exists(snapshot_path) else None
+        # Always publish one consistent snapshot after startup. This captures
+        # any committed WAL state and repairs the Git backup before the next deploy.
+        self._last_hash = None
         self._enabled = True
         return True
 
@@ -422,9 +481,6 @@ class GitBackup:
                 # missing or corrupt; never clobber a healthy live database.
                 print("⚠️ Remote DB differs from a valid live DB; skipped stale snapshot replacement.")
                 return False
-
-                # A healthy running database is never replaced by a remote snapshot.
-                return False
             except Exception as e:
                 return False
 
@@ -488,9 +544,17 @@ class GitBackup:
         if not os.path.exists(self.db_path):
             return None
         h = hashlib.md5()
-        with open(self.db_path, "rb") as f:
-            for chunk in iter(lambda: f.read(8192), b""):
-                h.update(chunk)
+        # In WAL mode committed writes may exist only in bot.db-wal. Include it
+        # so the 10-second backup loop does not mistake a changed live DB for an
+        # unchanged main file and skip persisting wallet/country/stock updates.
+        for path in (self.db_path, self.db_path + "-wal"):
+            h.update(os.path.basename(path).encode("utf-8"))
+            if not os.path.exists(path):
+                h.update(b"<absent>")
+                continue
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    h.update(chunk)
         return h.hexdigest()
 
     @staticmethod
