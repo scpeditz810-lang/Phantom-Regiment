@@ -413,16 +413,14 @@ async def main():
     except Exception as e:
         print(f"⚠️ Backup restore skipped; continuing with local database: {e}", flush=True)
 
-    # Ensure database schema and stock market seeding are ready. Always release
-    # waiting web requests, even if a non-critical seed operation fails.
+    # Open SQLite first, then release web requests. Stock seeding is
+    # non-critical and must never hold every page behind the readiness gate.
+    await bot.db.setup()
+    bot.web_db_ready.set()
     try:
-        await bot.db.setup()
-        try:
-            await bot.db.seed_default_stocks()
-        except Exception as e:
-            print(f"⚠️ Stock seeding notice: {e}", flush=True)
-    finally:
-        bot.web_db_ready.set()
+        await bot.db.seed_default_stocks()
+    except Exception as e:
+        print(f"⚠️ Stock seeding notice: {e}", flush=True)
 
     token = os.environ.get("DISCORD_TOKEN")
 
