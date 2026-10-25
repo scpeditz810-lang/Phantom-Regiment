@@ -1,10 +1,10 @@
 """
 Phantom Regiment Tactical Advisor AI Module
 Handles live market scanning, active war analysis, game mechanics explanations,
+staff application guidance, all slash commands (economy, gambling, banking, earth, etc.),
 and smart natural language responses with multi-tier free inference:
 1. Pollinations AI Free Tier (openai-fast)
-2. Puter/Public zero-key proxies
-3. Built-in Deterministic Tactical Intelligence Engine (never fails, 100% uptime, 0 cost, instant)
+2. Built-in Deterministic Tactical Intelligence Engine (never fails, 100% uptime, 0 cost, instant)
 """
 
 import os
@@ -69,7 +69,6 @@ class TacticalAdvisor:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
 
-            # Check available columns in earth_wars table dynamically
             cur.execute("PRAGMA table_info(earth_wars)")
             col_names = set(c[1] for c in cur.fetchall())
 
@@ -119,12 +118,37 @@ class TacticalAdvisor:
         q_lower = query.lower()
         response_parts = []
 
+        is_staff_query = any(w in q_lower for w in ["staff", "apply", "application", "mod", "moderator", "admin", "recruitment", "hire"])
+        is_gamble_query = any(w in q_lower for w in ["gamble", "gambling", "coinflip", "blackjack", "roulette", "scratch", "bet", "fight", "rps", "lottery"])
         is_stock_query = any(w in q_lower for w in ["stock", "market", "trade", "price", "portfolio", "invest", "share", "prc", "tsc", "vng", "aero", "cryp"])
         is_war_query = any(w in q_lower for w in ["war", "battle", "conflict", "earth", "country", "attack", "defend", "jet", "tank", "ship", "invade", "military", "un"])
-        is_help_query = any(w in q_lower for w in ["how", "what is", "help", "explain", "guide", "rule", "medal", "bank", "rob", "work", "daily"])
+        is_help_query = any(w in q_lower for w in ["how", "what is", "help", "explain", "guide", "rule", "medal", "bank", "rob", "work", "daily", "commands", "cmd"])
 
-        # If user asks specifically about stocks or general overview
-        if is_stock_query or (not is_war_query and not is_help_query):
+        # 1. Staff Application Inquiry
+        if is_staff_query:
+            response_parts.append("🛡️ **How to Become Staff / Staff Applications**")
+            response_parts.append("• **When Staff Applications Open:** Staff applications are released periodically by High Command using the command `/staffapplications`.")
+            response_parts.append("• **How to Apply:** When opened in the announcements/applications channel, select your desired position from the dropdown:")
+            response_parts.append("  1. **Server Staff:** Moderate chat channels, enforce rules, assist citizens.")
+            response_parts.append("  2. **Recruitment Management:** Review new applicant entries, evaluate recruits, onboard members.")
+            response_parts.append("  3. **Giveaways & Events Management:** Organize server tournaments, game nights, and community giveaways.")
+            response_parts.append("• **The Interview Flow:** The bot sends you a private DM interview with custom questions (age, timezone, experience, scenarios). Your answers are automatically compiled and submitted to the Commanders & Reviewers in `#staff-app-review` for final decision.")
+            response_parts.append("• **Pro-Tip:** Stay active, maintain a clean disciplinary record, and avoid rule infractions to increase your chances of being accepted!")
+
+        # 2. Gambling Inquiry
+        if is_gamble_query:
+            if response_parts: response_parts.append("\n" + "─" * 32 + "\n")
+            response_parts.append("🎲 **Gambling & High-Stakes Games Commands**")
+            response_parts.append("• **`/coinflip <bet>`** — Flip a coin (Heads/Tails) against the bot. Double your medals on a win! (Max bet: 150,000 Medals).")
+            response_parts.append("• **`/blackjack <bet>`** — Play Blackjack (21) against the dealer with Hit, Stand, and Double Down interactive buttons (Max bet: 150,000 Medals).")
+            response_parts.append("• **`/roulette <bet> <bet_type>`** — Bet on `Red` (2x), `Black` (2x), `Even` (2x), `Odd` (2x), or high-risk `Green` (36x)! (Max bet: 150,000 Medals).")
+            response_parts.append("• **`/scratch <tier>`** — Buy an interactive scratch-off lottery ticket (`bronze` 500M, `silver` 2.5kM, `gold` 10kM) for up to 10x jackpot multipliers!")
+            response_parts.append("• **`/fight <@opponent> <bet>`** — Challenge another citizen to a PvP battle arena with interactive Attack, Defend, and Special Ability buttons!")
+            response_parts.append("• **`/rps <@opponent> <bet>`** — High-stakes Rock-Paper-Scissors against another player for wagered medals.")
+
+        # 3. Stock Market Inquiry
+        if is_stock_query or (not is_war_query and not is_help_query and not is_staff_query and not is_gamble_query):
+            if response_parts: response_parts.append("\n" + "─" * 32 + "\n")
             response_parts.append("📈 **Tactical Market Scan Report**")
             if stocks:
                 top_stock = max(stocks, key=lambda s: s["price"])
@@ -138,10 +162,9 @@ class TacticalAdvisor:
             else:
                 response_parts.append("• No publicly traded equities found on the local exchange.")
 
-        # If user asks specifically about wars
-        if is_war_query or (not is_stock_query and not is_help_query):
-            if response_parts:
-                response_parts.append("\n" + "─" * 32 + "\n")
+        # 4. Wars Inquiry
+        if is_war_query or (not is_stock_query and not is_help_query and not is_staff_query and not is_gamble_query):
+            if response_parts: response_parts.append("\n" + "─" * 32 + "\n")
             response_parts.append("⚔️ **Global Virtual Earth Conflict Scan**")
             if wars:
                 response_parts.append(f"• Detected **{len(wars)} active theater(s) of war** currently underway:")
@@ -164,13 +187,15 @@ class TacticalAdvisor:
             else:
                 response_parts.append("• **Current Geopolitical Status:** No active military war declarations detected. The global arena is operating under temporary peace or UN ceasefire resolutions.")
 
-        # If user asks how to play / mechanics
-        if is_help_query and not is_stock_query and not is_war_query:
+        # 5. General Portal & Commands Overview
+        if is_help_query and not is_staff_query and not is_gamble_query:
+            if response_parts: response_parts.append("\n" + "─" * 32 + "\n")
             response_parts.append("🎖️ **Phantom Regiment Operations & Mechanics Guide**")
-            response_parts.append("• **Economy & Medals:** Earn Medals via `/daily`, `/work`, `/crime`, `/rob`, or by claiming tax yields from your territories on Virtual Earth.")
-            response_parts.append("• **Stock Market:** Buy and sell shares via the `/medals` portal page. Holding company stocks pays automated passive dividends.")
-            response_parts.append("• **Virtual Earth:** Acquire sovereign nations, appoint cabinet members, recruit armies, deploy heavy hardware (jets, tanks, ships), and engage in tactical warfare.")
-            response_parts.append("• **Mayor Office:** Democratically elected every 7 days. Regulates transaction taxes, manages market share supply, and authorizes sovereign financial aid.")
+            response_parts.append("• **Earning Medals:** `/daily` (daily streak), `/work` (4h), `/crime` (2h high-risk), `/scavenge` (45m), `/trivia` (30m quiz).")
+            response_parts.append("• **Banking & Vaults:** `/bank create`, `/bank deposit`, `/bank withdraw`, `/bank balance`, `/bank upgrade` (10 vault tiers yielding up to 1M interest/day).")
+            response_parts.append("• **Stock Market:** `/stocks` or the `/medals` web terminal to buy/sell shares and collect automated dividends.")
+            response_parts.append("• **Virtual Earth:** `/earth view`, `/earth my_country`, buy hardware (jets/tanks/ships), appoint ministers, manage stability, and launch tactical wars.")
+            response_parts.append("• **Mayor Office:** Democratic elections every 7 days. Regulates transaction taxes, manages market share supply, awards Key to the City, and pardons citizens.")
 
         return "\n".join(response_parts)
 
@@ -181,13 +206,15 @@ class TacticalAdvisor:
 
         sys_prompt = (
             "You are 'Phantom Tactical Advisor', the official in-game intelligence AI for Phantom Regiment.\n"
-            "Analyze live stocks and ongoing Virtual Earth wars accurately based ONLY on this verified real-time data:\n\n"
+            "You possess complete mastery over the game: Economy, Gambling (/coinflip, /blackjack, /roulette, /scratch, /fight, /rps), "
+            "Banking, Virtual Earth, Mayor commands (/mayor salary, tax, doublexp, stimulus, award, pardon, stock_supply), "
+            "Elections, and Staff Applications (opened via /staffapplications with DM interviews for Server Staff, Recruitment, Events).\n"
+            "Analyze live stocks and ongoing Virtual Earth wars accurately based on this verified data:\n\n"
             f"LIVE STOCKS:\n{chr(10).join(stock_summary) if stock_summary else 'No active stocks.'}\n\n"
             f"ACTIVE WARS:\n{chr(10).join(war_summary) if war_summary else 'No active wars.'}\n\n"
             "Keep answers concise, strategic, clear, military-themed, and formatted with markdown bullet points."
         )
 
-        # Provider 1: Pollinations AI (openai-fast)
         try:
             payload = {
                 "messages": [

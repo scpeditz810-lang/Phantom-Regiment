@@ -16,9 +16,11 @@ Security & Self-Awareness:
 
 Full Knowledge Base:
 - Current Mayor & Election status (dynamically queried from DB & Guild)
+- Staff Applications (/staffapplications, positions: Server Staff, Recruitment, Events, DM interview flow)
+- Gambling commands (/coinflip, /blackjack, /roulette, /scratch, /fight, /rps with bet limits)
 - Phantom Regiment origins (Created 18 Sept 2026, Official branch of TS Clan)
 - Server Leadership & Members (Server Owner, Server Managers, Squad Commanders)
-- All Mayor commands & powers (/mayor salary, tax, doublexp, stimulus, award, pardon, etc.)
+- All Mayor commands & powers (/mayor salary, tax, doublexp, stimulus, award, pardon, stock_supply, stock_create, create_plot)
 - All Bot systems (Economy, Stocks, Banking, Earth, Elections, Squads)
 - Live Stock Market & Virtual Earth Wars
 """
@@ -126,7 +128,6 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
                 mayor_info["status"] = "Active Mayor"
                 mayor_info["term_end"] = commander.get("term_end")
                 
-                # Fetch member/user name
                 user = None
                 if guild:
                     user = guild.get_member(wid)
@@ -178,6 +179,17 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
             "• CLAN IDENTITY: Phantom Regiment (PR). Created on September 18, 2026 as an official branch of TS Clan.\n"
             f"• SERVER LEADERSHIP: Server Owner: {leadership['owner']} | Vetted Managers: {', '.join(leadership['managers'])}\n"
             f"• CURRENT MAYOR: {mayor_info['name']} (ID: {mayor_info['user_id'] or 'None'}). Status: {mayor_info['status']}.\n"
+            "• STAFF APPLICATIONS & HOW TO BECOME STAFF:\n"
+            "  - Applications open when High Command runs `/staffapplications`.\n"
+            "  - Citizens apply by selecting a role from the dropdown: 1. Server Staff (moderation & rule enforcement), 2. Recruitment Management (review applications & recruit), 3. Giveaways & Events Management (host tournaments & events).\n"
+            "  - Flow: DM sequential interview with 7-8 questions (age, timezone, experience, situational judgment). Answers sent to #staff-app-review for Commander evaluation.\n"
+            "• GAMBLING & CASINO COMMANDS (Max bet 150,000 Medals):\n"
+            "  - /coinflip <bet>: 50/50 double-or-nothing coin toss against the bot.\n"
+            "  - /blackjack <bet>: Interactive 21 card game with Hit/Stand/Double Down.\n"
+            "  - /roulette <bet> <bet_type>: Roulette wheel (Red 2x, Black 2x, Even 2x, Odd 2x, Green 36x).\n"
+            "  - /scratch <tier>: Lottery scratch cards (Bronze 500M, Silver 2.5kM, Gold 10kM) with up to 10x jackpot multipliers.\n"
+            "  - /fight <@opponent> <bet>: PvP interactive combat arena with Attack/Defend/Special moves.\n"
+            "  - /rps <@opponent> <bet>: PvP Rock-Paper-Scissors.\n"
             "• MAYOR POWERS & COMMANDS (/mayor):\n"
             "  - /mayor salary: Collect daily mayoral salary (+12,500 Medals/day).\n"
             "  - /mayor tax <pct>: Adjust global stock transaction tax (0% - 50%).\n"
@@ -194,7 +206,6 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
             "• ECONOMY COMMANDS:\n"
             "  - /daily, /work, /weekly, /crime, /scavenge, /trivia (earn medals on cooldowns).\n"
             "  - /balance, /transfer, /medalleaderboard, /globallb, /shop, /buyrole.\n"
-            "  - /coinflip, /blackjack, /rps, /fight, /scratch, /roulette (gambling).\n"
             "• BANKING SYSTEM (/bank):\n"
             "  - /bank create, /bank deposit, /bank withdraw, /bank balance, /bank upgrade (10 vault tiers, up to 1M interest/day).\n"
             "  - /rob: High-stakes bank robbery (requires lockpicks/C4).\n"
