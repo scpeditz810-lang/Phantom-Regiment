@@ -2018,6 +2018,14 @@ def api_earth_country_detail(country_id):
 
 
     current_user = session.get("user")
+    current_user_id = current_user.get("id") if current_user else None
+    country_owner_id = c.get("owner_id")
+    # The president-only appointment UI and POST handler must share this exact rule.
+    c["can_appoint_cabinet"] = bool(
+        current_user_id is not None
+        and country_owner_id is not None
+        and str(current_user_id) == str(country_owner_id)
+    )
 
     if current_user and current_user.get("id"):
 

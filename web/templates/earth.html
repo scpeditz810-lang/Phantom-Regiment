@@ -4676,10 +4676,10 @@ async function renderActiveTabContent(c, body) {
             String(userCountry.owner_id) === countryOwnerId)
     );
     const isLeader = Boolean(sameSovereign && userCountry && userCountry.user_role !== 'citizen');
-    const isOwner = Boolean(
-        directOwner ||
-        (sameSovereign && userCountry && userCountry.user_role === 'president')
-    );
+    // Use the same authenticated owner check as the appointment API.
+    // A cached userCountry role can belong to a previous/stale selection and
+    // must not expose a control that the server will reject.
+    const isOwner = c.can_appoint_cabinet === true || directOwner;
 
 
 
