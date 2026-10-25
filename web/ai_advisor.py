@@ -142,6 +142,51 @@ class TacticalAdvisor:
             print(f"[Advisor] Error reading wars data: {e}")
         return wars_info
 
+    def get_countries_data(self):
+        """Live country rankings from the DB: GDP and the list-view military power score."""
+        countries = []
+        try:
+            import sqlite3
+            db_path = getattr(self.db, "db_path", "data/bot.db")
+            if not os.path.exists(db_path):
+                db_path = "bot.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT c.name, c.flag, c.owner_id, c.gdp, c.treasury, c.stability, c.unrest,
+                       c.population, c.army_divisions, c.tanks, c.jets, c.ships,
+                       (SELECT COUNT(*) FROM earth_buildings b WHERE b.country_id = c.id) AS building_count
+                FROM earth_countries c
+            """)
+            for r in cur.fetchall():
+                mil = (20 + int(r["army_divisions"] or 0) * 4 + int(r["tanks"] or 0) * 35
+                       + int(r["jets"] or 0) * 28 + int(r["ships"] or 0) * 18
+                       + int(r["building_count"] or 0) * 15)
+                countries.append({
+                    "name": r["name"], "flag": r["flag"] or "", "ruled": bool(r["owner_id"]),
+                    "gdp": int(r["gdp"] or 0), "treasury": int(r["treasury"] or 0),
+                    "stability": int(r["stability"] or 0), "population": int(r["population"] or 0),
+                    "divisions": int(r["army_divisions"] or 0), "tanks": int(r["tanks"] or 0),
+                    "jets": int(r["jets"] or 0), "ships": int(r["ships"] or 0),
+                    "military_power": mil,
+                })
+            conn.close()
+        except Exception as e:
+            print(f"[Advisor] Error reading countries data: {e}")
+        return countries
+
+    def _ranking_text(self, countries: list, limit: int = 5) -> str:
+        if not countries:
+            return ""
+        by_gdp = sorted(countries, key=lambda c: c["gdp"], reverse=True)[:limit]
+        by_mil = sorted(countries, key=lambda c: c["military_power"], reverse=True)[:limit]
+        gdp_line = "; ".join(f"{i+1}. {c['flag']} {c['name']} (GDP {c['gdp']:,})" for i, c in enumerate(by_gdp))
+        mil_line = "; ".join(
+            f"{i+1}. {c['flag']} {c['name']} (power {c['military_power']:,}; {c['divisions']} div, "
+            f"{c['tanks']} tanks, {c['jets']} jets, {c['ships']} ships)" for i, c in enumerate(by_mil))
+        return f"Top by GDP: {gdp_line}\nTop by military power: {mil_line}"
+
     def generate_tactical_fallback(self, query: str, stocks: list, wars: list, server_info: dict = None) -> str:
         """Accurately understands and responds strictly to the user's specific prompt."""
         q_lower = query.lower().strip()
@@ -261,6 +306,20 @@ class TacticalAdvisor:
                 "• **Tip:** avoid needless wars and over-recruiting, and keep stability high with schools and hospitals."
             )
 
+        # 7c. STRONGEST / BIGGEST / RICHEST COUNTRY
+        power_triggers = {"strongest", "powerful", "superpower", "richest", "biggest", "mightiest", "best", "top"}
+        if cleaned_words.intersection(power_triggers) and cleaned_words.intersection(
+                {"country", "countries", "nation", "nations", "earth", "army", "military"}):
+            ranking = self._ranking_text(self.get_countries_data())
+            return (
+                "🌍 **Strongest Country in Virtual Earth**\n"
+                "• There is no official title; strength is judged two ways: **economy (GDP)** and **military power**.\n"
+                "• **Military power** = 20 + divisions×4 + tanks×35 + jets×28 + ships×18 + buildings×15 "
+                "(the full combat score adds building/tool bonuses and a doctrine multiplier).\n"
+                "• **Stability** and **population** matter too: population caps how big the army can be.\n"
+                + (f"\n**Live rankings right now:**\n{ranking}" if ranking else "")
+            )
+
         # 8. WARS SPECIFICALLY
         war_triggers = {"war", "wars", "battle", "conflict", "earth", "country", "attack", "defend", "jet", "jets", "tank", "tanks", "ship", "ships", "invade"}
         if cleaned_words.intersection(war_triggers):
@@ -350,6 +409,17 @@ class TacticalAdvisor:
             "150k), gold mine (250k, ~8.5k Medals/hour), oil rig (450k, ~16k/hour), heavy factory (350k, military power), "
             "bunker (defense), naval port (ocean trade), ocean base. Upgrades get more expensive each level. Buildings "
             "boost stability and income, not population directly.\n"
+            "  * WHAT MAKES THE 'STRONGEST COUNTRY': there is no official title. The country list is sorted by GDP "
+            "(economic strength), and military strength is a power score. Military power (list view) = 20 + divisions x4 "
+            "+ tanks x35 + jets x28 + ships x18 + number of buildings x15. The full combat score in a country's "
+            "dossier starts at 20 attack / 30 defense, adds tanks 35/18, jets 28/10, ships 18/12 (attack/defense), plus "
+            "building and advanced-tool bonuses (each x its level), then multiplies by the military doctrine: "
+            "Professional Army x1.15, Conscription x1.40 (+10 unrest), Mechanized Armor x1.60. Defense also counts "
+            "divisions x2 when scouted by spies. Wars are decided by score = side power + divisions x3 + a random 10-50, "
+            "so higher power wins most of the time but not always; the winner loses ~10% of committed tanks/jets/ships "
+            "and ~12% of divisions, the loser ~35% and ~32%. A truly dominant country has high GDP, high stability, a "
+            "large population (it limits army size), many units, strong buildings (heavy factory, bunker), advanced "
+            "tools, and allies. Use the LIVE RANKINGS in the live data to name who is strongest right now.\n"
             "  * KEEP ORDER: /earth quell stops riots (relief 150k, police 80k, jubilee 60k). Hospitals and schools "
             "keep unrest low.\n"
             "  * GETTING STARTED: /earth claim <country> <offer> takes an unowned country; /earth join <country> "
@@ -361,7 +431,7 @@ class TacticalAdvisor:
             "(Archery & Shields).\n"
         )
 
-    def _format_live_data(self, stocks: list, wars: list) -> str:
+    def _format_live_data(self, stocks: list, wars: list, countries: list = None) -> str:
         lines = ["LIVE DATA (real-time from the bot database):"]
         if stocks:
             lines.append("Stocks: " + "; ".join(
@@ -375,9 +445,12 @@ class TacticalAdvisor:
                 f"power {w['attacker_power']} vs {w['defender_power']}" for w in wars[:6]))
         else:
             lines.append("Active wars: none (peace / ceasefire).")
+        ranking = self._ranking_text(countries or [])
+        if ranking:
+            lines.append("LIVE COUNTRY RANKINGS:\n" + ranking)
         return "\n".join(lines)
 
-    def build_system_prompt(self, stocks: list, wars: list, server_info: dict = None) -> str:
+    def build_system_prompt(self, stocks: list, wars: list, server_info: dict = None, countries: list = None) -> str:
         return (
             "You are the Phantom Tactical AI Advisor, the resident AI of the Phantom Regiment Discord "
             "server and its bot. You are a capable, independent assistant: chat naturally, reason about "
@@ -397,7 +470,7 @@ class TacticalAdvisor:
             "- Refuse harmful or illegal requests briefly and politely.\n"
             f"- Current UTC time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}.\n\n"
             + self.build_knowledge_base(server_info) + "\n"
-            + self._format_live_data(stocks, wars)
+            + self._format_live_data(stocks, wars, countries)
         )
 
     # ------------------------------------------------------------------
@@ -545,12 +618,12 @@ class TacticalAdvisor:
         return text
 
     def query_online_llm(self, user_query: str, stocks: list, wars: list,
-                         server_info: dict = None, user_id=None):
+                         server_info: dict = None, user_id=None, countries: list = None):
         """Ask a real LLM. Returns (reply, provider_name) or (None, None) if all providers fail."""
         order = [p.strip().lower() for p in
                  os.getenv("AI_PROVIDER_ORDER", DEFAULT_PROVIDER_ORDER).split(",") if p.strip()]
         memory_key = user_id if user_id is not None else "web"
-        system = self.build_system_prompt(stocks, wars, server_info)
+        system = self.build_system_prompt(stocks, wars, server_info, countries)
         messages = self._get_history(memory_key) + [{"role": "user", "content": user_query}]
 
         tried = 0
@@ -636,8 +709,9 @@ class TacticalAdvisor:
         start_time = time.time()
         stocks = self.get_market_data()
         wars = self.get_wars_data()
+        countries = self.get_countries_data()
 
-        ai_reply, provider = self.query_online_llm(user_query, stocks, wars, server_info, user_id)
+        ai_reply, provider = self.query_online_llm(user_query, stocks, wars, server_info, user_id, countries)
         if ai_reply:
             source = f"Phantom AI Brain ({provider})"
             tier = 3
