@@ -2074,20 +2074,8 @@ def api_earth_country_detail(country_id):
         for key in ("total_military_power", "total_defense_power"):
             c.pop(key, None)
 
-    # Intelligence is private to the country's president/cabinet intelligence role.
-    current_user = session.get("user")
-    can_view_intelligence = False
-    if current_user and current_user.get("id") and c.get("owner_id") is not None:
-        try:
-            current_user_id = int(current_user["id"])
-            country_owner_id = int(c["owner_id"])
-        except (TypeError, ValueError):
-            current_user_id = None
-            country_owner_id = None
-        if current_user_id is not None and country_owner_id == current_user_id:
-            permissions = run_async(db.get_user_earth_permissions(current_user_id))
-            can_view_intelligence = str(country_owner_id) in permissions.get("intelligence", set())
-
+    # Intelligence is private to the country president or cabinet intelligence role.
+    can_view_intelligence = bool(is_country_owner or c.get("can_manage_intelligence"))
     c["can_view_intelligence"] = can_view_intelligence
     if not can_view_intelligence:
         c["spies"] = []
