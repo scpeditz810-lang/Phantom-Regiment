@@ -581,24 +581,24 @@ async def main():
     try:
         restored = await asyncio.wait_for(asyncio.to_thread(backup.restore), timeout=60)
         if backup.is_render() and not restored:
-            raise RuntimeError("No database backup was restored on Render.")
+            print("⚠️ No remote backup was restored; checking local database integrity...", flush=True)
     except Exception as e:
-        print(f"❌ Database backup restore failed: {e}", flush=True)
-        # A valid SQLite file without backup Git metadata may be the stale
-        # bundled snapshot from an earlier deploy. Only trust local data when
-        # it is paired with its restored backup checkout.
-        local_db = bot.db.db_path
-        local_valid = False
-        has_backup_checkout = os.path.isdir(os.path.join(os.path.dirname(local_db) or ".", ".git"))
-        if has_backup_checkout and os.path.exists(local_db) and os.path.getsize(local_db) > 1000:
-            try:
-                conn = sqlite3.connect(local_db)
-                local_valid = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-                conn.close()
-            except Exception:
-                local_valid = False
-        if backup.is_render() and not local_valid:
-            raise RuntimeError("Refusing to initialize from an unverified local database; restore the saved backup first.") from e
+        print(f"⚠️ Database backup restore notice: {e}", flush=True)
+
+    local_db = bot.db.db_path
+    local_valid = False
+    if os.path.exists(local_db) and os.path.getsize(local_db) > 1000:
+        try:
+            conn = sqlite3.connect(local_db, timeout=15.0)
+            local_valid = conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+            conn.close()
+        except Exception:
+            local_valid = False
+
+    if local_valid:
+        print(f"✅ Local database verified healthy ({os.path.getsize(local_db):,} bytes).", flush=True)
+    elif backup.is_render():
+        raise RuntimeError("No valid local or remote database available; startup aborted to prevent data loss.")
 
     # Open SQLite first, then release web requests. Stock seeding is
     # non-critical and must never hold every page behind the readiness gate.
