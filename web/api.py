@@ -2667,6 +2667,70 @@ def api_earth_war_deploy_equipment():
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 
+@api_bp.route("/earth/war/surrender", methods=["POST"])
+@login_required
+def api_earth_war_surrender():
+    data = request.get_json() or {}
+    try:
+        war_id = int(data.get("war_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid war ID."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, res_data = run_async(db.surrender_earth_war(user_id, war_id))
+    
+    # Broadcast to Discord Earth News Channel if bot is attached
+    if success and res_data:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+            if bot:
+                from utils.earth_anim import create_war_ended_gif
+                winner = res_data.get("winner_country", {})
+                loser = res_data.get("loser_country", {})
+                gif_buf = create_war_ended_gif(
+                    winner_name=winner.get("name", "Victor"),
+                    winner_flag=winner.get("flag", "👑"),
+                    loser_name=loser.get("name", "Defeated"),
+                    loser_flag=loser.get("flag", "🏳️"),
+                    reason="SURRENDER CONCEDED",
+                    reparations=res_data.get("loot", 0)
+                )
+                loop = current_app.config.get("ASYNC_LOOP")
+                news_channel_id = 1565082328550613083
+                news_role_id = 1565081681495597217
+                async def _post_news():
+                    ch = bot.get_channel(news_channel_id)
+                    if ch:
+                        import discord
+                        d_file = discord.File(gif_buf, filename="war_surrender.gif")
+                        desc = (
+                            f"**Victor:** {winner.get('flag', '')} **{winner.get('name', 'Victor')}**\n"
+                            f"**Surrendering Nation:** {loser.get('flag', '')} **{loser.get('name', 'Conceded')}**\n"
+                            f"💰 **Indemnity Paid:** `+{res_data.get('loot', 0):,} Medals`\n"
+                            f"🌐 **Annexation:** {'Yes, annexed into imperial territory!' if res_data.get('annexed') else 'Sovereignty retained; war ended.'}\n\n"
+                            f"🕊️ Frontlines have been disengaged and active battle hostilities cease immediately."
+                        )
+                        embed = discord.Embed(
+                            title="🏳️ WAR CONCLUDED // FORMAL SURRENDER ACCEPTED",
+                            description=desc,
+                            color=0xEAB308
+                        )
+                        embed.set_image(url="attachment://war_surrender.gif")
+                        embed.set_footer(text="Virtual Earth 3D Geopolitics Telemetry")
+                        await ch.send(content=f"<@&{news_role_id}> 🚨 **SOVEREIGN DISPATCH: WAR CONCLUDED VIA SURRENDER!**", embed=embed, file=d_file)
+                if loop:
+                    asyncio.run_coroutine_threadsafe(_post_news(), loop)
+        except Exception as e:
+            print(f"⚠️ Failed to broadcast surrender news: {e}")
+
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "result": res_data
+    }), 200 if success else 400
+
+
 @api_bp.route("/earth/war/reinforce", methods=["POST"])
 
 @login_required

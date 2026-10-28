@@ -6129,6 +6129,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.execute("UPDATE earth_countries SET treasury = max(0, treasury - ?), unrest = min(100, unrest + 20) WHERE id = ?", (loot, w["defender_country_id"]))
                 await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loot, w["attacker_country_id"]))
 
+                annexed = False
                 # Imperial Annexation: If campaign scale is annexation or total world war
                 if w.get("war_domain", "land") == "land" and w.get("scale") in ("annexation", "world_war"):
                     async with self._db.execute("SELECT owner_id FROM earth_countries WHERE id = ?", (w["attacker_country_id"],)) as cur:
@@ -6146,6 +6147,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                                 WHERE id = ?
                             """, (atk_owner, w["defender_country_id"]))
                             await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (w["defender_country_id"],))
+                            annexed = True
             else:
                 # Defender held the line
                 winner_id = w["defender_country_id"]
@@ -6174,9 +6176,116 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 """,(civilians_lost,survivors,civilians_lost,cid))
             await self._db.execute("UPDATE earth_wars SET status = ?, winner_country_id = ? WHERE id = ?", (status, winner_id, wid))
             await self._db.commit()
-            concluded.append({"war_id": wid, "status": status, "winner_id": winner_id})
+            concluded.append({"war_id": wid, "status": status, "winner_id": winner_id, "annexed": locals().get("annexed", False)})
 
         return concluded
+
+    async def get_earth_war(self, war_id: int) -> dict | None:
+        """Fetch full details of a specific campaign by ID."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("""
+            SELECT w.*,
+                   atk.name as attacker_name, atk.flag as attacker_flag, atk.owner_id as attacker_owner_id,
+                   dfn.name as defender_name, dfn.flag as defender_flag, dfn.owner_id as defender_owner_id
+            FROM earth_wars w
+            JOIN earth_countries atk ON w.attacker_country_id = atk.id
+            JOIN earth_countries dfn ON w.defender_country_id = dfn.id
+            WHERE w.id = ?
+        """, (war_id,)) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def surrender_earth_war(self, user_id: int, war_id: int) -> tuple[bool, str, dict]:
+        """Surrender or concede a campaign early. Either defender or attacker sovereign/defense minister can surrender."""
+        if self._db is None:
+            await self.setup()
+        from utils.constants import EARTH_WAR_SCALES
+
+        war = await self.get_earth_war(war_id)
+        if not war:
+            return False, "Campaign not found.", {}
+        if war.get("status") != "active":
+            return False, f"Campaign is no longer active (status: {war.get('status')}).", {}
+
+        atk_cid = war["attacker_country_id"]
+        dfn_cid = war["defender_country_id"]
+
+        is_atk_auth = await self.has_earth_cabinet_permission(user_id, atk_cid, "defense")
+        is_dfn_auth = await self.has_earth_cabinet_permission(user_id, dfn_cid, "defense")
+
+        if not (is_atk_auth or is_dfn_auth):
+            return False, "Only the President or Minister of Defense of an active combatant state can issue a surrender decree.", {}
+
+        surrendering_side = "attacker" if is_atk_auth else "defender"
+        winner_side = "defender" if surrendering_side == "attacker" else "attacker"
+        winner_cid = dfn_cid if surrendering_side == "attacker" else atk_cid
+        loser_cid = atk_cid if surrendering_side == "attacker" else dfn_cid
+        status = f"{winner_side}_won"
+
+        scale_meta = EARTH_WAR_SCALES.get(war.get("scale"), {})
+        plunder_pct = scale_meta.get("treasury_plunder_pct", 0.25)
+
+        async with self._db.execute("SELECT treasury, owner_id FROM earth_countries WHERE id = ?", (loser_cid,)) as cur:
+            loser_row = await cur.fetchone()
+            loser_treasury = loser_row[0] if loser_row else 1000000
+            loot = int(loser_treasury * plunder_pct) + war.get("reparations", 100000)
+
+        await self._db.execute("UPDATE earth_countries SET treasury = max(0, treasury - ?), unrest = min(100, unrest + 25) WHERE id = ?", (loot, loser_cid))
+        await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loot, winner_cid))
+
+        annexed = False
+        if winner_side == "attacker" and war.get("war_domain", "land") == "land" and war.get("scale") in ("annexation", "world_war"):
+            async with self._db.execute("SELECT owner_id FROM earth_countries WHERE id = ?", (atk_cid,)) as cur:
+                atk_owner_row = await cur.fetchone()
+                atk_owner = atk_owner_row[0] if atk_owner_row else None
+
+            if atk_owner:
+                async with self._db.execute("SELECT COUNT(*) FROM earth_countries WHERE owner_id = ?", (atk_owner,)) as cur:
+                    owned_count = (await cur.fetchone())[0]
+
+                if owned_count < 5:
+                    await self._db.execute("""
+                        UPDATE earth_countries 
+                        SET owner_id = ?, unrest = 40, stability = 45 
+                        WHERE id = ?
+                    """, (atk_owner, dfn_cid))
+                    await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (dfn_cid,))
+                    annexed = True
+
+        for unit in ("tanks", "jets", "ships"):
+            for side, cid, won in (("attacker", atk_cid, winner_side == "attacker"), ("defender", dfn_cid, winner_side == "defender")):
+                committed_units = int(war.get(f"{side}_{unit}", 0) or 0)
+                unit_losses = min(committed_units, int(committed_units * (0.05 if won else 0.40) + (0 if won else 0.999)))
+                if unit_losses:
+                    await self._db.execute(f"UPDATE earth_countries SET {unit}=MAX(0,{unit}-?) WHERE id=?", (unit_losses, cid))
+
+        for cid, committed, won in ((atk_cid, int(war["attacker_divisions"] or 0), winner_side == "attacker"), (dfn_cid, int(war["defender_divisions"] or 0), winner_side == "defender")):
+            losses = min(committed, max(1, int(committed * (0.08 if won else 0.38))) if committed else 0)
+            survivors = max(0, committed - losses)
+            civilians_lost = max(1, int(committed * (0.10 if won else 0.40))) if committed else 0
+            await self._db.execute("""
+                UPDATE earth_countries
+                SET population=max(0,population-?),
+                    army_divisions=MIN(army_divisions+?,max(0,(population-?)/5))
+                WHERE id=?
+            """, (civilians_lost, survivors, civilians_lost, cid))
+
+        await self._db.execute("UPDATE earth_wars SET status = ?, winner_country_id = ? WHERE id = ?", (status, winner_cid, war_id))
+        await self._db.commit()
+
+        winner_c = await self.get_earth_country(winner_cid)
+        loser_c = await self.get_earth_country(loser_cid)
+
+        return True, f"Surrender acknowledged: {loser_c['name']} has formally surrendered! {winner_c['name']} claims victory and {loot:,} Medals in indemnity.", {
+            "war_id": war_id,
+            "status": status,
+            "winner_side": winner_side,
+            "winner_country": winner_c,
+            "loser_country": loser_c,
+            "loot": loot,
+            "annexed": annexed
+        }
 
     # ─── Ocean Trade Routes & Bilateral Commerce ──────────────────────────────
 
