@@ -5889,6 +5889,8 @@ function renderTradeTab(c, isLeader, isOwner, container) {
 
         </div>
 
+        <div id="trade-proposals-box-${c.id}" style="margin: 0.5rem 0;"></div>
+
     `;
 
 
@@ -5899,7 +5901,7 @@ function renderTradeTab(c, isLeader, isOwner, container) {
 
     } else if (routes.length === 0) {
 
-        html += `<div style="text-align:center; padding:1.5rem; color:#94a3b8; font-size:0.8rem;">No active bilateral shipping routes. Construct a Naval Port and sign agreements with overseas coastal nations!</div>`;
+        html += `<div style="text-align:center; padding:1.5rem; color:#94a3b8; font-size:0.8rem;">No active bilateral shipping routes. Construct a Naval Port and send proposals to overseas coastal nations!</div>`;
 
     } else {
 
@@ -5915,11 +5917,16 @@ function renderTradeTab(c, isLeader, isOwner, container) {
 
                         <div style="font-weight: 800; font-size: 0.82rem;">Sealane to ${partnerName}</div>
 
-                        <div style="font-size: 0.72rem; color: #06b6d4;">+${Number(r.daily_tariff || 50000).toLocaleString()} M daily tariffs</div>
+                        <div style="font-size: 0.72rem; color: #06b6d4;">+${Number(r.daily_tariff || 85000).toLocaleString()} M daily tariffs</div>
 
                     </div>
 
-                    <span class="hud-tag" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4;">Active</span>
+                    <div style="display:flex; align-items:center; gap:0.4rem;">
+                        <span class="hud-tag" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4;">Active</span>
+                        ${c.can_manage_diplomacy ? `
+                            <button class="btn-danger-sm" style="padding:0.2rem 0.55rem; font-size:0.68rem; background:#dc2626; border-color:#ef4444; color:#fff;" onclick="terminateTradeRoute(${c.id}, ${r.id})">Terminate</button>
+                        ` : ''}
+                    </div>
 
                 </div>
 
@@ -5932,6 +5939,7 @@ function renderTradeTab(c, isLeader, isOwner, container) {
 
 
     container.innerHTML = html;
+    loadTradeProposals(c.id, Boolean(c.can_manage_diplomacy));
 
 }
 
@@ -7524,7 +7532,7 @@ function openProposeTradeModal(countryId) {
 
                 <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 1rem;">
 
-                    Sign a bilateral maritime shipping treaty with an overseas coastal nation. Generates passive daily tariffs for both sovereign treasuries.
+                    Send a bilateral ocean shipping treaty proposal to an overseas coastal nation. Once ratified by their government, passive daily tariffs are generated for both sovereign treasuries.
 
                 </p>
 
@@ -7558,7 +7566,7 @@ function openProposeTradeModal(countryId) {
 
                     <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
 
-                    <button class="hud-btn" onclick="submitProposeTrade(${countryId})">Ratify Sealane</button>
+                    <button class="hud-btn" onclick="submitProposeTrade(${countryId})">Dispatch Trade Proposal</button>
 
                 </div>
 
@@ -7594,7 +7602,9 @@ async function submitProposeTrade(countryId) {
 
         showToast(data.message);
 
-        loadVirtualEarthData();
+        await loadVirtualEarthData();
+        const c = countriesData.find(item => item.id === countryId);
+        if (c) selectCountry(c);
 
     } catch(e) {
 
@@ -7602,6 +7612,118 @@ async function submitProposeTrade(countryId) {
 
     }
 
+}
+
+async function loadTradeProposals(countryId, canManage) {
+    const box = document.getElementById(`trade-proposals-box-${countryId}`);
+    if (!box) return;
+    try {
+        const res = await fetch(`/api/earth/trade/proposals?country_id=${countryId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const incoming = data.incoming || [];
+        const outgoing = data.outgoing || [];
+
+        if (incoming.length === 0 && outgoing.length === 0) {
+            box.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        if (incoming.length > 0) {
+            html += `<div style="font-size:0.75rem; font-weight:700; color:#38bdf8; margin:0.4rem 0 0.25rem 0;">📥 Incoming Trade Proposals (Requires Your Approval)</div>`;
+            incoming.forEach(p => {
+                html += `
+                    <div class="minister-card" style="border-left: 3px solid #38bdf8; margin-bottom:0.35rem;">
+                        <div>
+                            <div style="font-weight:700; font-size:0.8rem;">Sealane Offer from ${p.partner_flag || '🌐'} ${escapeHtml(p.partner_name || 'Partner')}</div>
+                            <div style="font-size:0.68rem; color:#94a3b8;">+${Number(p.daily_tariff || 85000).toLocaleString()} M daily tariffs upon ratification</div>
+                        </div>
+                        ${canManage ? `
+                            <div style="display:flex; gap:0.3rem;">
+                                <button class="btn-action-sm" style="padding:0.2rem 0.5rem; font-size:0.68rem; background:#10b981; border-color:#059669; color:#fff;" onclick="respondTradeProposal(${countryId}, ${p.id}, true)">Accept</button>
+                                <button class="btn-danger-sm" style="padding:0.2rem 0.5rem; font-size:0.68rem;" onclick="respondTradeProposal(${countryId}, ${p.id}, false)">Decline</button>
+                            </div>
+                        ` : '<span class="hud-tag">Pending</span>'}
+                    </div>
+                `;
+            });
+        }
+
+        if (outgoing.length > 0) {
+            html += `<div style="font-size:0.75rem; font-weight:700; color:#fbbf24; margin:0.4rem 0 0.25rem 0;">📤 Outgoing Trade Proposals (Awaiting Partner Approval)</div>`;
+            outgoing.forEach(p => {
+                html += `
+                    <div class="minister-card" style="border-left: 3px solid #fbbf24; margin-bottom:0.35rem;">
+                        <div>
+                            <div style="font-weight:700; font-size:0.8rem;">Sealane to ${p.partner_flag || '🌐'} ${escapeHtml(p.partner_name || 'Partner')}</div>
+                            <div style="font-size:0.68rem; color:#fbbf24;">Pending sovereign ratification</div>
+                        </div>
+                        ${canManage ? `
+                            <button class="btn-danger-sm" style="padding:0.2rem 0.5rem; font-size:0.68rem;" onclick="cancelTradeProposal(${countryId}, ${p.id})">Cancel</button>
+                        ` : '<span class="hud-tag">Pending</span>'}
+                    </div>
+                `;
+            });
+        }
+        box.innerHTML = html;
+    } catch(e) {
+        console.error("Failed to load trade proposals:", e);
+    }
+}
+
+async function respondTradeProposal(countryId, routeId, accept) {
+    try {
+        const res = await fetch("/api/earth/trade/respond", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId, route_id: routeId, accept: accept })
+        });
+        const data = await res.json();
+        showToast(data.message || (accept ? "Trade treaty ratified!" : "Trade proposal declined."));
+        await loadVirtualEarthData();
+        const c = countriesData.find(item => item.id === countryId);
+        if (c) selectCountry(c);
+    } catch(e) {
+        showToast("Action failed.");
+    }
+}
+
+async function cancelTradeProposal(countryId, routeId) {
+    try {
+        const res = await fetch("/api/earth/trade/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId, route_id: routeId })
+        });
+        const data = await res.json();
+        showToast(data.message || "Proposal withdrawn.");
+        await loadVirtualEarthData();
+        const c = countriesData.find(item => item.id === countryId);
+        if (c) selectCountry(c);
+    } catch(e) {
+        showToast("Action failed.");
+    }
+}
+
+async function terminateTradeRoute(countryId, routeId) {
+    if (!confirm("Are you sure you want to terminate this maritime sealane? Both nations will cease receiving daily tariffs.")) {
+        return;
+    }
+    try {
+        const res = await fetch("/api/earth/trade/terminate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: countryId, route_id: routeId })
+        });
+        const data = await res.json();
+        showToast(data.message || "Sealane terminated.");
+        await loadVirtualEarthData();
+        const c = countriesData.find(item => item.id === countryId);
+        if (c) selectCountry(c);
+    } catch(e) {
+        showToast("Action failed.");
+    }
 }
 
 

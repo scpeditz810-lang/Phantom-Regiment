@@ -868,6 +868,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             "ALTER TABLE earth_wars ADD COLUMN attacker_ships INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE earth_wars ADD COLUMN defender_ships INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE earth_citizens ADD COLUMN last_yield_claim REAL DEFAULT 0",
+            "ALTER TABLE earth_trade_routes ADD COLUMN proposer_country_id INTEGER DEFAULT 0",
             "PRAGMA journal_mode=WAL"
 
         ]:
@@ -6290,7 +6291,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
     # ─── Ocean Trade Routes & Bilateral Commerce ──────────────────────────────
 
     async def propose_trade_route(self, user_id: int, from_country_id: int, to_country_id: int) -> tuple[bool, str]:
-        """Create one validated bilateral maritime route without duplicate or phantom endpoints."""
+        """Dispatch a bilateral ocean trade route proposal requiring target country ratification."""
         if self._db is None:
             await self.setup()
         try:
@@ -6323,18 +6324,177 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         ) as cur:
             if not await cur.fetchone():
                 return False, "⚓ At least one endpoint must have a Deepwater Naval Port."
+
+        async with self._db.execute(
+            "SELECT 1 FROM earth_wars WHERE status='active' AND ((attacker_country_id=? AND defender_country_id=?) OR (attacker_country_id=? AND defender_country_id=?)) LIMIT 1",
+            (from_country_id, to_country_id, to_country_id, from_country_id)
+        ) as cur:
+            if await cur.fetchone():
+                return False, "⛔ Blockade: Cannot establish trade routes with an active belligerent state!"
+
         c1, c2 = sorted((from_country_id, to_country_id))
         now = time.time()
+
+        # Check existing route
+        async with self._db.execute(
+            "SELECT id, status, proposer_country_id FROM earth_trade_routes WHERE country_a_id = ? AND country_b_id = ?",
+            (c1, c2)
+        ) as cur:
+            existing = await cur.fetchone()
+
+        if existing:
+            r_id, r_status, r_proposer = existing[0], existing[1], existing[2]
+            if r_status == 'active':
+                return False, "An active Ocean Trade Route already exists between these two countries."
+            elif r_status == 'pending':
+                if r_proposer == from_country_id:
+                    return False, f"A trade proposal is already pending approval from {c_b['name']}."
+                else:
+                    # Partner had already proposed to us! Mutual agreement reached -> activate!
+                    await self._db.execute("UPDATE earth_trade_routes SET status='active' WHERE id=?", (r_id,))
+                    await self._db.commit()
+                    return True, f"🚢 Mutual Maritime Treaty Ratified! Ocean Trade Shipping Route active between {c_a['flag']} {c_a['name']} and {c_b['flag']} {c_b['name']} (+85k daily tariffs)!"
+            else:
+                await self._db.execute("DELETE FROM earth_trade_routes WHERE id=?", (r_id,))
+                await self._db.commit()
+
         try:
             await self._db.execute(
-                "INSERT INTO earth_trade_routes (country_a_id, country_b_id, status, daily_tariff, created_at) VALUES (?, ?, 'active', 85000, ?)",
-                (c1, c2, now)
+                "INSERT INTO earth_trade_routes (country_a_id, country_b_id, proposer_country_id, status, daily_tariff, created_at) VALUES (?, ?, ?, 'pending', 85000, ?)",
+                (c1, c2, from_country_id, now)
             )
             await self._db.commit()
         except Exception:
             await self._db.rollback()
-            return False, "An active Ocean Trade Route already exists between these two countries."
-        return True, f"🚢 Maritime Treaty Ratified! Ocean Trade Shipping Route active between {c_a['flag']} {c_a['name']} and {c_b['flag']} {c_b['name']} (+85k daily tariffs)!"
+            return False, "Could not dispatch trade proposal at this time."
+
+        return True, f"🚢 Maritime Trade Proposal Dispatched! A formal commercial treaty was sent to {c_b['flag']} {c_b['name']}. The shipping route will activate once their government accepts."
+
+    async def get_earth_pending_trade_proposals(self, country_id: int) -> dict:
+        """Fetch incoming and outgoing pending trade proposals for a country."""
+        if self._db is None:
+            await self.setup()
+        country_id = int(country_id)
+
+        # Incoming proposals: country_id is in the route, but NOT the proposer
+        query_incoming = """
+            SELECT tr.id, tr.country_a_id, tr.country_b_id, tr.proposer_country_id, tr.daily_tariff, tr.created_at,
+                   c_prop.id as partner_id, c_prop.name as partner_name, c_prop.flag as partner_flag, c_prop.code as partner_code
+            FROM earth_trade_routes tr
+            JOIN earth_countries c_prop ON tr.proposer_country_id = c_prop.id
+            WHERE tr.status = 'pending'
+              AND (tr.country_a_id = ? OR tr.country_b_id = ?)
+              AND tr.proposer_country_id <> ?
+            ORDER BY tr.created_at DESC
+        """
+        async with self._db.execute(query_incoming, (country_id, country_id, country_id)) as cur:
+            incoming = [dict(r) for r in await cur.fetchall()]
+
+        # Outgoing proposals: country_id IS the proposer
+        query_outgoing = """
+            SELECT tr.id, tr.country_a_id, tr.country_b_id, tr.proposer_country_id, tr.daily_tariff, tr.created_at,
+                   c_tgt.id as partner_id, c_tgt.name as partner_name, c_tgt.flag as partner_flag, c_tgt.code as partner_code
+            FROM earth_trade_routes tr
+            JOIN earth_countries c_tgt ON (CASE WHEN tr.country_a_id = tr.proposer_country_id THEN tr.country_b_id ELSE tr.country_a_id END) = c_tgt.id
+            WHERE tr.status = 'pending'
+              AND tr.proposer_country_id = ?
+            ORDER BY tr.created_at DESC
+        """
+        async with self._db.execute(query_outgoing, (country_id,)) as cur:
+            outgoing = [dict(r) for r in await cur.fetchall()]
+
+        return {"incoming": incoming, "outgoing": outgoing}
+
+    async def respond_trade_route(self, user_id: int, country_id: int, route_id: int, accept: bool) -> tuple[bool, str]:
+        """Accept or decline an incoming maritime trade proposal."""
+        if self._db is None:
+            await self.setup()
+        country_id, route_id = int(country_id), int(route_id)
+
+        can_trade = await self.has_earth_cabinet_permission(user_id, country_id, "diplomat")
+        if not can_trade:
+            can_trade = await self.has_earth_cabinet_permission(user_id, country_id, "economy")
+        if not can_trade:
+            return False, "⛔ Authorization Denied: Only the President, Chief Diplomat, or Finance Minister can ratify trade proposals!"
+
+        async with self._db.execute(
+            "SELECT * FROM earth_trade_routes WHERE id = ? AND status = 'pending'", (route_id,)
+        ) as cur:
+            r = await cur.fetchone()
+
+        if not r:
+            return False, "Trade proposal not found or already processed."
+
+        row = dict(r)
+        if country_id not in (row["country_a_id"], row["country_b_id"]):
+            return False, "This proposal does not involve your nation."
+        if row.get("proposer_country_id") == country_id:
+            return False, "You cannot accept your own outgoing trade proposal."
+
+        if accept:
+            await self._db.execute("UPDATE earth_trade_routes SET status = 'active' WHERE id = ?", (route_id,))
+            await self._db.commit()
+            return True, "🚢 Maritime Trade Treaty Ratified! Bilateral sealane is now active (+85k daily tariffs)!"
+        else:
+            await self._db.execute("DELETE FROM earth_trade_routes WHERE id = ?", (route_id,))
+            await self._db.commit()
+            return True, "Trade proposal declined."
+
+    async def terminate_trade_route(self, user_id: int, country_id: int, route_id: int) -> tuple[bool, str]:
+        """Terminate / dissolve an active maritime trade route."""
+        if self._db is None:
+            await self.setup()
+        country_id, route_id = int(country_id), int(route_id)
+
+        can_trade = await self.has_earth_cabinet_permission(user_id, country_id, "diplomat")
+        if not can_trade:
+            can_trade = await self.has_earth_cabinet_permission(user_id, country_id, "economy")
+        if not can_trade:
+            return False, "⛔ Authorization Denied: Only the President, Chief Diplomat, or Finance Minister can terminate trade routes!"
+
+        async with self._db.execute(
+            "SELECT * FROM earth_trade_routes WHERE id = ?", (route_id,)
+        ) as cur:
+            r = await cur.fetchone()
+
+        if not r:
+            return False, "Trade route not found."
+
+        row = dict(r)
+        if country_id not in (row["country_a_id"], row["country_b_id"]):
+            return False, "This trade route does not belong to your country."
+
+        await self._db.execute("DELETE FROM earth_trade_routes WHERE id = ?", (route_id,))
+        await self._db.commit()
+        return True, "⚓ Maritime Sealane Terminated! Shipping routes have been formally dissolved."
+
+    async def cancel_trade_proposal(self, user_id: int, country_id: int, route_id: int) -> tuple[bool, str]:
+        """Cancel an outgoing trade proposal before it is accepted."""
+        if self._db is None:
+            await self.setup()
+        country_id, route_id = int(country_id), int(route_id)
+
+        can_trade = await self.has_earth_cabinet_permission(user_id, country_id, "diplomat")
+        if not can_trade:
+            can_trade = await self.has_earth_cabinet_permission(user_id, country_id, "economy")
+        if not can_trade:
+            return False, "⛔ Authorization Denied: Only the President, Chief Diplomat, or Finance Minister can manage trade proposals!"
+
+        async with self._db.execute(
+            "SELECT * FROM earth_trade_routes WHERE id = ? AND status = 'pending'", (route_id,)
+        ) as cur:
+            r = await cur.fetchone()
+
+        if not r:
+            return False, "Pending trade proposal not found."
+
+        row = dict(r)
+        if row.get("proposer_country_id") != country_id:
+            return False, "You can only cancel proposals initiated by your country."
+
+        await self._db.execute("DELETE FROM earth_trade_routes WHERE id = ?", (route_id,))
+        await self._db.commit()
+        return True, "Trade proposal successfully withdrawn."
 
     async def get_earth_trade_routes(self, country_id: int | None = None) -> list[dict]:
         """Fetch active ocean trade routes with origin/destination lat/lng for 3D arcs."""
