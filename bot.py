@@ -48,6 +48,64 @@ from utils.git_backup import GitBackup
 load_dotenv()
 
 
+def emergency_disk_clean():
+    """Purge orphaned packs, duplicate code trees in data/, and test databases to reclaim disk space immediately."""
+    try:
+        import shutil, stat, subprocess
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dir = os.path.join(base_dir, "data")
+
+        # 1. Remove duplicate code trees mistakenly cloned into data/
+        for sub in ("assets", "cogs", "utils", "web", "__pycache__"):
+            target = os.path.join(data_dir, sub)
+            if os.path.isdir(target):
+                try:
+                    shutil.rmtree(target, ignore_errors=True)
+                    print(f"🧹 [Disk Cleanup] Cleaned duplicate directory: {sub}", flush=True)
+                except Exception:
+                    pass
+
+        # 2. Remove orphaned tmp_pack_* files in all .git folders
+        for git_candidate in (os.path.join(base_dir, ".git"), os.path.join(data_dir, ".git")):
+            pack_dir = os.path.join(git_candidate, "objects", "pack")
+            if os.path.exists(pack_dir):
+                for f in os.listdir(pack_dir):
+                    if f.startswith("tmp_pack"):
+                        fp = os.path.join(pack_dir, f)
+                        try:
+                            os.chmod(fp, stat.S_IWRITE)
+                            os.remove(fp)
+                            print(f"🧹 [Disk Cleanup] Removed abandoned pack: {f}", flush=True)
+                        except Exception:
+                            pass
+
+        # 3. Remove leftover test databases, salvage files, and temp files
+        for root_scan in (base_dir, data_dir):
+            if os.path.exists(root_scan):
+                for f in os.listdir(root_scan):
+                    if f.startswith("test_") or f.endswith(".tmp") or f.endswith(".recovery-candidate") or f.endswith(".salvaged"):
+                        fp = os.path.join(root_scan, f)
+                        if os.path.isfile(fp):
+                            try:
+                                os.remove(fp)
+                                print(f"🧹 [Disk Cleanup] Removed temporary file: {f}", flush=True)
+                            except Exception:
+                                pass
+
+        # 4. Prune git reflogs if .git is heavy
+        if os.path.isdir(os.path.join(data_dir, ".git")):
+            try:
+                subprocess.run(["git", "reflog", "expire", "--expire=now", "--all"], cwd=data_dir, timeout=10, capture_output=True)
+                subprocess.run(["git", "prune", "--expire=now"], cwd=data_dir, timeout=10, capture_output=True)
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"⚠️ Emergency disk cleanup notice: {e}", flush=True)
+
+emergency_disk_clean()
+
+
+
 
 # ── Phantom Regiment Web Portal & API ──────────────────────────────────────────
 
@@ -137,13 +195,21 @@ bot.tree.interaction_check = block_banned_app_commands
 
 
 
+_last_disk_clean = 0
+
 @tasks.loop(seconds=10)
 
 async def backup_loop():
 
-    """Push DB to GitHub every 10 seconds if it changed."""
+    """Push DB to GitHub every 10 seconds if it changed and keep disk space lean."""
+
+    global _last_disk_clean
 
     try:
+        now = time.time()
+        if now - _last_disk_clean > 300:
+            _last_disk_clean = now
+            await asyncio.to_thread(emergency_disk_clean)
 
         await asyncio.to_thread(backup.push_if_changed)
 

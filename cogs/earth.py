@@ -6,8 +6,15 @@ Commands for national governance, cabinet appointments, infrastructure, espionag
 
 import time
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
+from utils.earth_anim import (
+    create_war_declared_gif,
+    create_war_ended_gif,
+    create_new_ruler_gif,
+    create_country_fallen_gif,
+    generate_tactical_audio
+)
 
 from utils.constants import (
     EARTH_CABINET_ROLES,
@@ -31,7 +38,9 @@ from cogs.earth_dashboards import (
     MinistryHubView
 )
 
-WEB_URL = "https://phantom-regiment-1.onrender.com/earth"
+WEB_URL = "https://phantomregiment.apps.bot-hosting.cloud/earth"
+EARTH_NEWS_CHANNEL_ID = 1565082328550613083
+EARTH_NEWS_ROLE_ID = 1565081681495597217
 
 
 class CabinetInviteView(discord.ui.View):
@@ -95,6 +104,81 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        if not self.earth_war_checker.is_running():
+            self.earth_war_checker.start()
+
+    def cog_unload(self):
+        if self.earth_war_checker.is_running():
+            self.earth_war_checker.cancel()
+
+    async def broadcast_news(self, title: str, description: str, gif_bytes, filename: str = "news.gif", color: int = 0x38BDF8, audio_type: str = None):
+        try:
+            channel = self.bot.get_channel(EARTH_NEWS_CHANNEL_ID)
+            if not channel:
+                channel = await self.bot.fetch_channel(EARTH_NEWS_CHANNEL_ID)
+            if channel:
+                gif_bytes.seek(0)
+                files_to_send = [discord.File(gif_bytes, filename=filename)]
+                if audio_type:
+                    try:
+                        audio_buf = generate_tactical_audio(audio_type)
+                        files_to_send.append(discord.File(audio_buf, filename=f"{audio_type}.wav"))
+                    except Exception as sound_err:
+                        print(f"⚠️ Sound synthesis notice: {sound_err}", flush=True)
+
+                embed = discord.Embed(
+                    title=title,
+                    description=description,
+                    color=color
+                )
+                embed.set_image(url=f"attachment://{filename}")
+                embed.set_footer(text="Virtual Earth 3D Geopolitics Simulation • Audio Dispatch Attached")
+                await channel.send(
+                    content=f"<@&{EARTH_NEWS_ROLE_ID}> 🚨 **SOVEREIGN GEOPOLITICAL DISPATCH!**",
+                    embed=embed,
+                    files=files_to_send
+                )
+        except Exception as e:
+            print(f"⚠️ Failed to broadcast Earth News: {e}", flush=True)
+
+    @tasks.loop(seconds=60)
+    async def earth_war_checker(self):
+        try:
+            concluded = await self.bot.db.resolve_concluded_earth_wars()
+            for res in concluded:
+                if res.get("status") in ("attacker_won", "defender_won"):
+                    war = await self.bot.db.get_earth_war(res["war_id"])
+                    if war:
+                        is_atk_win = res["status"] == "attacker_won"
+                        winner_name = war["attacker_name"] if is_atk_win else war["defender_name"]
+                        winner_flag = war["attacker_flag"] if is_atk_win else war["defender_flag"]
+                        loser_name = war["defender_name"] if is_atk_win else war["attacker_name"]
+                        loser_flag = war["defender_flag"] if is_atk_win else war["attacker_flag"]
+                        gif = create_war_ended_gif(
+                            winner_name=winner_name,
+                            winner_flag=winner_flag,
+                            loser_name=loser_name,
+                            loser_flag=loser_flag,
+                            reason="CAMPAIGN VICTORY",
+                            reparations=war.get("reparations", 100000)
+                        )
+                        desc = (
+                            f"**Victorious Empire:** {winner_flag} **{winner_name}**\n"
+                            f"**Defeated State:** {loser_flag} **{loser_name}**\n"
+                            f"⚔️ **Campaign Duration:** Elapsed full duration\n"
+                            f"💰 **Indemnity Awarded:** `+{war.get('reparations', 100000):,} Medals`\n\n"
+                            f"🏆 Frontline military victory achieved! Troops return home."
+                        )
+                        await self.broadcast_news(
+                            title="🏆 CONFLICT CONCLUDED // CAMPAIGN DECISIVE VICTORY",
+                            description=desc,
+                            gif_bytes=gif,
+                            filename="war_ended.gif",
+                            color=0x10B981,
+                            audio_type="victory_fanfare"
+                        )
+        except Exception as e:
+            print(f"⚠️ Error checking concluded earth wars: {e}", flush=True)
 
     earth_group = app_commands.Group(name="earth", description="🌍 Virtual Earth: Global Geopolitics Simulation")
     cabinet_group = app_commands.Group(name="cabinet", parent=earth_group, description="🏛️ Sovereign Cabinet & Ministers")
@@ -568,17 +652,44 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
         success, msg, war_data = await self.bot.db.declare_earth_war(interaction.user.id, c["id"], tgt["id"], scale.value)
         if success:
+            gif = create_war_declared_gif(
+                atk_name=c["name"],
+                atk_flag=c["flag"],
+                dfn_name=tgt["name"],
+                dfn_flag=tgt["flag"],
+                scale=scale.name,
+                domain="land"
+            )
             embed = discord.Embed(
                 title="🚨 DECLARATION OF SOVEREIGN WAR",
                 description=f"**{c['flag']} {c['name']}** has officially declared war on **{tgt['flag']} {tgt['name']}**!\n\n"
-                            f"• **Campaign Scale:** {scale.name}\n"
-                            f"• **Duration:** `{war_data.get('duration_hours')} Hours`\n"
-                            f"• **Front Line Active:** Follow the campaign and deploy division reinforcements on the 3D globe!",
+                            f"🌐 **Campaign Scale:** {scale.name}\n"
+                            f"⏳ **Duration:** `{war_data.get('duration_hours')} Hours`\n"
+                            f"⚔️ **Front Line Active:** Armored divisions clashing along the border! Follow the front on the 3D globe.",
                 color=0xDC2626
             )
             view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="⚔️ Open 3D War Room", url=WEB_URL, style=discord.ButtonStyle.link))
-            await interaction.followup.send(embed=embed, view=view)
+            view.add_item(discord.ui.Button(label="🌍 Open 3D War Room", url=WEB_URL, style=discord.ButtonStyle.link))
+            gif.seek(0)
+            file = discord.File(gif, filename="war_declared.gif")
+            embed.set_image(url="attachment://war_declared.gif")
+            await interaction.followup.send(embed=embed, view=view, file=file)
+
+            news_gif = create_war_declared_gif(c["name"], c["flag"], tgt["name"], tgt["flag"], scale.name, "land")
+            news_desc = (
+                f"⚔️ **Aggressor State:** {c['flag']} **{c['name']}** (Leader: {interaction.user.mention})\n"
+                f"🛡️ **Target State:** {tgt['flag']} **{tgt['name']}** (Leader: <@{tgt.get('owner_id')}>)\n"
+                f"🌐 **Conflict Scale:** `{scale.name}` ({war_data.get('duration_hours')} Hours)\n\n"
+                f"⚠️ Active combat hostilities are declared! Leaders may mobilize divisions or concede via surrender."
+            )
+            await self.broadcast_news(
+                title="🚨 SOVEREIGN WAR COMMENCED // ACTIVE FRONTLINE",
+                description=news_desc,
+                gif_bytes=news_gif,
+                filename="war_news.gif",
+                color=0xDC2626,
+                audio_type="war_siren"
+            )
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
 
@@ -645,14 +756,34 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             f"{msg}"
         )
 
+        gif = create_new_ruler_gif(c["name"], c["flag"], interaction.user.display_name)
         embed = discord.Embed(
-            title=f"?? Sovereignty Acquired: {c['flag']} {c['name']}",
+            title=f"👑 Sovereignty Acquired: {c['flag']} {c['name']}",
             description=desc_claim,
             color=0x10B981
         )
+        gif.seek(0)
+        file = discord.File(gif, filename="new_ruler.gif")
+        embed.set_image(url="attachment://new_ruler.gif")
         view = discord.ui.View()
-        view.add_item(discord.ui.Button(label="Open 3D Command Deck", url=WEB_URL, style=discord.ButtonStyle.link, emoji="??"))
-        await interaction.followup.send(embed=embed, view=view)
+        view.add_item(discord.ui.Button(label="Open 3D Command Deck", url=WEB_URL, style=discord.ButtonStyle.link, emoji="🏛️"))
+        await interaction.followup.send(embed=embed, view=view, file=file)
+
+        news_gif = create_new_ruler_gif(c["name"], c["flag"], interaction.user.display_name)
+        news_desc = (
+            f"🏛️ **Sovereign Nation:** {c['flag']} **{c['name']}**\n"
+            f"👑 **Supreme Sovereign / President:** {interaction.user.mention} (`{interaction.user.display_name}`)\n"
+            f"💰 **Treasury & Starting Reserves:** In full sovereign control\n\n"
+            f"🌐 A new era begins! Citizens and foreign allies can pledge allegiance or propose ocean trade lanes."
+        )
+        await self.broadcast_news(
+            title="👑 NEW SUPREME RULER INAUGURATED // SOVEREIGNTY ASSUMED",
+            description=news_desc,
+            gif_bytes=news_gif,
+            filename="ruler_news.gif",
+            color=0xF59E0B,
+            audio_type="ruler_inauguration"
+        )
 
 
     # ??? Citizenship, Allegiance & Counter-Intelligence ??????????????????????????
@@ -1112,6 +1243,87 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         )
         embed.set_footer(text="Virtual Earth 3D • UN Peacekeeping Mission")
         await interaction.followup.send(embed=embed)
+
+
+
+    @earth_group.command(name="surrender", description="Concede and formally surrender in an active war.")
+    @app_commands.describe(country="Opponent country code or name")
+    async def earth_surrender(self, interaction: discord.Interaction, country: str):
+        await interaction.response.defer()
+        my_c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not my_c:
+            await interaction.followup.send("❌ Only a sovereign ruler or Minister of Defense can surrender an active campaign!", ephemeral=True)
+            return
+
+        opp = await self.bot.db.get_earth_country_by_code_or_name(country)
+        if not opp:
+            await interaction.followup.send(f"❌ Opponent country `{country}` not found in the global registry.")
+            return
+
+        active_wars = await self.bot.db.get_active_earth_wars()
+        target_war = None
+        for w in active_wars:
+            if (w["attacker_country_id"] == my_c["id"] and w["defender_country_id"] == opp["id"]) or \
+               (w["defender_country_id"] == my_c["id"] and w["attacker_country_id"] == opp["id"]):
+                target_war = w
+                break
+
+        if not target_war:
+            await interaction.followup.send(f"❌ No active war found between **{my_c['flag']} {my_c['name']}** and **{opp['flag']} {opp['name']}**.", ephemeral=True)
+            return
+
+        success, msg, res_data = await self.bot.db.surrender_earth_war(interaction.user.id, target_war["id"])
+        if not success:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+            return
+
+        winner = res_data.get("winner_country", {})
+        loser = res_data.get("loser_country", {})
+        gif = create_war_ended_gif(
+            winner_name=winner.get("name", "Victor"),
+            winner_flag=winner.get("flag", "👑"),
+            loser_name=loser.get("name", "Conceded"),
+            loser_flag=loser.get("flag", "🏳️"),
+            reason="SURRENDER CONCEDED",
+            reparations=res_data.get("loot", 0)
+        )
+
+        desc = (
+            f"👑 **Victor:** {winner.get('flag')} **{winner.get('name')}**\n"
+            f"🏳️ **Surrendered:** {loser.get('flag')} **{loser.get('name')}**\n"
+            f"💰 **Indemnity Awarded:** `+{res_data.get('loot', 0):,} Medals`\n"
+            f"🌐 **Annexation:** {'Yes, annexed into imperial dominion!' if res_data.get('annexed') else 'Territory borders held.'}\n\n"
+            f"🕊️ Armistice signed! War operations have terminated immediately."
+        )
+
+        embed = discord.Embed(
+            title="🏳️ FORMAL SURRENDER ACCEPTED // CONFLICT CONCLUDED",
+            description=desc,
+            color=0xEAB308
+        )
+        gif.seek(0)
+        file = discord.File(gif, filename="surrender.gif")
+        embed.set_image(url="attachment://surrender.gif")
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="🌍 Open 3D Earth Globe", url=WEB_URL, style=discord.ButtonStyle.link))
+        await interaction.followup.send(embed=embed, view=view, file=file)
+
+        news_gif = create_war_ended_gif(
+            winner_name=winner.get("name", "Victor"),
+            winner_flag=winner.get("flag", "👑"),
+            loser_name=loser.get("name", "Conceded"),
+            loser_flag=loser.get("flag", "🏳️"),
+            reason="SURRENDER CONCEDED",
+            reparations=res_data.get("loot", 0)
+        )
+        await self.broadcast_news(
+            title="🏳️ SOVEREIGN SURRENDER // WAR TERMINATED",
+            description=desc,
+            gif_bytes=news_gif,
+            filename="surrender_news.gif",
+            color=0xEAB308,
+            audio_type="surrender_conceded"
+        )
 
 
 async def setup(bot: commands.Bot):

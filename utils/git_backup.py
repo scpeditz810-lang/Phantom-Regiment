@@ -36,12 +36,17 @@ class GitBackup:
 
     @staticmethod
     def is_render() -> bool:
-        """Return True if running inside Render's production cloud container."""
+        """Return True if running inside cloud container (Render, Bot-Hosting, Koyeb, Docker, etc.)."""
         return bool(
             os.environ.get("RENDER")
             or os.environ.get("IS_RENDER")
             or os.environ.get("RENDER_SERVICE_ID")
+            or os.environ.get("P_SERVER_UUID")
+            or os.environ.get("SERVER_MEMORY")
+            or os.environ.get("STARTUP_FILE")
+            or os.path.exists("/home/container")
             or os.path.exists("/.dockerenv")
+            or os.environ.get("CLOUD_HOSTED") == "1"
         )
 
     # ── public ──────────────────────────────────────────────────────────────
@@ -388,34 +393,41 @@ class GitBackup:
                 self._last_hash = current
                 return False
 
-            self._run(["git", "commit", "-m", "Auto-backup"], cwd=self.repo_dir)
-            self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
+            self._run(["git", "commit", "-m", "Auto-backup"], cwd=self.repo_dir, check=False)
+            
+            # Synchronize with remote history before pushing to prevent rejection
+            self._run(["git", "fetch", auth_url, "main"], cwd=self.repo_dir, check=False)
+            self._run(["git", "merge", "-s", "ours", "--no-edit", "FETCH_HEAD"], cwd=self.repo_dir, check=False)
+
+            self._run(["git", "push", "-u", auth_url, "main"], cwd=self.repo_dir)
             self._last_hash = current
-            print(f"✅ Consistent SQLite snapshot backed up ({os.path.getsize(snapshot):,} bytes).", flush=True)
-            return True
-        except subprocess.CalledProcessError as exc:
-            print(f"⚠️ Git backup push failed: {exc}", flush=True)
             try:
+                print(f"[Backup Success] Consistent SQLite snapshot backed up ({os.path.getsize(snapshot):,} bytes).", flush=True)
+            except Exception:
+                pass
+            return True
+        except Exception as exc:
+            try:
+                print(f"[Backup Notice] Git backup push sync: {exc}".encode("ascii", "replace").decode("ascii"), flush=True)
+            except Exception:
+                pass
+            try:
+                self._run(["git", "fetch", auth_url, "main"], cwd=self.repo_dir, check=False)
                 self._run(["git", "merge", "--abort"], cwd=self.repo_dir, check=False)
                 self._run(["git", "rebase", "--abort"], cwd=self.repo_dir, check=False)
-                self._run(
-                    ["git", "pull", "--no-rebase", "-X", "ours", "--no-edit", "origin", "main"],
-                    cwd=self.repo_dir, check=False,
-                )
-                self._run(["git", "checkout", "--ours", self.snapshot_name], cwd=self.repo_dir, check=False)
-                self._fix_permissions()
+                self._run(["git", "reset", "--soft", "FETCH_HEAD"], cwd=self.repo_dir, check=False)
                 self._run(["git", "add", self.snapshot_name], cwd=self.repo_dir, check=False)
                 self._run(["git", "commit", "-m", "Auto-backup resolution"], cwd=self.repo_dir, check=False)
-                self._run(["git", "push", "-u", "origin", "main"], cwd=self.repo_dir)
+                self._run(["git", "push", "-u", auth_url, "main"], cwd=self.repo_dir)
                 self._last_hash = current
-                print("✅ Resolved snapshot conflict and pushed current SQLite backup.", flush=True)
+                print("[Backup Success] Resolved snapshot conflict and pushed current SQLite backup.", flush=True)
                 return True
             except Exception as e:
-                print(f"⚠️ Auto-backup recovery attempt: {e}", flush=True)
+                try:
+                    print(f"[Backup Error] Auto-backup recovery attempt: {e}".encode("ascii", "replace").decode("ascii"), flush=True)
+                except Exception:
+                    pass
                 return False
-        except Exception as e:
-            print(f"⚠️ Could not create a consistent SQLite snapshot: {e}", flush=True)
-            return False
 
     def sync_from_remote(self, force: bool = False) -> bool:
         """Sync the local database with the latest backup on GitHub origin/main.

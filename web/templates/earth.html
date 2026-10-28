@@ -5811,7 +5811,15 @@ function renderWarsTab(c, isLeader, isOwner, container) {
 
                     </div>
 
-                    ${c.can_command_defense ? '<div style="font-size:.7rem;color:#94a3b8;">Nuclear strikes need a Launch Pad and unused nuke; one strike per enemy per active war.</div>' : ''}
+                    ${c.can_command_defense ? `
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem; border-top:1px dashed rgba(255,255,255,0.1); padding-top:0.4rem;">
+                            <span style="font-size:0.68rem; color:#94a3b8;">Sovereign War Termination:</span>
+                            <button class="btn-danger-sm" style="background:#dc2626; border-color:#ef4444; color:#fff; padding:0.25rem 0.55rem; font-size:0.7rem;" onclick="surrenderWar(${w.id}, '${Number(c.id) === Number(w.attacker_country_id) ? 'attacker' : 'defender'}')">
+                                🏳️ Concede & Surrender War
+                            </button>
+                        </div>
+                    ` : ''}
+                    ${c.can_command_defense ? '<div style="font-size:.7rem;color:#94a3b8;margin-top:0.2rem;">Nuclear strikes need a Launch Pad and unused nuke; one strike per enemy per active war. Surrendering concludes the war early and pays indemnities to the victor.</div>' : ''}
 
                 </div>
 
@@ -7422,6 +7430,22 @@ async function purchaseEarthHardware(countryId, unitType) {
         await loadVirtualEarthData();
     } catch (error) {
         showToast("Equipment request failed.");
+    }
+}
+
+async function surrenderWar(warId, side) {
+    if (!confirm("Are you sure you want to formally concede and SURRENDER this war? The victor will be awarded war reparations and the campaign will immediately terminate.")) return;
+    try {
+        const res = await fetch("/api/earth/war/surrender", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ war_id: warId })
+        });
+        const data = await res.json();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch (e) {
+        showToast("Failed to process surrender.");
     }
 }
 
