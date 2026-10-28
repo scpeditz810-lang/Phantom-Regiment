@@ -111,6 +111,36 @@ def clean_tactical_text(text: str) -> str:
     clean = re.sub(r'[\u2600-\u27bf\u2300-\u23ff\u2b50-\u2b55]', '', clean)
     return clean.strip()
 
+# === Audio Duration Probe =====================================================
+
+def probe_audio_duration(audio_bytes: io.BytesIO) -> float:
+    """Accurately determine audio duration in seconds using FFmpeg probe."""
+    try:
+        import imageio_ffmpeg
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if not exe or not os.path.exists(exe):
+            return 8.0
+        audio_bytes.seek(0)
+        data = audio_bytes.read()
+        audio_bytes.seek(0)
+        if not data or len(data) < 200:
+            return 8.0
+        td = tempfile.mkdtemp()
+        try:
+            p = os.path.join(td, "probe.mp3")
+            with open(p, "wb") as f:
+                f.write(data)
+            res = subprocess.run([exe, "-i", p], capture_output=True, text=True, errors="replace", timeout=10)
+            m = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", res.stderr)
+            if m:
+                h, mins, s = float(m.group(1)), float(m.group(2)), float(m.group(3))
+                return h * 3600 + mins * 60 + s
+        finally:
+            shutil.rmtree(td, ignore_errors=True)
+    except Exception:
+        pass
+    return 8.0
+
 # === Video Render Engine (FFmpeg H.264 / 48kHz Stereo AAC) ====================
 
 def render_frames_to_mp4(frames: list, audio_bytes=None, fps: int = 10) -> io.BytesIO | None:
@@ -138,7 +168,7 @@ def render_frames_to_mp4(frames: list, audio_bytes=None, fps: int = 10) -> io.By
                 with open(audio_path, "wb") as f:
                     f.write(data)
 
-                # Probe audio duration to ensure video does not cut off speech early
+                # Ensure frame count covers entire audio duration if deficit remains
                 probe_cmd = [exe, "-i", audio_path]
                 p_res = subprocess.run(probe_cmd, capture_output=True, text=True, errors="replace")
                 dur_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", p_res.stderr)
@@ -147,11 +177,10 @@ def render_frames_to_mp4(frames: list, audio_bytes=None, fps: int = 10) -> io.By
                     audio_dur = h * 3600 + m * 60 + s
                     needed_frames = int(math.ceil(audio_dur * fps))
                     if needed_frames > len(render_frames):
-                        # Seamlessly loop action frames (frames 35..) so video plays smoothly until speech finishes
-                        action_pool = render_frames[35:] if len(render_frames) > 40 else render_frames
+                        last_frame = render_frames[-1]
                         deficit = needed_frames - len(render_frames)
-                        for d_idx in range(deficit):
-                            render_frames.append(action_pool[d_idx % len(action_pool)])
+                        for _ in range(deficit):
+                            render_frames.append(last_frame)
 
         for idx, frame in enumerate(render_frames):
             frame.save(os.path.join(td, f"frame_{idx:04d}.png"), "PNG")
@@ -180,7 +209,7 @@ def render_frames_to_mp4(frames: list, audio_bytes=None, fps: int = 10) -> io.By
             out_path
         ])
 
-        res = subprocess.run(cmd, capture_output=True, timeout=40)
+        res = subprocess.run(cmd, capture_output=True, timeout=50)
         if res.returncode == 0 and os.path.exists(out_path):
             with open(out_path, "rb") as f:
                 buf = io.BytesIO(f.read())
@@ -314,7 +343,7 @@ def render_war_scene_frame(
     scale_name: str = "MAJOR WAR",
     domain: str = "SOVEREIGN CLASH"
 ) -> Image.Image:
-    """Scene 2: Armored divisions rolling into battle, rotating wheels/tracks, and fighter jets streaking across burning sky."""
+    """Scene 2: Long, continuous cinematic battle progression with multi-wave air sorties, advancing armor column, and artillery."""
     w, h = 640, 360
     im = Image.new("RGB", (w, h), (20, 10, 8))
     draw = ImageDraw.Draw(im)
@@ -330,19 +359,28 @@ def render_war_scene_frame(
         b = int(15 + frac * (20 - 15))
         draw.line([(0, y), (w, y)], fill=(r, g, b))
 
-    # Rising Smoke Plumes
-    for s_idx, (sx, sy_base) in enumerate([(120, 210), (320, 205), (510, 215)]):
-        for puff in range(8):
-            t_puff = (frame_idx * 0.8 + puff * 3) % 24
-            py = sy_base - t_puff * 6
-            px = sx + math.sin(t_puff * 0.5 + s_idx) * 14 + (puff * 2)
-            rad = int(8 + t_puff * 1.5)
-            alpha_col = int(max(0, 70 - t_puff * 2.5))
-            draw.ellipse([px - rad, py - rad, px + rad, py + rad], fill=(alpha_col, alpha_col - 5, alpha_col - 10))
+    # Continuous Rising Smoke Plumes
+    for s_idx, (sx, sy_base) in enumerate([(90, 210), (220, 205), (380, 212), (520, 208)]):
+        for puff in range(10):
+            t_puff = (frame_idx * 0.7 + puff * 3.5) % 35
+            py = sy_base - t_puff * 5.5
+            px = sx + math.sin(t_puff * 0.4 + s_idx * 1.5) * 16 + (puff * 1.8)
+            rad = int(7 + t_puff * 1.6)
+            alpha_col = int(max(0, 75 - t_puff * 2.1))
+            draw.ellipse([px - rad, py - rad, px + rad, py + rad], fill=(alpha_col, alpha_col - 4, alpha_col - 8))
 
     # Distant Mountains
     mountains = [(0, 210), (90, 175), (190, 205), (280, 165), (390, 210), (490, 170), (580, 205), (640, 185), (640, 220), (0, 220)]
     draw.polygon(mountains, fill=(45, 20, 16))
+
+    # Distant Artillery Flash on Ridge (fires periodically at frames 25, 70, 120, 165)
+    for art_f in [25, 70, 120, 165]:
+        if 0 <= frame_idx - art_f < 6:
+            decay = (frame_idx - art_f)
+            ax, ay = (280 if art_f % 2 == 0 else 490), (165 if art_f % 2 == 0 else 170)
+            a_rad = int(22 - decay * 3)
+            draw.ellipse([ax - a_rad, ay - a_rad, ax + a_rad, ay + a_rad], fill=(255, 240, 120))
+            draw.ellipse([ax - a_rad//2, ay - a_rad//2, ax + a_rad//2, ay + a_rad//2], fill=(255, 255, 255))
 
     # Scorched Ground
     for y in range(220, 360):
@@ -353,33 +391,71 @@ def render_war_scene_frame(
     for cx, cy, rx, ry in [(140, 245, 28, 7), (380, 255, 35, 9), (560, 248, 24, 6)]:
         draw.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=(22, 12, 8))
 
-    # Supersonic Fighter Jets
-    jet1_x = -80 + ((frame_idx * 22) % (w + 200))
-    jet1_y = 75 + math.sin(frame_idx * 0.2) * 8
-    jet2_x = jet1_x - 90
-    jet2_y = jet1_y + 35
+    # AIRCRAFT SORTIES IN PROGRESSIVE WAVES (No 5-second loop resets)
+    # Wave 1: Supersonic Fighters (enters at frame 0, exits by frame 45)
+    if 0 <= frame_idx <= 45:
+        j_prog = frame_idx * 19.0
+        jx1, jy1 = -80 + j_prog, 75 + math.sin(frame_idx * 0.25) * 8
+        jx2, jy2 = jx1 - 85, jy1 + 32
+        for jx, jy, scale_j in [(jx1, jy1, 1.0), (jx2, jy2, 0.75)]:
+            if -80 <= jx <= w + 80:
+                draw.polygon([(jx - 24 * scale_j, jy), (jx - 45 * scale_j, jy - 3), (jx - 55 * scale_j, jy), (jx - 45 * scale_j, jy + 3)], fill=(255, 140, 0))
+                draw.polygon([(jx - 24 * scale_j, jy), (jx - 38 * scale_j, jy - 2), (jx - 42 * scale_j, jy), (jx - 38 * scale_j, jy + 2)], fill=(255, 240, 120))
+                draw.polygon([(jx + 32 * scale_j, jy), (jx - 15 * scale_j, jy - 14 * scale_j), (jx - 24 * scale_j, jy - 6 * scale_j), (jx - 24 * scale_j, jy + 6 * scale_j), (jx - 15 * scale_j, jy + 14 * scale_j)], fill=(30, 35, 45), outline=(60, 70, 85))
+                draw.ellipse([jx + 5 * scale_j, jy - 3 * scale_j, jx + 18 * scale_j, jy + 3 * scale_j], fill=(130, 190, 230))
 
-    for jx, jy, scale_j in [(jet1_x, jet1_y, 1.0), (jet2_x, jet2_y, 0.75)]:
-        if -100 <= jx <= w + 100:
-            draw.polygon([(jx - 24 * scale_j, jy), (jx - 45 * scale_j, jy - 3), (jx - 55 * scale_j, jy), (jx - 45 * scale_j, jy + 3)], fill=(255, 140, 0))
-            draw.polygon([(jx - 24 * scale_j, jy), (jx - 38 * scale_j, jy - 2), (jx - 42 * scale_j, jy), (jx - 38 * scale_j, jy + 2)], fill=(255, 240, 120))
-            draw.polygon([
-                (jx + 32 * scale_j, jy),
-                (jx - 15 * scale_j, jy - 14 * scale_j),
-                (jx - 24 * scale_j, jy - 6 * scale_j),
-                (jx - 24 * scale_j, jy + 6 * scale_j),
-                (jx - 15 * scale_j, jy + 14 * scale_j)
-            ], fill=(30, 35, 45), outline=(60, 70, 85))
-            draw.ellipse([jx + 5 * scale_j, jy - 3 * scale_j, jx + 18 * scale_j, jy + 3 * scale_j], fill=(130, 190, 230))
+    # Wave 2: Rocket Barrage launching diagonally (frames 45 to 90)
+    if 45 <= frame_idx <= 90:
+        r_step = frame_idx - 45
+        for r_idx in range(4):
+            launch_t = r_step - r_idx * 7
+            if 0 <= launch_t <= 32:
+                rx = 180 + r_idx * 35 + launch_t * 12
+                ry = 230 - launch_t * 5.5
+                draw.line([(rx - launch_t * 12, 230), (rx, ry)], fill=(220, 220, 230), width=2)
+                draw.ellipse([rx - 2, ry - 2, rx + 4, ry + 2], fill=(255, 220, 80))
+                draw.polygon([(rx, ry), (rx - 12, ry + 3), (rx - 12, ry - 3)], fill=(255, 100, 0))
 
-    # Advancing Tanks
-    t1_x = -120 + ((frame_idx * 8) % (w + 260))
+    # Wave 3: Heavy Stealth Bomber with Escort (frames 85 to 155)
+    if 85 <= frame_idx <= 155:
+        b_step = frame_idx - 85
+        bx = -110 + b_step * 11.5
+        by = 60 + math.sin(b_step * 0.15) * 5
+        if -120 <= bx <= w + 120:
+            wing_poly = [
+                (bx + 40, by),
+                (bx - 30, by - 26),
+                (bx - 20, by - 12),
+                (bx - 45, by),
+                (bx - 20, by + 12),
+                (bx - 30, by + 26)
+            ]
+            draw.polygon(wing_poly, fill=(24, 28, 36), outline=(50, 60, 75))
+            draw.ellipse([bx - 25, by - 5, bx - 18, by - 2], fill=(255, 140, 0))
+            draw.ellipse([bx - 25, by + 2, bx - 18, by + 5], fill=(255, 140, 0))
+            fx = bx - 65
+            fy = by - 32
+            draw.polygon([(fx + 22, fy), (fx - 10, fy - 9), (fx - 15, fy), (fx - 10, fy + 9)], fill=(40, 48, 60))
+
+    # Wave 4: Late-phase supersonic sweep (frames 145+)
+    if frame_idx >= 145:
+        l_step = frame_idx - 145
+        lx = -70 + l_step * 21.0
+        ly = 85 + math.sin(l_step * 0.3) * 6
+        if -80 <= lx <= w + 80:
+            draw.polygon([(lx - 24, ly), (lx - 45, ly - 3), (lx - 55, ly), (lx - 45, ly + 3)], fill=(255, 140, 0))
+            draw.polygon([(lx + 32, ly), (lx - 15, ly - 14), (lx - 24, ly - 6), (lx - 24, ly + 6), (lx - 15, ly + 14)], fill=(30, 35, 45))
+
+    # ADVANCING ARMORED DIVISION (Continuous non-resetting progression)
+    t1_x = -100 + frame_idx * 3.3
     t1_y = 300
-    t2_x = t1_x - 180
+    t2_x = t1_x - 175
     t2_y = 265
+    t3_x = t1_x - 340
+    t3_y = 295
 
-    for tx, ty, sc, is_lead in [(t2_x, t2_y, 0.75, False), (t1_x, t1_y, 1.0, True)]:
-        if -150 <= tx <= w + 150:
+    for tx, ty, sc, is_lead in [(t3_x, t3_y, 0.9, False), (t2_x, t2_y, 0.75, False), (t1_x, t1_y, 1.0, True)]:
+        if -160 <= tx <= w + 160:
             tw, th = int(120 * sc), int(22 * sc)
             draw.rounded_rectangle([tx - tw//2, ty - th//2, tx + tw//2, ty + th//2], radius=int(8*sc), fill=(25, 25, 25), outline=(50, 50, 50), width=2)
             n_wheels = 5
@@ -389,7 +465,7 @@ def render_war_scene_frame(
                 wy = ty
                 wrad = int(7 * sc)
                 draw.ellipse([wx - wrad, wy - wrad, wx + wrad, wy + wrad], fill=(45, 45, 45), outline=(80, 80, 80))
-                rot = (frame_idx * 0.4)
+                rot = frame_idx * 0.35
                 spk_x = wx + math.cos(rot) * (wrad - 2)
                 spk_y = wy + math.sin(rot) * (wrad - 2)
                 draw.line([(wx, wy), (spk_x, spk_y)], fill=(160, 160, 160), width=1)
@@ -414,10 +490,12 @@ def render_war_scene_frame(
             bar_len = int(75 * sc)
             bar_y = tur_y + int(7 * sc)
             draw.line([(tx + tur_w//2 - 8*sc, bar_y), (tx + tur_w//2 + bar_len, bar_y)], fill=(45, 52, 40), width=int(5*sc))
-            if is_lead and (frame_idx % 12 < 3):
+
+            firing = any(0 <= frame_idx - fire_f < 4 for fire_f in [28, 75, 125, 175])
+            if is_lead and firing:
                 mf_x = tx + tur_w//2 + bar_len
-                draw.ellipse([mf_x - 8, bar_y - 10, mf_x + 18, bar_y + 10], fill=(255, 230, 80))
-                draw.polygon([(mf_x, bar_y - 4), (mf_x + 25, bar_y), (mf_x, bar_y + 4)], fill=(255, 120, 0))
+                draw.ellipse([mf_x - 8, bar_y - 10, mf_x + 22, bar_y + 10], fill=(255, 230, 80))
+                draw.polygon([(mf_x, bar_y - 5), (mf_x + 30, bar_y), (mf_x, bar_y + 5)], fill=(255, 120, 0))
 
     # Top HUD Banner
     draw.rectangle([0, 0, w, 38], fill=(15, 10, 12))
@@ -436,7 +514,7 @@ def render_surrender_scene_frame(
     loser_name: str,
     reparations: int = 0
 ) -> Image.Image:
-    """Scene 2: Gloomy dusk ruins, crumbling buildings, smoke, and a fluttering white truce flag on a flagpole."""
+    """Scene 2: Gloomy dusk ruins, crumbling buildings, smoke, and a fluttering white truce flag with continuous physics."""
     w, h = 640, 360
     im = Image.new("RGB", (w, h), (18, 18, 22))
     draw = ImageDraw.Draw(im)
@@ -479,10 +557,10 @@ def render_surrender_scene_frame(
     for rx, ry, rw, rh in [(70, 290, 110, 40), (280, 305, 140, 35), (490, 285, 130, 45)]:
         draw.ellipse([rx, ry, rx + rw, ry + rh], fill=(28, 26, 25))
 
-    # Drifting Ash Embers
-    for e_idx in range(25):
-        ex = (e_idx * 27 + frame_idx * 3) % w
-        ey = (e_idx * 13 - frame_idx * 2) % 320 + 20
+    # Continuous Upward Drifting Ash Embers
+    for e_idx in range(30):
+        ex = (e_idx * 37 + frame_idx * 2.2) % w
+        ey = 330 - ((e_idx * 29 + frame_idx * 2.5) % 310)
         e_sz = (e_idx % 3) + 1
         e_col = (200, 200, 210) if e_idx % 4 != 0 else (255, 120, 40)
         draw.ellipse([ex, ey, ex + e_sz, ey + e_sz], fill=e_col)
@@ -503,8 +581,8 @@ def render_surrender_scene_frame(
 
     for step in range(0, flag_len + 1, 5):
         wx = px + 2 + step
-        wave1 = math.sin((frame_idx * 0.35) + (step * 0.06)) * 8
-        wave2 = math.cos((frame_idx * 0.25) + (step * 0.08)) * 4
+        wave1 = math.sin((frame_idx * 0.28) + (step * 0.05)) * 8
+        wave2 = math.cos((frame_idx * 0.17) + (step * 0.07)) * 4
         ty = py_top + 6 + (wave1 + wave2)
         by = ty + flag_h
         flag_top_pts.append((wx, ty))
@@ -515,8 +593,8 @@ def render_surrender_scene_frame(
 
     for step in range(15, flag_len - 10, 25):
         wx = px + 2 + step
-        w1 = math.sin((frame_idx * 0.35) + (step * 0.06)) * 8
-        w2 = math.cos((frame_idx * 0.25) + (step * 0.08)) * 4
+        w1 = math.sin((frame_idx * 0.28) + (step * 0.05)) * 8
+        w2 = math.cos((frame_idx * 0.17) + (step * 0.07)) * 4
         ty = py_top + 6 + (w1 + w2)
         draw.line([(wx, ty + 5), (wx + 8, ty + flag_h - 5)], fill=(215, 220, 230), width=3)
 
@@ -540,7 +618,7 @@ def render_treaty_scene_frame(
     country_b: str,
     alliance_name: str = "MUTUAL ALLIANCE"
 ) -> Image.Image:
-    """Scene 2: Radiant sunrise over open ocean waves, container cargo vessel and naval fleet sailing peacefully."""
+    """Scene 2: Radiant sunrise over open ocean waves, continuous maritime container convoy voyage."""
     w, h = 640, 360
     im = Image.new("RGB", (w, h), (15, 25, 45))
     draw = ImageDraw.Draw(im)
@@ -558,13 +636,14 @@ def render_treaty_scene_frame(
     for rad, col in [(90, (255, 240, 180)), (65, (255, 245, 200)), (42, (255, 255, 240))]:
         draw.ellipse([sx - rad, sy - rad, sx + rad, sy + rad], fill=col)
 
-    # Gliding Seabirds
+    # Gliding Seabirds across dawn sky
     for b_idx in range(4):
-        bx = 80 + b_idx * 110 + (frame_idx * 4) % (w + 100)
-        by = 65 + b_idx * 18 + math.sin(frame_idx * 0.3 + b_idx) * 6
-        flap = math.sin(frame_idx * 0.6 + b_idx) * 4
-        draw.line([(bx - 8, by - flap), (bx, by)], fill=(255, 255, 255), width=2)
-        draw.line([(bx, by), (bx + 8, by - flap)], fill=(255, 255, 255), width=2)
+        bx = 40 + b_idx * 140 + frame_idx * 3.2
+        by = 65 + b_idx * 18 + math.sin(frame_idx * 0.25 + b_idx) * 6
+        flap = math.sin(frame_idx * 0.5 + b_idx) * 4
+        if -20 <= bx <= w + 20:
+            draw.line([(bx - 8, by - flap), (bx, by)], fill=(255, 255, 255), width=2)
+            draw.line([(bx, by), (bx + 8, by - flap)], fill=(255, 255, 255), width=2)
 
     # Ocean Horizon & Water
     for y in range(195, 360):
@@ -580,52 +659,53 @@ def render_treaty_scene_frame(
     for wy in range(215, 360, 18):
         wave_pts = []
         for wx in range(0, w + 10, 15):
-            w_disp = math.sin(frame_idx * 0.3 + wx * 0.04 + wy * 0.1) * 4
+            w_disp = math.sin(frame_idx * 0.25 + wx * 0.04 + wy * 0.1) * 4
             wave_pts.append((wx, wy + w_disp))
         draw.line(wave_pts, fill=(56, 189, 248), width=2)
         for wx, wdisp_y in wave_pts[::3]:
             if (wx + wy) % 5 == 0:
                 draw.ellipse([wx - 3, wdisp_y - 2, wx + 5, wdisp_y + 2], fill=(255, 255, 255))
 
-    # Lead Cargo Vessel
-    ship_x = -160 + ((frame_idx * 7) % (w + 320))
+    # Continuous Maritime Voyage (No modulo wrapping)
+    ship_x = -160 + frame_idx * 2.6
     ship_y = 280
     hw, hh = 220, 36
 
-    draw.polygon([
-        (ship_x - hw//2, ship_y),
-        (ship_x + hw//2 - 25, ship_y),
-        (ship_x + hw//2 + 20, ship_y - hh),
-        (ship_x - hw//2, ship_y - hh)
-    ], fill=(185, 28, 28), outline=(130, 15, 15), width=2)
-    draw.line([(ship_x - hw//2, ship_y - 6), (ship_x + hw//2, ship_y - 6)], fill=(30, 41, 59), width=4)
+    if -240 <= ship_x <= w + 240:
+        draw.polygon([
+            (ship_x - hw//2, ship_y),
+            (ship_x + hw//2 - 25, ship_y),
+            (ship_x + hw//2 + 20, ship_y - hh),
+            (ship_x - hw//2, ship_y - hh)
+        ], fill=(185, 28, 28), outline=(130, 15, 15), width=2)
+        draw.line([(ship_x - hw//2, ship_y - 6), (ship_x + hw//2, ship_y - 6)], fill=(30, 41, 59), width=4)
 
-    cont_colors = [(37, 99, 235), (22, 163, 74), (202, 138, 4), (220, 38, 38), (147, 51, 234)]
-    stack_x_start = ship_x - hw//2 + 25
-    for c_col_idx in range(6):
-        cx = stack_x_start + c_col_idx * 22
-        for c_tier in range(3):
-            cy = ship_y - hh - (c_tier + 1) * 14
-            col = cont_colors[(c_col_idx + c_tier * 2) % len(cont_colors)]
-            draw.rectangle([cx, cy, cx + 20, cy + 12], fill=col, outline=(30, 30, 30), width=1)
+        cont_colors = [(37, 99, 235), (22, 163, 74), (202, 138, 4), (220, 38, 38), (147, 51, 234)]
+        stack_x_start = ship_x - hw//2 + 25
+        for c_col_idx in range(6):
+            cx = stack_x_start + c_col_idx * 22
+            for c_tier in range(3):
+                cy = ship_y - hh - (c_tier + 1) * 14
+                col = cont_colors[(c_col_idx + c_tier * 2) % len(cont_colors)]
+                draw.rectangle([cx, cy, cx + 20, cy + 12], fill=col, outline=(30, 30, 30), width=1)
 
-    bx = ship_x - hw//2 + 10
-    by = ship_y - hh - 52
-    draw.rectangle([bx, by, bx + 22, by + 52], fill=(245, 245, 250), outline=(180, 180, 190), width=1)
-    draw.rectangle([bx + 4, by + 8, bx + 18, by + 16], fill=(30, 41, 59))
-    draw.line([(bx + 11, by), (bx + 11, by - 14)], fill=(120, 120, 130), width=2)
-    draw.line([(bx + 5, by - 10), (bx + 17, by - 10)], fill=(120, 120, 130), width=2)
+        bx = ship_x - hw//2 + 10
+        by = ship_y - hh - 52
+        draw.rectangle([bx, by, bx + 22, by + 52], fill=(245, 245, 250), outline=(180, 180, 190), width=1)
+        draw.rectangle([bx + 4, by + 8, bx + 18, by + 16], fill=(30, 41, 59))
+        draw.line([(bx + 11, by), (bx + 11, by - 14)], fill=(120, 120, 130), width=2)
+        draw.line([(bx + 5, by - 10), (bx + 17, by - 10)], fill=(120, 120, 130), width=2)
 
-    bow_x = ship_x + hw//2 + 18
-    bow_y = ship_y - 4
-    for sp_idx in range(8):
-        sp_x = bow_x + sp_idx * 4 + math.sin(frame_idx * 0.5 + sp_idx) * 4
-        sp_y = bow_y - (sp_idx % 3) * 3
-        draw.ellipse([sp_x - 3, sp_y - 3, sp_x + 5, sp_y + 3], fill=(255, 255, 255))
-    draw.line([(ship_x - hw//2 - 40, ship_y), (ship_x - hw//2, ship_y)], fill=(240, 250, 255), width=3)
+        bow_x = ship_x + hw//2 + 18
+        bow_y = ship_y - 4
+        for sp_idx in range(8):
+            sp_x = bow_x + sp_idx * 4 + math.sin(frame_idx * 0.4 + sp_idx) * 4
+            sp_y = bow_y - (sp_idx % 3) * 3
+            draw.ellipse([sp_x - 3, sp_y - 3, sp_x + 5, sp_y + 3], fill=(255, 255, 255))
+        draw.line([(ship_x - hw//2 - 40, ship_y), (ship_x - hw//2, ship_y)], fill=(240, 250, 255), width=3)
 
     # Naval Escort Cutter
-    esc_x = ship_x + 190
+    esc_x = ship_x + 210
     esc_y = 235
     if -100 <= esc_x <= w + 100:
         draw.polygon([(esc_x - 45, esc_y), (esc_x + 35, esc_y), (esc_x + 50, esc_y - 14), (esc_x - 45, esc_y - 14)], fill=(71, 85, 105))
@@ -674,14 +754,14 @@ def render_ruler_scene_frame(
     draw.polygon([(tx - 35, ty + 30), (tx - 40, ty - 65), (tx, ty - 90), (tx + 40, ty - 65), (tx + 35, ty + 30)], fill=(202, 138, 4), outline=(245, 158, 11), width=3)
     draw.rectangle([tx - 26, ty - 45, tx + 26, ty + 10], fill=(153, 27, 27))
 
-    crown_y = ty - 40 + math.sin(frame_idx * 0.3) * 4
+    crown_y = ty - 40 + math.sin(frame_idx * 0.25) * 4
     draw.polygon([(tx - 20, crown_y), (tx - 24, crown_y - 18), (tx - 10, crown_y - 8), (tx, crown_y - 22), (tx + 10, crown_y - 8), (tx + 24, crown_y - 18), (tx + 20, crown_y)], fill=(234, 179, 8), outline=(255, 235, 120))
     for jx in [tx - 16, tx, tx + 16]:
         draw.ellipse([jx - 2, crown_y - 4, jx + 2, crown_y], fill=(220, 38, 38))
 
-    for d_idx in range(20):
-        dx = (d_idx * 31 + frame_idx * 2) % w
-        dy = (d_idx * 17 - frame_idx * 3) % 220 + 40
+    for d_idx in range(25):
+        dx = (d_idx * 31 + frame_idx * 1.8) % w
+        dy = 240 - ((d_idx * 17 + frame_idx * 2.2) % 200)
         draw.ellipse([dx, dy, dx + 2, dy + 2], fill=(255, 230, 100))
 
     draw.rectangle([0, 0, w, 38], fill=(18, 12, 28))
@@ -757,7 +837,7 @@ def render_commander_scene_frame(
     draw.line([(rx - rad, ry), (rx + rad, ry)], fill=(10, 120, 80), width=1)
     draw.line([(rx, ry - rad), (rx, ry + rad)], fill=(10, 120, 80), width=1)
 
-    sweep_ang = frame_idx * 0.15
+    sweep_ang = frame_idx * 0.12
     beam_x = rx + math.cos(sweep_ang) * rad
     beam_y = ry + math.sin(sweep_ang) * rad
     draw.line([(rx, ry), (beam_x, beam_y)], fill=(52, 211, 153), width=3)
@@ -774,161 +854,215 @@ def render_commander_scene_frame(
 
     return im
 
-# === Frame Generation Pipelines ===============================================
+# === Frame Generation Pipelines (Long, unbroken animations) ===================
 
-def create_war_declared_frames(attacker_name: str, defender_name: str, scale: str, domain: str = "TERRESTRIAL") -> list[Image.Image]:
+def create_war_declared_frames(attacker_name: str, defender_name: str, scale: str, domain: str = "TERRESTRIAL", total_frames: int = 80) -> list[Image.Image]:
     c_atk = clean_tactical_text(attacker_name)
     c_dfn = clean_tactical_text(defender_name)
     frames = []
-    # 35 frames Parchment Executive Order
-    for i in range(35):
-        frames.append(render_order_parchment_frame(i, 35, "DECLARATION OF WAR", c_atk, c_dfn, f"Operation {scale.upper()} Mobilization", "DECREED", (185, 28, 28)))
-    # 45 frames Advancing Armored Division & Air Squadrons
-    for i in range(45):
-        frames.append(render_war_scene_frame(i, 45, c_atk, c_dfn, scale, domain))
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        frames.append(render_order_parchment_frame(i, parchment_count, "DECLARATION OF WAR", c_atk, c_dfn, f"Operation {scale.upper()} Mobilization", "DECREED", (185, 28, 28)))
+    for i in range(action_count):
+        frames.append(render_war_scene_frame(i, action_count, c_atk, c_dfn, scale, domain))
     return frames
 
 def create_war_declared_gif(attacker_name: str, attacker_flag: str, defender_name: str, defender_flag: str, scale: str = "border") -> io.BytesIO:
-    frames = create_war_declared_frames(attacker_name, defender_name, scale)
+    frames = create_war_declared_frames(attacker_name, defender_name, scale, total_frames=45)
     buf = io.BytesIO()
     frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
     buf.seek(0)
     return buf
 
 def create_war_declared_media(attacker_name: str, defender_name: str, scale: str, domain: str = "TERRESTRIAL", audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
-    frames = create_war_declared_frames(attacker_name, defender_name, scale, domain)
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    frames = create_war_declared_frames(attacker_name, defender_name, scale, domain, total_frames=target_frames)
     gif_buf = io.BytesIO()
-    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_frames = frames[::2] if len(frames) > 50 else frames
+    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
     gif_buf.seek(0)
     mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
     return gif_buf, mp4_buf
 
-def create_war_ended_frames(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0) -> list[Image.Image]:
+def create_war_ended_frames(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0, total_frames: int = 80) -> list[Image.Image]:
     c_win = clean_tactical_text(winner_name)
     c_los = clean_tactical_text(loser_name)
     frames = []
-    # 35 frames Instrument of Surrender Parchment
-    for i in range(35):
-        frames.append(render_order_parchment_frame(i, 35, "INSTRUMENT OF SURRENDER", c_win, c_los, "Unconditional Capitulation & Truce", "SURRENDERED", (100, 110, 125)))
-    # 45 frames War Ruins with White Truce Flag
-    for i in range(45):
-        frames.append(render_surrender_scene_frame(i, 45, c_win, c_los, reparations))
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        frames.append(render_order_parchment_frame(i, parchment_count, "INSTRUMENT OF SURRENDER", c_win, c_los, "Unconditional Capitulation & Truce", "SURRENDERED", (100, 110, 125)))
+    for i in range(action_count):
+        frames.append(render_surrender_scene_frame(i, action_count, c_win, c_los, reparations))
     return frames
 
 def create_war_ended_gif(winner_name: str, winner_flag: str, loser_name: str, loser_flag: str, reason: str = "VICTORY", reparations: int = 0) -> io.BytesIO:
-    frames = create_war_ended_frames(winner_name, loser_name, reason, reparations)
+    frames = create_war_ended_frames(winner_name, loser_name, reason, reparations, total_frames=45)
     buf = io.BytesIO()
     frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
     buf.seek(0)
     return buf
 
 def create_war_ended_media(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
-    frames = create_war_ended_frames(winner_name, loser_name, reason, reparations)
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    frames = create_war_ended_frames(winner_name, loser_name, reason, reparations, total_frames=target_frames)
     gif_buf = io.BytesIO()
-    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_frames = frames[::2] if len(frames) > 50 else frames
+    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
     gif_buf.seek(0)
     mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
     return gif_buf, mp4_buf
 
-def create_country_allied_frames(country_a_name: str, country_b_name: str, alliance_name: str) -> list[Image.Image]:
+def create_country_allied_frames(country_a_name: str, country_b_name: str, alliance_name: str, total_frames: int = 80) -> list[Image.Image]:
     c_a = clean_tactical_text(country_a_name)
     c_b = clean_tactical_text(country_b_name)
     c_al = clean_tactical_text(alliance_name)
     frames = []
-    # 35 frames Treaty of Alliance Parchment
-    for i in range(35):
-        frames.append(render_order_parchment_frame(i, 35, "TREATY OF ALLIANCE", c_a, c_b, f"{c_al} Mutual Security", "ALLIED", (14, 165, 233)))
-    # 45 frames Ocean Sunrise & Maritime Container Vessel
-    for i in range(45):
-        frames.append(render_treaty_scene_frame(i, 45, c_a, c_b, c_al))
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        frames.append(render_order_parchment_frame(i, parchment_count, "TREATY OF ALLIANCE", c_a, c_b, f"{c_al} Mutual Security", "ALLIED", (14, 165, 233)))
+    for i in range(action_count):
+        frames.append(render_treaty_scene_frame(i, action_count, c_a, c_b, c_al))
     return frames
 
 def create_country_allied_gif(country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str) -> io.BytesIO:
-    frames = create_country_allied_frames(country_a_name, country_b_name, alliance_name)
+    frames = create_country_allied_frames(country_a_name, country_b_name, alliance_name, total_frames=45)
     buf = io.BytesIO()
     frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
     buf.seek(0)
     return buf
 
 def create_country_allied_media(country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
-    frames = create_country_allied_frames(country_a_name, country_b_name, alliance_name)
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    frames = create_country_allied_frames(country_a_name, country_b_name, alliance_name, total_frames=target_frames)
     gif_buf = io.BytesIO()
-    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_frames = frames[::2] if len(frames) > 50 else frames
+    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
     gif_buf.seek(0)
     mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
     return gif_buf, mp4_buf
 
-def create_new_ruler_frames(country_name: str, ruler_name: str) -> list[Image.Image]:
+def create_new_ruler_frames(country_name: str, ruler_name: str, total_frames: int = 80) -> list[Image.Image]:
     c_c = clean_tactical_text(country_name)
     c_r = clean_tactical_text(ruler_name)
     frames = []
-    for i in range(35):
-        frames.append(render_order_parchment_frame(i, 35, "CORONATION DECREE", c_c, c_r, "Supreme Sovereign Authority", "IMPERIAL", (202, 138, 4)))
-    for i in range(45):
-        frames.append(render_ruler_scene_frame(i, 45, c_c, c_r))
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        frames.append(render_order_parchment_frame(i, parchment_count, "CORONATION DECREE", c_c, c_r, "Supreme Sovereign Authority", "IMPERIAL", (202, 138, 4)))
+    for i in range(action_count):
+        frames.append(render_ruler_scene_frame(i, action_count, c_c, c_r))
     return frames
 
 def create_new_ruler_gif(country_name: str, country_flag: str, ruler_name: str) -> io.BytesIO:
-    frames = create_new_ruler_frames(country_name, ruler_name)
+    frames = create_new_ruler_frames(country_name, ruler_name, total_frames=45)
     buf = io.BytesIO()
     frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
     buf.seek(0)
     return buf
 
 def create_new_ruler_media(country_name: str, country_flag: str, ruler_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
-    frames = create_new_ruler_frames(country_name, ruler_name)
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    frames = create_new_ruler_frames(country_name, ruler_name, total_frames=target_frames)
     gif_buf = io.BytesIO()
-    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_frames = frames[::2] if len(frames) > 50 else frames
+    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
     gif_buf.seek(0)
     mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
     return gif_buf, mp4_buf
 
-def create_country_fallen_frames(loser_name: str, winner_name: str) -> list[Image.Image]:
+def create_country_fallen_frames(loser_name: str, winner_name: str, total_frames: int = 80) -> list[Image.Image]:
     c_los = clean_tactical_text(loser_name)
     c_win = clean_tactical_text(winner_name)
     frames = []
-    for i in range(35):
-        frames.append(render_order_parchment_frame(i, 35, "DECREE OF ANNEXATION", c_win, c_los, "National Sovereignty Extinguished", "ANNEXED", (153, 27, 27)))
-    for i in range(45):
-        frames.append(render_fallen_scene_frame(i, 45, c_los, c_win))
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        frames.append(render_order_parchment_frame(i, parchment_count, "DECREE OF ANNEXATION", c_win, c_los, "National Sovereignty Extinguished", "ANNEXED", (153, 27, 27)))
+    for i in range(action_count):
+        frames.append(render_fallen_scene_frame(i, action_count, c_los, c_win))
     return frames
 
 def create_country_fallen_gif(country_name: str, country_flag: str, conqueror_name: str, conqueror_flag: str) -> io.BytesIO:
-    frames = create_country_fallen_frames(country_name, conqueror_name)
+    frames = create_country_fallen_frames(country_name, conqueror_name, total_frames=45)
     buf = io.BytesIO()
     frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
     buf.seek(0)
     return buf
 
 def create_country_fallen_media(loser_name: str, winner_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
-    frames = create_country_fallen_frames(loser_name, winner_name)
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    frames = create_country_fallen_frames(loser_name, winner_name, total_frames=target_frames)
     gif_buf = io.BytesIO()
-    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_frames = frames[::2] if len(frames) > 50 else frames
+    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
     gif_buf.seek(0)
     mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
     return gif_buf, mp4_buf
 
-def create_new_commander_frames(country_name: str, commander_name: str) -> list[Image.Image]:
+def create_new_commander_frames(country_name: str, commander_name: str, total_frames: int = 80) -> list[Image.Image]:
     c_c = clean_tactical_text(country_name)
     c_m = clean_tactical_text(commander_name)
     frames = []
-    for i in range(35):
-        frames.append(render_order_parchment_frame(i, 35, "MILITARY COMMISSION", c_c, c_m, "Armed Forces High Command", "APPOINTED", (71, 85, 105)))
-    for i in range(45):
-        frames.append(render_commander_scene_frame(i, 45, c_c, c_m))
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        frames.append(render_order_parchment_frame(i, parchment_count, "MILITARY COMMISSION", c_c, c_m, "Armed Forces High Command", "APPOINTED", (71, 85, 105)))
+    for i in range(action_count):
+        frames.append(render_commander_scene_frame(i, action_count, c_c, c_m))
     return frames
 
 def create_new_commander_gif(country_name: str, country_flag: str, commander_name: str) -> io.BytesIO:
-    frames = create_new_commander_frames(country_name, commander_name)
+    frames = create_new_commander_frames(country_name, commander_name, total_frames=45)
     buf = io.BytesIO()
     frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
     buf.seek(0)
     return buf
 
 def create_new_commander_media(country_name: str, country_flag: str, commander_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
-    frames = create_new_commander_frames(country_name, commander_name)
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    frames = create_new_commander_frames(country_name, commander_name, total_frames=target_frames)
     gif_buf = io.BytesIO()
-    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_frames = frames[::2] if len(frames) > 50 else frames
+    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
     gif_buf.seek(0)
     mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
     return gif_buf, mp4_buf
