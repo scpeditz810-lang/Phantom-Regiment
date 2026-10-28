@@ -545,6 +545,30 @@ class GitBackup:
                 raise sqlite3.DatabaseError(f"online backup failed integrity_check: {result}")
             os.replace(temporary_path, snapshot_path)
             return snapshot_path
+        except sqlite3.OperationalError as op_err:
+            if any(k in str(op_err).lower() for k in ("full", "disk", "unable", "lock")):
+                self.cleanup_space()
+                try:
+                    from bot import emergency_disk_clean
+                    emergency_disk_clean()
+                except Exception:
+                    pass
+                if os.path.exists(temporary_path):
+                    try:
+                        os.remove(temporary_path)
+                    except OSError:
+                        pass
+                source = sqlite3.connect(self.db_path, timeout=30.0)
+                destination = sqlite3.connect(temporary_path, timeout=30.0)
+                try:
+                    source.backup(destination, pages=256, sleep=0.05)
+                    destination.commit()
+                finally:
+                    destination.close()
+                    source.close()
+                os.replace(temporary_path, snapshot_path)
+                return snapshot_path
+            raise
         finally:
             try:
                 if os.path.exists(temporary_path):

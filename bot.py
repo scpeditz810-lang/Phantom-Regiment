@@ -49,13 +49,30 @@ load_dotenv()
 
 
 def emergency_disk_clean():
-    """Purge orphaned packs, duplicate code trees in data/, and test databases to reclaim disk space immediately."""
+    """Purge pip cache, orphaned packs, duplicate code trees, and test databases to reclaim disk space immediately."""
     try:
-        import shutil, stat, subprocess
+        import os, shutil, stat, subprocess
         base_dir = os.path.dirname(os.path.abspath(__file__))
         data_dir = os.path.join(base_dir, "data")
 
-        # 1. Remove duplicate code trees mistakenly cloned into data/
+        # 1. Purge pip caches to free 50-150MB of downloaded wheels
+        for cd in [os.path.expanduser("~/.cache"), os.path.join(base_dir, ".cache"), "/home/container/.cache", "/tmp"]:
+            if os.path.isdir(cd):
+                for item in os.listdir(cd):
+                    p = os.path.join(cd, item)
+                    try:
+                        if os.path.isdir(p):
+                            shutil.rmtree(p, ignore_errors=True)
+                        else:
+                            os.remove(p)
+                    except Exception:
+                        pass
+        try:
+            subprocess.run(["pip", "cache", "purge"], timeout=10, capture_output=True)
+        except Exception:
+            pass
+
+        # 2. Remove duplicate code trees mistakenly cloned into data/
         for sub in ("assets", "cogs", "utils", "web", "__pycache__"):
             target = os.path.join(data_dir, sub)
             if os.path.isdir(target):
@@ -65,7 +82,7 @@ def emergency_disk_clean():
                 except Exception:
                     pass
 
-        # 2. Remove orphaned tmp_pack_* files in all .git folders
+        # 3. Remove orphaned tmp_pack_* files in all .git folders
         for git_candidate in (os.path.join(base_dir, ".git"), os.path.join(data_dir, ".git")):
             pack_dir = os.path.join(git_candidate, "objects", "pack")
             if os.path.exists(pack_dir):
@@ -79,11 +96,17 @@ def emergency_disk_clean():
                         except Exception:
                             pass
 
-        # 3. Remove leftover test databases, salvage files, and temp files
+        # 4. Remove leftover test databases, salvage files, and temp files
         for root_scan in (base_dir, data_dir):
             if os.path.exists(root_scan):
                 for f in os.listdir(root_scan):
-                    if f.startswith("test_") or f.endswith(".tmp") or f.endswith(".recovery-candidate") or f.endswith(".salvaged"):
+                    if (
+                        f.startswith("test_")
+                        or f.endswith(".tmp")
+                        or f.endswith(".recovery-candidate")
+                        or f.endswith(".salvaged")
+                        or f.endswith(".reindexed")
+                    ):
                         fp = os.path.join(root_scan, f)
                         if os.path.isfile(fp):
                             try:
@@ -92,7 +115,7 @@ def emergency_disk_clean():
                             except Exception:
                                 pass
 
-        # 4. Prune git reflogs if .git is heavy
+        # 5. Prune git reflogs if data/.git is heavy
         if os.path.isdir(os.path.join(data_dir, ".git")):
             try:
                 subprocess.run(["git", "reflog", "expire", "--expire=now", "--all"], cwd=data_dir, timeout=10, capture_output=True)
