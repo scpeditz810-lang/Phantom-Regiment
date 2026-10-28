@@ -84,6 +84,21 @@ def _earth_claim_fingerprint():
     return hashlib.sha256(f"{secret}|{address}".encode("utf-8")).hexdigest()
 
 
+def trigger_backup_push():
+    """Trigger background auto-backup to GitHub when state changes occur on the web."""
+    try:
+        from bot import backup
+        if backup:
+            loop = current_app.config.get("ASYNC_LOOP") or current_app.config.get("BOT_LOOP")
+            if loop and loop.is_running():
+                asyncio.run_coroutine_threadsafe(asyncio.to_thread(backup.push_if_changed), loop)
+            else:
+                import threading
+                threading.Thread(target=backup.push_if_changed, daemon=True).start()
+    except Exception as e:
+        print(f"⚠️ Web trigger backup notice: {e}", flush=True)
+
+
 
 @api_bp.route("/stocks")
 
@@ -2151,6 +2166,44 @@ def api_earth_buy():
 
     econ = run_async(db.get_global_economy(user_id))
 
+    if success:
+        trigger_backup_push()
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+            loop = current_app.config.get("ASYNC_LOOP") or current_app.config.get("BOT_LOOP")
+            if bot and loop:
+                c = run_async(db.get_earth_country(country_id))
+                u_name = session.get("user", {}).get("username", "A Sovereign Leader")
+                if c:
+                    from utils.earth_anim import create_new_ruler_gif, generate_ruler_speech
+                    gif_buf = create_new_ruler_gif(c["name"], c["flag"], u_name)
+                    speech_buf = generate_ruler_speech(c["name"], u_name)
+                    async def _post_claim_news():
+                        ch = bot.get_channel(1565082328550613083)
+                        if ch:
+                            import discord
+                            files = [
+                                discord.File(gif_buf, filename="new_ruler.gif"),
+                                discord.File(speech_buf, filename="voice_announcement.mp3")
+                            ]
+                            desc = (
+                                f"🏛️ **Sovereign Nation:** {c['flag']} **{c['name']}**\n"
+                                f"👑 **Supreme Sovereign / President:** `{u_name}` (<@{user_id}>)\n"
+                                f"💰 **Medals Offered:** `{max(0, offer):,} Medals` (0% Tax)\n\n"
+                                f"🌐 A new era begins! Citizens and foreign allies can pledge allegiance or propose ocean trade lanes."
+                            )
+                            embed = discord.Embed(
+                                title="👑 NEW SUPREME RULER INAUGURATED // SOVEREIGNTY ASSUMED",
+                                description=desc,
+                                color=0xF59E0B
+                            )
+                            embed.set_image(url="attachment://new_ruler.gif")
+                            embed.set_footer(text="Virtual Earth 3D Geopolitics Simulation • Voice Dispatch Attached 🎙️")
+                            await ch.send(content="<@&1565081681495597217> 🚨 **SOVEREIGN DISPATCH: NEW RULER HAS EMERGED!**", embed=embed, files=files)
+                    asyncio.run_coroutine_threadsafe(_post_claim_news(), loop)
+        except Exception as b_err:
+            print(f"⚠️ Web claim broadcast notice: {b_err}", flush=True)
+
     return jsonify({
 
         "success": success,
@@ -2637,6 +2690,44 @@ def api_earth_war_declare():
 
     success, msg, war_data = run_async(db.declare_earth_war(user_id, attacker_country_id, defender_country_id, scale, domain, equipment))
 
+    if success and war_data:
+        trigger_backup_push()
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+            loop = current_app.config.get("ASYNC_LOOP") or current_app.config.get("BOT_LOOP")
+            if bot and loop:
+                atk_c = run_async(db.get_earth_country(attacker_country_id))
+                dfn_c = run_async(db.get_earth_country(defender_country_id))
+                if atk_c and dfn_c:
+                    from utils.earth_anim import create_war_declared_gif, generate_war_speech
+                    gif_buf = create_war_declared_gif(atk_c["name"], atk_c["flag"], dfn_c["name"], dfn_c["flag"], scale, domain)
+                    speech_buf = generate_war_speech(atk_c["name"], dfn_c["name"], scale)
+                    async def _post_war_news():
+                        ch = bot.get_channel(1565082328550613083)
+                        if ch:
+                            import discord
+                            files = [
+                                discord.File(gif_buf, filename="war_declared.gif"),
+                                discord.File(speech_buf, filename="voice_announcement.mp3")
+                            ]
+                            desc = (
+                                f"⚔️ **Aggressor State:** {atk_c['flag']} **{atk_c['name']}**\n"
+                                f"🛡️ **Target State:** {dfn_c['flag']} **{dfn_c['name']}**\n"
+                                f"🌐 **Conflict Scale:** `{scale.upper()}` ({war_data.get('duration_hours', 24)} Hours)\n\n"
+                                f"⚠️ Active combat hostilities are declared from the Web 3D War Room!"
+                            )
+                            embed = discord.Embed(
+                                title="🚨 SOVEREIGN WAR COMMENCED // ACTIVE FRONTLINE",
+                                description=desc,
+                                color=0xDC2626
+                            )
+                            embed.set_image(url="attachment://war_declared.gif")
+                            embed.set_footer(text="Virtual Earth 3D Geopolitics Simulation • Voice Dispatch Attached 🎙️")
+                            await ch.send(content="<@&1565081681495597217> 🚨 **SOVEREIGN DISPATCH: WAR DECLARED!**", embed=embed, files=files)
+                    asyncio.run_coroutine_threadsafe(_post_war_news(), loop)
+        except Exception as w_err:
+            print(f"⚠️ Web war broadcast notice: {w_err}", flush=True)
+
     return jsonify({
 
         "success": success,
@@ -2685,7 +2776,8 @@ def api_earth_war_surrender():
         try:
             bot = current_app.config.get("DISCORD_BOT")
             if bot:
-                from utils.earth_anim import create_war_ended_gif, generate_tactical_audio
+                trigger_backup_push()
+                from utils.earth_anim import create_war_ended_gif, generate_tactical_audio, generate_surrender_speech
                 winner = res_data.get("winner_country", {})
                 loser = res_data.get("loser_country", {})
                 gif_buf = create_war_ended_gif(
@@ -2696,7 +2788,7 @@ def api_earth_war_surrender():
                     reason="SURRENDER CONCEDED",
                     reparations=res_data.get("loot", 0)
                 )
-                loop = current_app.config.get("ASYNC_LOOP")
+                loop = current_app.config.get("ASYNC_LOOP") or current_app.config.get("BOT_LOOP")
                 news_channel_id = 1565082328550613083
                 news_role_id = 1565081681495597217
                 async def _post_news():
@@ -2706,10 +2798,14 @@ def api_earth_war_surrender():
                         d_file = discord.File(gif_buf, filename="war_surrender.gif")
                         files_to_send = [d_file]
                         try:
-                            audio_buf = generate_tactical_audio("surrender_conceded")
-                            files_to_send.append(discord.File(audio_buf, filename="surrender_chime.wav"))
+                            speech_buf = generate_surrender_speech(winner.get("name", "Victor"), loser.get("name", "Conceded"), res_data.get("loot", 0))
+                            files_to_send.append(discord.File(speech_buf, filename="voice_announcement.mp3"))
                         except Exception:
-                            pass
+                            try:
+                                audio_buf = generate_tactical_audio("surrender_conceded")
+                                files_to_send.append(discord.File(audio_buf, filename="surrender_chime.wav"))
+                            except Exception:
+                                pass
                         desc = (
                             f"**Victor:** {winner.get('flag', '')} **{winner.get('name', 'Victor')}**\n"
                             f"**Surrendering Nation:** {loser.get('flag', '')} **{loser.get('name', 'Conceded')}**\n"

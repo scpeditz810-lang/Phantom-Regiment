@@ -5,6 +5,7 @@ Commands for national governance, cabinet appointments, infrastructure, espionag
 """
 
 import time
+import asyncio
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -13,7 +14,13 @@ from utils.earth_anim import (
     create_war_ended_gif,
     create_new_ruler_gif,
     create_country_fallen_gif,
-    generate_tactical_audio
+    generate_tactical_audio,
+    generate_spoken_narration,
+    generate_ruler_speech,
+    generate_war_speech,
+    generate_surrender_speech,
+    generate_victory_speech,
+    generate_country_fallen_speech
 )
 
 from utils.constants import (
@@ -111,7 +118,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         if self.earth_war_checker.is_running():
             self.earth_war_checker.cancel()
 
-    async def broadcast_news(self, title: str, description: str, gif_bytes, filename: str = "news.gif", color: int = 0x38BDF8, audio_type: str = None):
+    async def broadcast_news(self, title: str, description: str, gif_bytes, filename: str = "news.gif", color: int = 0x38BDF8, audio_type: str = None, speech_text: str = None, speech_buf = None):
         try:
             channel = self.bot.get_channel(EARTH_NEWS_CHANNEL_ID)
             if not channel:
@@ -119,7 +126,20 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             if channel:
                 gif_bytes.seek(0)
                 files_to_send = [discord.File(gif_bytes, filename=filename)]
-                if audio_type:
+                
+                # Check for Spoken Voice Narration (TTS)
+                if speech_buf:
+                    speech_buf.seek(0)
+                    files_to_send.append(discord.File(speech_buf, filename="voice_announcement.mp3"))
+                elif speech_text:
+                    try:
+                        voice_buf = await asyncio.to_thread(generate_spoken_narration, speech_text)
+                        if voice_buf:
+                            voice_buf.seek(0)
+                            files_to_send.append(discord.File(voice_buf, filename="voice_announcement.mp3"))
+                    except Exception as speech_err:
+                        print(f"⚠️ Speech synthesis notice: {speech_err}", flush=True)
+                elif audio_type:
                     try:
                         audio_buf = generate_tactical_audio(audio_type)
                         files_to_send.append(discord.File(audio_buf, filename=f"{audio_type}.wav"))
@@ -132,7 +152,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                     color=color
                 )
                 embed.set_image(url=f"attachment://{filename}")
-                embed.set_footer(text="Virtual Earth 3D Geopolitics Simulation • Audio Dispatch Attached")
+                embed.set_footer(text="Virtual Earth 3D Geopolitics Simulation • Voice Dispatch Attached 🎙️")
                 await channel.send(
                     content=f"<@&{EARTH_NEWS_ROLE_ID}> 🚨 **SOVEREIGN GEOPOLITICAL DISPATCH!**",
                     embed=embed,
@@ -175,7 +195,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                             gif_bytes=gif,
                             filename="war_ended.gif",
                             color=0x10B981,
-                            audio_type="victory_fanfare"
+                            audio_type="victory_fanfare",
+                            speech_text=f"Conflict victory announcement. Frontline operations have concluded. {winner_name} has achieved decisive victory over {loser_name}."
                         )
         except Exception as e:
             print(f"⚠️ Error checking concluded earth wars: {e}", flush=True)
@@ -688,7 +709,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 gif_bytes=news_gif,
                 filename="war_news.gif",
                 color=0xDC2626,
-                audio_type="war_siren"
+                audio_type="war_siren",
+                speech_text=f"Emergency tactical alert. Hostilities have commenced on Virtual Earth. {c['name']} has declared war against {tgt['name']}."
             )
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
@@ -782,7 +804,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             gif_bytes=news_gif,
             filename="ruler_news.gif",
             color=0xF59E0B,
-            audio_type="ruler_inauguration"
+            audio_type="ruler_inauguration",
+            speech_text=f"Attention citizens of the world. A new sovereign ruler has emerged! President {interaction.user.display_name} has assumed the supreme leadership of {c['name']}."
         )
 
 
@@ -1322,8 +1345,31 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             gif_bytes=news_gif,
             filename="surrender_news.gif",
             color=0xEAB308,
-            audio_type="surrender_conceded"
+            audio_type="surrender_conceded",
+            speech_text=f"Geopolitical armistice dispatch. The war has concluded. {loser.get('name', 'Conceded')} has formally conceded and surrendered to {winner.get('name', 'Victor')}."
         )
+
+
+    @earth_group.command(name="announce", description="Broadcast a presidential spoken news bulletin to the global Earth News channel.")
+    @app_commands.describe(speech="Text bulletin to be spoken by the international news narrator")
+    async def earth_announce(self, interaction: discord.Interaction, speech: str):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        country_name = c["name"] if c else "Global Council"
+        flag = c["flag"] if c else "🌐"
+        
+        narration = f"Presidential decree from {country_name}. {speech}"
+        gif = create_new_ruler_gif(country_name, flag, interaction.user.display_name)
+        
+        await self.broadcast_news(
+            title=f"🎙️ GLOBAL PRESIDENTIAL BROADCAST // {flag} {country_name.upper()}",
+            description=f"🏛️ **Sovereign Authority:** {flag} **{country_name}**\n👑 **Speaker:** {interaction.user.mention} (`{interaction.user.display_name}`)\n📢 **Bulletin:** *\"{speech}\"*",
+            gif_bytes=gif,
+            filename="presidential_announcement.gif",
+            color=0x38BDF8,
+            speech_text=narration
+        )
+        await interaction.followup.send(f"✅ Dispatched broadcast with spoken voice narration to <#{EARTH_NEWS_CHANNEL_ID}>!")
 
 
 async def setup(bot: commands.Bot):

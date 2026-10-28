@@ -36,7 +36,8 @@ class GitBackup:
 
     @staticmethod
     def is_render() -> bool:
-        """Return True if running inside cloud container (Render, Bot-Hosting, Koyeb, Docker, etc.)."""
+        """Return True if running inside cloud container (Render, Bot-Hosting, Koyeb, Docker, etc.)
+        or if explicitly enabled or if GitHub backup credentials are provided."""
         return bool(
             os.environ.get("RENDER")
             or os.environ.get("IS_RENDER")
@@ -47,6 +48,9 @@ class GitBackup:
             or os.path.exists("/home/container")
             or os.path.exists("/.dockerenv")
             or os.environ.get("CLOUD_HOSTED") == "1"
+            or os.environ.get("AUTO_BACKUP") == "1"
+            or os.environ.get("ENABLE_GIT_BACKUP") == "1"
+            or (os.environ.get("GITHUB_TOKEN") and os.environ.get("GITHUB_REPO"))
         )
 
     # ── public ──────────────────────────────────────────────────────────────
@@ -73,7 +77,7 @@ class GitBackup:
             shutil.rmtree(tmp, ignore_errors=True)
             try:
                 self._run([
-                    "git", "clone", "--depth", "200", "--single-branch",
+                    "git", "clone", "--depth", "5", "--single-branch",
                     "--branch", "main", auth_url, tmp
                 ])
 
@@ -215,14 +219,14 @@ class GitBackup:
                 elif os.path.exists(local_snapshot):
                     os.remove(local_snapshot)
                 shutil.copy2(remote_db, self.db_path)
-                for item in os.listdir(tmp):
-                    if item == os.path.basename(self.db_path):
-                        continue
+                # Only keep .git and git config metadata; never clone code into data/
+                for item in (".git", ".gitattributes", ".gitignore"):
                     src = os.path.join(tmp, item)
                     dst = os.path.join(self.repo_dir, item)
-                    if not os.path.exists(dst):
+                    if os.path.exists(src) and not os.path.exists(dst):
                         os.rename(src, dst)
                 shutil.rmtree(tmp, ignore_errors=True)
+                self.cleanup_space()
                 print("✅  Latest database snapshot restored from backup repo.", flush=True)
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, sqlite3.DatabaseError) as exc:
                 shutil.rmtree(tmp, ignore_errors=True)
@@ -369,20 +373,65 @@ class GitBackup:
         except Exception:
             pass
 
+    def cleanup_space(self):
+        """Prune temporary packs, test files, and duplicate directories to strictly conserve container disk space."""
+        try:
+            # Clean accidental code directories inside repo_dir
+            for item in ("assets", "cogs", "utils", "web", "__pycache__"):
+                p = os.path.join(self.repo_dir, item)
+                if os.path.isdir(p):
+                    shutil.rmtree(p, ignore_errors=True)
+
+            # Clean temporary files
+            for f in os.listdir(self.repo_dir):
+                if f.startswith("test_") or f.endswith(".tmp") or f.endswith(".py"):
+                    try:
+                        os.remove(os.path.join(self.repo_dir, f))
+                    except Exception:
+                        pass
+
+            # Clean orphaned tmp_pack_* files in git directory
+            for gdir in (os.path.join(self.repo_dir, ".git"), ".git"):
+                pack_dir = os.path.join(gdir, "objects", "pack")
+                if os.path.exists(pack_dir):
+                    import stat
+                    for pf in os.listdir(pack_dir):
+                        if pf.startswith("tmp_pack"):
+                            pfp = os.path.join(pack_dir, pf)
+                            try:
+                                os.chmod(pfp, stat.S_IWRITE)
+                                os.remove(pfp)
+                            except Exception:
+                                pass
+
+            self._run(["git", "gc", "--auto", "--quiet"], cwd=self.repo_dir, check=False)
+        except Exception as e:
+            print(f"⚠️ Git cleanup notice: {e}", flush=True)
+
     def push_if_changed(self) -> bool:
         """Commit a consistent SQLite online-backup snapshot to GitHub."""
         with self._push_lock:
             return self._push_snapshot_if_changed()
 
     def _push_snapshot_if_changed(self) -> bool:
-        if not self.is_render() or not self._enabled:
+        token = os.environ.get("GITHUB_TOKEN", "").strip()
+        repo = os.environ.get("GITHUB_REPO", "").strip()
+        if not token or not repo:
             return False
+
+        if not self._enabled:
+            if os.path.exists(self.db_path) and os.path.getsize(self.db_path) > 1000:
+                self._enabled = True
+            else:
+                return False
 
         current = self._file_hash()
         if current == self._last_hash:
             return False
 
+        auth_url = repo.replace("https://", f"https://{token}@")
         try:
+            self._run(["git", "remote", "set-url", "origin", auth_url], cwd=self.repo_dir, check=False)
             snapshot = self._write_snapshot()
             self._run(["git", "add", self.snapshot_name], cwd=self.repo_dir)
             status = self._run(

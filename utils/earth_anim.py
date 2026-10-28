@@ -10,9 +10,17 @@ for Virtual Earth geopolitics:
 
 import io
 import math
+import re
 import struct
+import urllib.parse
 import wave
+import requests
 from PIL import Image, ImageDraw, ImageFont
+
+try:
+    from gtts import gTTS
+except ImportError:
+    gTTS = None
 
 def _get_font(size: int = 18):
     try:
@@ -84,6 +92,111 @@ def generate_tactical_audio(sound_type: str = "war_siren", duration: float = 3.5
             
     buf.seek(0)
     return buf
+
+
+
+# ── Spoken Voice Narration (Text-to-Speech) Engine ─────────────────────────────
+
+def clean_for_speech(text: str) -> str:
+    """Sanitize text by removing Discord emojis, mentions, links, and markdown for crisp speech."""
+    if not text:
+        return ""
+    text = re.sub(r'<a?:\w+:\d+>', '', text)
+    text = re.sub(r'<[@#]&?(\d+)>', '', text)
+    text = re.sub(r'https?://\S+', '', text)
+    text = re.sub(r'[*_~`#|>]', '', text)
+    text = re.sub(r'[^\w\s.,!?:;\-\'"]+', ' ', text)
+    return ' '.join(text.split())
+
+def generate_spoken_narration(text: str, tld: str = "co.uk") -> io.BytesIO:
+    """Generate high-definition spoken broadcast narration (.mp3) from text using keyless TTS."""
+    cleaned = clean_for_speech(text)
+    if not cleaned:
+        cleaned = "Attention citizens. Geopolitical status update on the world stage."
+
+    buf = io.BytesIO()
+
+    # Primary: gTTS
+    if gTTS is not None:
+        try:
+            tts = gTTS(text=cleaned, lang='en', tld=tld)
+            tts.write_to_fp(buf)
+            buf.seek(0)
+            if len(buf.getvalue()) > 500:
+                return buf
+        except Exception as e:
+            print(f"⚠️ gTTS synthesis notice: {e}, attempting direct HTTP fallback...", flush=True)
+
+    # Secondary: direct Google Translate TTS stream
+    try:
+        encoded_query = urllib.parse.quote_plus(cleaned[:300])
+        url = f"https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en-GB&q={encoded_query}"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200 and len(resp.content) > 500:
+            buf = io.BytesIO(resp.content)
+            buf.seek(0)
+            return buf
+    except Exception as e2:
+        print(f"⚠️ Direct TTS synthesis notice: {e2}", flush=True)
+
+    # Fallback to tactical audio if network TTS is completely unavailable
+    return generate_tactical_audio("surrender_conceded")
+
+def generate_ruler_speech(country_name: str, ruler_name: str) -> io.BytesIO:
+    """Generate spoken voice announcement for a newly emerged sovereign ruler."""
+    c_clean = clean_for_speech(country_name)
+    r_clean = clean_for_speech(ruler_name)
+    script = (
+        f"Attention citizens of the world. A new sovereign ruler has emerged! "
+        f"President {r_clean} has assumed the supreme leadership of {c_clean}. "
+        f"National defense command and imperial authority are now established."
+    )
+    return generate_spoken_narration(script, tld="co.uk")
+
+def generate_war_speech(attacker_name: str, defender_name: str, scale: str = "border") -> io.BytesIO:
+    """Generate spoken voice announcement for a declaration of war."""
+    atk = clean_for_speech(attacker_name)
+    dfn = clean_for_speech(defender_name)
+    scl = clean_for_speech(scale)
+    script = (
+        f"Emergency tactical alert. Hostilities have commenced on Virtual Earth. "
+        f"{atk} has officially declared a {scl} campaign of war against {dfn}. "
+        f"Frontline divisions and battle groups are deployed for combat."
+    )
+    return generate_spoken_narration(script, tld="co.uk")
+
+def generate_surrender_speech(winner_name: str, loser_name: str, reparations: int = 0) -> io.BytesIO:
+    """Generate spoken voice announcement for a formal war concession and surrender."""
+    win = clean_for_speech(winner_name)
+    los = clean_for_speech(loser_name)
+    script = (
+        f"Geopolitical armistice dispatch. The war has concluded. "
+        f"{los} has formally conceded and surrendered to {win}. "
+        f"Frontline combat ceases immediately, and reparations are enforced."
+    )
+    return generate_spoken_narration(script, tld="co.uk")
+
+def generate_victory_speech(winner_name: str, loser_name: str) -> io.BytesIO:
+    """Generate spoken voice announcement for a decisive campaign victory."""
+    win = clean_for_speech(winner_name)
+    los = clean_for_speech(loser_name)
+    script = (
+        f"Conflict victory announcement. Frontline operations have concluded. "
+        f"{win} has achieved a decisive victory over {los}. "
+        f"Sovereignty and territorial dominance are enforced."
+    )
+    return generate_spoken_narration(script, tld="co.uk")
+
+def generate_country_fallen_speech(country_name: str, conqueror_name: str) -> io.BytesIO:
+    """Generate spoken voice announcement for a fallen sovereign state / annexation."""
+    cntry = clean_for_speech(country_name)
+    conq = clean_for_speech(conqueror_name)
+    script = (
+        f"Emergency global alert. A sovereign capital has fallen! "
+        f"{cntry} has collapsed and been annexed into the imperial dominion of {conq}."
+    )
+    return generate_spoken_narration(script, tld="co.uk")
 
 # ── Animated Tactical Visual Cards ─────────────────────────────────────────────
 

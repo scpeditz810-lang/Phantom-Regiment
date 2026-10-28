@@ -61,11 +61,21 @@ class Database:
 
 
 
-        self._db = await aiosqlite.connect(self.db_path, timeout=20.0)
+        self._db = await aiosqlite.connect(self.db_path, timeout=30.0)
 
         self._db.row_factory = aiosqlite.Row
 
-
+        # Performance, RAM temporary storage, and strict disk conservation PRAGMAs
+        await self._db.execute("PRAGMA journal_mode = WAL;")
+        await self._db.execute("PRAGMA synchronous = NORMAL;")
+        await self._db.execute("PRAGMA temp_store = MEMORY;")
+        await self._db.execute("PRAGMA wal_autocheckpoint = 100;")
+        await self._db.execute("PRAGMA busy_timeout = 30000;")
+        await self._db.execute("PRAGMA cache_size = -32000;")
+        try:
+            await self._db.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        except Exception:
+            pass
 
         await self._db.executescript("""
 
