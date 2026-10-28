@@ -150,6 +150,23 @@ async def _bg_broadcast_war_declared(attacker_country_id: int, defender_country_
             aggressor_mention=agg_label
         )
 
+async def _bg_broadcast_surrender(winner_name: str, winner_flag: str, loser_name: str, loser_flag: str, loot: int = 0, annexed: bool = False, username: str = None):
+    bot = current_app.config.get("DISCORD_BOT")
+    if not bot:
+        return
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog:
+        conceded_str = f"**{username}**" if username else None
+        await earth_cog.broadcast_surrender_news(
+            winner_name=winner_name,
+            winner_flag=winner_flag,
+            loser_name=loser_name,
+            loser_flag=loser_flag,
+            loot=loot,
+            annexed=annexed,
+            conceded_by=conceded_str
+        )
+
 
 
 @api_bp.route("/stocks")
@@ -2773,53 +2790,18 @@ def api_earth_war_surrender():
     
     # Broadcast to Discord Earth News Channel if bot is attached
     if success and res_data:
-        try:
-            bot = current_app.config.get("DISCORD_BOT")
-            if bot:
-                from utils.earth_anim import create_war_ended_gif, generate_tactical_audio
-                winner = res_data.get("winner_country", {})
-                loser = res_data.get("loser_country", {})
-                gif_buf = create_war_ended_gif(
-                    winner_name=winner.get("name", "Victor"),
-                    winner_flag=winner.get("flag", "👑"),
-                    loser_name=loser.get("name", "Defeated"),
-                    loser_flag=loser.get("flag", "🏳️"),
-                    reason="SURRENDER CONCEDED",
-                    reparations=res_data.get("loot", 0)
-                )
-                loop = current_app.config.get("ASYNC_LOOP")
-                news_channel_id = 1565082328550613083
-                news_role_id = 1565081681495597217
-                async def _post_news():
-                    ch = bot.get_channel(news_channel_id)
-                    if ch:
-                        import discord
-                        d_file = discord.File(gif_buf, filename="war_surrender.gif")
-                        files_to_send = [d_file]
-                        try:
-                            audio_buf = generate_tactical_audio("surrender_conceded")
-                            files_to_send.append(discord.File(audio_buf, filename="surrender_chime.wav"))
-                        except Exception:
-                            pass
-                        desc = (
-                            f"**Victor:** {winner.get('flag', '')} **{winner.get('name', 'Victor')}**\n"
-                            f"**Surrendering Nation:** {loser.get('flag', '')} **{loser.get('name', 'Conceded')}**\n"
-                            f"💰 **Indemnity Paid:** `+{res_data.get('loot', 0):,} Medals`\n"
-                            f"🌐 **Annexation:** {'Yes, annexed into imperial territory!' if res_data.get('annexed') else 'Sovereignty retained; war ended.'}\n\n"
-                            f"🕊️ Frontlines have been disengaged and active battle hostilities cease immediately."
-                        )
-                        embed = discord.Embed(
-                            title="🏳️ WAR CONCLUDED // FORMAL SURRENDER ACCEPTED",
-                            description=desc,
-                            color=0xEAB308
-                        )
-                        embed.set_image(url="attachment://war_surrender.gif")
-                        embed.set_footer(text="Virtual Earth 3D Geopolitics Telemetry")
-                        await ch.send(content=f"<@&{news_role_id}> 🚨 **SOVEREIGN DISPATCH: WAR CONCLUDED VIA SURRENDER!**", embed=embed, files=files_to_send)
-                if loop:
-                    asyncio.run_coroutine_threadsafe(_post_news(), loop)
-        except Exception as e:
-            print(f"⚠️ Failed to broadcast surrender news: {e}")
+        winner = res_data.get("winner_country", {})
+        loser = res_data.get("loser_country", {})
+        u_name = session.get("user", {}).get("username")
+        dispatch_discord_coro(_bg_broadcast_surrender(
+            winner_name=winner.get("name", "Victor"),
+            winner_flag=winner.get("flag", "👑"),
+            loser_name=loser.get("name", "Defeated"),
+            loser_flag=loser.get("flag", "🏳️"),
+            loot=res_data.get("loot", 0),
+            annexed=bool(res_data.get("annexed", False)),
+            username=u_name
+        ))
 
     return jsonify({
         "success": success,

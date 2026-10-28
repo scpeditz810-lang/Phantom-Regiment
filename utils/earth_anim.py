@@ -101,86 +101,194 @@ def generate_tactical_audio(sound_type: str = "war_siren", duration: float = 3.5
     buf.seek(0)
     return buf
 
-# ── Animated Tactical Visual Cards ─────────────────────────────────────────────
+# ── Animated Tactical Visual Cards & Video Pipeline ────────────────────────────
+
+import re
+
+def clean_tactical_text(text: str) -> str:
+    """Strip Unicode emojis and flag characters that render as boxes in Pillow."""
+    if not text:
+        return ""
+    clean = re.sub(r'[\U00010000-\U0010ffff]', '', text)
+    clean = re.sub(r'[\u2600-\u27bf\u2300-\u23ff\u2b50-\u2b55]', '', clean)
+    return clean.strip()
+
+def render_frames_to_mp4(frames: list, audio_bytes=None, fps: int = 10) -> io.BytesIO | None:
+    """Render Pillow frames and optional audio into an H.264 MP4 video buffer."""
+    import tempfile, subprocess, os, shutil
+    try:
+        import imageio_ffmpeg
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if not exe or not os.path.exists(exe):
+            return None
+    except Exception:
+        return None
+
+    td = tempfile.mkdtemp()
+    try:
+        for idx, frame in enumerate(frames):
+            frame.save(os.path.join(td, f"frame_{idx:04d}.png"), "PNG")
+
+        out_path = os.path.join(td, "out.mp4")
+        cmd = [
+            exe, "-y",
+            "-stream_loop", "-1",
+            "-framerate", str(fps),
+            "-i", os.path.join(td, "frame_%04d.png")
+        ]
+
+        if audio_bytes is not None:
+            audio_bytes.seek(0)
+            data = audio_bytes.read()
+            if len(data) > 0:
+                audio_path = os.path.join(td, "audio.mp3")
+                with open(audio_path, "wb") as f:
+                    f.write(data)
+                cmd.extend([
+                    "-i", audio_path,
+                    "-c:a", "aac",
+                    "-b:a", "128k",
+                    "-shortest"
+                ])
+
+        cmd.extend([
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            out_path
+        ])
+
+        res = subprocess.run(cmd, capture_output=True, timeout=25)
+        if res.returncode == 0 and os.path.exists(out_path):
+            with open(out_path, "rb") as f:
+                buf = io.BytesIO(f.read())
+            buf.seek(0)
+            return buf
+    except Exception as e:
+        print(f"⚠️ MP4 render notice: {e}", flush=True)
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+    return None
+
+def create_war_declared_frames(atk_name: str, dfn_name: str, scale: str, domain: str) -> list[Image.Image]:
+    w, h = 640, 240
+    font_title = _get_font(18)
+    font_bold = _get_font(17)
+    font_sub = _get_font(12)
+
+    c_atk = clean_tactical_text(atk_name)
+    c_dfn = clean_tactical_text(dfn_name)
+
+    frames = []
+    num_frames = 20
+    for i in range(num_frames):
+        im = Image.new("RGB", (w, h), (18, 10, 15))
+        draw = ImageDraw.Draw(im)
+
+        # Pulsing crimson warning border
+        glow = int(180 + 75 * math.sin(i * (math.pi / 10.0)))
+        draw.rectangle([(0, 0), (w, 5)], fill=(glow, 28, 28))
+        draw.rectangle([(0, h - 5), (w, h)], fill=(glow, 28, 28))
+
+        # Moving horizontal scanner line
+        scan_y = int((i / float(num_frames)) * h)
+        draw.line([(0, scan_y), (w, scan_y)], fill=(239, 68, 68), width=2)
+
+        # Header
+        hdr = "WAR DECLARED // HOSTILITIES COMMENCED"
+        bbox = draw.textbbox((0, 0), hdr, font=font_title)
+        draw.text(((w - bbox[2]) // 2, 20), hdr, fill=(239, 68, 68), font=font_title)
+
+        # Combatants
+        draw.text((40, 68), f"[AGGRESSOR]  {c_atk}", fill=(248, 113, 113), font=font_bold)
+        draw.text((40, 108), f"[TARGET]     {c_dfn}", fill=(56, 189, 248), font=font_bold)
+
+        # Campaign details
+        draw.text((40, 150), f"[CAMPAIGN]   DOMAIN: {domain.upper()}  |  SCALE: {scale.upper()}", fill=(148, 163, 184), font=font_sub)
+        draw.text((40, 180), "[STATUS]     ARMORED DIVISIONS CLASHING ON FRONTLINE", fill=(245, 158, 11), font=font_sub)
+
+        # Alert pulse indicator
+        draw.ellipse([(w - 35, 18), (w - 20, 33)], fill=(220, 38, 38) if i % 4 < 2 else (80, 20, 20))
+        frames.append(im)
+    return frames
 
 def create_war_declared_gif(atk_name: str, atk_flag: str, dfn_name: str, dfn_flag: str, scale: str, domain: str) -> io.BytesIO:
-    w, h = 640, 220
-    font_title = _get_font(22)
-    font_bold = _get_font(18)
-    font_sub = _get_font(13)
-    
-    frames = []
-    num_frames = 10
-    for i in range(num_frames):
-        bg_val = 14 + int(i * 1.5)
-        im = Image.new("RGB", (w, h), (bg_val, bg_val + 5, bg_val + 15))
-        draw = ImageDraw.Draw(im)
-        
-        # Red warning borders
-        draw.rectangle([(0, 0), (w, 5)], fill=(220, 38, 38))
-        draw.rectangle([(0, h - 5), (w, h)], fill=(220, 38, 38))
-        
-        # Moving scanner line
-        scan_y = int((i / num_frames) * h)
-        draw.line([(0, scan_y), (w, scan_y)], fill=(239, 68, 68), width=2)
-        
-        # Header title
-        title_text = "🚨 WAR DECLARED // HOSTILITIES COMMENCED 🚨"
-        draw.text((w // 2 - 200, 18), title_text, fill=(239, 68, 68), font=font_title)
-        
-        # Attacker vs Defender
-        draw.text((40, 68), f"⚔️ {atk_flag} {atk_name}", fill=(255, 255, 255), font=font_bold)
-        draw.text((w // 2 - 18, 68), "VS", fill=(245, 158, 11), font=font_bold)
-        draw.text((w // 2 + 50, 68), f"🛡️ {dfn_flag} {dfn_name}", fill=(255, 255, 255), font=font_bold)
-        
-        # Sub details
-        domain_str = f"🌐 CAMPAIGN: {domain.upper()}  |  SCALE: {scale.upper()}"
-        draw.text((40, 120), domain_str, fill=(148, 163, 184), font=font_sub)
-        draw.text((40, 150), "⚡ TACTICAL COMMAND: Deploy armored divisions and air/naval support on Virtual Earth.", fill=(203, 213, 225), font=font_sub)
-        
-        # Pulse indicator
-        draw.ellipse([(w - 35, 18), (w - 20, 33)], fill=(220, 38, 38) if i % 2 == 0 else (120, 20, 20))
-        
-        frames.append(im)
-        
+    frames = create_war_declared_frames(atk_name, dfn_name, scale, domain)
     buf = io.BytesIO()
-    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=110, loop=0)
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
     buf.seek(0)
     return buf
 
-def create_war_ended_gif(winner_name: str, winner_flag: str, loser_name: str, loser_flag: str, reason: str = "VICTORY", reparations: int = 0) -> io.BytesIO:
-    w, h = 640, 220
-    font_title = _get_font(22)
-    font_bold = _get_font(18)
-    font_sub = _get_font(13)
-    
-    frames = []
-    num_frames = 10
-    is_surrender = "SURRENDER" in reason.upper()
-    
-    for i in range(num_frames):
-        im = Image.new("RGB", (w, h), (15, 23, 42))
-        draw = ImageDraw.Draw(im)
-        
-        border_color = (234, 179, 8) if is_surrender else (16, 185, 129)
-        draw.rectangle([(0, 0), (w, 5)], fill=border_color)
-        draw.rectangle([(0, h - 5), (w, h)], fill=border_color)
-        
-        header = f"🏳️ CONFLICT CONCLUDED // {reason.upper()} 🏆"
-        draw.text((w // 2 - 210, 18), header, fill=border_color, font=font_title)
-        
-        draw.text((40, 68), f"👑 VICTOR: {winner_flag} {winner_name}", fill=(56, 189, 248), font=font_bold)
-        draw.text((40, 105), f"🏳️ CONCEDED: {loser_flag} {loser_name}", fill=(148, 163, 184), font=font_bold)
-        
-        rep_text = f"💰 WAR INDEMNITY / REPARATIONS: +{reparations:,} Medals Plundered!" if reparations else "🕊️ TERRITORIAL INTEGRITY ENFORCED // FRONTS CLOSED"
-        draw.text((40, 150), rep_text, fill=(245, 158, 11), font=font_sub)
-        
-        frames.append(im)
-        
+def create_war_declared_media(atk_name: str, dfn_name: str, scale: str, domain: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+    frames = create_war_declared_frames(atk_name, dfn_name, scale, domain)
     buf = io.BytesIO()
-    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=120, loop=0)
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    return buf, mp4_buf
+
+def create_war_ended_frames(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0) -> list[Image.Image]:
+    w, h = 640, 240
+    font_title = _get_font(18)
+    font_bold = _get_font(17)
+    font_sub = _get_font(12)
+
+    c_win = clean_tactical_text(winner_name)
+    c_los = clean_tactical_text(loser_name)
+    is_surrender = "SURRENDER" in reason.upper()
+
+    frames = []
+    num_frames = 20
+    for i in range(num_frames):
+        im = Image.new("RGB", (w, h), (10, 16, 26))
+        draw = ImageDraw.Draw(im)
+
+        # Pulsing glowing tactical borders
+        glow = int(175 + 80 * math.sin(i * (math.pi / 10.0)))
+        border_col = (234, glow, 8) if is_surrender else (16, glow, 129)
+        draw.rectangle([(0, 0), (w, 5)], fill=border_col)
+        draw.rectangle([(0, h - 5), (w, h)], fill=border_col)
+
+        # Moving tactical laser scanline
+        scan_x = int((i / float(num_frames)) * w)
+        draw.line([(scan_x, 0), (scan_x, h)], fill=(56, 189, 248), width=2)
+
+        # Header title
+        header_text = f"CONFLICT CONCLUDED // {reason.upper()}"
+        bbox = draw.textbbox((0, 0), header_text, font=font_title)
+        hdr_x = max(20, (w - bbox[2]) // 2)
+        draw.text((hdr_x, 22), header_text, fill=border_col, font=font_title)
+
+        # Victor & Conceded blocks
+        draw.text((40, 68), f"[VICTOR]     {c_win}", fill=(56, 189, 248), font=font_bold)
+        draw.text((40, 108), f"[CONCEDED]   {c_los}", fill=(248, 113, 113), font=font_bold)
+
+        # Reparations / Indemnity
+        rep_text = f"[INDEMNITY]  +{reparations:,} Medals Plundered" if reparations else "[TERRITORY]  STATUS QUO ENFORCED"
+        draw.text((40, 150), rep_text, fill=(245, 158, 11), font=font_sub)
+        draw.text((40, 180), "[ARMISTICE]  ALL ACTIVE HOSTILITIES CEASED // BORDERS STABILIZED", fill=(148, 163, 184), font=font_sub)
+
+        # Animated status beacon
+        beacon_color = (234, 179, 8) if (i % 4 < 2) else (80, 60, 10)
+        draw.ellipse([(w - 35, 18), (w - 20, 33)], fill=beacon_color)
+
+        frames.append(im)
+    return frames
+
+def create_war_ended_gif(winner_name: str, winner_flag: str, loser_name: str, loser_flag: str, reason: str = "VICTORY", reparations: int = 0) -> io.BytesIO:
+    frames = create_war_ended_frames(winner_name, loser_name, reason, reparations)
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
     buf.seek(0)
     return buf
+
+def create_war_ended_media(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+    frames = create_war_ended_frames(winner_name, loser_name, reason, reparations)
+    gif_buf = io.BytesIO()
+    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_buf.seek(0)
+    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    return gif_buf, mp4_buf
 
 def create_new_ruler_gif(country_name: str, country_flag: str, ruler_name: str) -> io.BytesIO:
     w, h = 640, 220
@@ -210,118 +318,166 @@ def create_new_ruler_gif(country_name: str, country_flag: str, ruler_name: str) 
     buf.seek(0)
     return buf
 
-def create_country_fallen_gif(country_name: str, country_flag: str, conqueror_name: str, conqueror_flag: str) -> io.BytesIO:
-    w, h = 640, 220
-    font_title = _get_font(21)
-    font_bold = _get_font(18)
-    font_sub = _get_font(13)
-    
+def create_country_fallen_frames(loser_name: str, winner_name: str) -> list[Image.Image]:
+    w, h = 640, 240
+    font_title = _get_font(18)
+    font_bold = _get_font(17)
+    font_sub = _get_font(12)
+
+    c_los = clean_tactical_text(loser_name)
+    c_win = clean_tactical_text(winner_name)
+
     frames = []
-    num_frames = 10
+    num_frames = 20
     for i in range(num_frames):
         im = Image.new("RGB", (w, h), (25, 10, 10))
         draw = ImageDraw.Draw(im)
-        
-        draw.rectangle([(0, 0), (w, 6)], fill=(185, 28, 28))
-        draw.rectangle([(0, h - 6), (w, h)], fill=(185, 28, 28))
-        
-        draw.text((40, 18), "⚠️ SOVEREIGN CAPITAL FALLEN // ANNEXATION COMPLETE", fill=(239, 68, 68), font=font_title)
-        draw.text((40, 65), f"🏚️ Fallen State: {country_flag} {country_name}", fill=(148, 163, 184), font=font_bold)
-        draw.text((40, 105), f"⚔️ Conquered by Empire: {conqueror_flag} {conqueror_name}", fill=(245, 158, 11), font=font_bold)
-        draw.text((40, 155), "🌍 SOVEREIGNTY UPDATE: Territory has been annexed into the imperial dominion.", fill=(226, 232, 240), font=font_sub)
-        
-        frames.append(im)
-        
-    buf = io.BytesIO()
-    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=120, loop=0)
-    buf.seek(0)
-    return buf
 
-def create_country_allied_gif(country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str) -> io.BytesIO:
-    w, h = 640, 230
-    font_title = _get_font(21)
-    font_bold = _get_font(18)
-    font_sub = _get_font(13)
-    
-    frames = []
-    num_frames = 12
-    for i in range(num_frames):
-        im = Image.new("RGB", (w, h), (12, 24, 38))
-        draw = ImageDraw.Draw(im)
-        
-        # Dual-tone emerald and gold diplomatic borders
-        border_col = (16, 185, 129) if (i % 4 < 2) else (245, 158, 11)
-        draw.rectangle([(0, 0), (w, 5)], fill=border_col)
-        draw.rectangle([(0, h - 5), (w, h)], fill=border_col)
-        
-        # Title
-        pulse_g = int(190 + 50 * math.sin(i * math.pi / 6))
-        draw.text((35, 16), "🤝 STRATEGIC ALLIANCE RATIFIED // MUTUAL ACCORD", fill=(52, pulse_g, 153), font=font_title)
-        
-        # Alliance name banner
-        draw.text((35, 52), f"🏛️ COALITION TREATY: {alliance_name.upper()}", fill=(245, 158, 11), font=font_bold)
-        
-        # Two Allied Nations
-        draw.text((35, 88), f"🛡️ {country_a_flag} {country_a_name}", fill=(255, 255, 255), font=font_bold)
-        draw.text((w // 2 - 25, 88), "⮂ ALLIED ⮂", fill=(56, 189, 248), font=font_bold)
-        draw.text((w // 2 + 75, 88), f"🛡️ {country_b_flag} {country_b_name}", fill=(255, 255, 255), font=font_bold)
-        
-        # Strategic details
-        draw.text((35, 135), "⚡ COLLECTIVE DEFENSE: Mutual military protection active (+25 Defense Guarantee).", fill=(203, 213, 225), font=font_sub)
-        draw.text((35, 165), "🌐 GEOPOLITICAL ACCORD: Sovereign territorial integrity safeguarded under international treaty.", fill=(148, 163, 184), font=font_sub)
-        
-        # Pulse indicator in top right
-        pulse_r = int(120 + 90 * math.sin(i * math.pi / 6))
-        draw.ellipse([(w - 38, 16), (w - 22, 32)], fill=(16, pulse_r, 129))
-        
-        frames.append(im)
-        
-    buf = io.BytesIO()
-    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=110, loop=0)
-    buf.seek(0)
-    return buf
+        glow = int(180 + 75 * math.sin(i * (math.pi / 10.0)))
+        draw.rectangle([(0, 0), (w, 5)], fill=(glow, 28, 28))
+        draw.rectangle([(0, h - 5), (w, h)], fill=(glow, 28, 28))
 
-def create_new_commander_gif(country_name: str, country_flag: str, commander_name: str) -> io.BytesIO:
-    w, h = 640, 230
-    font_title = _get_font(21)
-    font_bold = _get_font(18)
-    font_sub = _get_font(13)
-    
-    frames = []
-    num_frames = 12
-    for i in range(num_frames):
-        im = Image.new("RGB", (w, h), (24, 18, 26))
-        draw = ImageDraw.Draw(im)
-        
-        # Crimson / tactical red military borders
-        draw.rectangle([(0, 0), (w, 5)], fill=(225, 29, 72))
-        draw.rectangle([(0, h - 5), (w, h)], fill=(225, 29, 72))
-        
-        # Moving tactical radar line
-        radar_x = int((i / num_frames) * w)
-        draw.line([(radar_x, 5), (radar_x, h - 5)], fill=(244, 63, 94), width=2)
-        
-        # Title
-        draw.text((35, 16), "⚔️ SUPREME MILITARY APPOINTMENT // HIGH COMMAND 🎖️", fill=(244, 63, 94), font=font_title)
-        
-        # Country & Commander
-        draw.text((35, 55), f"🏛️ {country_flag} {country_name}", fill=(255, 255, 255), font=font_bold)
-        draw.text((35, 92), f"⭐ Supreme Army Commander: {commander_name}", fill=(245, 158, 11), font=font_bold)
-        
-        # Tactical command authority
-        draw.text((35, 138), "🛡️ STRATEGIC ASSETS: Armored divisions, air superiority & naval fleets under direct command.", fill=(226, 232, 240), font=font_sub)
-        draw.text((35, 168), "⚡ DEFCON 1 READINESS: Territorial defense forces and warfront garrisons mobilized.", fill=(148, 163, 184), font=font_sub)
-        
-        # Star badge pulse
-        badge_col = (245, 158, 11) if i % 2 == 0 else (225, 29, 72)
-        draw.ellipse([(w - 40, 16), (w - 24, 32)], fill=badge_col)
-        
+        scan_y = int((i / float(num_frames)) * h)
+        draw.line([(0, scan_y), (w, scan_y)], fill=(220, 38, 38), width=2)
+
+        hdr = "SOVEREIGN CAPITAL FALLEN // ANNEXATION COMPLETE"
+        bbox = draw.textbbox((0, 0), hdr, font=font_title)
+        hdr_x = max(20, (w - bbox[2]) // 2)
+        draw.text((hdr_x, 22), hdr, fill=(239, 68, 68), font=font_title)
+
+        draw.text((40, 68), f"[FALLEN]     {c_los}", fill=(148, 163, 184), font=font_bold)
+        draw.text((40, 108), f"[CONQUEROR]  {c_win}", fill=(245, 158, 11), font=font_bold)
+
+        draw.text((40, 150), "[STATUS]     NATIONAL SOVEREIGNTY EXTINGUISHED", fill=(239, 68, 68), font=font_sub)
+        draw.text((40, 180), "[TERRITORY]  INTEGRATED DIRECTLY INTO IMPERIAL DOMINION", fill=(203, 213, 225), font=font_sub)
+
+        beacon_col = (220, 38, 38) if (i % 4 < 2) else (80, 20, 20)
+        draw.ellipse([(w - 35, 18), (w - 20, 33)], fill=beacon_col)
         frames.append(im)
-        
+    return frames
+
+def create_country_fallen_gif(country_name: str, country_flag: str, conqueror_name: str, conqueror_flag: str) -> io.BytesIO:
+    frames = create_country_fallen_frames(country_name, conqueror_name)
     buf = io.BytesIO()
     frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
     buf.seek(0)
     return buf
+
+def create_country_fallen_media(loser_name: str, winner_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+    frames = create_country_fallen_frames(loser_name, winner_name)
+    gif_buf = io.BytesIO()
+    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_buf.seek(0)
+    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    return gif_buf, mp4_buf
+
+def create_country_allied_frames(country_a_name: str, country_b_name: str, alliance_name: str) -> list[Image.Image]:
+    w, h = 640, 240
+    font_title = _get_font(18)
+    font_bold = _get_font(17)
+    font_sub = _get_font(12)
+
+    c_a = clean_tactical_text(country_a_name)
+    c_b = clean_tactical_text(country_b_name)
+    c_al = clean_tactical_text(alliance_name)
+
+    frames = []
+    num_frames = 20
+    for i in range(num_frames):
+        im = Image.new("RGB", (w, h), (10, 22, 20))
+        draw = ImageDraw.Draw(im)
+
+        glow = int(170 + 75 * math.sin(i * (math.pi / 10.0)))
+        border_col = (16, glow, 129)
+        draw.rectangle([(0, 0), (w, 5)], fill=border_col)
+        draw.rectangle([(0, h - 5), (w, h)], fill=border_col)
+
+        scan_x = int((i / float(num_frames)) * w)
+        draw.line([(scan_x, 0), (scan_x, h)], fill=(52, 211, 153), width=2)
+
+        hdr = f"STRATEGIC ALLIANCE RATIFIED // {c_al.upper()}"
+        bbox = draw.textbbox((0, 0), hdr, font=font_title)
+        hdr_x = max(20, (w - bbox[2]) // 2)
+        draw.text((hdr_x, 22), hdr, fill=(52, 211, 153), font=font_title)
+
+        draw.text((40, 68), f"[ALLIED]     {c_a}", fill=(255, 255, 255), font=font_bold)
+        draw.text((40, 108), f"[ALLIED]     {c_b}", fill=(255, 255, 255), font=font_bold)
+
+        draw.text((40, 150), "[DEFENSE]    COLLECTIVE SECURITY PACT ACTIVE (+25 DEFENSE)", fill=(245, 158, 11), font=font_sub)
+        draw.text((40, 180), "[INTEGRITY]  MUTUAL BORDERS & SOVEREIGNTY SAFEGUARDED", fill=(148, 163, 184), font=font_sub)
+
+        beacon_col = (16, 185, 129) if (i % 4 < 2) else (10, 80, 50)
+        draw.ellipse([(w - 35, 18), (w - 20, 33)], fill=beacon_col)
+        frames.append(im)
+    return frames
+
+def create_country_allied_gif(country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str) -> io.BytesIO:
+    frames = create_country_allied_frames(country_a_name, country_b_name, alliance_name)
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_country_allied_media(country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+    frames = create_country_allied_frames(country_a_name, country_b_name, alliance_name)
+    gif_buf = io.BytesIO()
+    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_buf.seek(0)
+    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    return gif_buf, mp4_buf
+
+def create_new_commander_frames(country_name: str, commander_name: str) -> list[Image.Image]:
+    w, h = 640, 240
+    font_title = _get_font(18)
+    font_bold = _get_font(17)
+    font_sub = _get_font(12)
+
+    c_c = clean_tactical_text(country_name)
+    c_m = clean_tactical_text(commander_name)
+
+    frames = []
+    num_frames = 20
+    for i in range(num_frames):
+        im = Image.new("RGB", (w, h), (24, 14, 20))
+        draw = ImageDraw.Draw(im)
+
+        glow = int(180 + 75 * math.sin(i * (math.pi / 10.0)))
+        draw.rectangle([(0, 0), (w, 5)], fill=(glow, 29, 72))
+        draw.rectangle([(0, h - 5), (w, h)], fill=(glow, 29, 72))
+
+        radar_x = int((i / float(num_frames)) * w)
+        draw.line([(radar_x, 5), (radar_x, h - 5)], fill=(244, 63, 94), width=2)
+
+        hdr = "SUPREME COMMAND APPOINTMENT // HIGH COMMAND"
+        bbox = draw.textbbox((0, 0), hdr, font=font_title)
+        hdr_x = max(20, (w - bbox[2]) // 2)
+        draw.text((hdr_x, 22), hdr, fill=(244, 63, 94), font=font_title)
+
+        draw.text((40, 68), f"[NATION]     {c_c}", fill=(255, 255, 255), font=font_bold)
+        draw.text((40, 108), f"[COMMANDER]  {c_m}", fill=(245, 158, 11), font=font_bold)
+
+        draw.text((40, 150), "[AUTHORITY]  ARMORED DIVISIONS & AIR SUPERIORITY UNDER COMMAND", fill=(226, 232, 240), font=font_sub)
+        draw.text((40, 180), "[READINESS]  DEFCON 1 PROTOCOLS ACTIVE // FRONTLINES MOBILIZED", fill=(148, 163, 184), font=font_sub)
+
+        badge_col = (245, 158, 11) if i % 4 < 2 else (225, 29, 72)
+        draw.ellipse([(w - 35, 18), (w - 20, 33)], fill=badge_col)
+        frames.append(im)
+    return frames
+
+def create_new_commander_gif(country_name: str, country_flag: str, commander_name: str) -> io.BytesIO:
+    frames = create_new_commander_frames(country_name, commander_name)
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_new_commander_media(country_name: str, country_flag: str, commander_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+    frames = create_new_commander_frames(country_name, commander_name)
+    gif_buf = io.BytesIO()
+    frames[0].save(gif_buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    gif_buf.seek(0)
+    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    return gif_buf, mp4_buf
 
 
 # ── Spoken Voice Narration (TTS) Engine ───────────────────────────────────────

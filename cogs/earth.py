@@ -10,11 +10,16 @@ from discord.ext import commands, tasks
 from discord import app_commands
 from utils.earth_anim import (
     create_war_declared_gif,
+    create_war_declared_media,
     create_war_ended_gif,
+    create_war_ended_media,
     create_new_ruler_gif,
     create_country_fallen_gif,
+    create_country_fallen_media,
     create_country_allied_gif,
+    create_country_allied_media,
     create_new_commander_gif,
+    create_new_commander_media,
     generate_tactical_audio,
     generate_voice_narration,
     generate_ruler_speech,
@@ -209,17 +214,16 @@ class WarSurrenderView(discord.ui.View):
         await interaction.followup.send(embed=res_embed, files=res_files)
 
         # Broadcast to news channel
-        news_gif = create_war_ended_gif(winner_name, winner_flag, loser_name, loser_flag, "SURRENDER CONCEDED", loot)
-        speech_buf2 = generate_surrender_speech(winner_name, loser_name, loot)
-        earth_cog = self.bot.get_cog("EarthCog")
+        earth_cog = self.bot.get_cog("Virtual Earth") or self.bot.get_cog("EarthCog")
         if earth_cog:
-            await earth_cog.broadcast_news(
-                title="🏳️ SOVEREIGN SURRENDER // WAR TERMINATED",
-                description=desc,
-                gif_bytes=news_gif,
-                filename="surrender_news.gif",
-                color=0xEAB308,
-                speech_bytes=speech_buf2
+            await earth_cog.broadcast_surrender_news(
+                winner_name=winner_name,
+                winner_flag=winner_flag,
+                loser_name=loser_name,
+                loser_flag=loser_flag,
+                loot=loot,
+                annexed=annexed,
+                conceded_by=interaction.user.mention
             )
 
 
@@ -245,6 +249,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         audio_type: str = None,
         voice_speech: str = None,
         speech_bytes=None,
+        video_bytes=None,
         view: discord.ui.View = None
     ):
         try:
@@ -252,8 +257,16 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             if not channel:
                 channel = await self.bot.fetch_channel(EARTH_NEWS_CHANNEL_ID)
             if channel:
-                gif_bytes.seek(0)
-                files_to_send = [discord.File(gif_bytes, filename=filename)]
+                files_to_send = []
+
+                # Animated Video (.mp4) with synced announcer narration
+                if video_bytes is not None:
+                    video_bytes.seek(0)
+                    files_to_send.append(discord.File(video_bytes, filename="tactical_broadcast.mp4"))
+
+                if gif_bytes is not None:
+                    gif_bytes.seek(0)
+                    files_to_send.append(discord.File(gif_bytes, filename=filename))
 
                 # Spoken Announcer Voice Narration (TTS)
                 if speech_bytes is not None:
@@ -279,8 +292,9 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                     description=description,
                     color=color
                 )
-                embed.set_image(url=f"attachment://{filename}")
-                embed.set_footer(text="Virtual Earth 3D Geopolitics Simulation • Spoken Narration Attached 🎙️")
+                if gif_bytes is not None:
+                    embed.set_image(url=f"attachment://{filename}")
+                embed.set_footer(text="Virtual Earth 3D Geopolitics • Animated Video & Audio Attached 🎬🎙️")
                 await channel.send(
                     content=f"<@&{EARTH_NEWS_ROLE_ID}> 🚨 **SOVEREIGN GEOPOLITICAL DISPATCH!**",
                     embed=embed,
@@ -293,8 +307,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     async def broadcast_alliance_news(self, country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str):
         """Broadcast international alliance formation / accession to #earth-news with animated card & audio."""
         try:
-            gif_buf = create_country_allied_gif(country_a_name, country_a_flag, country_b_name, country_b_flag, alliance_name)
             speech_buf = generate_alliance_speech(country_a_name, country_b_name, alliance_name)
+            gif_buf, mp4_buf = create_country_allied_media(country_a_name, country_a_flag, country_b_name, country_b_flag, alliance_name, audio_bytes=speech_buf)
             title = f"🤝 STRATEGIC ALLIANCE RATIFIED // {alliance_name.upper()}"
             desc = (
                 f"**Strategic Alliance Formed!**\n\n"
@@ -309,7 +323,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 gif_bytes=gif_buf,
                 filename="alliance_news.gif",
                 color=0x10B981,
-                speech_bytes=speech_buf
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
             )
         except Exception as e:
             print(f"⚠️ Error broadcasting alliance news: {e}", flush=True)
@@ -317,8 +332,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     async def broadcast_commander_news(self, country_name: str, country_flag: str, commander_name: str):
         """Broadcast supreme army commander / defense minister appointment to #earth-news with animated card & audio."""
         try:
-            gif_buf = create_new_commander_gif(country_name, country_flag, commander_name)
             speech_buf = generate_commander_speech(country_name, commander_name)
+            gif_buf, mp4_buf = create_new_commander_media(country_name, country_flag, commander_name, audio_bytes=speech_buf)
             title = f"⚔️ SUPREME COMMAND APPOINTMENT // {country_name.upper()}"
             desc = (
                 f"**New Supreme Military Commander Appointed!**\n\n"
@@ -333,7 +348,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 gif_bytes=gif_buf,
                 filename="commander_news.gif",
                 color=0xE11D48,
-                speech_bytes=speech_buf
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
             )
         except Exception as e:
             print(f"⚠️ Error broadcasting commander news: {e}", flush=True)
@@ -341,8 +357,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     async def broadcast_war_declared(self, attacker_c: dict, defender_c: dict, scale_name: str, duration_hours: int, war_id: int, domain: str = "land", aggressor_mention: str = None):
         """Broadcast sovereign war declaration to #earth-news with animated card, announcer voice & surrender controls."""
         try:
-            news_gif = create_war_declared_gif(attacker_c["name"], attacker_c["flag"], defender_c["name"], defender_c["flag"], scale_name, domain)
             news_speech_buf = generate_war_speech(attacker_c["name"], defender_c["name"], scale_name)
+            news_gif, news_mp4 = create_war_declared_media(attacker_c["name"], defender_c["name"], scale_name, domain, audio_bytes=news_speech_buf)
             news_view = WarSurrenderView(
                 self.bot, war_id,
                 attacker_c["id"], attacker_c.get("owner_id"), attacker_c["name"], attacker_c["flag"],
@@ -364,10 +380,62 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 filename="war_news.gif",
                 color=0xDC2626,
                 speech_bytes=news_speech_buf,
+                video_bytes=news_mp4,
                 view=news_view
             )
         except Exception as e:
             print(f"⚠️ Error broadcasting war declared news: {e}", flush=True)
+
+    async def broadcast_surrender_news(
+        self,
+        winner_name: str,
+        winner_flag: str,
+        loser_name: str,
+        loser_flag: str,
+        loot: int = 0,
+        annexed: bool = False,
+        conceded_by: str = None
+    ):
+        """Broadcast sovereign war surrender concession to #earth-news with animated video & audio."""
+        try:
+            speech_buf = generate_surrender_speech(winner_name, loser_name, loot)
+            gif_buf, mp4_buf = create_war_ended_media(winner_name, loser_name, reason="SURRENDER CONCEDED", reparations=loot, audio_bytes=speech_buf)
+            conceded_suffix = f" (Conceded by {conceded_by})" if conceded_by else ""
+            desc = (
+                f"👑 **Victor:** {winner_flag} **{winner_name}**\n"
+                f"🏳️ **Surrendered:** {loser_flag} **{loser_name}**{conceded_suffix}\n"
+                f"💰 **Indemnity Awarded:** `+{loot:,} Medals`\n"
+                f"🌐 **Territorial State:** {'Annexed into imperial dominion!' if annexed else 'Territory borders stabilized.'}\n\n"
+                f"🕊️ Armistice signed! War operations have terminated immediately."
+            )
+            await self.broadcast_news(
+                title="🏳️ SOVEREIGN SURRENDER // WAR TERMINATED",
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="surrender_news.gif",
+                color=0xEAB308,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+            if annexed:
+                fallen_speech = generate_country_fallen_speech(loser_name, winner_name)
+                fallen_gif, fallen_mp4 = create_country_fallen_media(loser_name, winner_name, audio_bytes=fallen_speech)
+                fallen_desc = (
+                    f"🏚️ **Fallen Nation:** {loser_flag} **{loser_name}**\n"
+                    f"👑 **Conquering Empire:** {winner_flag} **{winner_name}**\n"
+                    f"🌐 **Sovereign Status:** Annexed! National sovereignty extinguished and integrated into imperial dominion."
+                )
+                await self.broadcast_news(
+                    title="⚠️ SOVEREIGN STATE FALLEN // ANNEXATION COMPLETE",
+                    description=fallen_desc,
+                    gif_bytes=fallen_gif,
+                    filename="country_fallen.gif",
+                    color=0xDC2626,
+                    speech_bytes=fallen_speech,
+                    video_bytes=fallen_mp4
+                )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting surrender news: {e}", flush=True)
 
     @tasks.loop(seconds=60)
     async def earth_war_checker(self):
@@ -385,15 +453,14 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                         reparations = war.get("reparations", 100000)
                         annexed = res.get("annexed", False) or (war.get("scale") == "annexation")
 
-                        gif = create_war_ended_gif(
-                            winner_name=winner_name,
-                            winner_flag=winner_flag,
-                            loser_name=loser_name,
-                            loser_flag=loser_flag,
-                            reason="CAMPAIGN VICTORY",
-                            reparations=reparations
-                        )
                         speech_buf = generate_victory_speech(winner_name, loser_name, reparations)
+                        gif, mp4_buf = create_war_ended_media(
+                            winner_name=winner_name,
+                            loser_name=loser_name,
+                            reason="CAMPAIGN VICTORY",
+                            reparations=reparations,
+                            audio_bytes=speech_buf
+                        )
                         desc = (
                             f"**Victorious Empire:** {winner_flag} **{winner_name}**\n"
                             f"**Defeated State:** {loser_flag} **{loser_name}**\n"
@@ -407,13 +474,14 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                             gif_bytes=gif,
                             filename="war_ended.gif",
                             color=0x10B981,
-                            speech_bytes=speech_buf
+                            speech_bytes=speech_buf,
+                            video_bytes=mp4_buf
                         )
 
                         # If state fell / annexed, broadcast country fallen card & speech!
                         if annexed:
-                            fallen_gif = create_country_fallen_gif(loser_name, loser_flag, winner_name, winner_flag)
                             fallen_speech = generate_country_fallen_speech(loser_name, winner_name)
+                            fallen_gif, fallen_mp4 = create_country_fallen_media(loser_name, winner_name, audio_bytes=fallen_speech)
                             fallen_desc = (
                                 f"🏚️ **Fallen Nation:** {loser_flag} **{loser_name}**\n"
                                 f"👑 **Conquering Empire:** {winner_flag} **{winner_name}**\n"
@@ -425,7 +493,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                                 gif_bytes=fallen_gif,
                                 filename="country_fallen.gif",
                                 color=0xDC2626,
-                                speech_bytes=fallen_speech
+                                speech_bytes=fallen_speech,
+                                video_bytes=fallen_mp4
                             )
         except Exception as e:
             print(f"⚠️ Error checking concluded earth wars: {e}", flush=True)
@@ -1580,40 +1649,15 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         view.add_item(discord.ui.Button(label="🌍 Open 3D Earth Globe", url=WEB_URL, style=discord.ButtonStyle.link))
         await interaction.followup.send(embed=embed, view=view, files=files)
 
-        news_gif = create_war_ended_gif(
+        await self.broadcast_surrender_news(
             winner_name=winner_name,
             winner_flag=winner_flag,
             loser_name=loser_name,
             loser_flag=loser_flag,
-            reason="SURRENDER CONCEDED",
-            reparations=loot
+            loot=loot,
+            annexed=annexed,
+            conceded_by=interaction.user.mention
         )
-        news_speech = generate_surrender_speech(winner_name, loser_name, loot)
-        await self.broadcast_news(
-            title="🏳️ SOVEREIGN SURRENDER // WAR TERMINATED",
-            description=desc,
-            gif_bytes=news_gif,
-            filename="surrender_news.gif",
-            color=0xEAB308,
-            speech_bytes=news_speech
-        )
-
-        if annexed:
-            fallen_gif = create_country_fallen_gif(loser_name, loser_flag, winner_name, winner_flag)
-            fallen_speech = generate_country_fallen_speech(loser_name, winner_name)
-            fallen_desc = (
-                f"🏚️ **Fallen Nation:** {loser_flag} **{loser_name}**\n"
-                f"👑 **Conquering Empire:** {winner_flag} **{winner_name}**\n"
-                f"🌐 **Sovereign Status:** Annexed! National borders dissolved and integrated into imperial territory."
-            )
-            await self.broadcast_news(
-                title="⚠️ SOVEREIGN STATE FALLEN // ANNEXATION COMPLETE",
-                description=fallen_desc,
-                gif_bytes=fallen_gif,
-                filename="country_fallen.gif",
-                color=0xDC2626,
-                speech_bytes=fallen_speech
-            )
 
     @broadcast_group.command(name="speech", description="Broadcast an official presidential voice announcement to Earth News.")
     @app_commands.describe(speech="Official speech text to be spoken by the global news announcer")
