@@ -82,6 +82,15 @@ def emergency_disk_clean():
                 except Exception:
                     pass
 
+        # Remove redundant data/.git if main repository is present
+        rogue_data_git = os.path.join(data_dir, ".git")
+        if os.path.isdir(rogue_data_git) and os.path.isdir(os.path.join(base_dir, ".git")):
+            try:
+                shutil.rmtree(rogue_data_git, ignore_errors=True)
+                print("🧹 [Disk Cleanup] Removed redundant data/.git", flush=True)
+            except Exception:
+                pass
+
         # 3. Remove orphaned tmp_pack_* files in all .git folders
         for git_candidate in (os.path.join(base_dir, ".git"), os.path.join(data_dir, ".git")):
             pack_dir = os.path.join(git_candidate, "objects", "pack")

@@ -26,7 +26,8 @@ import time
 class GitBackup:
     def __init__(self, db_path: str):
         self.db_path = db_path
-        self.repo_dir = os.path.dirname(db_path) or "data"
+        # The main git repository is at the project root; live DB is kept at db_path (e.g. data/bot.db)
+        self.repo_dir = "." if os.path.isdir(".git") else (os.path.dirname(db_path) or ".")
         self._last_hash: str | None = None
         self._enabled = False
         self._last_sync_time: float = 0
