@@ -13,8 +13,6 @@ from utils.earth_anim import (
     create_war_ended_gif,
     create_new_ruler_gif,
     create_country_fallen_gif,
-    create_country_allied_gif,
-    create_new_commander_gif,
     generate_tactical_audio,
     generate_voice_narration,
     generate_ruler_speech,
@@ -22,8 +20,6 @@ from utils.earth_anim import (
     generate_surrender_speech,
     generate_victory_speech,
     generate_country_fallen_speech,
-    generate_alliance_speech,
-    generate_commander_speech,
 )
 
 from utils.constants import (
@@ -87,10 +83,6 @@ class CabinetInviteView(discord.ui.View):
             embed.set_footer(text="Virtual Earth Cabinet • Oath of office formally taken.")
             await interaction.message.edit(embed=embed, view=self)
             await interaction.followup.send(f"✅ You have officially assumed office as **{self.role_title}** of **{self.country_name}**!", ephemeral=True)
-            if "defense" in str(getattr(self, "role_title", "")).lower() or "commander" in str(getattr(self, "role_title", "")).lower():
-                earth_cog = self.bot.get_cog("Virtual Earth") or self.bot.get_cog("EarthCog")
-                if earth_cog:
-                    await earth_cog.broadcast_commander_news(self.country_name, self.country_flag, interaction.user.display_name)
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
 
@@ -290,54 +282,6 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         except Exception as e:
             print(f"⚠️ Failed to broadcast Earth News: {e}", flush=True)
 
-    async def broadcast_alliance_news(self, country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str):
-        """Broadcast international alliance formation / accession to #earth-news with animated card & audio."""
-        try:
-            gif_buf = create_country_allied_gif(country_a_name, country_a_flag, country_b_name, country_b_flag, alliance_name)
-            speech_buf = generate_alliance_speech(country_a_name, country_b_name, alliance_name)
-            title = f"🤝 STRATEGIC ALLIANCE RATIFIED // {alliance_name.upper()}"
-            desc = (
-                f"**Strategic Alliance Formed!**\n\n"
-                f"🏛️ **Treaty Coalition:** `{alliance_name}`\n"
-                f"🤝 **Allied Nations:** {country_a_flag} **{country_a_name}** ⮂ **{country_b_flag} {country_b_name}**\n\n"
-                f"🛡️ **Mutual Defense Pact:** All allied states receive collective security guarantees (+25 Defense per ally).\n"
-                f"🌐 *Sovereign borders and mutual trade are officially ratified under international accord.*"
-            )
-            await self.broadcast_news(
-                title=title,
-                description=desc,
-                gif_bytes=gif_buf,
-                filename="alliance_news.gif",
-                color=0x10B981,
-                speech_bytes=speech_buf
-            )
-        except Exception as e:
-            print(f"⚠️ Error broadcasting alliance news: {e}", flush=True)
-
-    async def broadcast_commander_news(self, country_name: str, country_flag: str, commander_name: str):
-        """Broadcast supreme army commander / defense minister appointment to #earth-news with animated card & audio."""
-        try:
-            gif_buf = create_new_commander_gif(country_name, country_flag, commander_name)
-            speech_buf = generate_commander_speech(country_name, commander_name)
-            title = f"⚔️ SUPREME COMMAND APPOINTMENT // {country_name.upper()}"
-            desc = (
-                f"**New Supreme Military Commander Appointed!**\n\n"
-                f"🏛️ **Sovereign Nation:** {country_flag} **{country_name}**\n"
-                f"⭐ **Supreme Army Commander & Defense Minister:** **{commander_name}**\n\n"
-                f"🛡️ **High Command Authority:** Strategic control over Armored Divisions, Air Defense, Navy & Nuclear Deterrence.\n"
-                f"⚡ *All territorial defense forces and border garrisons are mobilized under direct supreme command.*"
-            )
-            await self.broadcast_news(
-                title=title,
-                description=desc,
-                gif_bytes=gif_buf,
-                filename="commander_news.gif",
-                color=0xE11D48,
-                speech_bytes=speech_buf
-            )
-        except Exception as e:
-            print(f"⚠️ Error broadcasting commander news: {e}", flush=True)
-
     @tasks.loop(seconds=60)
     async def earth_war_checker(self):
         try:
@@ -402,10 +346,9 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     earth_group = app_commands.Group(name="earth", description="🌍 Virtual Earth: Global Geopolitics Simulation")
     cabinet_group = app_commands.Group(name="cabinet", parent=earth_group, description="🏛️ Sovereign Cabinet & Ministers")
     # Discord allows at most 25 direct child commands per slash-command group.
-    # Keep UN, security, and broadcast actions under subgroups so all Earth commands register cleanly within Discord's 25-child limit.
+    # Keep UN actions under /earth un so all Earth commands can register.
     un_group = app_commands.Group(name="un", parent=earth_group, description="🇺🇳 United Nations peacekeeping actions")
     security_group = app_commands.Group(name="security", parent=earth_group, description="🛡️ Counter-intelligence and detainee operations")
-    broadcast_group = app_commands.Group(name="broadcast", parent=earth_group, description="📢 Official Sovereign Broadcasts & News Media")
 
     # ─── Country Overview ─────────────────────────────────────────────────────
 
@@ -517,6 +460,10 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         view = DefenseDashboardView(self.bot, c, interaction.user.id)
         await interaction.followup.send(embed=embed, view=view)
 
+    @earth_group.command(name="commanders", description="⚔️ Supreme Army Command & Defense Forces")
+    async def earth_commanders(self, interaction: discord.Interaction):
+        await self.earth_defense(interaction)
+
     @earth_group.command(name="economy", description="🏦 Ministry of Economy & National Treasury Dashboard")
     async def earth_economy(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -546,6 +493,10 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         embed = await build_diplomacy_embed(self.bot, c, interaction.user.id)
         view = DiplomacyDashboardView(self.bot, c, interaction.user.id)
         await interaction.followup.send(embed=embed, view=view)
+
+    @earth_group.command(name="alliance", description="🤝 International Coalitions & Diplomatic Treaties")
+    async def earth_alliance(self, interaction: discord.Interaction):
+        await self.earth_diplomacy(interaction)
 
     @earth_group.command(name="intelligence", description="🕵️ Directorate of Secret Intelligence & Espionage Dashboard")
     async def earth_intelligence(self, interaction: discord.Interaction):
@@ -657,8 +608,6 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             )
             embed.set_footer(text="Virtual Earth Cabinet • Sitting President exercised sovereign authority.")
             await interaction.followup.send(embed=embed)
-            if role.value == "defense":
-                await self.broadcast_commander_news(c["name"], c["flag"], interaction.user.display_name)
             return
 
         # Nomination decree pending candidate acceptance
@@ -718,8 +667,6 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 color=0x2ECC71
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
-            if inv.get("role") == "defense" or "commander" in str(inv.get("role_title", "")).lower():
-                await self.broadcast_commander_news(inv["country_name"], inv["country_flag"], interaction.user.display_name)
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
 
@@ -1597,9 +1544,9 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 speech_bytes=fallen_speech
             )
 
-    @broadcast_group.command(name="speech", description="Broadcast an official presidential voice announcement to Earth News.")
+    @earth_group.command(name="announce", description="Broadcast an official presidential voice announcement to Earth News.")
     @app_commands.describe(speech="Official speech text to be spoken by the global news announcer")
-    async def earth_announce_speech(self, interaction: discord.Interaction, speech: str):
+    async def earth_announce(self, interaction: discord.Interaction, speech: str):
         await interaction.response.defer()
         c = await self.bot.db.get_user_earth_country(interaction.user.id)
         if not c:
@@ -1648,41 +1595,6 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             color=0x38BDF8,
             speech_bytes=speech_buf2
         )
-
-    @broadcast_group.command(name="commander", description="Broadcast an official military commander appointment video to Earth News.")
-    @app_commands.describe(commander="Discord member serving as Supreme Military Commander")
-    async def earth_announce_commander(self, interaction: discord.Interaction, commander: discord.Member):
-        await interaction.response.defer()
-        c = await self.bot.db.get_user_earth_country(interaction.user.id)
-        if not c:
-            await interaction.followup.send("❌ You do not govern a sovereign Earth nation!", ephemeral=True)
-            return
-        await self.broadcast_commander_news(c["name"], c["flag"], commander.display_name)
-        await interaction.followup.send(f"⚔️ Military commander appointment video and spoken dispatch broadcasted to <#{EARTH_NEWS_CHANNEL_ID}> for **{commander.display_name}**!")
-
-    @broadcast_group.command(name="alliance", description="Broadcast an official strategic alliance video to Earth News.")
-    @app_commands.describe(partner="Partner allied country code or name")
-    async def earth_announce_alliance(self, interaction: discord.Interaction, partner: str):
-        await interaction.response.defer()
-        c = await self.bot.db.get_user_earth_country(interaction.user.id)
-        if not c:
-            await interaction.followup.send("❌ You do not govern a sovereign Earth nation!", ephemeral=True)
-            return
-        
-        partner_code = partner.strip().upper()
-        p_c = await self.bot.db.get_earth_country_by_code(partner_code)
-        if not p_c:
-            all_c = await self.bot.db.get_earth_countries()
-            for cand in all_c:
-                if partner.lower() in cand["name"].lower():
-                    p_c = await self.bot.db.get_earth_country(cand["id"])
-                    break
-        partner_name = p_c["name"] if p_c else partner.strip()
-        partner_flag = p_c["flag"] if p_c else "🌐"
-        al_name = c.get("alliance_name") or f"{c['name']}-{partner_name} Strategic Accord"
-
-        await self.broadcast_alliance_news(c["name"], c["flag"], partner_name, partner_flag, al_name)
-        await interaction.followup.send(f"🤝 Strategic alliance video and spoken dispatch broadcasted to <#{EARTH_NEWS_CHANNEL_ID}> for **{c['name']}** & **{partner_name}**!")
 
 
 async def setup(bot: commands.Bot):
