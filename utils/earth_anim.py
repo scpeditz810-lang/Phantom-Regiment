@@ -70,6 +70,22 @@ def generate_tactical_audio(sound_type: str = "war_siren", duration: float = 3.5
                 bell = (0.5 * math.sin(2 * math.pi * freq1 * t) + 0.5 * math.sin(2 * math.pi * freq2 * t))
                 envelope = math.exp(-1.4 * t)
                 val = bell * envelope
+
+            elif sound_type == "alliance_treaty":
+                # Diplomatic harmony fanfare (dual-tone brass and noble chime)
+                f1 = 349.23 if t < 1.0 else (440.0 if t < 2.0 else 523.25)
+                f2 = 440.0 if t < 1.0 else (523.25 if t < 2.0 else 698.46)
+                brass = 0.45 * math.sin(2 * math.pi * f1 * t) + 0.35 * math.sin(2 * math.pi * f2 * t)
+                val = brass * min(1.0, (duration - t) * 0.9)
+
+            elif sound_type == "commander_march":
+                # Martial military brass call and march pulse
+                step = int(t / 0.35)
+                notes = [196.0, 261.63, 329.63, 392.0, 523.25]
+                f = notes[min(step, len(notes) - 1)]
+                pulse = 0.7 * math.sin(2 * math.pi * f * t) + 0.25 * math.sin(4 * math.pi * f * t)
+                snare = 0.15 * math.sin(2 * math.pi * 120.0 * (t % 0.35))
+                val = (pulse + snare) * min(1.0, (duration - t) * 0.85)
                 
             else: # fallen_requiem
                 # Deep dramatic defeat boom & sorrow resonance
@@ -221,6 +237,92 @@ def create_country_fallen_gif(country_name: str, country_flag: str, conqueror_na
     buf.seek(0)
     return buf
 
+def create_country_allied_gif(country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str) -> io.BytesIO:
+    w, h = 640, 230
+    font_title = _get_font(21)
+    font_bold = _get_font(18)
+    font_sub = _get_font(13)
+    
+    frames = []
+    num_frames = 12
+    for i in range(num_frames):
+        im = Image.new("RGB", (w, h), (12, 24, 38))
+        draw = ImageDraw.Draw(im)
+        
+        # Dual-tone emerald and gold diplomatic borders
+        border_col = (16, 185, 129) if (i % 4 < 2) else (245, 158, 11)
+        draw.rectangle([(0, 0), (w, 5)], fill=border_col)
+        draw.rectangle([(0, h - 5), (w, h)], fill=border_col)
+        
+        # Title
+        pulse_g = int(190 + 50 * math.sin(i * math.pi / 6))
+        draw.text((35, 16), "🤝 STRATEGIC ALLIANCE RATIFIED // MUTUAL ACCORD", fill=(52, pulse_g, 153), font=font_title)
+        
+        # Alliance name banner
+        draw.text((35, 52), f"🏛️ COALITION TREATY: {alliance_name.upper()}", fill=(245, 158, 11), font=font_bold)
+        
+        # Two Allied Nations
+        draw.text((35, 88), f"🛡️ {country_a_flag} {country_a_name}", fill=(255, 255, 255), font=font_bold)
+        draw.text((w // 2 - 25, 88), "⮂ ALLIED ⮂", fill=(56, 189, 248), font=font_bold)
+        draw.text((w // 2 + 75, 88), f"🛡️ {country_b_flag} {country_b_name}", fill=(255, 255, 255), font=font_bold)
+        
+        # Strategic details
+        draw.text((35, 135), "⚡ COLLECTIVE DEFENSE: Mutual military protection active (+25 Defense Guarantee).", fill=(203, 213, 225), font=font_sub)
+        draw.text((35, 165), "🌐 GEOPOLITICAL ACCORD: Sovereign territorial integrity safeguarded under international treaty.", fill=(148, 163, 184), font=font_sub)
+        
+        # Pulse indicator in top right
+        pulse_r = int(120 + 90 * math.sin(i * math.pi / 6))
+        draw.ellipse([(w - 38, 16), (w - 22, 32)], fill=(16, pulse_r, 129))
+        
+        frames.append(im)
+        
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=110, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_new_commander_gif(country_name: str, country_flag: str, commander_name: str) -> io.BytesIO:
+    w, h = 640, 230
+    font_title = _get_font(21)
+    font_bold = _get_font(18)
+    font_sub = _get_font(13)
+    
+    frames = []
+    num_frames = 12
+    for i in range(num_frames):
+        im = Image.new("RGB", (w, h), (24, 18, 26))
+        draw = ImageDraw.Draw(im)
+        
+        # Crimson / tactical red military borders
+        draw.rectangle([(0, 0), (w, 5)], fill=(225, 29, 72))
+        draw.rectangle([(0, h - 5), (w, h)], fill=(225, 29, 72))
+        
+        # Moving tactical radar line
+        radar_x = int((i / num_frames) * w)
+        draw.line([(radar_x, 5), (radar_x, h - 5)], fill=(244, 63, 94), width=2)
+        
+        # Title
+        draw.text((35, 16), "⚔️ SUPREME MILITARY APPOINTMENT // HIGH COMMAND 🎖️", fill=(244, 63, 94), font=font_title)
+        
+        # Country & Commander
+        draw.text((35, 55), f"🏛️ {country_flag} {country_name}", fill=(255, 255, 255), font=font_bold)
+        draw.text((35, 92), f"⭐ Supreme Army Commander: {commander_name}", fill=(245, 158, 11), font=font_bold)
+        
+        # Tactical command authority
+        draw.text((35, 138), "🛡️ STRATEGIC ASSETS: Armored divisions, air superiority & naval fleets under direct command.", fill=(226, 232, 240), font=font_sub)
+        draw.text((35, 168), "⚡ DEFCON 1 READINESS: Territorial defense forces and warfront garrisons mobilized.", fill=(148, 163, 184), font=font_sub)
+        
+        # Star badge pulse
+        badge_col = (245, 158, 11) if i % 2 == 0 else (225, 29, 72)
+        draw.ellipse([(w - 40, 16), (w - 24, 32)], fill=badge_col)
+        
+        frames.append(im)
+        
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
 
 # ── Spoken Voice Narration (TTS) Engine ───────────────────────────────────────
 
@@ -332,5 +434,26 @@ def generate_country_fallen_speech(country_name: str, conqueror_name: str) -> io
     speech = (
         f"Urgent geopolitical warning. The sovereign nation of {clean_c} has fallen! "
         f"Its sovereign capital and borders have been annexed into the imperial dominion of {clean_w}."
+    )
+    return generate_voice_narration(speech)
+
+def generate_alliance_speech(country_a_name: str, country_b_name: str, alliance_name: str) -> io.BytesIO:
+    clean_a = clean_for_speech(country_a_name)
+    clean_b = clean_for_speech(country_b_name)
+    clean_al = clean_for_speech(alliance_name)
+    speech = (
+        f"Diplomatic bulletin. An international strategic alliance has been officially ratified! "
+        f"The sovereign nations of {clean_a} and {clean_b} have united under the {clean_al} coalition. "
+        f"A mutual defense pact is now active, securing territorial borders and collective armed defense across Virtual Earth."
+    )
+    return generate_voice_narration(speech)
+
+def generate_commander_speech(country_name: str, commander_name: str) -> io.BytesIO:
+    clean_c = clean_for_speech(country_name)
+    clean_cm = clean_for_speech(commander_name)
+    speech = (
+        f"Supreme military command alert. A new commander has taken charge of the armed forces of {clean_c}! "
+        f"General {clean_cm} has officially assumed office as Supreme Army Commander and Minister of Defense. "
+        f"All armored divisions, air squadrons, and naval fleets are now mobilizing under their direct strategic command."
     )
     return generate_voice_narration(speech)

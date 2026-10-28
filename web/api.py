@@ -84,6 +84,73 @@ def _earth_claim_fingerprint():
     return hashlib.sha256(f"{secret}|{address}".encode("utf-8")).hexdigest()
 
 
+def dispatch_discord_coro(coro):
+    """Run an async coroutine on the Discord bot event loop without blocking Flask."""
+    try:
+        import asyncio
+        loop = current_app.config.get("BOT_LOOP")
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(coro, loop)
+    except Exception as e:
+        print(f"⚠️ Dispatch to bot loop notice: {e}", flush=True)
+
+async def _bg_broadcast_commander(country_id: int, commander_name: str):
+    bot = current_app.config.get("DISCORD_BOT")
+    db = current_app.config.get("DB")
+    if not bot or not db:
+        return
+    c = await db.get_earth_country(country_id)
+    if not c:
+        return
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog:
+        await earth_cog.broadcast_commander_news(c["name"], c["flag"], commander_name)
+
+async def _bg_broadcast_alliance(country_id: int, alliance_name: str, alliance_id: int = None, partner_name: str = "Global Signatories", partner_flag: str = "🌐"):
+    bot = current_app.config.get("DISCORD_BOT")
+    db = current_app.config.get("DB")
+    if not bot or not db:
+        return
+    c = await db.get_earth_country(country_id)
+    if not c:
+        return
+    if alliance_id and db._db:
+        try:
+            async with db._db.execute("SELECT a.name, creator.name, creator.flag FROM earth_alliances a JOIN earth_countries creator ON creator.id=a.creator_country_id WHERE a.id=?", (alliance_id,)) as cur:
+                row = await cur.fetchone()
+                if row:
+                    alliance_name = row[0]
+                    partner_name = row[1]
+                    partner_flag = row[2]
+        except Exception:
+            pass
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog:
+        await earth_cog.broadcast_alliance_news(c["name"], c["flag"], partner_name, partner_flag, alliance_name)
+
+async def _bg_broadcast_war_declared(attacker_country_id: int, defender_country_id: int, scale: str, war_id: int, duration_hours: int = 24, domain: str = "land", username: str = None):
+    bot = current_app.config.get("DISCORD_BOT")
+    db = current_app.config.get("DB")
+    if not bot or not db:
+        return
+    atk = await db.get_earth_country(attacker_country_id)
+    dfn = await db.get_earth_country(defender_country_id)
+    if not atk or not dfn:
+        return
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog:
+        agg_label = f"**{username}**" if username else f"<@{atk.get('owner_id')}>"
+        await earth_cog.broadcast_war_declared(
+            attacker_c=atk,
+            defender_c=dfn,
+            scale_name=str(scale).upper(),
+            duration_hours=duration_hours,
+            war_id=war_id,
+            domain=domain,
+            aggressor_mention=agg_label
+        )
+
+
 
 @api_bp.route("/stocks")
 
@@ -2241,6 +2308,10 @@ def api_earth_cabinet_appoint():
 
     cab = run_async(db.get_earth_cabinet(country_id))
 
+    if success and res_data.get("auto_accepted") and role == "defense":
+        cm_name = target_username or session.get("user", {}).get("username", "Supreme Commander")
+        dispatch_discord_coro(_bg_broadcast_commander(country_id, cm_name))
+
     return jsonify({
 
         "success": success,
@@ -2318,6 +2389,20 @@ def api_earth_cabinet_invite_respond():
     db = get_db()
 
     success, msg = run_async(db.respond_earth_cabinet_invite(user_id, invite_id, accept=(action == "accept")))
+
+    if success and action == "accept":
+        async def _check_invite():
+            try:
+                db_inst = current_app.config.get("DB")
+                if db_inst and db_inst._db:
+                    async with db_inst._db.execute("SELECT country_id, role, username FROM earth_cabinet_invites WHERE id=?", (invite_id,)) as cur:
+                        r = await cur.fetchone()
+                        if r and (r[1] == "defense" or "commander" in str(r[1]).lower()):
+                            cm_name = r[2] or session.get("user", {}).get("username", "Supreme Commander")
+                            await _bg_broadcast_commander(r[0], cm_name)
+            except Exception as e:
+                print(f"⚠️ Invite check err: {e}")
+        dispatch_discord_coro(_check_invite())
 
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
@@ -2637,6 +2722,12 @@ def api_earth_war_declare():
 
     success, msg, war_data = run_async(db.declare_earth_war(user_id, attacker_country_id, defender_country_id, scale, domain, equipment))
 
+    if success and war_data:
+        w_id = war_data.get("war_id") or 0
+        dur = war_data.get("duration_hours") or 24
+        u_name = session.get("user", {}).get("username")
+        dispatch_discord_coro(_bg_broadcast_war_declared(attacker_country_id, defender_country_id, scale, w_id, dur, domain, u_name))
+
     return jsonify({
 
         "success": success,
@@ -2869,6 +2960,65 @@ def api_earth_trade_routes():
     return jsonify(routes)
 
 
+@api_bp.route("/earth/trade/proposals")
+@login_required
+def api_earth_trade_proposals():
+    country_id = request.args.get("country_id", type=int)
+    if not country_id:
+        return jsonify({"incoming": [], "outgoing": []}), 400
+    db = get_db()
+    proposals = run_async(db.get_earth_pending_trade_proposals(country_id))
+    return jsonify(proposals)
+
+
+@api_bp.route("/earth/trade/respond", methods=["POST"])
+@login_required
+def api_earth_trade_respond():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        route_id = int(data.get("route_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+    accept = bool(data.get("accept", False))
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.respond_trade_route(user_id, country_id, route_id, accept))
+    routes = run_async(db.get_earth_trade_routes(country_id))
+    return jsonify({"success": success, "message": msg, "routes": routes}), 200 if success else 400
+
+
+@api_bp.route("/earth/trade/terminate", methods=["POST"])
+@login_required
+def api_earth_trade_terminate():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        route_id = int(data.get("route_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.terminate_trade_route(user_id, country_id, route_id))
+    routes = run_async(db.get_earth_trade_routes(country_id))
+    return jsonify({"success": success, "message": msg, "routes": routes}), 200 if success else 400
+
+
+@api_bp.route("/earth/trade/cancel", methods=["POST"])
+@login_required
+def api_earth_trade_cancel():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        route_id = int(data.get("route_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.cancel_trade_proposal(user_id, country_id, route_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+
 
 @api_bp.route("/earth/alliance/create", methods=["POST"])
 
@@ -2897,6 +3047,9 @@ def api_earth_alliance_create():
     db = get_db()
 
     success, msg, al_id = run_async(db.create_earth_alliance(user_id, country_id, name, color))
+
+    if success:
+        dispatch_discord_coro(_bg_broadcast_alliance(country_id, name, al_id, "Global Signatories", "🌐"))
 
     econ = run_async(db.get_global_economy(user_id))
 
@@ -2940,6 +3093,9 @@ def api_earth_alliance_join():
 
     success, msg = run_async(db.join_earth_alliance(user_id, country_id, alliance_id))
 
+    if success:
+        dispatch_discord_coro(_bg_broadcast_alliance(country_id, "Allied Coalition", alliance_id))
+
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 
@@ -2971,6 +3127,18 @@ def api_earth_alliance_request_respond():
     except (ValueError, TypeError): return jsonify({"success": False, "message": "Invalid request ID."}), 400
     accept = bool(data.get("accept", False))
     success, msg = run_async(get_db().respond_earth_alliance_request(session["user"]["id"], request_id, accept))
+    if success and accept:
+        async def _check_req():
+            try:
+                db_inst = current_app.config.get("DB")
+                if db_inst and db_inst._db:
+                    async with db_inst._db.execute("SELECT country_id, alliance_id FROM earth_alliance_requests WHERE id=?", (request_id,)) as cur:
+                        r = await cur.fetchone()
+                        if r:
+                            await _bg_broadcast_alliance(r[0], "Allied Coalition", r[1])
+            except Exception:
+                pass
+        dispatch_discord_coro(_check_req())
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 
