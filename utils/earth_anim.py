@@ -495,6 +495,68 @@ def clean_for_speech(text: str) -> str:
     text = re.sub(r'[^\x00-\x7F]+', ' ', text)
     return ' '.join(text.split())
 
+def transform_to_deep_male_voice(raw_audio_buf: io.BytesIO) -> io.BytesIO:
+    """Transform speech audio into a deep, resonant, authoritative male military news anchor voice using FFmpeg."""
+    import tempfile, subprocess, shutil, os
+    try:
+        import imageio_ffmpeg
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if not exe or not os.path.exists(exe):
+            return raw_audio_buf
+    except Exception:
+        return raw_audio_buf
+
+    raw_audio_buf.seek(0)
+    data = raw_audio_buf.read()
+    if not data or len(data) < 200:
+        return raw_audio_buf
+
+    td = tempfile.mkdtemp()
+    try:
+        in_path = os.path.join(td, "in.mp3")
+        out_path = os.path.join(td, "out.mp3")
+        with open(in_path, "wb") as f:
+            f.write(data)
+
+        # Audio DSP filter chain for deep authoritative male broadcaster voice:
+        # 1. asetrate: pitch shifts down by ~23% into deep masculine baritone range (0.77x)
+        # 2. aresample: re-establishes clean standard 24kHz sampling rate
+        # 3. atempo: compensates speed (1 / 0.77 ≈ 1.298x) so speech tempo is natural and articulate
+        # 4. equalizer at 120Hz (+7dB): adds deep chest resonance and sub-bass weight
+        # 5. equalizer at 250Hz (+3dB): warm radio body
+        # 6. equalizer at 2800Hz (+2.5dB): crisp military announcer consonant clarity
+        # 7. volume: broadcast normalization
+        af = (
+            "asetrate=24000*0.77,"
+            "aresample=24000,"
+            "atempo=1.298,"
+            "equalizer=f=120:t=q:w=1.2:g=7,"
+            "equalizer=f=250:t=q:w=1.2:g=3,"
+            "equalizer=f=2800:t=q:w=1.5:g=2.5,"
+            "volume=1.25"
+        )
+        cmd = [
+            exe, "-y",
+            "-i", in_path,
+            "-af", af,
+            "-c:a", "libmp3lame",
+            "-b:a", "128k",
+            out_path
+        ]
+        res = subprocess.run(cmd, capture_output=True, timeout=15)
+        if res.returncode == 0 and os.path.exists(out_path):
+            with open(out_path, "rb") as f:
+                deep_buf = io.BytesIO(f.read())
+            deep_buf.seek(0)
+            return deep_buf
+    except Exception as e:
+        print(f"⚠️ Deep male voice transform notice: {e}", flush=True)
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
+
+    raw_audio_buf.seek(0)
+    return raw_audio_buf
+
 def generate_voice_narration(text: str, voice_lang: str = "en") -> io.BytesIO:
     """Generate realistic spoken announcer voice audio (.mp3) for geopolitical events."""
     clean = clean_for_speech(text)
@@ -510,7 +572,7 @@ def generate_voice_narration(text: str, voice_lang: str = "en") -> io.BytesIO:
         tts.write_to_fp(buf)
         buf.seek(0)
         if len(buf.getvalue()) > 500:
-            return buf
+            return transform_to_deep_male_voice(buf)
     except Exception:
         buf = io.BytesIO()
 
@@ -538,7 +600,7 @@ def generate_voice_narration(text: str, voice_lang: str = "en") -> io.BytesIO:
                 buf.write(resp.read())
         buf.seek(0)
         if len(buf.getvalue()) > 500:
-            return buf
+            return transform_to_deep_male_voice(buf)
     except Exception:
         buf = io.BytesIO()
 

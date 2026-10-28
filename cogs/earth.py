@@ -179,8 +179,8 @@ class WarSurrenderView(discord.ui.View):
         loot = res_data.get("loot", 0)
         annexed = res_data.get("annexed", False)
 
-        gif = create_war_ended_gif(winner_name, winner_flag, loser_name, loser_flag, "SURRENDER CONCEDED", loot)
         speech_buf = generate_surrender_speech(winner_name, loser_name, loot)
+        gif, mp4_buf = create_war_ended_media(winner_name, loser_name, reason="SURRENDER CONCEDED", reparations=loot, audio_bytes=speech_buf)
 
         desc = (
             f"👑 **Victor:** {winner_flag} **{winner_name}**\n"
@@ -198,19 +198,25 @@ class WarSurrenderView(discord.ui.View):
         except Exception:
             pass
 
-        gif.seek(0)
-        speech_buf.seek(0)
-        res_files = [
-            discord.File(gif, filename="surrender.gif"),
-            discord.File(speech_buf, filename="voice_announcement.mp3")
-        ]
+        res_files = []
         res_embed = discord.Embed(
             title="🏳️ FORMAL SURRENDER ACCEPTED // CONFLICT CONCLUDED",
             description=desc,
             color=0xEAB308
         )
-        res_embed.set_image(url="attachment://surrender.gif")
-        res_embed.set_footer(text="Virtual Earth Geopolitics • Voice Narration Attached 🎙️")
+        if mp4_buf:
+            mp4_buf.seek(0)
+            res_files.append(discord.File(mp4_buf, filename="surrender_concluded.mp4"))
+            res_embed.set_footer(text="Virtual Earth 3D Geopolitics • Deep Voice Video Player Attached 🎬🎙️")
+        else:
+            gif.seek(0)
+            res_files.append(discord.File(gif, filename="surrender.gif"))
+            res_embed.set_image(url="attachment://surrender.gif")
+            if speech_buf:
+                speech_buf.seek(0)
+                res_files.append(discord.File(speech_buf, filename="voice_announcement.mp3"))
+            res_embed.set_footer(text="Virtual Earth Geopolitics • Voice Narration Attached 🎙️")
+
         await interaction.followup.send(embed=res_embed, files=res_files)
 
         # Broadcast to news channel
@@ -243,7 +249,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         self,
         title: str,
         description: str,
-        gif_bytes,
+        gif_bytes=None,
         filename: str = "news.gif",
         color: int = 0x38BDF8,
         audio_type: str = None,
@@ -258,43 +264,45 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 channel = await self.bot.fetch_channel(EARTH_NEWS_CHANNEL_ID)
             if channel:
                 files_to_send = []
-
-                # Animated Video (.mp4) with synced announcer narration
-                if video_bytes is not None:
-                    video_bytes.seek(0)
-                    files_to_send.append(discord.File(video_bytes, filename="tactical_broadcast.mp4"))
-
-                if gif_bytes is not None:
-                    gif_bytes.seek(0)
-                    files_to_send.append(discord.File(gif_bytes, filename=filename))
-
-                # Spoken Announcer Voice Narration (TTS)
-                if speech_bytes is not None:
-                    speech_bytes.seek(0)
-                    files_to_send.append(discord.File(speech_bytes, filename="voice_announcement.mp3"))
-                elif voice_speech:
-                    try:
-                        voice_buf = generate_voice_narration(voice_speech)
-                        voice_buf.seek(0)
-                        files_to_send.append(discord.File(voice_buf, filename="voice_announcement.mp3"))
-                    except Exception as voice_err:
-                        print(f"⚠️ Voice narration notice: {voice_err}", flush=True)
-
-                if audio_type and not (speech_bytes or voice_speech):
-                    try:
-                        audio_buf = generate_tactical_audio(audio_type)
-                        files_to_send.append(discord.File(audio_buf, filename=f"{audio_type}.wav"))
-                    except Exception as sound_err:
-                        print(f"⚠️ Sound synthesis notice: {sound_err}", flush=True)
-
                 embed = discord.Embed(
                     title=title,
                     description=description,
                     color=color
                 )
-                if gif_bytes is not None:
-                    embed.set_image(url=f"attachment://{filename}")
-                embed.set_footer(text="Virtual Earth 3D Geopolitics • Animated Video & Audio Attached 🎬🎙️")
+
+                if video_bytes is not None:
+                    # Send actual playable video player with deep male announcer voice!
+                    video_bytes.seek(0)
+                    files_to_send.append(discord.File(video_bytes, filename="broadcast_video.mp4"))
+                    embed.set_footer(text="Virtual Earth 3D Geopolitics • Deep Voice Video Player Attached 🎬🎙️")
+                else:
+                    # Fallback to GIF + audio if video rendering wasn't generated
+                    if gif_bytes is not None:
+                        gif_bytes.seek(0)
+                        files_to_send.append(discord.File(gif_bytes, filename=filename))
+                        embed.set_image(url=f"attachment://{filename}")
+
+                    # Spoken Announcer Voice Narration (TTS)
+                    if speech_bytes is not None:
+                        speech_bytes.seek(0)
+                        files_to_send.append(discord.File(speech_bytes, filename="voice_announcement.mp3"))
+                    elif voice_speech:
+                        try:
+                            voice_buf = generate_voice_narration(voice_speech)
+                            voice_buf.seek(0)
+                            files_to_send.append(discord.File(voice_buf, filename="voice_announcement.mp3"))
+                        except Exception as voice_err:
+                            print(f"⚠️ Voice narration notice: {voice_err}", flush=True)
+
+                    if audio_type and not (speech_bytes or voice_speech):
+                        try:
+                            audio_buf = generate_tactical_audio(audio_type)
+                            files_to_send.append(discord.File(audio_buf, filename=f"{audio_type}.wav"))
+                        except Exception as sound_err:
+                            print(f"⚠️ Sound synthesis notice: {sound_err}", flush=True)
+
+                    embed.set_footer(text="Virtual Earth 3D Geopolitics • Spoken Narration Attached 🎙️")
+
                 await channel.send(
                     content=f"<@&{EARTH_NEWS_ROLE_ID}> 🚨 **SOVEREIGN GEOPOLITICAL DISPATCH!**",
                     embed=embed,
@@ -969,15 +977,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         success, msg, war_data = await self.bot.db.declare_earth_war(interaction.user.id, c["id"], tgt["id"], scale.value)
         if success:
             war_id = war_data.get("war_id") or 0
-            gif = create_war_declared_gif(
-                atk_name=c["name"],
-                atk_flag=c["flag"],
-                dfn_name=tgt["name"],
-                dfn_flag=tgt["flag"],
-                scale=scale.name,
-                domain="land"
-            )
             war_speech_buf = generate_war_speech(c["name"], tgt["name"], scale.name)
+            gif, mp4_buf = create_war_declared_media(c["name"], tgt["name"], scale.name, "land", audio_bytes=war_speech_buf)
 
             embed = discord.Embed(
                 title="🚨 DECLARATION OF SOVEREIGN WAR",
@@ -992,14 +993,20 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 c["id"], c.get("owner_id"), c["name"], c["flag"],
                 tgt["id"], tgt.get("owner_id"), tgt["name"], tgt["flag"]
             )
-            gif.seek(0)
-            war_speech_buf.seek(0)
-            files = [
-                discord.File(gif, filename="war_declared.gif"),
-                discord.File(war_speech_buf, filename="voice_announcement.mp3")
-            ]
-            embed.set_image(url="attachment://war_declared.gif")
-            embed.set_footer(text="Virtual Earth 3D Geopolitics • Voice Narration Attached 🎙️")
+            files = []
+            if mp4_buf:
+                mp4_buf.seek(0)
+                files.append(discord.File(mp4_buf, filename="war_declared.mp4"))
+                embed.set_footer(text="Virtual Earth 3D Geopolitics • Deep Voice Video Player Attached 🎬🎙️")
+            else:
+                gif.seek(0)
+                files.append(discord.File(gif, filename="war_declared.gif"))
+                embed.set_image(url="attachment://war_declared.gif")
+                if war_speech_buf:
+                    war_speech_buf.seek(0)
+                    files.append(discord.File(war_speech_buf, filename="voice_announcement.mp3"))
+                embed.set_footer(text="Virtual Earth 3D Geopolitics • Voice Narration Attached 🎙️")
+
             await interaction.followup.send(embed=embed, view=view, files=files)
 
             await self.broadcast_war_declared(
@@ -1614,15 +1621,14 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         loot = res_data.get("loot", 0)
         annexed = res_data.get("annexed", False)
 
-        gif = create_war_ended_gif(
-            winner_name=winner_name,
-            winner_flag=winner_flag,
-            loser_name=loser_name,
-            loser_flag=loser_flag,
-            reason="SURRENDER CONCEDED",
-            reparations=loot
-        )
         speech_buf = generate_surrender_speech(winner_name, loser_name, loot)
+        gif, mp4_buf = create_war_ended_media(
+            winner_name=winner_name,
+            loser_name=loser_name,
+            reason="SURRENDER CONCEDED",
+            reparations=loot,
+            audio_bytes=speech_buf
+        )
 
         desc = (
             f"👑 **Victor:** {winner_flag} **{winner_name}**\n"
@@ -1637,14 +1643,20 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             description=desc,
             color=0xEAB308
         )
-        gif.seek(0)
-        speech_buf.seek(0)
-        files = [
-            discord.File(gif, filename="surrender.gif"),
-            discord.File(speech_buf, filename="voice_announcement.mp3")
-        ]
-        embed.set_image(url="attachment://surrender.gif")
-        embed.set_footer(text="Virtual Earth Geopolitics • Voice Narration Attached 🎙️")
+        files = []
+        if mp4_buf:
+            mp4_buf.seek(0)
+            files.append(discord.File(mp4_buf, filename="surrender_concluded.mp4"))
+            embed.set_footer(text="Virtual Earth 3D Geopolitics • Deep Voice Video Player Attached 🎬🎙️")
+        else:
+            gif.seek(0)
+            files.append(discord.File(gif, filename="surrender.gif"))
+            embed.set_image(url="attachment://surrender.gif")
+            if speech_buf:
+                speech_buf.seek(0)
+                files.append(discord.File(speech_buf, filename="voice_announcement.mp3"))
+            embed.set_footer(text="Virtual Earth Geopolitics • Voice Narration Attached 🎙️")
+
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="🌍 Open 3D Earth Globe", url=WEB_URL, style=discord.ButtonStyle.link))
         await interaction.followup.send(embed=embed, view=view, files=files)

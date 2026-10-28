@@ -271,26 +271,40 @@ class DeclareWarModal(discord.ui.Modal, title="⚔️ Declare Sovereign War Camp
 
         success, msg, data = await self.bot.db.declare_earth_war(interaction.user.id, self.country["id"], tgt["id"], scale_val)
         if success:
+            war_id = data.get("war_id") or 0
+            dur = data.get("duration_hours") or 24
+            scale_name = data.get("scale_name", scale_val)
+
+            from utils.earth_anim import generate_war_speech, create_war_declared_media
+            war_speech = generate_war_speech(self.country["name"], tgt["name"], scale_name)
+            gif_buf, mp4_buf = create_war_declared_media(self.country["name"], tgt["name"], scale_name, "land", audio_bytes=war_speech)
+
             embed = discord.Embed(
                 title="🚨 DECLARATION OF MILITARY CONQUEST",
                 description=(
                     f"**{self.country['flag']} {self.country['name']}** has declared war on **{tgt['flag']} {tgt['name']}**!\n\n"
-                    f"• **Campaign Scale:** `{data.get('scale_name', scale_val)}`\n"
-                    f"• **Duration:** `{data.get('duration_hours')} Hours`\n"
+                    f"• **Campaign Scale:** `{scale_name}`\n"
+                    f"• **Duration:** `{dur} Hours`\n"
                     f"• **Front Line Active:** Mobilize divisions to fortify your front line!"
                 ),
                 color=0xDC2626
             )
-            await interaction.followup.send(embed=embed, ephemeral=False)
+            files = []
+            if mp4_buf:
+                mp4_buf.seek(0)
+                files.append(discord.File(mp4_buf, filename="war_declared.mp4"))
+                embed.set_footer(text="Virtual Earth 3D Geopolitics • Deep Voice Video Player Attached 🎬🎙️")
+            else:
+                embed.set_footer(text="Virtual Earth 3D Geopolitics Telemetry")
+
+            await interaction.followup.send(embed=embed, files=files, ephemeral=False)
 
             earth_cog = self.bot.get_cog("Virtual Earth") or self.bot.get_cog("EarthCog")
             if earth_cog:
-                war_id = data.get("war_id") or 0
-                dur = data.get("duration_hours") or 24
                 await earth_cog.broadcast_war_declared(
                     attacker_c=self.country,
                     defender_c=tgt,
-                    scale_name=data.get("scale_name", scale_val),
+                    scale_name=scale_name,
                     duration_hours=dur,
                     war_id=war_id,
                     domain="land",

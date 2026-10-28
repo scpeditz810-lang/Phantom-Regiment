@@ -90,7 +90,15 @@ def dispatch_discord_coro(coro):
         import asyncio
         loop = current_app.config.get("BOT_LOOP")
         if loop and loop.is_running():
-            asyncio.run_coroutine_threadsafe(coro, loop)
+            fut = asyncio.run_coroutine_threadsafe(coro, loop)
+            def _done_cb(f):
+                try:
+                    exc = f.exception()
+                    if exc:
+                        print(f"⚠️ Discord background task exception: {exc}", flush=True)
+                except Exception:
+                    pass
+            fut.add_done_callback(_done_cb)
     except Exception as e:
         print(f"⚠️ Dispatch to bot loop notice: {e}", flush=True)
 
