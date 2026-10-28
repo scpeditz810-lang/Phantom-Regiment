@@ -384,6 +384,9 @@ class CharterCoalitionModal(discord.ui.Modal, title="🤝 Charter International 
                 color=0x3B82F6
             )
             await interaction.followup.send(embed=embed, ephemeral=False)
+            earth_cog = self.bot.get_cog("Virtual Earth") or self.bot.get_cog("EarthCog")
+            if earth_cog:
+                await earth_cog.broadcast_alliance_news(self.country["name"], self.country["flag"], "Global Signatories", "🌐", self.name.value.strip())
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
 
@@ -411,6 +414,23 @@ class JoinCoalitionModal(discord.ui.Modal, title="📜 Join International Coalit
         success, msg = await self.bot.db.join_earth_alliance(interaction.user.id, self.country["id"], aid)
         if success:
             await interaction.followup.send(f"✅ {msg}", ephemeral=False)
+            earth_cog = self.bot.get_cog("Virtual Earth") or self.bot.get_cog("EarthCog")
+            if earth_cog:
+                founder_name, founder_flag, al_name = "Allied Coalition", "🌐", f"Treaty #{aid}"
+                try:
+                    if self.bot.db._db:
+                        async with self.bot.db._db.execute(
+                            "SELECT a.name, c.name, c.flag FROM earth_alliances a JOIN earth_countries c ON c.id=a.creator_country_id WHERE a.id=?",
+                            (aid,)
+                        ) as cur:
+                            row = await cur.fetchone()
+                            if row:
+                                al_name = row[0]
+                                founder_name = row[1]
+                                founder_flag = row[2]
+                except Exception:
+                    pass
+                await earth_cog.broadcast_alliance_news(self.country["name"], self.country["flag"], founder_name, founder_flag, al_name)
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
 
