@@ -27,6 +27,7 @@ def get_clean_next(target: str | None) -> str | None:
         # If absolute URL with netloc, ensure it's our own domain
         if parsed.netloc:
             allowed_hosts = {
+                "phantomregiment.apps.bot-hosting.cloud",
                 "phantom-regiment.onrender.com",
                 "localhost:10000",
                 "localhost",
@@ -34,7 +35,7 @@ def get_clean_next(target: str | None) -> str | None:
                 "127.0.0.1"
             }
             host = parsed.netloc.lower()
-            if host not in allowed_hosts and not host.endswith(".onrender.com"):
+            if host not in allowed_hosts and not host.endswith(".onrender.com") and not host.endswith(".apps.bot-hosting.cloud"):
                 return None
 
         path = parsed.path or ""
@@ -139,113 +140,93 @@ def login():
 def callback():
     code = request.args.get("code")
     if not code:
-        return redirect(url_for("views.verify"))
+        flash("Authorization failed or was cancelled.", "error")
+        return redirect(url_for("views.index"))
 
     cfg = get_oauth_config()
-    token_data = {
+    token_url = f"{DISCORD_API}/oauth2/token"
+    data = {
         "client_id": cfg["client_id"],
         "client_secret": cfg["client_secret"],
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": cfg["redirect_uri"]
     }
-
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
     try:
-        token_res = requests.post(f"{DISCORD_API}/oauth2/token", data=token_data, headers=headers, timeout=10)
-        token_json = token_res.json()
-        access_token = token_json.get("access_token")
-        if not access_token:
-            return redirect(url_for("views.verify"))
+        token_resp = requests.post(token_url, data=data, headers=headers, timeout=10)
+        token_data = token_resp.json()
 
-        # Fetch user info
-        user_headers = {"Authorization": f"Bearer {access_token}"}
-        user_res = requests.get(f"{DISCORD_API}/users/@me", headers=user_headers, timeout=10)
-        user_info = user_res.json()
-        user_id = int(user_info["id"])
-        username = user_info.get("username", "Unknown")
-        global_name = user_info.get("global_name") or username
-        avatar_hash = user_info.get("avatar")
+        if "access_token" not in token_data:
+            flash("Failed to obtain Discord token.", "error")
+            return redirect(url_for("views.index"))
 
-        if avatar_hash:
-            avatar_url = f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png?size=128"
-        else:
-            avatar_url = f"https://cdn.discordapp.com/embed/avatars/{(user_id >> 22) % 6}.png"
+        access_token = token_data["access_token"]
 
-        # Attempt to auto-add user to the Phantom Regiment server if not present
-        if cfg["bot_token"] and cfg["guild_id"]:
-            try:
-                join_url = f"{DISCORD_API}/guilds/{cfg['guild_id']}/members/{user_id}"
-                bot_headers = {
-                    "Authorization": f"Bot {cfg['bot_token']}",
-                    "Content-Type": "application/json"
-                }
-                requests.put(join_url, headers=bot_headers, json={"access_token": access_token}, timeout=5)
-            except Exception as e:
-                print(f"[OAuth2 Guild Join] Note: {e}")
+        user_resp = requests.get(
+            f"{DISCORD_API}/users/@me",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10
+        )
+        user_data = user_resp.json()
+        user_id = int(user_data["id"])
 
-        # Persist OAuth tokens to database for Anti-Raid Server Member Recovery
-        try:
-            db = current_app.config.get("DB")
-            if db:
-                from web.views import run_async
-                refresh_token = token_json.get("refresh_token")
-                expires_in = token_json.get("expires_in", 604800)
-                run_async(db.save_oauth_member(user_id, username, access_token, refresh_token, expires_in))
-        except Exception as e:
-            print(f"[OAuth Member Backup] {e}")
-
-        # Check Manager / Owner status from bot guild
-        bot = current_app.config.get("DISCORD_BOT")
-        ban_check = current_app.config.get("BAN_CHECK")
-        bot_loop = current_app.config.get("BOT_LOOP")
-        if ban_check and bot_loop and bot_loop.is_running():
-            try:
-                if asyncio.run_coroutine_threadsafe(ban_check(user_id), bot_loop).result(timeout=5):
-                    session.clear()
-                    return "Access denied: you are banned from Phantom Regiment.", 403
-            except Exception:
-                # The global request gate retries after the bot becomes ready.
-                pass
         is_owner = False
         is_manager = False
+        roles = []
+        is_in_guild = False
 
+        bot = current_app.config.get("DISCORD_BOT")
         if bot:
-            guild = bot.get_guild(cfg["guild_id"])
-            if not guild and bot.guilds:
-                guild = bot.guilds[0]
-
+            guild = bot.get_guild(cfg["guild_id"]) or (bot.guilds[0] if bot.guilds else None)
             if guild:
-                if guild.owner_id == user_id:
-                    is_owner = True
-                    is_manager = True
-                else:
-                    member = guild.get_member(user_id)
-                    if member:
-                        perms = member.guild_permissions
-                        if perms.administrator or perms.manage_guild:
-                            is_manager = True
-                        role_names = {r.name.lower() for r in member.roles}
-                        if "server manager" in role_names or "manager" in role_names:
-                            is_manager = True
+                member = guild.get_member(user_id)
+                if member:
+                    is_in_guild = True
+                    is_owner = (guild.owner_id == user_id)
+                    roles = [r.name for r in member.roles]
+                    is_manager = is_owner or any(
+                        r.name.lower() in ["manager", "admin", "administrator", "co-owner"]
+                        or r.permissions.administrator
+                        for r in member.roles
+                    )
+
+        if not is_in_guild and cfg["bot_token"]:
+            join_url = f"{DISCORD_API}/guilds/{cfg['guild_id']}/members/{user_id}"
+            join_headers = {
+                "Authorization": f"Bot {cfg['bot_token']}",
+                "Content-Type": "application/json"
+            }
+            try:
+                requests.put(join_url, json={"access_token": access_token}, headers=join_headers, timeout=5)
+            except Exception:
+                pass
 
         session["user"] = {
             "id": user_id,
-            "username": username,
-            "global_name": global_name,
-            "avatar": avatar_url,
+            "username": user_data.get("username", "Unknown"),
+            "global_name": user_data.get("global_name") or user_data.get("username"),
+            "avatar": (
+                f"https://cdn.discordapp.com/avatars/{user_id}/{user_data['avatar']}.png"
+                if user_data.get("avatar")
+                else "https://cdn.discordapp.com/embed/avatars/0.png"
+            ),
             "is_owner": is_owner,
             "is_manager": is_manager,
-            "is_mayor": is_current_mayor(user_id) or is_owner
+            "roles": roles
         }
-        dest = get_clean_next(session.pop("next_url", None)) or url_for("views.index")
+
+        flash(f"Welcome back, {session['user']['global_name']}!", "success")
+        dest = session.pop("next_url", None) or url_for("views.index")
         return redirect(dest)
 
     except Exception as e:
-        print(f"[OAuth2 Error] {e}")
-        return redirect(url_for("views.verify"))
+        flash(f"Login failed: {str(e)}", "error")
+        return redirect(url_for("views.index"))
 
 @auth_bp.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("views.verify"))
+    flash("You have been logged out.", "info")
+    return redirect(url_for("views.index"))
