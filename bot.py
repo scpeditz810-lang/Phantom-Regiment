@@ -122,6 +122,17 @@ def emergency_disk_clean():
                 subprocess.run(["git", "prune", "--expire=now"], cwd=data_dir, timeout=10, capture_output=True)
             except Exception:
                 pass
+
+        # 6. Auto-sync repository code from GitHub
+        if os.path.isdir(os.path.join(base_dir, ".git")):
+            token = os.environ.get("GITHUB_TOKEN", "").strip()
+            repo = os.environ.get("GITHUB_REPO", "").strip()
+            if token and repo:
+                auth_url = repo.replace("https://", f"https://{token}@")
+                try:
+                    subprocess.run(["git", "fetch", auth_url, "main"], cwd=base_dir, timeout=15, capture_output=True)
+                except Exception:
+                    pass
     except Exception as e:
         print(f"⚠️ Emergency disk cleanup notice: {e}", flush=True)
 
