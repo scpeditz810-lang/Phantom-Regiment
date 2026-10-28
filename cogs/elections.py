@@ -20,12 +20,38 @@ MAYOR_DAILY_SALARY = 12_500
 
 class StimulusClaimView(discord.ui.View):
     def __init__(self, bot, mayor_id: int, max_claims: int = 4, grant_amount: int = 2500):
-        super().__init__(timeout=300)
+        super().__init__(timeout=1800)
         self.bot = bot
         self.mayor_id = mayor_id
         self.max_claims = max_claims
         self.grant_amount = grant_amount
         self.claimed_users = set()
+        self.message = None
+
+    async def on_timeout(self):
+        for item in self.children:
+            if isinstance(item, discord.ui.Button):
+                item.disabled = True
+                if len(self.claimed_users) >= self.max_claims:
+                    item.label = "🏛️ All Stimulus Claimed"
+                else:
+                    item.label = "🏛️ Stimulus Expired"
+                item.style = discord.ButtonStyle.secondary
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
+        print(f"❌ Error in StimulusClaimView: {error}", flush=True)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ Could not process stimulus claim right now. Please try again.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ Could not process stimulus claim right now. Please try again.", ephemeral=True)
+        except Exception:
+            pass
 
     @discord.ui.button(label="🏛️ Claim Mayoral Stimulus (2,500 M)", style=discord.ButtonStyle.success)
     async def claim_stimulus(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -33,31 +59,60 @@ class StimulusClaimView(discord.ui.View):
 
         # Anti-self-claim rule: Mayor cannot claim their own stimulus
         if user.id == self.mayor_id:
-            return await interaction.response.send_message(
-                "⛔ **Anti-Corruption Law:** As Mayor, you released this stimulus for your citizens. You cannot claim it yourself!",
-                ephemeral=True
-            )
+            if not interaction.response.is_done():
+                return await interaction.response.send_message(
+                    "⛔ **Anti-Corruption Law:** As Mayor, you released this stimulus for your citizens. You cannot claim it yourself!",
+                    ephemeral=True
+                )
+            else:
+                return await interaction.followup.send(
+                    "⛔ **Anti-Corruption Law:** As Mayor, you released this stimulus for your citizens. You cannot claim it yourself!",
+                    ephemeral=True
+                )
 
         if user.id in self.claimed_users:
-            return await interaction.response.send_message("⚠️ You have already claimed from this stimulus package!", ephemeral=True)
+            if not interaction.response.is_done():
+                return await interaction.response.send_message("⚠️ You have already claimed from this stimulus package!", ephemeral=True)
+            else:
+                return await interaction.followup.send("⚠️ You have already claimed from this stimulus package!", ephemeral=True)
 
         if len(self.claimed_users) >= self.max_claims:
             button.disabled = True
-            await interaction.response.edit_message(view=self)
+            button.label = "🏛️ All Stimulus Claimed"
+            button.style = discord.ButtonStyle.secondary
+            if not interaction.response.is_done():
+                await interaction.response.edit_message(view=self)
             return await interaction.followup.send("❌ All stimulus packages have already been claimed!", ephemeral=True)
 
+        # Register claimant in memory set
         self.claimed_users.add(user.id)
-        await self.bot.db.add_medals(user.id, interaction.guild_id, self.grant_amount)
+
+        # Award medals with safe error boundary
+        try:
+            await self.bot.db.add_medals(user.id, interaction.guild_id, self.grant_amount)
+        except Exception as db_err:
+            self.claimed_users.discard(user.id)
+            print(f"⚠️ Error depositing stimulus medals: {db_err}", flush=True)
+            if not interaction.response.is_done():
+                return await interaction.response.send_message("❌ Database busy while depositing medals. Please try again.", ephemeral=True)
+            else:
+                return await interaction.followup.send("❌ Database busy while depositing medals. Please try again.", ephemeral=True)
 
         remaining = self.max_claims - len(self.claimed_users)
         if remaining <= 0:
             button.disabled = True
             button.label = "🏛️ All Stimulus Claimed"
             button.style = discord.ButtonStyle.secondary
-            await interaction.response.edit_message(view=self)
         else:
             button.label = f"🏛️ Claim Stimulus ({remaining} Left)"
+
+        if not interaction.response.is_done():
             await interaction.response.edit_message(view=self)
+        else:
+            try:
+                await interaction.message.edit(view=self)
+            except Exception:
+                pass
 
         await interaction.followup.send(
             f"🎉 **Stimulus Received!** `+{self.grant_amount:,} Medals` from the City Budget deposited into your wallet!",
@@ -949,6 +1004,10 @@ class ElectionsCog(commands.Cog):
         embed.set_thumbnail(url=user.display_avatar.url)
         embed.set_footer(text="City Hall Treasury • Public Economic Relief")
         await interaction.response.send_message(content="📦 **PUBLIC STIMULUS AIRDROP!**", embed=embed, view=view)
+        try:
+            view.message = await interaction.original_response()
+        except Exception:
+            pass
 
     @mayor.command(name="pardon", description="[Mayor Only] Issue a Mayoral Pardon to immediately clear a citizen's robbery cooldown")
     @app_commands.describe(member="The citizen to pardon (Max 3 per term; CANNOT pardon yourself)")
