@@ -36,12 +36,17 @@ class GitBackup:
 
     @staticmethod
     def is_render() -> bool:
-        """Return True if running inside Render's production cloud container."""
+        """Return True if running inside cloud container (Render, Bot-Hosting, Koyeb, Docker, etc.)."""
         return bool(
             os.environ.get("RENDER")
             or os.environ.get("IS_RENDER")
             or os.environ.get("RENDER_SERVICE_ID")
+            or os.environ.get("P_SERVER_UUID")
+            or os.environ.get("SERVER_MEMORY")
+            or os.environ.get("STARTUP_FILE")
+            or os.path.exists("/home/container")
             or os.path.exists("/.dockerenv")
+            or os.environ.get("CLOUD_HOSTED") == "1"
         )
 
     # ── public ──────────────────────────────────────────────────────────────

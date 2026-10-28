@@ -13,6 +13,7 @@ from utils.earth_anim import (
     create_war_ended_gif,
     create_new_ruler_gif,
     create_country_fallen_gif,
+    generate_tactical_audio
 )
 
 from utils.constants import (
@@ -110,25 +111,32 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         if self.earth_war_checker.is_running():
             self.earth_war_checker.cancel()
 
-    async def broadcast_news(self, title: str, description: str, gif_bytes, filename: str = "news.gif", color: int = 0x38BDF8):
+    async def broadcast_news(self, title: str, description: str, gif_bytes, filename: str = "news.gif", color: int = 0x38BDF8, audio_type: str = None):
         try:
             channel = self.bot.get_channel(EARTH_NEWS_CHANNEL_ID)
             if not channel:
                 channel = await self.bot.fetch_channel(EARTH_NEWS_CHANNEL_ID)
             if channel:
                 gif_bytes.seek(0)
-                file = discord.File(gif_bytes, filename=filename)
+                files_to_send = [discord.File(gif_bytes, filename=filename)]
+                if audio_type:
+                    try:
+                        audio_buf = generate_tactical_audio(audio_type)
+                        files_to_send.append(discord.File(audio_buf, filename=f"{audio_type}.wav"))
+                    except Exception as sound_err:
+                        print(f"⚠️ Sound synthesis notice: {sound_err}", flush=True)
+
                 embed = discord.Embed(
                     title=title,
                     description=description,
                     color=color
                 )
                 embed.set_image(url=f"attachment://{filename}")
-                embed.set_footer(text="Virtual Earth 3D Geopolitics Simulation")
+                embed.set_footer(text="Virtual Earth 3D Geopolitics Simulation • Audio Dispatch Attached")
                 await channel.send(
                     content=f"<@&{EARTH_NEWS_ROLE_ID}> 🚨 **SOVEREIGN GEOPOLITICAL DISPATCH!**",
                     embed=embed,
-                    file=file
+                    files=files_to_send
                 )
         except Exception as e:
             print(f"⚠️ Failed to broadcast Earth News: {e}", flush=True)
@@ -166,7 +174,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                             description=desc,
                             gif_bytes=gif,
                             filename="war_ended.gif",
-                            color=0x10B981
+                            color=0x10B981,
+                            audio_type="victory_fanfare"
                         )
         except Exception as e:
             print(f"⚠️ Error checking concluded earth wars: {e}", flush=True)
@@ -678,7 +687,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 description=news_desc,
                 gif_bytes=news_gif,
                 filename="war_news.gif",
-                color=0xDC2626
+                color=0xDC2626,
+                audio_type="war_siren"
             )
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
@@ -771,7 +781,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             description=news_desc,
             gif_bytes=news_gif,
             filename="ruler_news.gif",
-            color=0xF59E0B
+            color=0xF59E0B,
+            audio_type="ruler_inauguration"
         )
 
 
@@ -1310,7 +1321,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             description=desc,
             gif_bytes=news_gif,
             filename="surrender_news.gif",
-            color=0xEAB308
+            color=0xEAB308,
+            audio_type="surrender_conceded"
         )
 
 

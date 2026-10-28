@@ -1,13 +1,17 @@
 """
-Virtual Earth Tactical Animation Generator
-Generates high-definition, animated GIF/video cards for Virtual Earth geopolitics:
-- War Declarations & Frontline Clashes
-- War Conclusions & Surrenders
-- Imperial Throne / Ruler Inception
-- Sovereign Annihilation / Country Fallen
+Virtual Earth Tactical Animation & Audio Generator
+Generates high-definition, animated visual broadcast cards and tactical procedural audio
+for Virtual Earth geopolitics:
+- War Declarations & Frontline Clashes (with Emergency Air-Raid Siren audio)
+- War Conclusions & Surrenders (with Armistice Fanfare / Peace Bell audio)
+- Imperial Throne / Ruler Inception (with Sovereign Imperial Trumpet audio)
+- Sovereign Annihilation / Country Fallen (with Defeat / Requiem audio)
 """
 
 import io
+import math
+import struct
+import wave
 from PIL import Image, ImageDraw, ImageFont
 
 def _get_font(size: int = 18):
@@ -18,6 +22,70 @@ def _get_font(size: int = 18):
             return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size)
         except Exception:
             return ImageFont.load_default()
+
+# ── Procedural Sound Effects Engine (Pure Python standard library) ─────────────
+
+def generate_tactical_audio(sound_type: str = "war_siren", duration: float = 3.5, sample_rate: int = 44100) -> io.BytesIO:
+    """Generate cinematic tactical audio for Discord dispatches (Air-Raid, Trumpet, Armistice, Requiem)."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        num_samples = int(duration * sample_rate)
+        
+        for i in range(num_samples):
+            t = i / sample_rate
+            val = 0.0
+            
+            if sound_type == "war_siren":
+                # Emergency war air-raid siren wailing (480Hz to 820Hz) + heavy rumble
+                freq = 650.0 + 190.0 * math.sin(2.0 * math.pi * 1.1 * t)
+                wave_sample = math.sin(2.0 * math.pi * freq * t)
+                sub_drone = 0.35 * math.sin(2.0 * math.pi * 65.0 * t)
+                val = (wave_sample * 0.65 + sub_drone)
+                
+            elif sound_type == "victory_fanfare":
+                # Majestic ascending triumph brass chord (Do-Mi-Sol chords)
+                # Notes: C4 (261.6), E4 (329.6), G4 (392.0), C5 (523.2)
+                step = int(t / 0.4)
+                notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99]
+                curr_freq = notes[min(step, len(notes) - 1)]
+                harmonic = 0.6 * math.sin(2 * math.pi * curr_freq * t) + 0.3 * math.sin(4 * math.pi * curr_freq * t)
+                envelope = math.exp(-2.5 * (t % 0.4)) if step < len(notes) - 1 else math.exp(-0.8 * (t - 2.0))
+                val = harmonic * envelope
+                
+            elif sound_type == "ruler_inauguration":
+                # Sovereign royal trumpet brass fanfare
+                tones = [349.23, 440.0, 523.25, 698.46]
+                tone_idx = min(int(t / 0.5), len(tones) - 1)
+                f = tones[tone_idx]
+                brass = 0.65 * math.sin(2 * math.pi * f * t) + 0.3 * math.sin(3 * math.pi * f * t)
+                val = brass * min(1.0, (duration - t) * 0.8)
+                
+            elif sound_type == "surrender_conceded":
+                # Somber armistice peace chime / gong bell with decaying resonance
+                freq1 = 440.0
+                freq2 = 554.37
+                bell = (0.5 * math.sin(2 * math.pi * freq1 * t) + 0.5 * math.sin(2 * math.pi * freq2 * t))
+                envelope = math.exp(-1.4 * t)
+                val = bell * envelope
+                
+            else: # fallen_requiem
+                # Deep dramatic defeat boom & sorrow resonance
+                f = max(40.0, 110.0 - (t * 22.0))
+                drone = 0.7 * math.sin(2 * math.pi * f * t) + 0.3 * math.sin(2 * math.pi * (f * 1.5) * t)
+                decay = math.exp(-0.9 * t)
+                val = drone * decay
+
+            sample_int = int(val * 28000)
+            sample_int = max(-32767, min(32767, sample_int))
+            wf.writeframes(struct.pack("<h", sample_int))
+            
+    buf.seek(0)
+    return buf
+
+# ── Animated Tactical Visual Cards ─────────────────────────────────────────────
 
 def create_war_declared_gif(atk_name: str, atk_flag: str, dfn_name: str, dfn_flag: str, scale: str, domain: str) -> io.BytesIO:
     w, h = 640, 220

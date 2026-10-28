@@ -2685,7 +2685,7 @@ def api_earth_war_surrender():
         try:
             bot = current_app.config.get("DISCORD_BOT")
             if bot:
-                from utils.earth_anim import create_war_ended_gif
+                from utils.earth_anim import create_war_ended_gif, generate_tactical_audio
                 winner = res_data.get("winner_country", {})
                 loser = res_data.get("loser_country", {})
                 gif_buf = create_war_ended_gif(
@@ -2704,6 +2704,12 @@ def api_earth_war_surrender():
                     if ch:
                         import discord
                         d_file = discord.File(gif_buf, filename="war_surrender.gif")
+                        files_to_send = [d_file]
+                        try:
+                            audio_buf = generate_tactical_audio("surrender_conceded")
+                            files_to_send.append(discord.File(audio_buf, filename="surrender_chime.wav"))
+                        except Exception:
+                            pass
                         desc = (
                             f"**Victor:** {winner.get('flag', '')} **{winner.get('name', 'Victor')}**\n"
                             f"**Surrendering Nation:** {loser.get('flag', '')} **{loser.get('name', 'Conceded')}**\n"
@@ -2718,7 +2724,7 @@ def api_earth_war_surrender():
                         )
                         embed.set_image(url="attachment://war_surrender.gif")
                         embed.set_footer(text="Virtual Earth 3D Geopolitics Telemetry")
-                        await ch.send(content=f"<@&{news_role_id}> 🚨 **SOVEREIGN DISPATCH: WAR CONCLUDED VIA SURRENDER!**", embed=embed, file=d_file)
+                        await ch.send(content=f"<@&{news_role_id}> 🚨 **SOVEREIGN DISPATCH: WAR CONCLUDED VIA SURRENDER!**", embed=embed, files=files_to_send)
                 if loop:
                     asyncio.run_coroutine_threadsafe(_post_news(), loop)
         except Exception as e:
