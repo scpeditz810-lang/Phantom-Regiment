@@ -143,9 +143,10 @@ def probe_audio_duration(audio_bytes: io.BytesIO) -> float:
 
 # === Video Render Engine (FFmpeg H.264 / 48kHz Stereo AAC) ====================
 
-def render_frames_to_mp4(frames: list, audio_bytes=None, fps: int = 10) -> io.BytesIO | None:
-    """Render Pillow frames and optional audio into a faststart H.264 MP4 with 48kHz Stereo AAC."""
-    if not frames:
+def render_frames_to_mp4(frames, audio_bytes=None, fps: int = 10, width: int = 640, height: int = 360) -> io.BytesIO | None:
+    """Render Pillow frames (generator or list) and optional audio into a faststart H.264 MP4 with 48kHz Stereo AAC.
+    Uses stdin rawvideo streaming and ultrafast preset for minimal peak RAM (<15MB) on memory-constrained servers."""
+    if frames is None:
         return None
     try:
         import imageio_ffmpeg
@@ -157,9 +158,8 @@ def render_frames_to_mp4(frames: list, audio_bytes=None, fps: int = 10) -> io.By
 
     td = tempfile.mkdtemp()
     try:
-        render_frames = list(frames)
         audio_path = None
-
+        audio_dur = None
         if audio_bytes is not None:
             audio_bytes.seek(0)
             data = audio_bytes.read()
@@ -167,29 +167,25 @@ def render_frames_to_mp4(frames: list, audio_bytes=None, fps: int = 10) -> io.By
                 audio_path = os.path.join(td, "audio.mp3")
                 with open(audio_path, "wb") as f:
                     f.write(data)
-
-                # Ensure frame count covers entire audio duration if deficit remains
-                probe_cmd = [exe, "-i", audio_path]
-                p_res = subprocess.run(probe_cmd, capture_output=True, text=True, errors="replace")
-                dur_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", p_res.stderr)
-                if dur_match:
-                    h, m, s = float(dur_match.group(1)), float(dur_match.group(2)), float(dur_match.group(3))
-                    audio_dur = h * 3600 + m * 60 + s
-                    needed_frames = int(math.ceil(audio_dur * fps))
-                    if needed_frames > len(render_frames):
-                        last_frame = render_frames[-1]
-                        deficit = needed_frames - len(render_frames)
-                        for _ in range(deficit):
-                            render_frames.append(last_frame)
-
-        for idx, frame in enumerate(render_frames):
-            frame.save(os.path.join(td, f"frame_{idx:04d}.png"), "PNG")
+                try:
+                    probe_cmd = [exe, "-i", audio_path]
+                    p_res = subprocess.run(probe_cmd, capture_output=True, text=True, errors="replace", timeout=10)
+                    dur_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", p_res.stderr)
+                    if dur_match:
+                        h, m, s = float(dur_match.group(1)), float(dur_match.group(2)), float(dur_match.group(3))
+                        audio_dur = h * 3600 + m * 60 + s
+                except Exception:
+                    pass
 
         out_path = os.path.join(td, "out.mp4")
         cmd = [
             exe, "-y",
-            "-framerate", str(fps),
-            "-i", os.path.join(td, "frame_%04d.png")
+            "-f", "rawvideo",
+            "-vcodec", "rawvideo",
+            "-s", f"{width}x{height}",
+            "-pix_fmt", "rgb24",
+            "-r", str(fps),
+            "-i", "-",
         ]
 
         if audio_path and os.path.exists(audio_path):
@@ -204,19 +200,39 @@ def render_frames_to_mp4(frames: list, audio_bytes=None, fps: int = 10) -> io.By
 
         cmd.extend([
             "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-tune", "fastdecode",
+            "-crf", "26",
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
             out_path
         ])
 
-        res = subprocess.run(cmd, capture_output=True, timeout=50)
-        if res.returncode == 0 and os.path.exists(out_path):
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        last_frame_bytes = None
+        count = 0
+        for frame in frames:
+            fb = frame.tobytes()
+            proc.stdin.write(fb)
+            last_frame_bytes = fb
+            count += 1
+
+        if audio_dur and last_frame_bytes:
+            needed = int(math.ceil(audio_dur * fps))
+            if needed > count:
+                for _ in range(needed - count):
+                    proc.stdin.write(last_frame_bytes)
+
+        proc.stdin.close()
+        proc.wait(timeout=40)
+
+        if proc.returncode == 0 and os.path.exists(out_path):
             with open(out_path, "rb") as f:
                 buf = io.BytesIO(f.read())
             buf.seek(0)
             return buf
     except Exception as e:
-        print(f"?? MP4 render notice: {e}", flush=True)
+        print(f"⚠️ MP4 render notice: {e}", flush=True)
     finally:
         shutil.rmtree(td, ignore_errors=True)
 
@@ -854,20 +870,21 @@ def render_commander_scene_frame(
 
     return im
 
-# === Frame Generation Pipelines (Long, unbroken animations) ===================
+# === Frame Generation Pipelines (Long, unbroken animations, memory-streaming) =
 
-def create_war_declared_frames(attacker_name: str, defender_name: str, scale: str, domain: str = "TERRESTRIAL", total_frames: int = 80) -> list[Image.Image]:
+def generate_war_declared_frames(attacker_name: str, defender_name: str, scale: str, domain: str = "TERRESTRIAL", total_frames: int = 80):
     c_atk = clean_tactical_text(attacker_name)
     c_dfn = clean_tactical_text(defender_name)
-    frames = []
     parchment_count = 35
     action_count = max(45, total_frames - parchment_count)
 
     for i in range(parchment_count):
-        frames.append(render_order_parchment_frame(i, parchment_count, "DECLARATION OF WAR", c_atk, c_dfn, f"Operation {scale.upper()} Mobilization", "DECREED", (185, 28, 28)))
+        yield render_order_parchment_frame(i, parchment_count, "DECLARATION OF WAR", c_atk, c_dfn, f"Operation {scale.upper()} Mobilization", "DECREED", (185, 28, 28))
     for i in range(action_count):
-        frames.append(render_war_scene_frame(i, action_count, c_atk, c_dfn, scale, domain))
-    return frames
+        yield render_war_scene_frame(i, action_count, c_atk, c_dfn, scale, domain)
+
+def create_war_declared_frames(attacker_name: str, defender_name: str, scale: str, domain: str = "TERRESTRIAL", total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_war_declared_frames(attacker_name, defender_name, scale, domain, total_frames))
 
 def create_war_declared_gif(attacker_name: str, attacker_flag: str, defender_name: str, defender_flag: str, scale: str = "border") -> io.BytesIO:
     frames = create_war_declared_frames(attacker_name, defender_name, scale, total_frames=45)
@@ -876,33 +893,36 @@ def create_war_declared_gif(attacker_name: str, attacker_flag: str, defender_nam
     buf.seek(0)
     return buf
 
-def create_war_declared_media(attacker_name: str, defender_name: str, scale: str, domain: str = "TERRESTRIAL", audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+def create_war_declared_media(attacker_name: str, defender_name: str, scale: str, domain: str = "TERRESTRIAL", audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
     target_frames = 80
     if audio_bytes is not None:
         dur = probe_audio_duration(audio_bytes)
         if dur and dur > 0:
             target_frames = max(80, int(math.ceil(dur * 10)))
 
-    frames = create_war_declared_frames(attacker_name, defender_name, scale, domain, total_frames=target_frames)
-    gif_buf = io.BytesIO()
-    gif_frames = frames[::2] if len(frames) > 50 else frames
-    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
-    gif_buf.seek(0)
-    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    mp4_buf = render_frames_to_mp4(
+        generate_war_declared_frames(attacker_name, defender_name, scale, domain, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_war_declared_gif(attacker_name, "⚔️", defender_name, "🛡️", scale)
     return gif_buf, mp4_buf
 
-def create_war_ended_frames(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0, total_frames: int = 80) -> list[Image.Image]:
+def generate_war_ended_frames(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0, total_frames: int = 80):
     c_win = clean_tactical_text(winner_name)
     c_los = clean_tactical_text(loser_name)
-    frames = []
     parchment_count = 35
     action_count = max(45, total_frames - parchment_count)
 
     for i in range(parchment_count):
-        frames.append(render_order_parchment_frame(i, parchment_count, "INSTRUMENT OF SURRENDER", c_win, c_los, "Unconditional Capitulation & Truce", "SURRENDERED", (100, 110, 125)))
+        yield render_order_parchment_frame(i, parchment_count, "INSTRUMENT OF SURRENDER", c_win, c_los, "Unconditional Capitulation & Truce", "SURRENDERED", (100, 110, 125))
     for i in range(action_count):
-        frames.append(render_surrender_scene_frame(i, action_count, c_win, c_los, reparations))
-    return frames
+        yield render_surrender_scene_frame(i, action_count, c_win, c_los, reparations)
+
+def create_war_ended_frames(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0, total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_war_ended_frames(winner_name, loser_name, reason, reparations, total_frames))
 
 def create_war_ended_gif(winner_name: str, winner_flag: str, loser_name: str, loser_flag: str, reason: str = "VICTORY", reparations: int = 0) -> io.BytesIO:
     frames = create_war_ended_frames(winner_name, loser_name, reason, reparations, total_frames=45)
@@ -911,34 +931,37 @@ def create_war_ended_gif(winner_name: str, winner_flag: str, loser_name: str, lo
     buf.seek(0)
     return buf
 
-def create_war_ended_media(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+def create_war_ended_media(winner_name: str, loser_name: str, reason: str = "VICTORY", reparations: int = 0, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
     target_frames = 80
     if audio_bytes is not None:
         dur = probe_audio_duration(audio_bytes)
         if dur and dur > 0:
             target_frames = max(80, int(math.ceil(dur * 10)))
 
-    frames = create_war_ended_frames(winner_name, loser_name, reason, reparations, total_frames=target_frames)
-    gif_buf = io.BytesIO()
-    gif_frames = frames[::2] if len(frames) > 50 else frames
-    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
-    gif_buf.seek(0)
-    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    mp4_buf = render_frames_to_mp4(
+        generate_war_ended_frames(winner_name, loser_name, reason, reparations, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_war_ended_gif(winner_name, "👑", loser_name, "🏳️", reason, reparations)
     return gif_buf, mp4_buf
 
-def create_country_allied_frames(country_a_name: str, country_b_name: str, alliance_name: str, total_frames: int = 80) -> list[Image.Image]:
+def generate_country_allied_frames(country_a_name: str, country_b_name: str, alliance_name: str, total_frames: int = 80):
     c_a = clean_tactical_text(country_a_name)
     c_b = clean_tactical_text(country_b_name)
     c_al = clean_tactical_text(alliance_name)
-    frames = []
     parchment_count = 35
     action_count = max(45, total_frames - parchment_count)
 
     for i in range(parchment_count):
-        frames.append(render_order_parchment_frame(i, parchment_count, "TREATY OF ALLIANCE", c_a, c_b, f"{c_al} Mutual Security", "ALLIED", (14, 165, 233)))
+        yield render_order_parchment_frame(i, parchment_count, "TREATY OF ALLIANCE", c_a, c_b, f"{c_al} Mutual Security", "ALLIED", (14, 165, 233))
     for i in range(action_count):
-        frames.append(render_treaty_scene_frame(i, action_count, c_a, c_b, c_al))
-    return frames
+        yield render_treaty_scene_frame(i, action_count, c_a, c_b, c_al)
+
+def create_country_allied_frames(country_a_name: str, country_b_name: str, alliance_name: str, total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_country_allied_frames(country_a_name, country_b_name, alliance_name, total_frames))
 
 def create_country_allied_gif(country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str) -> io.BytesIO:
     frames = create_country_allied_frames(country_a_name, country_b_name, alliance_name, total_frames=45)
@@ -947,33 +970,36 @@ def create_country_allied_gif(country_a_name: str, country_a_flag: str, country_
     buf.seek(0)
     return buf
 
-def create_country_allied_media(country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+def create_country_allied_media(country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
     target_frames = 80
     if audio_bytes is not None:
         dur = probe_audio_duration(audio_bytes)
         if dur and dur > 0:
             target_frames = max(80, int(math.ceil(dur * 10)))
 
-    frames = create_country_allied_frames(country_a_name, country_b_name, alliance_name, total_frames=target_frames)
-    gif_buf = io.BytesIO()
-    gif_frames = frames[::2] if len(frames) > 50 else frames
-    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
-    gif_buf.seek(0)
-    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    mp4_buf = render_frames_to_mp4(
+        generate_country_allied_frames(country_a_name, country_b_name, alliance_name, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_country_allied_gif(country_a_name, country_a_flag, country_b_name, country_b_flag, alliance_name)
     return gif_buf, mp4_buf
 
-def create_new_ruler_frames(country_name: str, ruler_name: str, total_frames: int = 80) -> list[Image.Image]:
+def generate_new_ruler_frames(country_name: str, ruler_name: str, total_frames: int = 80):
     c_c = clean_tactical_text(country_name)
     c_r = clean_tactical_text(ruler_name)
-    frames = []
     parchment_count = 35
     action_count = max(45, total_frames - parchment_count)
 
     for i in range(parchment_count):
-        frames.append(render_order_parchment_frame(i, parchment_count, "CORONATION DECREE", c_c, c_r, "Supreme Sovereign Authority", "IMPERIAL", (202, 138, 4)))
+        yield render_order_parchment_frame(i, parchment_count, "CORONATION DECREE", c_c, c_r, "Supreme Sovereign Authority", "IMPERIAL", (202, 138, 4))
     for i in range(action_count):
-        frames.append(render_ruler_scene_frame(i, action_count, c_c, c_r))
-    return frames
+        yield render_ruler_scene_frame(i, action_count, c_c, c_r)
+
+def create_new_ruler_frames(country_name: str, ruler_name: str, total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_new_ruler_frames(country_name, ruler_name, total_frames))
 
 def create_new_ruler_gif(country_name: str, country_flag: str, ruler_name: str) -> io.BytesIO:
     frames = create_new_ruler_frames(country_name, ruler_name, total_frames=45)
@@ -982,33 +1008,36 @@ def create_new_ruler_gif(country_name: str, country_flag: str, ruler_name: str) 
     buf.seek(0)
     return buf
 
-def create_new_ruler_media(country_name: str, country_flag: str, ruler_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+def create_new_ruler_media(country_name: str, country_flag: str, ruler_name: str, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
     target_frames = 80
     if audio_bytes is not None:
         dur = probe_audio_duration(audio_bytes)
         if dur and dur > 0:
             target_frames = max(80, int(math.ceil(dur * 10)))
 
-    frames = create_new_ruler_frames(country_name, ruler_name, total_frames=target_frames)
-    gif_buf = io.BytesIO()
-    gif_frames = frames[::2] if len(frames) > 50 else frames
-    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
-    gif_buf.seek(0)
-    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    mp4_buf = render_frames_to_mp4(
+        generate_new_ruler_frames(country_name, ruler_name, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_new_ruler_gif(country_name, country_flag, ruler_name)
     return gif_buf, mp4_buf
 
-def create_country_fallen_frames(loser_name: str, winner_name: str, total_frames: int = 80) -> list[Image.Image]:
+def generate_country_fallen_frames(loser_name: str, winner_name: str, total_frames: int = 80):
     c_los = clean_tactical_text(loser_name)
     c_win = clean_tactical_text(winner_name)
-    frames = []
     parchment_count = 35
     action_count = max(45, total_frames - parchment_count)
 
     for i in range(parchment_count):
-        frames.append(render_order_parchment_frame(i, parchment_count, "DECREE OF ANNEXATION", c_win, c_los, "National Sovereignty Extinguished", "ANNEXED", (153, 27, 27)))
+        yield render_order_parchment_frame(i, parchment_count, "DECREE OF ANNEXATION", c_win, c_los, "National Sovereignty Extinguished", "ANNEXED", (153, 27, 27))
     for i in range(action_count):
-        frames.append(render_fallen_scene_frame(i, action_count, c_los, c_win))
-    return frames
+        yield render_fallen_scene_frame(i, action_count, c_los, c_win)
+
+def create_country_fallen_frames(loser_name: str, winner_name: str, total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_country_fallen_frames(loser_name, winner_name, total_frames))
 
 def create_country_fallen_gif(country_name: str, country_flag: str, conqueror_name: str, conqueror_flag: str) -> io.BytesIO:
     frames = create_country_fallen_frames(country_name, conqueror_name, total_frames=45)
@@ -1017,33 +1046,36 @@ def create_country_fallen_gif(country_name: str, country_flag: str, conqueror_na
     buf.seek(0)
     return buf
 
-def create_country_fallen_media(loser_name: str, winner_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+def create_country_fallen_media(loser_name: str, winner_name: str, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
     target_frames = 80
     if audio_bytes is not None:
         dur = probe_audio_duration(audio_bytes)
         if dur and dur > 0:
             target_frames = max(80, int(math.ceil(dur * 10)))
 
-    frames = create_country_fallen_frames(loser_name, winner_name, total_frames=target_frames)
-    gif_buf = io.BytesIO()
-    gif_frames = frames[::2] if len(frames) > 50 else frames
-    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
-    gif_buf.seek(0)
-    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    mp4_buf = render_frames_to_mp4(
+        generate_country_fallen_frames(loser_name, winner_name, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_country_fallen_gif(loser_name, "🏳️", winner_name, "👑")
     return gif_buf, mp4_buf
 
-def create_new_commander_frames(country_name: str, commander_name: str, total_frames: int = 80) -> list[Image.Image]:
+def generate_new_commander_frames(country_name: str, commander_name: str, total_frames: int = 80):
     c_c = clean_tactical_text(country_name)
     c_m = clean_tactical_text(commander_name)
-    frames = []
     parchment_count = 35
     action_count = max(45, total_frames - parchment_count)
 
     for i in range(parchment_count):
-        frames.append(render_order_parchment_frame(i, parchment_count, "MILITARY COMMISSION", c_c, c_m, "Armed Forces High Command", "APPOINTED", (71, 85, 105)))
+        yield render_order_parchment_frame(i, parchment_count, "MILITARY COMMISSION", c_c, c_m, "Armed Forces High Command", "APPOINTED", (71, 85, 105))
     for i in range(action_count):
-        frames.append(render_commander_scene_frame(i, action_count, c_c, c_m))
-    return frames
+        yield render_commander_scene_frame(i, action_count, c_c, c_m)
+
+def create_new_commander_frames(country_name: str, commander_name: str, total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_new_commander_frames(country_name, commander_name, total_frames))
 
 def create_new_commander_gif(country_name: str, country_flag: str, commander_name: str) -> io.BytesIO:
     frames = create_new_commander_frames(country_name, commander_name, total_frames=45)
@@ -1052,19 +1084,21 @@ def create_new_commander_gif(country_name: str, country_flag: str, commander_nam
     buf.seek(0)
     return buf
 
-def create_new_commander_media(country_name: str, country_flag: str, commander_name: str, audio_bytes=None) -> tuple[io.BytesIO, io.BytesIO | None]:
+def create_new_commander_media(country_name: str, country_flag: str, commander_name: str, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
     target_frames = 80
     if audio_bytes is not None:
         dur = probe_audio_duration(audio_bytes)
         if dur and dur > 0:
             target_frames = max(80, int(math.ceil(dur * 10)))
 
-    frames = create_new_commander_frames(country_name, commander_name, total_frames=target_frames)
-    gif_buf = io.BytesIO()
-    gif_frames = frames[::2] if len(frames) > 50 else frames
-    gif_frames[0].save(gif_buf, format="GIF", save_all=True, append_images=gif_frames[1:], duration=150, loop=0)
-    gif_buf.seek(0)
-    mp4_buf = render_frames_to_mp4(frames, audio_bytes, fps=10)
+    mp4_buf = render_frames_to_mp4(
+        generate_new_commander_frames(country_name, commander_name, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_new_commander_gif(country_name, country_flag, commander_name)
     return gif_buf, mp4_buf
 
 # === Spoken Voice Narration (TTS) & Deep Male Broadcaster DSP Engine ==========

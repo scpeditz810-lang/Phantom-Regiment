@@ -209,9 +209,10 @@ class WarSurrenderView(discord.ui.View):
             res_files.append(discord.File(mp4_buf, filename="surrender_concluded.mp4"))
             res_embed.set_footer(text="Virtual Earth 3D Geopolitics • Deep Voice Video Player Attached 🎬🎙️")
         else:
-            gif.seek(0)
-            res_files.append(discord.File(gif, filename="surrender.gif"))
-            res_embed.set_image(url="attachment://surrender.gif")
+            if gif is not None:
+                gif.seek(0)
+                res_files.append(discord.File(gif, filename="surrender.gif"))
+                res_embed.set_image(url="attachment://surrender.gif")
             if speech_buf:
                 speech_buf.seek(0)
                 res_files.append(discord.File(speech_buf, filename="voice_announcement.mp3"))
