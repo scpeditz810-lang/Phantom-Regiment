@@ -24,9 +24,12 @@ def run_async(coro):
 
     """Run a DB coroutine on the bot loop after startup is ready."""
 
-    bot_loop = current_app.config.get("BOT_LOOP")
-
-    db_ready = current_app.config.get("DB_READY")
+    try:
+        bot_loop = current_app.config.get("BOT_LOOP")
+        db_ready = current_app.config.get("DB_READY")
+    except Exception:
+        bot_loop = None
+        db_ready = None
 
 
 
@@ -102,22 +105,41 @@ def dispatch_discord_coro(coro):
     except Exception as e:
         print(f"⚠️ Dispatch to bot loop notice: {e}", flush=True)
 
-async def _bg_broadcast_commander(country_id: int, commander_name: str):
-    bot = current_app.config.get("DISCORD_BOT")
-    db = current_app.config.get("DB")
+async def _bg_broadcast_commander(country_id: int, commander_name: str, bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            db = None
     if not bot or not db:
+        print(f"⚠️ _bg_broadcast_commander: bot ({bot}) or db ({db}) missing!", flush=True)
         return
     c = await db.get_earth_country(country_id)
     if not c:
         return
     earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
     if earth_cog:
+        print(f"[DISCORD BROADCAST] Broadcasting new commander {commander_name} for {c.get('name')} to Discord...", flush=True)
         await earth_cog.broadcast_commander_news(c["name"], c["flag"], commander_name)
 
-async def _bg_broadcast_alliance(country_id: int, alliance_name: str, alliance_id: int = None, partner_name: str = "Global Signatories", partner_flag: str = "🌐"):
-    bot = current_app.config.get("DISCORD_BOT")
-    db = current_app.config.get("DB")
+async def _bg_broadcast_alliance(country_id: int, alliance_name: str, alliance_id: int = None, partner_name: str = "Global Signatories", partner_flag: str = "🌐", bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            db = None
     if not bot or not db:
+        print(f"⚠️ _bg_broadcast_alliance: bot ({bot}) or db ({db}) missing!", flush=True)
         return
     c = await db.get_earth_country(country_id)
     if not c:
@@ -134,20 +156,32 @@ async def _bg_broadcast_alliance(country_id: int, alliance_name: str, alliance_i
             pass
     earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
     if earth_cog:
+        print(f"[DISCORD BROADCAST] Broadcasting alliance news {alliance_name} for {c.get('name')} to Discord...", flush=True)
         await earth_cog.broadcast_alliance_news(c["name"], c["flag"], partner_name, partner_flag, alliance_name)
 
-async def _bg_broadcast_war_declared(attacker_country_id: int, defender_country_id: int, scale: str, war_id: int, duration_hours: int = 24, domain: str = "land", username: str = None):
-    bot = current_app.config.get("DISCORD_BOT")
-    db = current_app.config.get("DB")
+async def _bg_broadcast_war_declared(attacker_country_id: int, defender_country_id: int, scale: str, war_id: int, duration_hours: int = 24, domain: str = "land", username: str = None, bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            db = None
     if not bot or not db:
+        print(f"⚠️ _bg_broadcast_war_declared: bot ({bot}) or db ({db}) is missing!", flush=True)
         return
     atk = await db.get_earth_country(attacker_country_id)
     dfn = await db.get_earth_country(defender_country_id)
     if not atk or not dfn:
+        print(f"⚠️ _bg_broadcast_war_declared: atk ({atk}) or dfn ({dfn}) not found!", flush=True)
         return
     earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
     if earth_cog:
         agg_label = f"**{username}**" if username else f"<@{atk.get('owner_id')}>"
+        print(f"[DISCORD BROADCAST] Broadcasting war declaration: {atk.get('name')} vs {dfn.get('name')} to Discord...", flush=True)
         await earth_cog.broadcast_war_declared(
             attacker_c=atk,
             defender_c=dfn,
@@ -157,14 +191,22 @@ async def _bg_broadcast_war_declared(attacker_country_id: int, defender_country_
             domain=domain,
             aggressor_mention=agg_label
         )
+    else:
+        print("⚠️ _bg_broadcast_war_declared: Virtual Earth cog not found on bot!", flush=True)
 
-async def _bg_broadcast_surrender(winner_name: str, winner_flag: str, loser_name: str, loser_flag: str, loot: int = 0, annexed: bool = False, username: str = None):
-    bot = current_app.config.get("DISCORD_BOT")
+async def _bg_broadcast_surrender(winner_name: str, winner_flag: str, loser_name: str, loser_flag: str, loot: int = 0, annexed: bool = False, username: str = None, bot=None):
     if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not bot:
+        print(f"⚠️ _bg_broadcast_surrender: bot ({bot}) missing!", flush=True)
         return
     earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
     if earth_cog:
         conceded_str = f"**{username}**" if username else None
+        print(f"[DISCORD BROADCAST] Broadcasting surrender: {winner_name} won vs {loser_name} to Discord...", flush=True)
         await earth_cog.broadcast_surrender_news(
             winner_name=winner_name,
             winner_flag=winner_flag,
@@ -174,6 +216,8 @@ async def _bg_broadcast_surrender(winner_name: str, winner_flag: str, loser_name
             annexed=annexed,
             conceded_by=conceded_str
         )
+    else:
+        print("⚠️ _bg_broadcast_surrender: Virtual Earth cog not found on bot!", flush=True)
 
 
 
@@ -1938,12 +1982,16 @@ def api_earth_countries():
             name, av = _resolve_discord_user(owner_id, bot=bot, db=db)
 
             item["owner_name"] = name
+            item["ruler_name"] = name
+            item["leader_name"] = name
 
             item["owner_avatar"] = av
 
         else:
 
             item["owner_name"] = "Sovereign State Trust (Unclaimed)"
+            item["ruler_name"] = "Autonomous"
+            item["leader_name"] = "Autonomous"
 
             item["owner_avatar"] = "https://cdn.discordapp.com/embed/avatars/0.png"
 
@@ -2111,12 +2159,16 @@ def api_earth_country_detail(country_id):
         name, av = _resolve_discord_user(c["owner_id"], bot=bot, db=db)
 
         c["owner_name"] = name
+        c["ruler_name"] = name
+        c["leader_name"] = name
 
         c["owner_avatar"] = av
 
     else:
 
         c["owner_name"] = "Sovereign State Trust (Unclaimed)"
+        c["ruler_name"] = "Autonomous"
+        c["leader_name"] = "Autonomous"
 
         c["owner_avatar"] = "https://cdn.discordapp.com/embed/avatars/0.png"
 
@@ -2335,7 +2387,8 @@ def api_earth_cabinet_appoint():
 
     if success and res_data.get("auto_accepted") and role == "defense":
         cm_name = target_username or session.get("user", {}).get("username", "Supreme Commander")
-        dispatch_discord_coro(_bg_broadcast_commander(country_id, cm_name))
+        bot = current_app.config.get("DISCORD_BOT")
+        dispatch_discord_coro(_bg_broadcast_commander(country_id, cm_name, bot=bot, db=db))
 
     return jsonify({
 
@@ -2416,17 +2469,19 @@ def api_earth_cabinet_invite_respond():
     success, msg = run_async(db.respond_earth_cabinet_invite(user_id, invite_id, accept=(action == "accept")))
 
     if success and action == "accept":
+        bot = current_app.config.get("DISCORD_BOT")
+        db_inst = current_app.config.get("DB")
+        username_fallback = session.get("user", {}).get("username", "Supreme Commander")
         async def _check_invite():
             try:
-                db_inst = current_app.config.get("DB")
                 if db_inst and db_inst._db:
                     async with db_inst._db.execute("SELECT country_id, role, username FROM earth_cabinet_invites WHERE id=?", (invite_id,)) as cur:
                         r = await cur.fetchone()
                         if r and (r[1] == "defense" or "commander" in str(r[1]).lower()):
-                            cm_name = r[2] or session.get("user", {}).get("username", "Supreme Commander")
-                            await _bg_broadcast_commander(r[0], cm_name)
+                            cm_name = r[2] or username_fallback
+                            await _bg_broadcast_commander(r[0], cm_name, bot=bot, db=db_inst)
             except Exception as e:
-                print(f"⚠️ Invite check err: {e}")
+                print(f"⚠️ Invite check err: {e}", flush=True)
         dispatch_discord_coro(_check_invite())
 
     return jsonify({"success": success, "message": msg}), 200 if success else 400
@@ -2751,7 +2806,8 @@ def api_earth_war_declare():
         w_id = war_data.get("war_id") or 0
         dur = war_data.get("duration_hours") or 24
         u_name = session.get("user", {}).get("username")
-        dispatch_discord_coro(_bg_broadcast_war_declared(attacker_country_id, defender_country_id, scale, w_id, dur, domain, u_name))
+        bot = current_app.config.get("DISCORD_BOT")
+        dispatch_discord_coro(_bg_broadcast_war_declared(attacker_country_id, defender_country_id, scale, w_id, dur, domain, u_name, bot=bot, db=db))
 
     return jsonify({
 
@@ -2801,6 +2857,7 @@ def api_earth_war_surrender():
         winner = res_data.get("winner_country", {})
         loser = res_data.get("loser_country", {})
         u_name = session.get("user", {}).get("username")
+        bot = current_app.config.get("DISCORD_BOT")
         dispatch_discord_coro(_bg_broadcast_surrender(
             winner_name=winner.get("name", "Victor"),
             winner_flag=winner.get("flag", "👑"),
@@ -2808,7 +2865,8 @@ def api_earth_war_surrender():
             loser_flag=loser.get("flag", "🏳️"),
             loot=res_data.get("loot", 0),
             annexed=bool(res_data.get("annexed", False)),
-            username=u_name
+            username=u_name,
+            bot=bot
         ))
 
     return jsonify({
@@ -3039,7 +3097,8 @@ def api_earth_alliance_create():
     success, msg, al_id = run_async(db.create_earth_alliance(user_id, country_id, name, color))
 
     if success:
-        dispatch_discord_coro(_bg_broadcast_alliance(country_id, name, al_id, "Global Signatories", "🌐"))
+        bot = current_app.config.get("DISCORD_BOT")
+        dispatch_discord_coro(_bg_broadcast_alliance(country_id, name, al_id, "Global Signatories", "🌐", bot=bot, db=db))
 
     econ = run_async(db.get_global_economy(user_id))
 
@@ -3084,7 +3143,8 @@ def api_earth_alliance_join():
     success, msg = run_async(db.join_earth_alliance(user_id, country_id, alliance_id))
 
     if success:
-        dispatch_discord_coro(_bg_broadcast_alliance(country_id, "Allied Coalition", alliance_id))
+        bot = current_app.config.get("DISCORD_BOT")
+        dispatch_discord_coro(_bg_broadcast_alliance(country_id, "Allied Coalition", alliance_id, bot=bot, db=db))
 
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
@@ -3118,16 +3178,17 @@ def api_earth_alliance_request_respond():
     accept = bool(data.get("accept", False))
     success, msg = run_async(get_db().respond_earth_alliance_request(session["user"]["id"], request_id, accept))
     if success and accept:
+        bot = current_app.config.get("DISCORD_BOT")
+        db_inst = current_app.config.get("DB")
         async def _check_req():
             try:
-                db_inst = current_app.config.get("DB")
                 if db_inst and db_inst._db:
                     async with db_inst._db.execute("SELECT country_id, alliance_id FROM earth_alliance_requests WHERE id=?", (request_id,)) as cur:
                         r = await cur.fetchone()
                         if r:
-                            await _bg_broadcast_alliance(r[0], "Allied Coalition", r[1])
-            except Exception:
-                pass
+                            await _bg_broadcast_alliance(r[0], "Allied Coalition", r[1], bot=bot, db=db_inst)
+            except Exception as e:
+                print(f"⚠️ Alliance check err: {e}", flush=True)
         dispatch_discord_coro(_check_req())
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 

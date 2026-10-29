@@ -6996,7 +6996,7 @@ function openDeclareWarModal(targetId, targetName, targetFlag) {
 
         }
 
-        let opts = eligibleTargets.map(t => `<option value="${t.id}" data-flag="${t.flag}" data-name="${escapeHtml(t.name)}">${t.flag} ${escapeHtml(t.name)} (Ruler: ${escapeHtml(t.ruler_name || 'Autonomous')})</option>`).join('');
+        let opts = eligibleTargets.map(t => `<option value="${t.id}" data-flag="${t.flag}" data-name="${escapeHtml(t.name)}">${t.flag} ${escapeHtml(t.name)} (Ruler: ${escapeHtml(t.ruler_name || t.owner_name || 'Autonomous')})</option>`).join('');
 
         targetCountrySelectHtml = `
 
