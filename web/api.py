@@ -97,20 +97,17 @@ def dispatch_discord_coro(coro):
             if bot and getattr(bot, "loop", None) and bot.loop.is_running():
                 loop = bot.loop
         if loop and loop.is_running():
-            print(f"[DISCORD DISPATCH] Scheduled coroutine on bot loop: {coro}", flush=True)
             fut = asyncio.run_coroutine_threadsafe(coro, loop)
             def _done_cb(f):
                 try:
                     exc = f.exception()
                     if exc:
                         print(f"⚠️ Discord background task exception: {exc}", flush=True)
-                    else:
-                        print(f"[DISCORD DISPATCH] Background task completed successfully: {coro}", flush=True)
-                except Exception as e:
-                    print(f"⚠️ Callback err: {e}", flush=True)
+                except Exception:
+                    pass
             fut.add_done_callback(_done_cb)
         else:
-            print(f"⚠️ dispatch_discord_coro: loop not running! loop={loop}", flush=True)
+            print("⚠️ dispatch_discord_coro: loop not running", flush=True)
     except Exception as e:
         print(f"⚠️ Dispatch to bot loop notice: {e}", flush=True)
 
@@ -358,17 +355,12 @@ async def _bg_broadcast_un_sanction(country_id: int, reason: str, signatory: str
             pass
     try:
         cog = _get_earth_cog(bot)
-        print(f"[UN BROADCAST SANCTION] cog={cog}, db={db}, country_id={country_id}", flush=True)
         if not cog or not db:
-            print("⚠️ _bg_broadcast_un_sanction: missing cog or db", flush=True)
             return
         c = await db.get_earth_country(country_id)
         if not c:
-            print(f"⚠️ _bg_broadcast_un_sanction: country #{country_id} not found", flush=True)
             return
-        print(f"[UN BROADCAST SANCTION] Starting broadcast for {c.get('name')}...", flush=True)
         await cog.broadcast_un_sanction_news(c.get("name", "Nation"), c.get("flag", "🌐"), reason, signatory)
-        print(f"[UN BROADCAST SANCTION] Completed broadcast for {c.get('name')}!", flush=True)
     except Exception as e:
         print(f"⚠️ _bg_broadcast_un_sanction error: {e}", flush=True)
 
