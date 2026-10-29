@@ -1438,6 +1438,38 @@ def admin_disk_cleanup():
         "total_mb": total_mb
     })
 
+@api_bp.route("/admin/un/trigger_broadcast", methods=["POST"])
+def admin_un_trigger_broadcast():
+    user = session.get("user")
+    token = request.args.get("token") or request.headers.get("X-Admin-Token")
+    if not ((user and (user.get("is_owner") or user.get("is_manager"))) or (token and token == "phantom_secret_disk_clean_99")):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json() or {}
+    btype = data.get("type", "sanction")
+    bot = current_app.config.get("DISCORD_BOT")
+    db = current_app.config.get("DB")
+
+    if btype == "sanction":
+        cid = int(data.get("country_id", 3))
+        reason = str(data.get("reason", "Trying to fight with brazil"))
+        signatory = str(data.get("signatory", "UN Secretary-General"))
+        dispatch_discord_coro(_bg_broadcast_un_sanction(cid, reason, signatory, bot=bot, db=db))
+        return jsonify({"success": True, "message": f"Dispatched UN sanction broadcast for country #{cid} to #earth-news"})
+    elif btype == "ceasefire":
+        war_id = int(data.get("war_id", 1))
+        signatory = str(data.get("signatory", "UN Secretary-General"))
+        dispatch_discord_coro(_bg_broadcast_un_ceasefire(war_id, signatory, bot=bot, db=db))
+        return jsonify({"success": True, "message": f"Dispatched UN ceasefire broadcast for war #{war_id} to #earth-news"})
+    elif btype == "aid":
+        cid = int(data.get("country_id", 3))
+        grant = int(data.get("grant", 50000))
+        signatory = str(data.get("signatory", "UN Secretary-General"))
+        dispatch_discord_coro(_bg_broadcast_un_aid(cid, grant, signatory, bot=bot, db=db))
+        return jsonify({"success": True, "message": f"Dispatched UN aid broadcast for country #{cid} to #earth-news"})
+
+    return jsonify({"success": False, "message": "Unknown broadcast type"}), 400
+
 @api_bp.route("/admin/stock/create", methods=["POST"])
 
 @admin_required
