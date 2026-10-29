@@ -611,7 +611,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         )
 
         embed.add_field(name="👑 Sovereign Ruler", value=leader_str, inline=True)
-        embed.add_field(name="💰 GDP Valuation", value=f"`{c.get('gdp', 0):,} Medals`", inline=True)
+        embed.add_field(name="💰 GDP Valuation", value=f"`{c.get('gdp', 0):,} GDP`", inline=True)
         embed.add_field(name="🏦 State Treasury", value=f"`{c.get('treasury', 0):,} Medals`", inline=True)
 
         embed.add_field(name=f"🛡️ National Stability ({stability}%)", value=stab_bar, inline=True)
@@ -779,7 +779,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             title=f"🏛️ Sovereign Ministry Hub: {c['flag']} {c['name']} ({c['code']})",
             description=(
                 f"**Your Governed Portfolio:** `{c.get('role_title', 'Citizen')}`\n"
-                f"**National Treasury:** `{c.get('treasury', 0):,} Medals` | **GDP:** `{c.get('gdp', 0):,} Medals`\n"
+                f"**National Treasury:** `{c.get('treasury', 0):,} Medals` | **GDP:** `{c.get('gdp', 0):,} GDP`\n"
                 f"**Stability:** `{c.get('stability', 80)}%` | **Unrest:** `{c.get('unrest', 10)}%`\n\n"
                 f"Use the interactive dropdown below to access your department dashboard directly."
             ),
@@ -1126,8 +1126,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             await interaction.followup.send(f"❌ {msg}")
 
 
-    @earth_group.command(name="invest", description="Reinvest national treasury reserves into domestic infrastructure to grow GDP valuation.")
-    @app_commands.describe(amount="Amount of Medals to invest from national treasury (minimum 10,000)")
+    @earth_group.command(name="invest", description="Reinvest national treasury reserves into domestic infrastructure (+1 GDP per 50,000 Medals).")
+    @app_commands.describe(amount="Amount of Medals to invest from national treasury (minimum 25,000)")
     async def earth_invest(self, interaction: discord.Interaction, amount: int):
         """Invest national treasury reserves into domestic infrastructure to grow national GDP."""
         await interaction.response.defer()
@@ -1256,7 +1256,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             title=f"??? Allegiance Pledged: {c['flag']} {c['name']}",
             description=(
                 f"{interaction.user.mention} has officially joined **{c['name']}** as a registered citizen!\n\n"
-                f"? **National GDP:** {c['gdp']:,} Medals\n"
+                f"• **National GDP:** {c['gdp']:,} GDP\n"
                 f"? **Ruler:** <@{c['owner_id']}>\n"
                 f"? **Career:** Eligible for Presidential appointment as Prime Minister, Defense General, Diplomat, or Economy Director."
             ),
@@ -1359,7 +1359,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 f"? **Operative Codename:** `{intel['codename']}`\n"
                 f"? **Sponsoring Nation:** {intel['origin_flag']} **{intel['origin_country']}**\n"
                 f"? **Enemy Treasury Intercepted:** `{intel['origin_treasury']:,} Medals`\n"
-                f"? **Enemy GDP:** `{intel['origin_gdp']:,} Medals`\n\n"
+                f"• **Enemy GDP:** `{intel['origin_gdp']:,} GDP`\n\n"
                 f"? Confession logged! Your nation's stability increased by +5%."
             ),
             color=0xF59E0B
@@ -1531,7 +1531,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             embed.add_field(name="Installed Weapon Systems", value=", ".join(arsenal) if arsenal else "None detected", inline=False)
         elif intel_type.value == "economic_vault":
             embed.add_field(name="Confirmed Treasury", value=f"{dossier.get('treasury', 0):,} Medals", inline=True)
-            embed.add_field(name="National GDP", value=f"{dossier.get('gdp', 0):,} Medals", inline=True)
+            embed.add_field(name="National GDP", value=f"{dossier.get('gdp', 0):,} GDP", inline=True)
             embed.add_field(name="Domestic Tax Rate", value=str(dossier.get("tax_rate", "10%")), inline=True)
         elif intel_type.value == "covert_history":
             embed.add_field(name="Domestic Unrest", value=f"{dossier.get('unrest', 0)}%", inline=True)

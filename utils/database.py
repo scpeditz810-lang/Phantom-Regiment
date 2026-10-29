@@ -974,6 +974,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self.release_user_earth_claims_once(1147451922459136070, "IRN")
         await self.cap_excess_medals_once()
         await self.force_full_season_reset_once()
+        await self.normalize_inflated_earth_gdps_once()
 
 
 
@@ -1005,6 +1006,31 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self._db.execute("INSERT OR REPLACE INTO meta(key, value) VALUES (?, 'complete')", (marker,))
             await self._db.commit()
             return affected
+        except Exception:
+            await self._db.rollback()
+            raise
+
+    async def normalize_inflated_earth_gdps_once(self) -> list[dict]:
+        """Normalize historical inflated GDP values down to balanced baselines."""
+        marker = "earth_gdp_nerf_normalize_2026_10_29_v1"
+        if await self.get_meta(marker) == "complete":
+            return []
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            # Rebalance over-inflated countries down to realistic numbers matching their buildings:
+            # Sweden (35): 1 gold mine, 2 schools, 1 bunker -> 14 GDP
+            # Poland (23): 1 gold mine, 1 school -> 11 GDP
+            # Norway (24): 1 gold mine -> 10 GDP
+            # Finland (44): 1 gold mine -> 10 GDP
+            # And clamp any rogue country values > 30 down to 12
+            await self._db.execute("UPDATE earth_countries SET gdp = 14 WHERE id = 35")
+            await self._db.execute("UPDATE earth_countries SET gdp = 11 WHERE id = 23")
+            await self._db.execute("UPDATE earth_countries SET gdp = 10 WHERE id = 24")
+            await self._db.execute("UPDATE earth_countries SET gdp = 10 WHERE id = 44")
+            await self._db.execute("UPDATE earth_countries SET gdp = 12 WHERE gdp > 30")
+            await self._db.execute("INSERT OR REPLACE INTO meta(key, value) VALUES (?, 'complete')", (marker,))
+            await self._db.commit()
+            return [{"id": 35, "gdp": 14}, {"id": 23, "gdp": 11}, {"id": 24, "gdp": 10}, {"id": 44, "gdp": 10}]
         except Exception:
             await self._db.rollback()
             raise
@@ -4565,7 +4591,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # Infrastructure is how a zero-start country builds GDP.
         stab_boost = meta.get("stability_bonus", 0)
         unrest_drop = meta.get("unrest_reduction", 0)
-        gdp_boost = max(1000, int(meta.get("hourly_yield", 0) * 5))
+        gdp_boost = max(1, int(meta.get("hourly_yield", 0) // 5000) or 1)
         await self._db.execute("""
             UPDATE earth_countries
             SET stability = min(100, stability + ?),
@@ -5603,8 +5629,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         except (ValueError, TypeError):
             return False, "Investment amount must be a whole number.", {}
 
-        if amount < 10000:
-            return False, "Minimum treasury investment is 10,000 Medals.", {}
+        if amount < 25000:
+            return False, "Minimum treasury investment is 25,000 Medals.", {}
+
 
         can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "economy")
         if not can_manage:
@@ -5628,7 +5655,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             return False, f"Insufficient Treasury Reserves: Country has {treasury:,} Medals in treasury (requested {amount:,} Medals).", {}
 
         # 1. Calculate GDP Gain (Every 5,000 Medals = +1 Million GDP)
-        gdp_gain = max(1, int(amount / 5000))
+        gdp_gain = max(1, int(amount // 50000))
         new_gdp = gdp + gdp_gain
 
         # 2. Civic morale boost
@@ -5649,7 +5676,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         msg = (
             f"🏛️ **Sovereign Infrastructure Investment Enacted!**\n"
             f"**{c_flag} {c_name}** deployed `{amount:,} Medals` from Treasury Reserves into domestic development.\n"
-            f"• 📈 **National GDP Valuation:** `{gdp:,}M` ➔ `{new_gdp:,}M` (+{gdp_gain:,}M GDP!)\n"
+            f"• 📈 **National GDP Valuation:** `{gdp:,}` ➔ `{new_gdp:,}` (+{gdp_gain:,} GDP)\n"
             f"• 🏦 **Remaining Treasury:** `{new_treasury:,} Medals`\n"
             f"• 📈 **Civic Stability:** `{stability}%` ➔ `{new_stability}%` (+{stability_gain}%)\n"
             f"• 📉 **Civil Unrest:** `{unrest}%` ➔ `{new_unrest}%` (-{unrest_drop}%)"
@@ -7414,14 +7441,14 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             stab_factor = max(0.4, (country.get("stability", 80)) / 100.0)
             
             # Organic GDP growth: ~0.3% compound per hour of peace
-            gdp_growth = int(max(1000, country["gdp"]) * 0.0001 * capped_hours * stab_factor)
+            gdp_growth = 1 if (capped_hours >= 24.0 and stab_factor >= 0.7 and country.get("gdp", 0) < 30) else 0
             # Organic civic treasury yield: based on tax rate & stability
             tax_rate = country.get("tax_rate", 10)
             treasury_gain = int(tax_rate * 250 * capped_hours * stab_factor)
             # Unrest cooling: -1 unrest per 3 hours of peace
             unrest_cool = min(10, int(capped_hours * 0.33))
             
-            new_gdp = country["gdp"] + max(1, gdp_growth)
+            new_gdp = country["gdp"] + gdp_growth
             new_treasury = country["treasury"] + treasury_gain
             new_unrest = max(0, country.get("unrest", 10) - unrest_cool)
             
@@ -7538,7 +7565,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # If economic core, immediately boost GDP
         if tool_key == "industrial_core":
             await self._db.execute("""
-                UPDATE earth_countries SET gdp = gdp + 15000000 WHERE id = ?
+                UPDATE earth_countries SET gdp = gdp + 3 WHERE id = ?
             """, (country_id,))
         
         await self._db.commit()

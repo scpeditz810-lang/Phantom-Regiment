@@ -2647,9 +2647,9 @@ function renderCountryPins() {
 
         let color = 0x38bdf8;
 
-        const isSuperpower = (c.gdp || 0) >= 80000000;
+        const isSuperpower = (c.gdp || 0) >= 14;
 
-        const isMajorPower = (c.gdp || 0) >= 35000000;
+        const isMajorPower = (c.gdp || 0) >= 9;
 
         const isMine = Boolean(userCountry && userCountry.id === c.id);
 
@@ -4977,11 +4977,11 @@ function renderDossierTab(c, isLeader, isOwner, container) {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
                 <div class="info-tile">
                     <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">GDP Valuation</div>
-                    <div style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">${Number(c.gdp || 0).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">M</span></div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">${Number(c.gdp || 0).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">GDP</span></div>
                 </div>
                 <div class="info-tile">
                     <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">Treasury Reserves</div>
-                    <div style="font-size: 1.15rem; font-weight: 800; color: #38bdf8;">${Number(c.treasury || 0).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">M</span></div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #38bdf8;">${Number(c.treasury || 0).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">Medals</span></div>
                 </div>
             </div>
         ` : `
@@ -6069,7 +6069,7 @@ function renderMarketTab(c, isLeader, isOwner, container) {
 
                         <div style="font-size: 0.72rem; color: #38bdf8;">
 
-                            GDP: ${Number(u.gdp || 0).toLocaleString()} M • Stability: ${u.stability || 80}%
+                            GDP: ${Number(u.gdp || 0).toLocaleString()} GDP • Stability: ${u.stability || 80}%
 
                         </div>
 
@@ -6675,14 +6675,14 @@ function openInvestTreasuryModal() {
                     </div>
                     <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-top:0.3rem;">
                         <span style="color:#94a3b8;">Conversion Formula:</span>
-                        <strong style="color:#10b981;">Every 5,000 M = +1M GDP</strong>
+                        <strong style="color:#10b981;">Every 50,000 Medals = +1 GDP Point</strong>
                     </div>
                 </div>
                 <div style="margin-bottom:0.8rem;">
                     <label style="font-size:0.72rem; color:#cbd5e1; display:block; margin-bottom:0.3rem;">Investment Amount (Medals):</label>
-                    <input type="number" id="invest-amount-input" class="custom-input" min="10000" max="${t}" step="5000" value="${Math.min(t, 50000)}" style="width:100%;" oninput="updateInvestGdpPreview(this.value)">
+                    <input type="number" id="invest-amount-input" class="custom-input" min="25000" max="${t}" step="25000" value="${Math.min(t, 50000)}" style="width:100%;" oninput="updateInvestGdpPreview(this.value)">
                     <div id="invest-gdp-preview" style="font-size:0.72rem; color:#10b981; margin-top:0.3rem; font-weight:700;">
-                        Expected Gain: +${Math.floor(Math.min(t, 50000) / 5000)}M GDP (+Stability, -Unrest)
+                        Expected Gain: +${Math.max(1, Math.floor(Math.min(t, 50000) / 50000))} GDP (+Stability, -Unrest)
                     </div>
                 </div>
                 <div style="display:flex; gap:0.4rem; margin-bottom:0.9rem;">
@@ -6699,9 +6699,9 @@ function openInvestTreasuryModal() {
 
 function updateInvestGdpPreview(val) {
     const amt = Number(val || 0);
-    const gain = Math.floor(amt / 5000);
+    const gain = Math.max(1, Math.floor(amt / 50000));
     const el = document.getElementById("invest-gdp-preview");
-    if (el) el.innerHTML = `Expected Gain: +${gain.toLocaleString()}M GDP (+Stability, -Unrest)`;
+    if (el) el.innerHTML = `Expected Gain: +${gain.toLocaleString()} GDP (+Stability, -Unrest)`;
 }
 
 function setInvestAmount(amt) {
@@ -7910,7 +7910,7 @@ async function openAllianceModal(countryId, currentAllianceName) {
 
                     <div style="font-weight: 800; font-size: 0.85rem;">${al.name}</div>
 
-                    <div style="font-size: 0.7rem; color: #94a3b8;">${al.member_count} Member Nations • Combined GDP: ${Number(al.total_gdp || 0).toLocaleString()} M</div>
+                    <div style="font-size: 0.7rem; color: #94a3b8;">${al.member_count} Member Nations • Combined GDP: ${Number(al.total_gdp || 0).toLocaleString()} GDP</div>
 
                 </div>
 
@@ -8452,7 +8452,7 @@ function openIntelModal(escapedJson) {
 
                         <div style="font-size:0.68rem; color:#94a3b8;">GDP VALUATION</div>
 
-                        <div style="font-weight:800; font-size:1.1rem; color:#f8fafc;">${Number(d.gdp || 0).toLocaleString()} M</div>
+                        <div style="font-weight:800; font-size:1.1rem; color:#f8fafc;">${Number(d.gdp || 0).toLocaleString()} GDP</div>
 
                     </div>
 

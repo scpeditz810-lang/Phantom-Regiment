@@ -72,7 +72,7 @@ EARTH_SECTIONS = {
         "per hour x stability factor, only for ruled countries. "
         "SOVEREIGN TREASURY REINVESTMENT (/earth invest <amount> or '📈 Reinvest in GDP' button on the website): "
         "Rulers can convert idle national treasury reserves into domestic infrastructure to permanently grow national GDP valuation. "
-        "Formula: Every 5,000 Medals reinvested from the treasury grants +1M GDP, +Stability, and reduces Unrest (minimum investment 10,000 Medals). "
+        "Formula: Every 50,000 Medals reinvested from the treasury grants +1 GDP point, boosts Stability, and reduces Unrest (minimum investment 25,000 Medals). Note: Virtual Earth GDP is a balanced national score (most superpowers range 10-20 GDP), NOT millions. "
         "In addition, building construction (/earth build), army division recruitment (/earth defense), high-tech arsenal tools (/earth buy_tool), "
         "and civil unrest relief (/earth quell) will automatically fall back to national treasury funds if the ruler's personal wallet is insufficient! "
         "TAX: set 0-50% with /earth policy via the Economy dashboard or website (President or Economy Minister; 50% approval chance, 15m cooldown). "
@@ -82,7 +82,7 @@ EARTH_SECTIONS = {
     ),
     "buildings": (
         "BUILDINGS (/earth build; President or Economy Minister). Cost of the next level = base x multiplier^current "
-        "level. Each build also adds GDP = 5 x hourly yield, stability and unrest changes. "
+        "level. Each build also adds +1 to +3 GDP depending on building type, plus stability and unrest benefits. "
         "School: base 100k (x1.5), +6 stability, -5 unrest, 2,500/hr. "
         "Hospital: 150k (x1.5), +8 stability, -12 unrest, 3,000/hr. "
         "Gold mine: 250k (x1.6), 8,500/hr. "
@@ -549,7 +549,7 @@ class TacticalAdvisor:
             "  • `/earth intelligence` — Interactive Espionage dashboard (recruit operatives, dispatch spies, sweep bugs).\n"
             "  • `/earth president` — Presidential High Command hub with executive sovereign controls.\n"
             "  • `/earth ministry` — Sovereign Ministry Hub to switch between Cabinet portfolios.\n"
-            "  • `/earth invest <amount>` — Reinvest national treasury reserves into domestic infrastructure to permanently grow GDP valuation (every 5,000 Medals = +1M GDP, +Stability, -Unrest). Also available via the 'Reinvest in GDP' button on the website!\n"
+            "  • `/earth invest <amount>` — Reinvest national treasury reserves into domestic infrastructure to permanently grow GDP valuation (every 50,000 Medals = +1 GDP point, +Stability, -Unrest). Also available via the 'Reinvest in GDP' button on the website!\n"
             "  • `/earth build <building>` — Construct infrastructure (School, Hospital, Gold Mine, Oil Rig, Heavy Factory, Bunker, Naval Port, Ocean Base). Can draw from national treasury if wallet is low!\n"
             "  • `/earth war <target> <scale> <domain>` — Declare military campaign (Border Skirmish 24h, Annexation 72h, Conquest 120h; Land, Air, or Naval domain). Triggers animated order parchment with deep announcer narration in #earth-news!\n"
             "  • `/earth martial_law` — Mobilize military divisions to impose emergency curfew and swiftly crush civil unrest (-45% unrest).\n"
