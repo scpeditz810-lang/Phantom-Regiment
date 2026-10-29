@@ -27,6 +27,12 @@ from utils.earth_anim import (
     generate_commander_resigned_speech,
     create_revolution_media,
     generate_revolution_speech,
+    create_un_sanction_media,
+    generate_un_sanction_speech,
+    create_un_ceasefire_media,
+    generate_un_ceasefire_speech,
+    create_un_aid_media,
+    generate_un_aid_speech,
     generate_tactical_audio,
     generate_voice_narration,
     generate_ruler_speech,
@@ -254,6 +260,91 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     def cog_unload(self):
         if self.earth_war_checker.is_running():
             self.earth_war_checker.cancel()
+
+
+    async def broadcast_un_sanction_news(self, country_name: str, country_flag: str, reason: str, signatory: str = "UN Secretary-General"):
+        """Broadcast UN Security Council sanctions & embargo decree to #earth-news with video & spoken narration."""
+        try:
+            speech_buf = generate_un_sanction_speech(country_name, reason)
+            gif_buf, mp4_buf = create_un_sanction_media(country_name, country_flag, reason, signatory_name=signatory, audio_bytes=speech_buf)
+            title = f"🌐 UN SECURITY COUNCIL EMBARGO // {country_flag} {country_name.upper()}"
+            desc = (
+                f"🚫 **Chapter VII International Sanctions Enacted!**\n\n"
+                f"🏛️ **Target Sovereign:** {country_flag} **{country_name}**\n"
+                f"✍️ **Issuing Authority:** {signatory}\n\n"
+                f"📜 **Official Security Council Justification:**\n"
+                f"> *\"{reason}\"*\n\n"
+                f"⚠️ **Penalties Applied:**\n"
+                f"• National sovereign trade revenues reduced by **50%**\n"
+                f"• All offensive declarations of war strictly suspended\n"
+                f"• Foreign military weapon purchases and procurement blocked"
+            )
+            await self.broadcast_news(
+                title=title,
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="un_sanctions.gif",
+                color=0xEF4444,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting UN sanction news: {e}", flush=True)
+
+    async def broadcast_un_ceasefire_news(self, attacker_name: str, attacker_flag: str, defender_name: str, defender_flag: str, war_id: int, reason: str = "Hostilities Terminated by UN Resolution", signatory: str = "UN Secretary-General"):
+        """Broadcast UN emergency ceasefire & armistice order to #earth-news with video & spoken narration."""
+        try:
+            speech_buf = generate_un_ceasefire_speech(attacker_name, defender_name, war_id, reason)
+            gif_buf, mp4_buf = create_un_ceasefire_media(attacker_name, attacker_flag, defender_name, defender_flag, war_id, reason=reason, audio_bytes=speech_buf)
+            title = f"🕊️ UN EMERGENCY CEASEFIRE // WAR #{war_id} TERMINATED"
+            desc = (
+                f"🛡️ **Security Council Armistice Mandate Enacted!**\n\n"
+                f"⚔️ **Belligerents Ordered to Stand Down:**\n"
+                f"• {attacker_flag} **{attacker_name}** (Attacker)\n"
+                f"• {defender_flag} **{defender_name}** (Defender)\n\n"
+                f"✍️ **Issuing Authority:** {signatory}\n"
+                f"📜 **Mandate Directive:** *\"{reason}\"*\n\n"
+                f"🌐 **Enforcement:** UN blue helmet peacekeeper battalions deployed to frontline buffer zones. All offensive air, land, and naval operations halted immediately."
+            )
+            await self.broadcast_news(
+                title=title,
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="un_ceasefire.gif",
+                color=0x10B981,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting UN ceasefire news: {e}", flush=True)
+
+    async def broadcast_un_aid_news(self, country_name: str, country_flag: str, grant_amount: int = 50000, signatory: str = "UN Secretary-General"):
+        """Broadcast UN emergency humanitarian relief mission to #earth-news with video & spoken narration."""
+        try:
+            speech_buf = generate_un_aid_speech(country_name, grant_amount)
+            gif_buf, mp4_buf = create_un_aid_media(country_name, country_flag, grant_amount=grant_amount, audio_bytes=speech_buf)
+            title = f"📦 UN HUMANITARIAN RELIEF DELIVERED // {country_flag} {country_name.upper()}"
+            desc = (
+                f"✨ **Emergency Stabilization Mission Completed!**\n\n"
+                f"🏛️ **Recipient Nation:** {country_flag} **{country_name}**\n"
+                f"✍️ **Disbursing Authority:** {signatory}\n"
+                f"💰 **Relief Grant:** `+{grant_amount:,} Medals` direct emergency reconstruction aid\n\n"
+                f"🛡️ **Civic Impact:**\n"
+                f"• Civil unrest quelled by **-25%**\n"
+                f"• All rioting and unrest forcefully extinguished\n"
+                f"• Emergency medical, food, and hospital relief operational"
+            )
+            await self.broadcast_news(
+                title=title,
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="un_aid.gif",
+                color=0x0EA5E9,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting UN aid news: {e}", flush=True)
 
     async def broadcast_news(
         self,
@@ -1576,6 +1667,36 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     # ??? Advanced Military Tools & High-Tech Arsenal ?????????????????????????????
 
+
+    # ── Population & Demographics Stimulus ─────────────────────────────────────────
+
+    @earth_group.command(name="population", description="Enact sovereign programs to stimulate population growth and immigration.")
+    @app_commands.describe(program="Demographic or public health policy to stimulate civilian growth")
+    @app_commands.choices(program=[
+        app_commands.Choice(name="🏥 Maternal & Public Healthcare Drive (12k Treasury: +35-55 Pop)", value="healthcare"),
+        app_commands.Choice(name="🌍 Skilled Foreign Labor & Diaspora Visas (30k Treasury + 2.5k Medals: +80-150 Pop)", value="immigration"),
+        app_commands.Choice(name="🏗️ Civic Suburban Expansion & Housing (65k Treasury + 5k Medals: +200-350 Pop)", value="housing")
+    ])
+    async def earth_population(self, interaction: discord.Interaction, program: app_commands.Choice[str]):
+        await interaction.response.defer()
+        my_c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not my_c:
+            await interaction.followup.send("❌ You do not govern an Earth nation! Found a nation or join one first.", ephemeral=True)
+            return
+
+        success, msg, res_data = await self.bot.db.stimulate_earth_population(interaction.user.id, my_c["id"], program.value)
+        if not success:
+            await interaction.followup.send(msg, ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=f"📈 Sovereign Demographic Stimulus Enacted: {my_c['flag']} {my_c['name']}",
+            description=msg,
+            color=0x10B981
+        )
+        embed.set_footer(text="Virtual Earth 3D • Demographics & Human Capital")
+        await interaction.followup.send(embed=embed)
+
     @security_group.command(name="arsenal", description="View advanced high-tech tools, missile shields, drone swarms, and superweapons.")
     async def earth_arsenal(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -1793,6 +1914,11 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         embed.set_footer(text="Virtual Earth 3D • United Nations Diplomatic Suite")
         await interaction.followup.send(embed=embed)
 
+        try:
+            await self.broadcast_un_sanction_news(target_c["name"], target_c["flag"], reason, interaction.user.display_name)
+        except Exception as b_err:
+            print(f"⚠️ Failed to dispatch UN sanction news: {b_err}", flush=True)
+
     @un_group.command(name="ceasefire", description="[Mayor / UN] Enforce an immediate binding UN Ceasefire decree halting an active war.")
     @app_commands.describe(war_id="ID of the active war to halt")
     async def earth_un_ceasefire(self, interaction: discord.Interaction, war_id: int):
@@ -1817,6 +1943,17 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         )
         embed.set_footer(text="Virtual Earth 3D • UN Security Council Resolution")
         await interaction.followup.send(embed=embed)
+
+        try:
+            atk_c = await self.bot.db.get_earth_country(res.get("attacker_country_id", 0)) if res else None
+            dfn_c = await self.bot.db.get_earth_country(res.get("defender_country_id", 0)) if res else None
+            atk_n = atk_c.get("name", "Attacker") if atk_c else "Attacker"
+            atk_f = atk_c.get("flag", "⚔️") if atk_c else "⚔️"
+            dfn_n = dfn_c.get("name", "Defender") if dfn_c else "Defender"
+            dfn_f = dfn_c.get("flag", "🛡️") if dfn_c else "🛡️"
+            await self.broadcast_un_ceasefire_news(atk_n, atk_f, dfn_n, dfn_f, war_id, "Hostilities Terminated by UN Resolution", interaction.user.display_name)
+        except Exception as b_err:
+            print(f"⚠️ Failed to dispatch UN ceasefire news: {b_err}", flush=True)
 
     @un_group.command(name="sanction", description="[Mayor / UN] Impose international trade embargo and warfare sanctions on a rogue country.")
     @app_commands.describe(
@@ -1852,6 +1989,11 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         embed.set_footer(text="Virtual Earth 3D • United Nations Diplomatic Suite")
         await interaction.followup.send(embed=embed)
 
+        try:
+            await self.broadcast_un_sanction_news(target_c["name"], target_c["flag"], reason, interaction.user.display_name)
+        except Exception as b_err:
+            print(f"⚠️ Failed to dispatch UN sanction news: {b_err}", flush=True)
+
     @un_group.command(name="aid", description="[Mayor / UN] Disburse 50,000 Medals in UN emergency relief to quell riots and rebuild stability.")
     @app_commands.describe(country="Country code or name to receive humanitarian aid")
     async def earth_un_aid(self, interaction: discord.Interaction, country: str):
@@ -1882,6 +2024,11 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         )
         embed.set_footer(text="Virtual Earth 3D • UN Peacekeeping Mission")
         await interaction.followup.send(embed=embed)
+
+        try:
+            await self.broadcast_un_aid_news(target_c["name"], target_c["flag"], 50000, interaction.user.display_name)
+        except Exception as b_err:
+            print(f"⚠️ Failed to dispatch UN aid news: {b_err}", flush=True)
 
 
 

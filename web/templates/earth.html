@@ -5003,7 +5003,8 @@ function renderDossierTab(c, isLeader, isOwner, container) {
             <div class="info-tile">
                 <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">👥 Citizen Population</div>
                 <div style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">${Number(c.population || 100).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">Citizens</span></div>
-                <div style="font-size: 0.68rem; color: #10b981; margin-top: 0.2rem;">🌱 +2% growth/day in peace</div>
+                <div style="font-size: 0.68rem; color: #10b981; margin-top: 0.2rem;">🌱 Dynamic Growth Active</div>
+                ${(isOwner || c.can_manage_economy) ? `<button class="btn-action-sm" onclick="openPopulationModal()" style="font-size:0.65rem; padding:2px 7px; margin-top:0.35rem; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#6ee7b7; font-weight:700; width:100%;">📈 Stimulate Growth</button>` : ''}
             </div>
             <div class="info-tile">
                 <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">⚔️ Armed Divisions</div>
@@ -6742,6 +6743,105 @@ async function executeTreasuryInvest() {
         loadVirtualEarthData();
     } catch (e) {
         showToast("Treasury investment request failed.");
+    }
+}
+
+
+function openPopulationModal() {
+    const container = document.getElementById("modal-container");
+    const c = selectedCountry || userCountry;
+    if (!c) {
+        showToast("❌ You do not govern an active nation!");
+        return;
+    }
+    const currPop = Number(c.population || 100);
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>📈</span> Demographic & Population Stimulus
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+                <div style="font-size:0.75rem; color:#94a3b8; margin-top:0.4rem; margin-bottom:0.7rem;">
+                    Current Population: <strong style="color:#f8fafc;">${currPop.toLocaleString()} Citizens</strong> (Division force ceiling: <strong>${Math.floor(currPop/5)} divisions</strong>). Enact strategic demographic programs to expand your sovereign population base.
+                </div>
+
+                <div class="selectable-card" onclick="stimulatePopulation('healthcare'); closeModal();" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
+                    <div style="font-weight: 800; color: #34d399; display:flex; justify-content:space-between; align-items:center;">
+                        <span>🏥 Maternal & Public Healthcare Drive</span>
+                        <span style="font-size: 0.65rem; background: rgba(16, 185, 129, 0.25); color: #6ee7b7; padding: 2px 6px; border-radius: 4px; font-weight: 700;">12,000 TREASURY</span>
+                    </div>
+                    <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.25rem;">
+                        Subsidize regional maternity clinics, sanitation, and child healthcare: <strong style="color:#34d399;">+35 to +55 Population</strong>, <strong>-6% Unrest</strong>.
+                    </div>
+                    <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 0.2rem;">
+                        ⏱️ Cooldown: 4 Hours • Requires 12,000 National Treasury.
+                    </div>
+                </div>
+
+                <div class="selectable-card" onclick="stimulatePopulation('immigration'); closeModal();" style="border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); margin-top:0.6rem;">
+                    <div style="font-weight: 800; color: #38bdf8; display:flex; justify-content:space-between; align-items:center;">
+                        <span>🌍 Skilled Foreign Labor & Diaspora Visas</span>
+                        <span style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.25); color: #7dd3fc; padding: 2px 6px; border-radius: 4px; font-weight: 700;">30k T + 2.5k M</span>
+                    </div>
+                    <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.25rem;">
+                        Attract foreign engineers, agrarian workers, and skilled diaspora families: <strong style="color:#38bdf8;">+80 to +150 Population</strong> (scales with Stability).
+                    </div>
+                    <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 0.2rem;">
+                        ⏱️ Cooldown: 6 Hours • Requires Unrest < 50% (migrants avoid rioting states).
+                    </div>
+                </div>
+
+                <div class="selectable-card" onclick="stimulatePopulation('housing'); closeModal();" style="border: 1px solid rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); margin-top:0.6rem;">
+                    <div style="font-weight: 800; color: #facc15; display:flex; justify-content:space-between; align-items:center;">
+                        <span>🏗️ Civic Suburban Expansion & Housing</span>
+                        <span style="font-size: 0.65rem; background: rgba(250, 204, 21, 0.25); color: #fde047; padding: 2px 6px; border-radius: 4px; font-weight: 700;">65k T + 5k M</span>
+                    </div>
+                    <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.25rem;">
+                        Fund large-scale civic apartment districts and master-planned settlements: <strong style="color:#facc15;">+200 to +350 Population</strong>, <strong>+8% Stability</strong>.
+                    </div>
+                    <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 0.2rem;">
+                        ⏱️ Cooldown: 8 Hours • Major civilian and military recruitment expansion.
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function stimulatePopulation(program) {
+    const c = selectedCountry || userCountry;
+    if (!c) return;
+    try {
+        const res = await fetch("/api/earth/population/stimulate", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ country_id: c.id, program: program })
+        });
+        const d = await res.json();
+        if (d.success) {
+            showToast(d.message || "Demographic stimulus enacted!");
+            if (d.data && d.data.new_population) {
+                c.population = d.data.new_population;
+                if (userCountry && userCountry.id === c.id) {
+                    userCountry.population = d.data.new_population;
+                }
+            }
+            if (d.data && d.data.treasury !== undefined) {
+                c.treasury = d.data.treasury;
+                if (userCountry && userCountry.id === c.id) {
+                    userCountry.treasury = d.data.treasury;
+                }
+            }
+            loadDossier(c.id);
+        } else {
+            showToast(d.message || "Failed to enact population program", "error");
+        }
+    } catch (err) {
+        showToast("Network error enacting demographic program: " + err, "error");
     }
 }
 

@@ -2308,3 +2308,324 @@ def generate_revolution_speech(country_name: str, ousted_ruler_name: str) -> io.
         f"All ministerial authority has collapsed, and sovereign leadership has reverted to an emergency state trust. The regime has fallen!"
     )
     return generate_voice_narration(speech)
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🇺🇳 UNITED NATIONS DIPLOMATIC & PEACEKEEPING ANIMATED BROADCAST PIPELINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def render_un_sanction_frame(frame_idx: int, total_frames: int, country_name: str, country_flag: str, reason: str) -> Image.Image:
+    w, h = 640, 360
+    im = Image.new("RGB", (w, h), (8, 14, 26))
+    draw = ImageDraw.Draw(im)
+
+    font_hud = _get_font_bold(13)
+    font_hero = _get_font_bold(20)
+    font_sub = _get_font_bold(12)
+    font_body = _get_font(11)
+    font_tag = _get_font_bold(10)
+
+    # UN subtle blue background grid
+    for x in range(0, w, 32):
+        draw.line([(x, 38), (x, h - 24)], fill=(14, 24, 44), width=1)
+    for y in range(38, h - 24, 32):
+        draw.line([(0, y), (w, y)], fill=(14, 24, 44), width=1)
+
+    # UN Security Council circle watermark
+    cx, cy, rad = 320, 195, 110
+    draw.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], outline=(24, 45, 80), width=2)
+    draw.ellipse([cx - rad//2, cy - rad//2, cx + rad//2, cy + rad//2], outline=(20, 38, 68), width=1)
+    draw.arc([cx - rad - 20, cy - rad, cx - 10, cy + rad], 30, 150, fill=(30, 60, 110), width=2)
+    draw.arc([cx + 10, cy - rad, cx + rad + 20, cy + rad], 30, 150, fill=(30, 60, 110), width=2)
+
+    # Animated radar pulse sweep
+    sweep_angle = (frame_idx / max(1, total_frames)) * 2 * math.pi
+    sx = int(cx + rad * math.cos(sweep_angle))
+    sy = int(cy + rad * math.sin(sweep_angle))
+    draw.line([(cx, cy), (sx, sy)], fill=(37, 99, 235), width=2)
+
+    # Top Header Banner
+    draw.rectangle([0, 0, w, 38], fill=(13, 27, 56))
+    draw.line([(0, 38), (w, 38)], fill=(239, 68, 68), width=2)
+    draw.text((15, 11), "🌐 [UNSC DIPLOMATIC DISPATCH]", fill=(59, 130, 246), font=font_hud)
+    draw.text((235, 11), "SECURITY COUNCIL RESOLUTION // CHAPTER VII", fill=(255, 255, 255), font=font_hud)
+    draw.text((w - 15, 12), "[EMBARGO ENACTED]", fill=(239, 68, 68), font=font_tag, anchor="rt")
+
+    # Center Embargo Plaque
+    pw, ph = 520, 175
+    px, py = w//2 - pw//2, 95
+    draw.rectangle([px, py, px + pw, py + ph], fill=(14, 20, 34), outline=(239, 68, 68), width=2)
+    draw.rectangle([px + 4, py + 4, px + pw - 4, py + ph - 4], outline=(51, 65, 85), width=1)
+
+    # Embargo Banner inside Plaque
+    draw.rectangle([px + 10, py + 10, px + pw - 10, py + 36], fill=(185, 28, 28))
+    draw.text((w//2, py + 16), "🚫 INTERNATIONAL SANCTIONS & ARMS EMBARGO ACTIVE", fill=(255, 255, 255), font=font_hud, anchor="mt")
+
+    # Target Nation
+    display_name = f"{country_flag} {country_name}".strip()
+    draw.text((w//2, py + 48), display_name.upper(), fill=(255, 255, 255), font=font_hero, anchor="mt")
+
+    # Reason box
+    rw, rh = pw - 40, 38
+    rx, ry = px + 20, py + 78
+    draw.rectangle([rx, ry, rx + rw, ry + rh], fill=(22, 28, 44), outline=(71, 85, 105), width=1)
+    clean_reason = (reason[:58] + "...") if len(reason) > 60 else reason
+    draw.text((w//2, ry + 6), "OFFICIAL SECURITY COUNCIL JUSTIFICATION:", fill=(148, 163, 184), font=font_tag, anchor="mt")
+    draw.text((w//2, ry + 20), f'"{clean_reason}"', fill=(253, 224, 71), font=font_sub, anchor="mt")
+
+    # Penalty bullets
+    draw.text((w//2, py + 128), "⚠️ OFFENSIVE ARMS PURCHASES BARRED • TRADE REVENUES -50% • WARFARE FROZEN", fill=(248, 113, 113), font=font_tag, anchor="mt")
+    draw.text((w//2, py + 148), "Enforced under Chapter VII authority by the UN Secretary-General & High Council", fill=(148, 163, 184), font=font_body, anchor="mt")
+
+    # Hazard corner triangles
+    draw.polygon([(px + 1, py + 1), (px + 18, py + 1), (px + 1, py + 18)], fill=(239, 68, 68))
+    draw.polygon([(px + pw - 1, py + 1), (px + pw - 18, py + 1), (px + pw - 1, py + 18)], fill=(239, 68, 68))
+
+    # Bottom Ticker
+    draw.rectangle([0, h - 24, w, h], fill=(6, 10, 18))
+    draw.line([(0, h - 24), (w, h - 24)], fill=(51, 65, 85), width=1)
+    draw.text((15, h - 18), "DIPLOMATIC ISOLATION MANDATED • 48-HOUR ENFORCEMENT TERM • ALL SOVEREIGN BORDERS MONITORED", fill=(148, 163, 184), font=font_tag)
+
+    return im
+
+def generate_un_sanction_frames(country_name: str, country_flag: str, reason: str, total_frames: int = 80):
+    for idx in range(total_frames):
+        yield render_un_sanction_frame(idx, total_frames, country_name, country_flag, reason)
+
+def create_un_sanction_gif(country_name: str, country_flag: str, reason: str) -> io.BytesIO:
+    frames = list(generate_un_sanction_frames(country_name, country_flag, reason, total_frames=20))
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_un_sanction_media(country_name: str, country_flag: str, reason: str, signatory_name: str = "UN Secretary-General", audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    mp4_buf = render_frames_to_mp4(
+        generate_un_sanction_frames(country_name, country_flag, reason, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_un_sanction_gif(country_name, country_flag, reason)
+    return gif_buf, mp4_buf
+
+def generate_un_sanction_speech(country_name: str, reason: str) -> io.BytesIO:
+    clean_c = clean_for_speech(country_name)
+    clean_r = clean_for_speech(reason)
+    speech = (
+        f"United Nations diplomatic bulletin! Under emergency authority of Chapter Seven of the United Nations Charter, "
+        f"the UN Security Council and Secretariat have enacted immediate international economic and arms sanctions against {clean_c}! "
+        f"The Security Council cites: {clean_r}. "
+        f"Effective immediately, all offensive warfare and foreign arms procurement are barred, and sovereign trade yields are penalized fifty percent."
+    )
+    return generate_voice_narration(speech)
+
+
+def render_un_ceasefire_frame(frame_idx: int, total_frames: int, atk_name: str, atk_flag: str, dfn_name: str, dfn_flag: str, war_id: int, reason: str = "Hostilities Terminated by UN Resolution") -> Image.Image:
+    w, h = 640, 360
+    im = Image.new("RGB", (w, h), (8, 16, 28))
+    draw = ImageDraw.Draw(im)
+
+    font_hud = _get_font_bold(13)
+    font_hero = _get_font_bold(17)
+    font_sub = _get_font_bold(12)
+    font_body = _get_font(11)
+    font_tag = _get_font_bold(10)
+
+    for x in range(0, w, 32):
+        draw.line([(x, 38), (x, h - 24)], fill=(15, 28, 48), width=1)
+    for y in range(38, h - 24, 32):
+        draw.line([(0, y), (w, y)], fill=(15, 28, 48), width=1)
+
+    cx, cy, rad = 320, 195, 110
+    draw.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], outline=(20, 50, 90), width=2)
+    draw.ellipse([cx - rad//2, cy - rad//2, cx + rad//2, cy + rad//2], outline=(15, 38, 70), width=1)
+
+    sweep_angle = (frame_idx / max(1, total_frames)) * 2 * math.pi
+    sx = int(cx + rad * math.cos(sweep_angle))
+    sy = int(cy + rad * math.sin(sweep_angle))
+    draw.line([(cx, cy), (sx, sy)], fill=(16, 185, 129), width=2)
+
+    # Top Header Banner
+    draw.rectangle([0, 0, w, 38], fill=(13, 34, 64))
+    draw.line([(0, 38), (w, 38)], fill=(16, 185, 129), width=2)
+    draw.text((15, 11), "🕊️ [UN PEACEKEEPING MISSION]", fill=(52, 211, 153), font=font_hud)
+    draw.text((230, 11), f"EMERGENCY ARMISTICE MANDATE • WAR #{war_id}", fill=(255, 255, 255), font=font_hud)
+    draw.text((w - 15, 12), "[CEASEFIRE RATIFIED]", fill=(52, 211, 153), font=font_tag, anchor="rt")
+
+    # Center Plaque
+    pw, ph = 530, 175
+    px, py = w//2 - pw//2, 95
+    draw.rectangle([px, py, px + pw, py + ph], fill=(14, 22, 38), outline=(16, 185, 129), width=2)
+    draw.rectangle([px + 4, py + 4, px + pw - 4, py + ph - 4], outline=(51, 65, 85), width=1)
+
+    # Ceasefire Banner
+    draw.rectangle([px + 10, py + 10, px + pw - 10, py + 36], fill=(5, 150, 105))
+    draw.text((w//2, py + 16), f"🕊️ IMMEDIATE BILATERAL CEASEFIRE ENFORCED // WAR #{war_id}", fill=(255, 255, 255), font=font_hud, anchor="mt")
+
+    # Belligerents
+    draw.text((w//2, py + 46), f"{atk_flag} {atk_name}  ⚔️  {dfn_flag} {dfn_name}".upper(), fill=(255, 255, 255), font=font_hero, anchor="mt")
+
+    # Terms Box
+    rw, rh = pw - 40, 42
+    rx, ry = px + 20, py + 74
+    draw.rectangle([rx, ry, rx + rw, ry + rh], fill=(20, 30, 48), outline=(52, 211, 153), width=1)
+    clean_reason = (reason[:65] + "...") if len(reason) > 68 else reason
+    draw.text((w//2, ry + 6), "UN SECURITY COUNCIL MANDATE & BUFFER ACCORD:", fill=(148, 163, 184), font=font_tag, anchor="mt")
+    draw.text((w//2, ry + 22), f'"{clean_reason}"', fill=(110, 231, 183), font=font_sub, anchor="mt")
+
+    # Peacekeeper notice
+    draw.text((w//2, py + 128), "🛡️ UN BLUE HELMET BATTALIONS DEPLOYED TO DMZ BUFFER • OFFENSIVE COMBAT TERMINATED", fill=(52, 211, 153), font=font_tag, anchor="mt")
+    draw.text((w//2, py + 148), "All frontline troops frozen in place • Violations subject to Chapter VII military sanctions", fill=(148, 163, 184), font=font_body, anchor="mt")
+
+    draw.polygon([(px + 1, py + 1), (px + 18, py + 1), (px + 1, py + 18)], fill=(16, 185, 129))
+    draw.polygon([(px + pw - 1, py + 1), (px + pw - 18, py + 1), (px + pw - 1, py + 18)], fill=(16, 185, 129))
+
+    # Bottom Ticker
+    draw.rectangle([0, h - 24, w, h], fill=(6, 12, 22))
+    draw.line([(0, h - 24), (w, h - 24)], fill=(16, 185, 129), width=1)
+    draw.text((15, h - 18), "DEMILITARIZED ZONE ACTIVE • ARMISTICE SIGNED • INTERNATIONAL OBSERVERS SUPERVISING AIRSPACE", fill=(148, 163, 184), font=font_tag)
+
+    return im
+
+def generate_un_ceasefire_frames(atk_name: str, atk_flag: str, dfn_name: str, dfn_flag: str, war_id: int, reason: str, total_frames: int = 80):
+    for idx in range(total_frames):
+        yield render_un_ceasefire_frame(idx, total_frames, atk_name, atk_flag, dfn_name, dfn_flag, war_id, reason)
+
+def create_un_ceasefire_gif(atk_name: str, atk_flag: str, dfn_name: str, dfn_flag: str, war_id: int, reason: str) -> io.BytesIO:
+    frames = list(generate_un_ceasefire_frames(atk_name, atk_flag, dfn_name, dfn_flag, war_id, reason, total_frames=20))
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_un_ceasefire_media(attacker_name: str, attacker_flag: str, defender_name: str, defender_flag: str, war_id: int, reason: str = "Hostilities Terminated by UN Resolution", audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    mp4_buf = render_frames_to_mp4(
+        generate_un_ceasefire_frames(attacker_name, attacker_flag, defender_name, defender_flag, war_id, reason, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_un_ceasefire_gif(attacker_name, attacker_flag, defender_name, defender_flag, war_id, reason)
+    return gif_buf, mp4_buf
+
+def generate_un_ceasefire_speech(attacker_name: str, defender_name: str, war_id: int, reason: str = "Emergency Peacekeeping Resolution") -> io.BytesIO:
+    clean_a = clean_for_speech(attacker_name)
+    clean_d = clean_for_speech(defender_name)
+    clean_r = clean_for_speech(reason)
+    speech = (
+        f"United Nations peacekeeping alert! The UN Secretary-General and Security Council have enacted an emergency armistice mandate! "
+        f"War number {war_id} between {clean_a} and {clean_d} is ordered terminated immediately under resolution citing: {clean_r}! "
+        f"All frontline combat units must freeze positions at once. United Nations blue helmet peacekeepers are deploying to the demilitarized buffer zone."
+    )
+    return generate_voice_narration(speech)
+
+
+def render_un_aid_frame(frame_idx: int, total_frames: int, country_name: str, country_flag: str, grant_amount: int = 50000) -> Image.Image:
+    w, h = 640, 360
+    im = Image.new("RGB", (w, h), (8, 20, 28))
+    draw = ImageDraw.Draw(im)
+
+    font_hud = _get_font_bold(13)
+    font_hero = _get_font_bold(18)
+    font_sub = _get_font_bold(12)
+    font_body = _get_font(11)
+    font_tag = _get_font_bold(10)
+
+    for x in range(0, w, 32):
+        draw.line([(x, 38), (x, h - 24)], fill=(14, 32, 46), width=1)
+    for y in range(38, h - 24, 32):
+        draw.line([(0, y), (w, y)], fill=(14, 32, 46), width=1)
+
+    # Top Header Banner
+    draw.rectangle([0, 0, w, 38], fill=(12, 42, 60))
+    draw.line([(0, 38), (w, 38)], fill=(14, 165, 233), width=2)
+    draw.text((15, 11), "📦 [UN HUMANITARIAN MISSION]", fill=(56, 189, 248), font=font_hud)
+    draw.text((230, 11), "EMERGENCY RELIEF AIRLIFT // CIVIC STABILITY", fill=(255, 255, 255), font=font_hud)
+    draw.text((w - 15, 12), "[AID DELIVERED]", fill=(56, 189, 248), font=font_tag, anchor="rt")
+
+    # Center Plaque
+    pw, ph = 520, 175
+    px, py = w//2 - pw//2, 95
+    draw.rectangle([px, py, px + pw, py + ph], fill=(12, 26, 38), outline=(14, 165, 233), width=2)
+    draw.rectangle([px + 4, py + 4, px + pw - 4, py + ph - 4], outline=(51, 65, 85), width=1)
+
+    # Aid Banner
+    draw.rectangle([px + 10, py + 10, px + pw - 10, py + 36], fill=(2, 132, 199))
+    draw.text((w//2, py + 16), "📦 UN EMERGENCY HUMANITARIAN RELIEF GRANT DELIVERED", fill=(255, 255, 255), font=font_hud, anchor="mt")
+
+    # Recipient Nation
+    draw.text((w//2, py + 48), f"{country_flag} {country_name}".upper(), fill=(255, 255, 255), font=font_hero, anchor="mt")
+
+    # Grant box
+    rw, rh = pw - 40, 38
+    rx, ry = px + 20, py + 78
+    draw.rectangle([rx, ry, rx + rw, ry + rh], fill=(16, 36, 52), outline=(56, 189, 248), width=1)
+    draw.text((w//2, ry + 6), "HUMANITARIAN STABILIZATION GRANT DISBURSED:", fill=(148, 163, 184), font=font_tag, anchor="mt")
+    draw.text((w//2, ry + 20), f"+{grant_amount:,} MEDALS DIRECT AID DISBURSED", fill=(250, 204, 21), font=font_sub, anchor="mt")
+
+    # Stability indicators
+    draw.text((w//2, py + 128), "✨ -25% CIVIL UNREST • RIOTS SUPPRESSED • MEDICAL & FOOD CONVOYS UNLOADED", fill=(56, 189, 248), font=font_tag, anchor="mt")
+    draw.text((w//2, py + 148), "Authorized by the UN Secretary-General to protect civilian life and restore order", fill=(148, 163, 184), font=font_body, anchor="mt")
+
+    draw.polygon([(px + 1, py + 1), (px + 18, py + 1), (px + 1, py + 18)], fill=(14, 165, 233))
+    draw.polygon([(px + pw - 1, py + 1), (px + pw - 18, py + 1), (px + pw - 1, py + 18)], fill=(14, 165, 233))
+
+    # Bottom Ticker
+    draw.rectangle([0, h - 24, w, h], fill=(6, 14, 20))
+    draw.line([(0, h - 24), (w, h - 24)], fill=(14, 165, 233), width=1)
+    draw.text((15, h - 18), "RELIEF CONVOY SECURED • HOSPITAL AID OPERATIONAL • RECONSTRUCTION UNDERWAY", fill=(148, 163, 184), font=font_tag)
+
+    return im
+
+def generate_un_aid_frames(country_name: str, country_flag: str, grant_amount: int = 50000, total_frames: int = 80):
+    for idx in range(total_frames):
+        yield render_un_aid_frame(idx, total_frames, country_name, country_flag, grant_amount)
+
+def create_un_aid_gif(country_name: str, country_flag: str, grant_amount: int = 50000) -> io.BytesIO:
+    frames = list(generate_un_aid_frames(country_name, country_flag, grant_amount, total_frames=20))
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_un_aid_media(country_name: str, country_flag: str, grant_amount: int = 50000, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    mp4_buf = render_frames_to_mp4(
+        generate_un_aid_frames(country_name, country_flag, grant_amount, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_un_aid_gif(country_name, country_flag, grant_amount)
+    return gif_buf, mp4_buf
+
+def generate_un_aid_speech(country_name: str, grant_amount: int = 50000) -> io.BytesIO:
+    clean_c = clean_for_speech(country_name)
+    speech = (
+        f"United Nations humanitarian dispatch! The UN Secretariat and Disaster Relief Commission have finalized an emergency relief airlift to the people of {clean_c}! "
+        f"A stabilization grant of {grant_amount:,} Medals alongside emergency medical supplies and food convoys has arrived in the capital. "
+        f"Civil unrest has been successfully extinguished, and sovereign stability is restored."
+    )
+    return generate_voice_narration(speech)

@@ -282,6 +282,49 @@ class GitBackup:
         with self._push_lock:
             return self._push_snapshot_if_changed()
 
+    def cleanup_space(self):
+        """Aggressively reclaim disk space by purging git reflogs, loose objects, and duplicate databases."""
+        try:
+            import stat
+            import shutil
+            base_dir = self.repo_dir
+            # 1. Clean root DB duplicates if data/bot.db is healthy
+            data_db = os.path.join(base_dir, "data", "bot.db")
+            if os.path.isfile(data_db) and os.path.getsize(data_db) > 10000:
+                for db_name in ("bot.db", "bot_snapshot.db"):
+                    p = os.path.join(base_dir, db_name)
+                    if os.path.isfile(p):
+                        try:
+                            os.remove(p)
+                        except Exception:
+                            pass
+
+            # 2. Expire reflogs, prune loose git objects, and repack git repository
+            git_dir = os.path.join(base_dir, ".git")
+            if os.path.isdir(git_dir):
+                self._run(["git", "reflog", "expire", "--expire=now", "--all"], cwd=base_dir, check=False)
+                self._run(["git", "prune", "--expire=now"], cwd=base_dir, check=False)
+                self._run(["git", "repack", "-a", "-d", "-l"], cwd=base_dir, check=False)
+                self._run(["git", "gc", "--auto", "--prune=now"], cwd=base_dir, check=False)
+
+            # 3. Clean abandoned temporary files in /tmp and .cache
+            for tmp_candidate in ("/tmp", os.path.join(base_dir, ".cache")):
+                if os.path.isdir(tmp_candidate):
+                    for item in os.listdir(tmp_candidate):
+                        fp = os.path.join(tmp_candidate, item)
+                        try:
+                            if os.path.isdir(fp):
+                                shutil.rmtree(fp, ignore_errors=True)
+                            else:
+                                os.remove(fp)
+                        except Exception:
+                            pass
+        except Exception as e:
+            try:
+                print(f"⚠️ [Disk Cleanup Error]: {e}", flush=True)
+            except Exception:
+                pass
+
     def _push_snapshot_if_changed(self) -> bool:
         token = os.environ.get("GITHUB_TOKEN", "").strip()
         repo = os.environ.get("GITHUB_REPO", "").strip()
@@ -319,6 +362,9 @@ class GitBackup:
 
             self._run(["git", "push", "-u", auth_url, "main"], cwd=self.repo_dir)
             self._last_hash = current
+            self._backup_count = getattr(self, "_backup_count", 0) + 1
+            if self._backup_count % 10 == 0:
+                self.cleanup_space()
             try:
                 print(f"[Backup Success] Consistent SQLite snapshot backed up ({os.path.getsize(snapshot):,} bytes).", flush=True)
             except Exception:

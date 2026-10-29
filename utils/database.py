@@ -882,7 +882,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             "ALTER TABLE earth_citizens ADD COLUMN last_yield_claim REAL DEFAULT 0",
             "ALTER TABLE earth_trade_routes ADD COLUMN proposer_country_id INTEGER DEFAULT 0",
             "ALTER TABLE earth_countries ADD COLUMN last_martial_law REAL DEFAULT 0",
-            "PRAGMA journal_mode=WAL"
+            "ALTER TABLE earth_countries ADD COLUMN last_pop_program REAL DEFAULT 0",
+            "ALTER TABLE earth_countries ADD COLUMN last_pop_program_type TEXT DEFAULT NULL",
+            "PRAGMA journal_mode=WAL",
+            "PRAGMA wal_autocheckpoint=100"
 
         ]:
 
@@ -1203,7 +1206,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         ) as cur:
             war = await cur.fetchone()
         if not war:
-            return False, "Active war record not found."
+            return False, "Active war record not found.", {}
         now = time.time()
         details = f"UN ceasefire enforced on War #{war_id} between Country #{war[0]} and #{war[1]}."
         await self._db.execute("BEGIN IMMEDIATE")
@@ -1213,7 +1216,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             ) as cur:
                 if not await cur.fetchone():
                     await self._db.rollback()
-                    return False, "This war has already concluded."
+                    return False, "This war has already concluded.", {}
             await self._db.execute("UPDATE earth_wars SET status = 'ceasefire' WHERE id = ?", (war_id,))
             for country_id, divisions in ((war[0], war[2]), (war[1], war[3])):
                 await self._db.execute(
@@ -1228,7 +1231,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         except Exception:
             await self._db.rollback()
             raise
-        return True, f"UN ceasefire enforced on War #{war_id}; deployed forces are released."
+        return True, f"UN ceasefire enforced on War #{war_id}; deployed forces are released.", {"war_id": war_id, "attacker_country_id": war[0], "defender_country_id": war[1]}
 
     async def un_impose_sanctions(self, mayor_id: int, country_id: int, reason: str, duration_hours: int = 48) -> tuple[bool, str]:
         """UN Secretary-General (Mayor) imposes binding economic sanctions on a rogue nation."""
@@ -7551,15 +7554,30 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             new_treasury = country["treasury"] + treasury_gain
             new_unrest = max(0, country.get("unrest", 10) - unrest_cool)
             
-            population = max(0, int(country.get("population", 100) or 0))
-            pop_last = float(country.get("population_last_growth", 0) or 0)
-            if pop_last <= 0:
-                pop_last = float(country.get("created_at", now) or now)
-            population_tick = pop_last
-            if now - pop_last >= 86400:
-                days = min(30, int((now - pop_last) // 86400))
-                population = min(1_000_000, population + max(1, int(population * 0.02 * days)))
-                population_tick = pop_last + days * 86400
+            # Dynamic, balanced natural population growth (ticks proportionally with elapsed hours)
+            pop_curr = max(100, int(country.get("population", 100) or 100))
+            if country.get("stability", 80) >= 35 and country.get("unrest", 10) <= 55:
+                has_hospital = False
+                try:
+                    b_rows = await self.get_country_buildings(country["id"])
+                    has_hospital = any(b.get("building_type") == "hospital" for b in b_rows)
+                except Exception:
+                    pass
+
+                stab_bonus = (max(0, country.get("stability", 80) - 35) / 65.0) * 0.004
+                hosp_bonus = 0.004 if has_hospital else 0.0
+                hourly_rate = 0.005 + stab_bonus + hosp_bonus
+
+                # Scales naturally with time: ~10-18% growth per 24 hours of stable peace
+                pop_gain = max(1, int(pop_curr * hourly_rate * capped_hours))
+                population = min(10_000_000, pop_curr + pop_gain)
+            elif country.get("unrest", 10) > 65:
+                # Modest emigration during violent civil unrest
+                pop_loss = min(int(pop_curr * 0.004 * capped_hours), 50)
+                population = max(100, pop_curr - pop_loss)
+            else:
+                population = pop_curr
+            population_tick = now
             try:
                 await self._db.execute("""
                     UPDATE earth_countries
@@ -7579,6 +7597,118 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             country["population_last_growth"] = population_tick
             country["recent_gdp_growth"] = gdp_growth
         return country
+
+
+    async def stimulate_earth_population(self, user_id: int, country_id: int, program_type: str) -> tuple[bool, str, dict]:
+        """Enact active demographic and public health programs to grow civilian population."""
+        if self._db is None:
+            await self.setup()
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "economy")
+        if not can_manage:
+            can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "defense")
+        if not can_manage:
+            return False, "⛔ Authorization Denied: Only the President or Cabinet Ministers can enact demographic programs!", {}
+
+        async with self._db.execute("SELECT id, name, flag, treasury, medals, stability, unrest, population, last_pop_program, last_pop_program_type FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, "❌ Country not found.", {}
+
+        country = dict(row)
+        now = time.time()
+        last_prog = float(country.get("last_pop_program") or 0)
+        stab = country.get("stability", 80)
+        unrest = country.get("unrest", 10)
+        curr_pop = max(100, int(country.get("population", 100) or 100))
+        treasury = int(country.get("treasury", 0) or 0)
+
+        econ = await self.get_global_economy(user_id)
+        user_medals = int(econ.get("medals", 0) or 0)
+
+        # Program configurations
+        programs = {
+            "healthcare": {
+                "name": "🏥 National Maternity & Public Healthcare Drive",
+                "treasury_cost": 12000,
+                "medals_cost": 0,
+                "cooldown": 14400, # 4 hours
+                "min_pop_gain": 35,
+                "max_pop_gain": 55,
+                "unrest_reduction": 6,
+                "stability_gain": 4
+            },
+            "immigration": {
+                "name": "🌍 Skilled Foreign Labor & Diaspora Accord",
+                "treasury_cost": 30000,
+                "medals_cost": 2500,
+                "cooldown": 21600, # 6 hours
+                "min_pop_gain": 80,
+                "max_pop_gain": 150,
+                "unrest_reduction": 0,
+                "stability_gain": 5
+            },
+            "housing": {
+                "name": "🏗️ Suburban Expansion & Civic Settlement Grant",
+                "treasury_cost": 65000,
+                "medals_cost": 5000,
+                "cooldown": 28800, # 8 hours
+                "min_pop_gain": 200,
+                "max_pop_gain": 350,
+                "unrest_reduction": 3,
+                "stability_gain": 8
+            }
+        }
+
+        if program_type not in programs:
+            return False, f"❌ Unknown program '{program_type}'. Available programs: healthcare, immigration, housing.", {}
+
+        cfg = programs[program_type]
+        elapsed = now - last_prog
+        if elapsed < cfg["cooldown"]:
+            rem_hrs = int((cfg["cooldown"] - elapsed) // 3600)
+            rem_mins = int(((cfg["cooldown"] - elapsed) % 3600) // 60)
+            return False, f"⏳ Cooldown Active: Next demographic program can be enacted in **{rem_hrs}h {rem_mins}m**.", {}
+
+        if program_type == "immigration" and unrest >= 50:
+            return False, "⚠️ Immigration Refused: Civil unrest is too intense (≥50%). Foreign workers and immigrants refuse to relocate into a rioting nation!", {}
+
+        if treasury < cfg["treasury_cost"]:
+            return False, f"❌ Insufficient National Treasury: Requires `{cfg['treasury_cost']:,} Treasury` (Nation currently has `{treasury:,}`).", {}
+
+        if cfg["medals_cost"] > 0 and user_medals < cfg["medals_cost"]:
+            return False, f"❌ Insufficient Personal Medals: Requires `{cfg['medals_cost']:,} Medals` to subsidize visas/relocation grants (You have `{user_medals:,}`).", {}
+
+        stab_multiplier = max(0.6, stab / 100.0)
+        pop_gain = int(cfg["min_pop_gain"] + (cfg["max_pop_gain"] - cfg["min_pop_gain"]) * stab_multiplier)
+        new_pop = min(10_000_000, curr_pop + pop_gain)
+        new_treasury = treasury - cfg["treasury_cost"]
+        new_unrest = max(0, unrest - cfg["unrest_reduction"])
+        new_stab = min(100, stab + cfg["stability_gain"])
+
+        try:
+            if cfg["medals_cost"] > 0:
+                await self.update_global_medals(user_id, -cfg["medals_cost"])
+
+            await self._db.execute("""
+                UPDATE earth_countries
+                SET population = ?, treasury = ?, unrest = ?, stability = ?,
+                    last_pop_program = ?, last_pop_program_type = ?
+                WHERE id = ?
+            """, (new_pop, new_treasury, new_unrest, new_stab, now, program_type, country_id))
+            await self._db.commit()
+
+            msg = (
+                f"✅ **{cfg['name']} Successfully Enacted!**\n"
+                f"📈 **Population Growth:** `+{pop_gain:,} Citizens` (Total National Population: `{new_pop:,}`)\n"
+                f"💰 **Treasury Invested:** `-{cfg['treasury_cost']:,} Treasury`"
+                + (f" • `-{cfg['medals_cost']:,} Medals`" if cfg["medals_cost"] > 0 else "") + "\n"
+                f"🛡️ **Military Force Cap:** Can now recruit up to `{new_pop // 5:,} Army Divisions`!"
+            )
+            return True, msg, {"new_population": new_pop, "pop_gain": pop_gain, "treasury": new_treasury}
+        except Exception as e:
+            await self._db.rollback()
+            return False, f"❌ Database error enacting population program: {e}", {}
 
     async def get_country_tools(self, country_id: int) -> list[dict]:
         """Fetch all advanced military, defense, and economic tools owned by a country."""

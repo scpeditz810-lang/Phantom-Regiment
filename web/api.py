@@ -337,6 +337,77 @@ async def _bg_broadcast_commander_resigned(country_id: int, commander_name: str,
 
 
 
+async def _bg_broadcast_un_sanction(country_id: int, reason: str, signatory: str, bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            pass
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            pass
+    try:
+        cog = _get_earth_cog(bot)
+        if not cog or not db:
+            return
+        c = await db.get_earth_country(country_id)
+        if not c:
+            return
+        await cog.broadcast_un_sanction_news(c.get("name", "Nation"), c.get("flag", "🌐"), reason, signatory)
+    except Exception as e:
+        print(f"⚠️ _bg_broadcast_un_sanction error: {e}", flush=True)
+
+async def _bg_broadcast_un_ceasefire(war_id: int, signatory: str, bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            pass
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            pass
+    try:
+        cog = _get_earth_cog(bot)
+        if not cog or not db:
+            return
+        war = await db.get_earth_war(war_id)
+        if not war:
+            return
+        atk = await db.get_earth_country(war["attacker_country_id"])
+        dfn = await db.get_earth_country(war["defender_country_id"])
+        if not atk or not dfn:
+            return
+        await cog.broadcast_un_ceasefire_news(atk.get("name", "Attacker"), atk.get("flag", "⚔️"), dfn.get("name", "Defender"), dfn.get("flag", "🛡️"), war_id, "UN Security Council Armistice Mandate", signatory)
+    except Exception as e:
+        print(f"⚠️ _bg_broadcast_un_ceasefire error: {e}", flush=True)
+
+async def _bg_broadcast_un_aid(country_id: int, grant_amount: int, signatory: str, bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            pass
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            pass
+    try:
+        cog = _get_earth_cog(bot)
+        if not cog or not db:
+            return
+        c = await db.get_earth_country(country_id)
+        if not c:
+            return
+        await cog.broadcast_un_aid_news(c.get("name", "Nation"), c.get("flag", "🌐"), grant_amount, signatory)
+    except Exception as e:
+        print(f"⚠️ _bg_broadcast_un_aid error: {e}", flush=True)
+
+
 @api_bp.route("/stocks")
 
 def get_stocks():
@@ -4135,6 +4206,11 @@ def api_earth_un_ceasefire():
 
     success, msg, res = run_async(db.un_issue_ceasefire(user_id, war_id))
 
+    if success:
+        bot = current_app.config.get("DISCORD_BOT")
+        mayor_name = session.get("user", {}).get("username", "UN Secretary-General")
+        dispatch_discord_coro(_bg_broadcast_un_ceasefire(war_id, mayor_name, bot=bot, db=db))
+
     return jsonify({"success": success, "message": msg, "data": res}), 200 if success else 400
 
 
@@ -4172,6 +4248,11 @@ def api_earth_un_sanction():
     db = get_db()
 
     success, msg = run_async(db.un_impose_sanctions(user_id, country_id, reason))
+
+    if success:
+        bot = current_app.config.get("DISCORD_BOT")
+        mayor_name = session.get("user", {}).get("username", "UN Secretary-General")
+        dispatch_discord_coro(_bg_broadcast_un_sanction(country_id, reason, mayor_name, bot=bot, db=db))
 
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
@@ -4245,6 +4326,11 @@ def api_earth_un_aid():
 
     success, msg = run_async(db.un_send_humanitarian_aid(user_id, country_id))
 
+    if success:
+        bot = current_app.config.get("DISCORD_BOT")
+        mayor_name = session.get("user", {}).get("username", "UN Secretary-General")
+        dispatch_discord_coro(_bg_broadcast_un_aid(country_id, 50000, mayor_name, bot=bot, db=db))
+
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 
@@ -4264,3 +4350,18 @@ def api_advisor_chat():
         return jsonify(result)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@api_bp.route("/earth/population/stimulate", methods=["POST"])
+@login_required
+def api_earth_population_stimulate():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        program = str(data.get("program", "")).strip().lower()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    db = get_db()
+    success, msg, res_data = run_async(db.stimulate_earth_population(session["user"]["id"], country_id, program))
+    return jsonify({"success": success, "message": msg, "data": res_data}), 200 if success else 400
