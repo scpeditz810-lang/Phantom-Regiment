@@ -22,20 +22,42 @@ import urllib.request
 import wave
 from PIL import Image, ImageDraw, ImageFont
 
+_FONT_CACHE = {}
+
 def _get_font(size: int = 18):
-    try:
-        return ImageFont.truetype("arial.ttf", size)
-    except Exception:
+    key = ("normal", size)
+    if key in _FONT_CACHE:
+        return _FONT_CACHE[key]
+    font = None
+    for path in ("arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
         try:
-            return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size)
+            font = ImageFont.truetype(path, size)
+            break
         except Exception:
-            return ImageFont.load_default()
+            continue
+    if font is None:
+        try:
+            font = ImageFont.load_default(size=size)
+        except Exception:
+            font = ImageFont.load_default()
+    _FONT_CACHE[key] = font
+    return font
 
 def _get_font_bold(size: int = 18):
-    try:
-        return ImageFont.truetype("arialbd.ttf", size)
-    except Exception:
-        return _get_font(size)
+    key = ("bold", size)
+    if key in _FONT_CACHE:
+        return _FONT_CACHE[key]
+    font = None
+    for path in ("arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "arial.ttf"):
+        try:
+            font = ImageFont.truetype(path, size)
+            break
+        except Exception:
+            continue
+    if font is None:
+        font = _get_font(size)
+    _FONT_CACHE[key] = font
+    return font
 
 # === Procedural Sound Effects Engine (Pure Python standard library) ============
 
