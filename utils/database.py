@@ -21,6 +21,18 @@ import aiosqlite
 
 
 
+class ResignationResult(tuple):
+    def __new__(cls, success: bool, message: str, data: dict = None):
+        return super().__new__(cls, (success, message))
+    def __init__(self, success: bool, message: str, data: dict = None):
+        self.data = data or {}
+
+class NuclearStrikeResult(tuple):
+    def __new__(cls, success: bool, message: str, data: dict = None):
+        return super().__new__(cls, (success, message))
+    def __init__(self, success: bool, message: str, data: dict = None):
+        self.data = data or {}
+
 class Database:
 
     def __init__(self, db_path: str):
@@ -4881,18 +4893,6 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         return True, "Nomination decree cancelled."
 
 
-class ResignationResult(tuple):
-    def __new__(cls, success: bool, message: str, data: dict = None):
-        return super().__new__(cls, (success, message))
-    def __init__(self, success: bool, message: str, data: dict = None):
-        self.data = data or {}
-
-class NuclearStrikeResult(tuple):
-    def __new__(cls, success: bool, message: str, data: dict = None):
-        return super().__new__(cls, (success, message))
-    def __init__(self, success: bool, message: str, data: dict = None):
-        self.data = data or {}
-
     async def resign_earth_cabinet(self, user_id: int, country_id: int = None) -> tuple[bool, str]:
         """A minister resigns from their cabinet portfolio."""
         if self._db is None:
@@ -4907,7 +4907,7 @@ class NuclearStrikeResult(tuple):
             row = await cur.fetchone()
             if not row:
                 return ResignationResult(False, "You do not currently hold any active ministerial cabinet portfolio.", {})
-            cid, role = row[0], role[1]
+            cid, role = row[0], row[1]
 
         await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? AND country_id = ?", (user_id, cid))
         await self._db.commit()
