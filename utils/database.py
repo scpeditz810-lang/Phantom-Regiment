@@ -1084,7 +1084,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             "recent_resolutions": resolutions
         }
 
-    async def un_issue_ceasefire(self, mayor_id: int, war_id: int) -> tuple[bool, str, dict]:
+    async def un_issue_ceasefire(self, mayor_id: int, war_id: int) -> tuple[bool, str]:
         """UN Secretary-General (Mayor) ends an active war with a ceasefire."""
         if self._db is None:
             await self.setup()
@@ -1094,7 +1094,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         ) as cur:
             war = await cur.fetchone()
         if not war:
-            return False, "Active war record not found.", {}
+            return False, "Active war record not found."
         now = time.time()
         details = f"UN ceasefire enforced on War #{war_id} between Country #{war[0]} and #{war[1]}."
         await self._db.execute("BEGIN IMMEDIATE")
@@ -1104,7 +1104,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             ) as cur:
                 if not await cur.fetchone():
                     await self._db.rollback()
-                    return False, "This war has already concluded.", {}
+                    return False, "This war has already concluded."
             await self._db.execute("UPDATE earth_wars SET status = 'ceasefire' WHERE id = ?", (war_id,))
             for country_id, divisions in ((war[0], war[2]), (war[1], war[3])):
                 await self._db.execute(
@@ -1119,7 +1119,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         except Exception:
             await self._db.rollback()
             raise
-        return True, f"UN ceasefire enforced on War #{war_id}; deployed forces are released.", {"war_id": war_id}
+        return True, f"UN ceasefire enforced on War #{war_id}; deployed forces are released."
 
     async def un_impose_sanctions(self, mayor_id: int, country_id: int, reason: str, duration_hours: int = 48) -> tuple[bool, str]:
         """UN Secretary-General (Mayor) imposes binding economic sanctions on a rogue nation."""
