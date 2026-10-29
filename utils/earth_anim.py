@@ -1530,136 +1530,337 @@ def generate_martial_law_speech(country_name: str) -> io.BytesIO:
 # ☢️ NUCLEAR ATTACK ANIMATED BROADCAST PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def render_nuclear_strike_scene_frame(
-    frame_idx: int,
+def render_nuclear_strike_scene_frame(frame_idx: int,
     total_frames: int,
     attacker_name: str,
     target_name: str
 ) -> Image.Image:
-    """Apocalyptic ICBM launch & thermonuclear fireball mushroom cloud detonation."""
+    """Subterranean ICBM silo hot launch & apocalyptic thermonuclear fireball detonation."""
     w, h = 640, 360
+    t = frame_idx / max(1, total_frames - 1)
+
+    # Screen shake / seismic tremor calculation during launch phase
+    shake_x, shake_y = 0, 0
+    if t < 0.45:
+        sub_t = t / 0.45
+        shake_intensity = max(0.0, 1.0 - sub_t * 0.8) * 3.5
+        shake_x = int(math.sin(frame_idx * 3.7) * shake_intensity)
+        shake_y = int(math.cos(frame_idx * 4.3) * shake_intensity * 0.6)
+
     im = Image.new("RGB", (w, h), (10, 8, 14))
     draw = ImageDraw.Draw(im)
 
-    font_hud = _get_font_bold(13)
+    font_hud = _get_font_bold(12)
     font_title = _get_font_bold(16)
-    font_sub = _get_font(11)
-    font_tag = _get_font_bold(10)
+    font_sub = _get_font(10)
+    font_tag = _get_font_bold(9)
+    font_micro = _get_font_bold(8)
 
-    t = frame_idx / max(1, total_frames - 1)
-
-    # 1. Dark apocalyptic burning sky gradient
-    for y in range(240):
-        frac = y / 240.0
-        r = int(12 + frac * 85)
-        g = int(8 + frac * 28)
-        b = int(14 + frac * 18)
+    # 1. Dark apocalyptic burning sky gradient with stratospheric clouds
+    for y in range(235):
+        frac = y / 235.0
+        r = int(14 + frac * 80)
+        g = int(10 + frac * 26)
+        b = int(18 + frac * 16)
         draw.line([(0, y), (w, y)], fill=(r, g, b))
 
-    # 2. Silhouetted mountains & defense radar station
+    # Stratospheric atmospheric bands
+    for sy in range(40, 140, 24):
+        cloud_alpha = int(25 + math.sin(sy * 0.2 + frame_idx * 0.05) * 10)
+        draw.line([(0, sy), (w, sy)], fill=(cloud_alpha + 30, cloud_alpha, cloud_alpha + 15), width=2)
+
+    # 2. Silhouetted jagged mountain range in background
     mountains = [
-        [(0, 240), (80, 180), (160, 220), (260, 160), (360, 215), (480, 150), (580, 205), (640, 175), (640, 240)]
+        [(0, 235), (60, 185), (140, 215), (230, 165), (320, 210), (430, 155), (540, 200), (640, 170), (640, 235)]
     ]
     for m in mountains:
-        draw.polygon(m, fill=(24, 16, 22))
+        draw.polygon(m, fill=(22, 16, 22))
 
-    # Ground plain
-    draw.rectangle([0, 235, w, h], fill=(18, 14, 20))
-    for gy in range(240, h, 14):
-        draw.line([(0, gy), (w, gy)], fill=(28, 22, 32), width=1)
+    # Ground surface & reinforced concrete launch perimeter
+    draw.rectangle([0, 230, w, h], fill=(22, 18, 24))
+    for gy in range(235, h, 15):
+        draw.line([(0, gy), (w, gy)], fill=(32, 26, 36), width=1)
 
     if t < 0.45:
-        # Phase 1: Silo launch & rocket ascent
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE 1: SUBTERRANEAN ICBM MISSILE SILO LAUNCH COMPLEX
+        # ═══════════════════════════════════════════════════════════════════════
         sub_t = t / 0.45
-        silo_x, silo_y = 160, 260
-        draw.rectangle([silo_x - 35, silo_y - 8, silo_x + 35, silo_y + 12], fill=(45, 45, 55), outline=(90, 90, 110))
-        door_slide = int(sub_t * 22)
-        draw.rectangle([silo_x - 35 - door_slide, silo_y - 12, silo_x - door_slide, silo_y - 4], fill=(70, 75, 90))
-        draw.rectangle([silo_x + door_slide, silo_y - 12, silo_x + 35 + door_slide, silo_y - 4], fill=(70, 75, 90))
 
-        for si in range(8):
-            sp_x = silo_x + int(math.sin(si * 1.2 + frame_idx * 0.3) * (20 + si * 6))
-            sp_y = silo_y + 2 + int(math.cos(si * 0.9) * 10)
-            sp_r = int(12 + si * 4)
-            draw.ellipse([sp_x - sp_r, sp_y - sp_r, sp_x + sp_r, sp_y + sp_r], fill=(120, 80, 50), outline=(160, 110, 60))
+        # Base Silo coordinates
+        silo_cx = 190 + shake_x
+        silo_top_y = 245 + shake_y
+        silo_depth = 80
+        silo_width = 86
 
-        missile_progress = sub_t ** 1.3
-        mx = silo_x + int(missile_progress * 260)
-        my = silo_y - int(missile_progress * 210)
+        # --- A. Reinforced Silo Pad Foundation & Perimeter Walls ---
+        pad_x0 = silo_cx - 100
+        pad_x1 = silo_cx + 100
+        draw.rectangle([pad_x0, silo_top_y - 6, pad_x1, silo_top_y + 40], fill=(38, 42, 50), outline=(65, 72, 85), width=2)
 
+        # Yellow & Black Caution Hazard Diagonal Striping along the blast apron
+        stripe_w = 12
+        for sx in range(pad_x0, pad_x1, stripe_w * 2):
+            draw.polygon([
+                (sx, silo_top_y - 6),
+                (sx + stripe_w, silo_top_y - 6),
+                (sx + stripe_w - 6, silo_top_y),
+                (sx - 6, silo_top_y)
+            ], fill=(245, 158, 11))
+            draw.polygon([
+                (sx + stripe_w, silo_top_y - 6),
+                (sx + stripe_w * 2, silo_top_y - 6),
+                (sx + stripe_w * 2 - 6, silo_top_y),
+                (sx + stripe_w - 6, silo_top_y)
+            ], fill=(20, 20, 25))
+
+        # --- B. Subterranean Blast Pit & Steel Launch Chute ---
+        chute_x0 = silo_cx - silo_width // 2
+        chute_x1 = silo_cx + silo_width // 2
+        draw.rectangle([chute_x0, silo_top_y, chute_x1, silo_top_y + silo_depth], fill=(12, 12, 16), outline=(80, 85, 95), width=2)
+
+        # Chute interior ribbing & hydraulic blast vents
+        for ry in range(silo_top_y + 10, silo_top_y + silo_depth, 14):
+            draw.line([(chute_x0 + 4, ry), (chute_x1 - 4, ry)], fill=(30, 32, 40), width=2)
+            # Red emergency staging / alert beacons inside launch tube
+            beacon_glow = int(180 + math.sin(frame_idx * 0.8 + ry) * 75)
+            draw.ellipse([chute_x0 + 6, ry - 3, chute_x0 + 12, ry + 3], fill=(beacon_glow, 20, 20))
+            draw.ellipse([chute_x1 - 12, ry - 3, chute_x1 - 6, ry + 3], fill=(beacon_glow, 20, 20))
+
+        # --- C. Massive Dual Hydraulic Armored Blast Doors (Sliding Open) ---
+        door_max_slide = 52
+        door_opening = min(1.0, sub_t * 1.8)
+        door_slide = int(door_opening * door_max_slide)
+        door_h = 16
+
+        # Left Blast Door (sliding left)
+        ld_x0 = chute_x0 - door_slide
+        ld_x1 = silo_cx - door_slide
+        draw.rectangle([ld_x0 - 4, silo_top_y - door_h, ld_x1, silo_top_y + 2], fill=(60, 65, 78), outline=(95, 105, 125), width=2)
+        # Door armor grooves & rivets
+        draw.line([(ld_x0 + 8, silo_top_y - door_h + 3), (ld_x0 + 8, silo_top_y - 1)], fill=(40, 44, 52), width=2)
+        draw.line([(ld_x1 - 8, silo_top_y - door_h + 3), (ld_x1 - 8, silo_top_y - 1)], fill=(40, 44, 52), width=2)
+        # Left hydraulic ram piston
+        draw.line([(ld_x0 - 2, silo_top_y - 6), (chute_x0 - 32, silo_top_y - 6)], fill=(160, 165, 175), width=4)
+
+        # Right Blast Door (sliding right)
+        rd_x0 = silo_cx + door_slide
+        rd_x1 = chute_x1 + door_slide
+        draw.rectangle([rd_x0, silo_top_y - door_h, rd_x1 + 4, silo_top_y + 2], fill=(60, 65, 78), outline=(95, 105, 125), width=2)
+        draw.line([(rd_x0 + 8, silo_top_y - door_h + 3), (rd_x0 + 8, silo_top_y - 1)], fill=(40, 44, 52), width=2)
+        draw.line([(rd_x1 - 8, silo_top_y - door_h + 3), (rd_x1 - 8, silo_top_y - 1)], fill=(40, 44, 52), width=2)
+        # Right hydraulic ram piston
+        draw.line([(rd_x1 + 2, silo_top_y - 6), (chute_x1 + 32, silo_top_y - 6)], fill=(160, 165, 175), width=4)
+
+        # --- D. Left & Right Flame Trench Exhaust Plumes (Volumetric Smoke & Fire) ---
+        for side in (-1, 1):
+            trench_cx = silo_cx + side * 62
+            for f_i in range(12):
+                p_progress = (sub_t * 2.5 + f_i * 0.12) % 1.0
+                f_x = trench_cx + side * int(p_progress * 55 + math.sin(f_i * 1.5 + frame_idx * 0.4) * 14)
+                f_y = silo_top_y - int(p_progress * 42) + int(math.cos(f_i * 1.3) * 8)
+                f_rad = int(10 + p_progress * 26)
+                if p_progress < 0.4:
+                    col = (255, 160 + int(p_progress * 90), 50)
+                    out = (255, 220, 100)
+                else:
+                    smoke_c = int(140 - p_progress * 80)
+                    col = (smoke_c + 30, smoke_c + 15, smoke_c)
+                    out = (smoke_c + 40, smoke_c + 20, smoke_c)
+                draw.ellipse([f_x - f_rad, f_y - f_rad, f_x + f_rad, f_y + f_rad], fill=col, outline=out)
+
+        # --- E. Detailed Multi-Stage ICBM Ballistic Missile ---
+        # Missile physics calculation: rapid exponential acceleration upwards
+        missile_accel = sub_t ** 1.45
+        m_dist_x = int(missile_accel * 240)
+        m_dist_y = int(missile_accel * 290)
+
+        # Rocket center coordinates
+        mx = silo_cx + m_dist_x
+        my = (silo_top_y + 15) - m_dist_y
+
+        # Rocket angle in flight (tilts slightly towards trajectory)
+        tilt_ang = math.radians(min(18.0, missile_accel * 22.0))
+        cos_a = math.cos(tilt_ang)
+        sin_a = math.sin(tilt_ang)
+
+        def rot_pt(px, py):
+            dx = px - mx
+            dy = py - my
+            rx = mx + dx * cos_a + dy * sin_a
+            ry = my - dx * sin_a + dy * cos_a
+            return (rx, ry)
+
+        # Missile dimensions
+        body_half_w = 7
+        body_len = 54
+        nose_len = 20
+
+        # High-Speed Atmospheric Smoke Trail
         trail_pts = []
-        for step in range(15):
-            st_frac = step / 14.0
-            tx = silo_x + int((missile_progress * st_frac) * 260) + int(math.sin(step + frame_idx) * 3)
-            ty = silo_y - int((missile_progress * st_frac) * 210)
+        for step in range(20):
+            st_frac = step / 19.0
+            tx = silo_cx + int((missile_accel * st_frac) * 240) + int(math.sin(step * 0.8 + frame_idx * 0.3) * (step * 0.7))
+            ty = (silo_top_y + 15) - int((missile_accel * st_frac) * 290)
             trail_pts.append((tx, ty))
         if len(trail_pts) > 1:
+            draw.line(trail_pts, fill=(180, 175, 185), width=7)
             draw.line(trail_pts, fill=(245, 158, 11), width=4)
             draw.line(trail_pts, fill=(255, 255, 255), width=2)
 
-        draw.polygon([(mx - 6, my + 8), (mx + 6, my + 8), (mx, my + 26)], fill=(255, 200, 50))
-        draw.polygon([(mx - 3, my + 6), (mx + 3, my + 6), (mx, my + 18)], fill=(255, 255, 255))
+        # Intense White-Hot Rocket Nozzle Thrust Flame & Shock Diamonds
+        flame_len = int(35 + math.sin(frame_idx * 1.8) * 6)
+        exhaust_base = rot_pt(mx, my + body_len // 2)
+        exhaust_tip = rot_pt(mx, my + body_len // 2 + flame_len)
+        flame_poly = [
+            rot_pt(mx - body_half_w + 1, my + body_len // 2),
+            rot_pt(mx + body_half_w - 1, my + body_len // 2),
+            rot_pt(mx + body_half_w + 3, my + body_len // 2 + flame_len * 0.4),
+            exhaust_tip,
+            rot_pt(mx - body_half_w - 3, my + body_len // 2 + flame_len * 0.4)
+        ]
+        draw.polygon(flame_poly, fill=(255, 140, 20))
+        # Inner supersonic white-hot plasma cone
+        inner_flame = [
+            rot_pt(mx - body_half_w // 2, my + body_len // 2),
+            rot_pt(mx + body_half_w // 2, my + body_len // 2),
+            rot_pt(mx, my + body_len // 2 + int(flame_len * 0.65))
+        ]
+        draw.polygon(inner_flame, fill=(255, 255, 240))
 
-        draw.rectangle([mx - 4, my - 12, mx + 4, my + 6], fill=(220, 225, 235), outline=(100, 110, 130))
-        draw.polygon([(mx - 4, my - 12), (mx + 4, my - 12), (mx, my - 22)], fill=(40, 45, 55))
-        draw.polygon([(mx - 4, my + 2), (mx - 9, my + 7), (mx - 4, my + 7)], fill=(80, 85, 95))
-        draw.polygon([(mx + 4, my + 2), (mx + 9, my + 7), (mx + 4, my + 7)], fill=(80, 85, 95))
+        # Mach Shock Diamonds (characteristic supersonic pattern)
+        for di in range(3):
+            d_dist = my + body_len // 2 + int((di + 1) * 8)
+            d_poly = [
+                rot_pt(mx, d_dist - 3),
+                rot_pt(mx + 3, d_dist),
+                rot_pt(mx, d_dist + 3),
+                rot_pt(mx - 3, d_dist)
+            ]
+            draw.polygon(d_poly, fill=(255, 255, 255))
 
-        draw.rectangle([20, 48, 390, 86], fill=(20, 25, 35), outline=(245, 158, 11))
-        draw.text((28, 52), f"ICBM LAUNCH SEQUENCE: {attacker_name.upper()}", fill=(255, 255, 255), font=font_hud)
-        draw.text((28, 68), f"BOOSTER BURNOUT IN T+{int(sub_t * 60)}s • TARGETING {target_name.upper()}", fill=(245, 158, 11), font=font_sub)
+        # Rocket Main Body (Cylindrical missile fuselage)
+        body_poly = [
+            rot_pt(mx - body_half_w, my - body_len // 2),
+            rot_pt(mx + body_half_w, my - body_len // 2),
+            rot_pt(mx + body_half_w, my + body_len // 2),
+            rot_pt(mx - body_half_w, my + body_len // 2)
+        ]
+        draw.polygon(body_poly, fill=(235, 238, 245), outline=(90, 95, 110), width=1)
+
+        # Roll-Alignment Black Checkered Patterns (characteristic ICBM aerospace livery)
+        check_y = my - body_len // 6
+        draw.polygon([
+            rot_pt(mx - body_half_w, check_y - 6),
+            rot_pt(mx, check_y - 6),
+            rot_pt(mx, check_y),
+            rot_pt(mx - body_half_w, check_y)
+        ], fill=(30, 32, 38))
+        draw.polygon([
+            rot_pt(mx, check_y),
+            rot_pt(mx + body_half_w, check_y),
+            rot_pt(mx + body_half_w, check_y + 6),
+            rot_pt(mx, check_y + 6)
+        ], fill=(30, 32, 38))
+
+        # Interstage Separation Ring (Truss band between Stage 1 & 2)
+        ring_y = my + body_len // 4
+        draw.line([rot_pt(mx - body_half_w, ring_y), rot_pt(mx + body_half_w, ring_y)], fill=(50, 55, 65), width=2)
+
+        # Aerodynamic Conical Re-Entry Warhead (Nosecone)
+        nose_poly = [
+            rot_pt(mx - body_half_w, my - body_len // 2),
+            rot_pt(mx + body_half_w, my - body_len // 2),
+            rot_pt(mx, my - body_len // 2 - nose_len)
+        ]
+        draw.polygon(nose_poly, fill=(210, 215, 225), outline=(80, 85, 95))
+        # Hardened re-entry ablation cap (crimson tip)
+        cap_poly = [
+            rot_pt(mx - 3, my - body_len // 2 - nose_len + 6),
+            rot_pt(mx + 3, my - body_len // 2 - nose_len + 6),
+            rot_pt(mx, my - body_len // 2 - nose_len)
+        ]
+        draw.polygon(cap_poly, fill=(220, 38, 38))
+
+        # Base Aerodynamic Stabilizer Grid Fins (4 titanium grid fins)
+        fin_y = my + body_len // 2 - 4
+        # Left delta fin
+        draw.polygon([
+            rot_pt(mx - body_half_w, fin_y - 8),
+            rot_pt(mx - body_half_w - 9, fin_y + 2),
+            rot_pt(mx - body_half_w, fin_y + 4)
+        ], fill=(65, 70, 82), outline=(100, 105, 120))
+        # Right delta fin
+        draw.polygon([
+            rot_pt(mx + body_half_w, fin_y - 8),
+            rot_pt(mx + body_half_w + 9, fin_y + 2),
+            rot_pt(mx + body_half_w, fin_y + 4)
+        ], fill=(65, 70, 82), outline=(100, 105, 120))
+
+        # --- F. High-Tech Tactical Launch HUD & Telemetry Box ---
+        hud_box_w, hud_box_h = 390, 48
+        draw.rectangle([20, 46, 20 + hud_box_w, 46 + hud_box_h], fill=(16, 20, 28), outline=(245, 158, 11), width=2)
+        # Hazard status beacon
+        beacon_flash = (239, 68, 68) if (frame_idx // 3) % 2 == 0 else (245, 158, 11)
+        draw.rectangle([26, 52, 38, 64], fill=beacon_flash)
+        draw.text((44, 52), f"SUBTERRANEAN SILO 04-A • HOT ICBM LAUNCH", fill=(255, 255, 255), font=font_hud)
+        burn_s = int(sub_t * 60)
+        draw.text((44, 68), f"BOOSTER BURNOUT IN T+{burn_s}s • MACH 18.2 • APOGEE 480KM • TARGET: {target_name.upper()}", fill=(254, 240, 138), font=font_sub)
+
     else:
-        # Phase 2: Detonation & mushroom cloud
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE 2: THERMONUCLEAR DETONATION & MULTI-LOBED MUSHROOM CLOUD
+        # ═══════════════════════════════════════════════════════════════════════
         det_t = (t - 0.45) / 0.55
-        cx, cy = 340, 240
+        cx, cy = 320, 240
 
-        ring_r = int(det_t * 260)
-        draw.ellipse([cx - ring_r, cy - int(ring_r * 0.35), cx + ring_r, cy + int(ring_r * 0.35)], outline=(245, 158, 11), width=2)
-        if ring_r > 40:
-            draw.ellipse([cx - ring_r + 30, cy - int((ring_r - 30) * 0.35), cx + ring_r - 30, cy + int((ring_r - 30) * 0.35)], outline=(239, 68, 68), width=3)
+        # Double Superheated Ground Shockwaves
+        ring_r = int(det_t * 310)
+        draw.ellipse([cx - ring_r, cy - int(ring_r * 0.36), cx + ring_r, cy + int(ring_r * 0.36)], outline=(245, 158, 11), width=3)
+        if ring_r > 50:
+            inner_ring = ring_r - 40
+            draw.ellipse([cx - inner_ring, cy - int(inner_ring * 0.36), cx + inner_ring, cy + int(inner_ring * 0.36)], outline=(239, 68, 68), width=4)
 
-        stem_h = int(min(1.0, det_t * 1.5) * 150)
+        # Rising Radioactive Stem / Fire Column
+        stem_h = int(min(1.0, det_t * 1.4) * 165)
         stem_top_y = cy - stem_h
-        for sy in range(cy, stem_top_y, -12):
-            sw = int(18 + math.sin((sy - stem_top_y) * 0.1) * 8)
-            col_r = int(220 + math.sin(sy * 0.2 + frame_idx) * 35)
-            col_g = int(120 + math.cos(sy * 0.3) * 30)
-            draw.ellipse([cx - sw, sy - 14, cx + sw, sy + 14], fill=(col_r, col_g, 40), outline=(239, 68, 68))
+        for sy in range(cy, stem_top_y, -10):
+            sw = int(22 + math.sin((sy - stem_top_y) * 0.12) * 9 + (cy - sy) * 0.08)
+            col_r = int(230 + math.sin(sy * 0.2 + frame_idx * 0.4) * 25)
+            col_g = int(110 + math.cos(sy * 0.3) * 35)
+            draw.ellipse([cx - sw, sy - 14, cx + sw, sy + 14], fill=(col_r, col_g, 35), outline=(239, 68, 68))
 
-        cap_w = int(35 + det_t * 140)
-        cap_h = int(25 + det_t * 70)
+        # Massive Billowing Mushroom Cap
+        cap_w = int(45 + det_t * 160)
+        cap_h = int(30 + det_t * 85)
         cap_y = stem_top_y - cap_h // 2
-        for ci in range(12):
-            ang = ci * (2 * math.pi / 12) + frame_idx * 0.05
-            puff_x = cx + int(math.cos(ang) * (cap_w * 0.75))
-            puff_y = cap_y + int(math.sin(ang) * (cap_h * 0.65))
-            pr = int(22 + math.sin(ci + frame_idx * 0.2) * 8)
-            draw.ellipse([puff_x - pr, puff_y - pr, puff_x + pr, puff_y + pr], fill=(180, 70, 30), outline=(245, 158, 11))
+        for ci in range(16):
+            ang = ci * (2 * math.pi / 16) + frame_idx * 0.04
+            puff_x = cx + int(math.cos(ang) * (cap_w * 0.72))
+            puff_y = cap_y + int(math.sin(ang) * (cap_h * 0.62))
+            pr = int(24 + math.sin(ci + frame_idx * 0.25) * 8)
+            draw.ellipse([puff_x - pr, puff_y - pr, puff_x + pr, puff_y + pr], fill=(185, 65, 25), outline=(245, 158, 11))
 
-        core_r = int(25 + math.sin(frame_idx * 0.5) * 8)
-        draw.ellipse([cx - cap_w//2, cap_y - cap_h//2, cx + cap_w//2, cap_y + cap_h//2], fill=(255, 180, 50))
-        draw.ellipse([cx - core_r, cap_y - core_r//2, cx + core_r, cap_y + core_r//2], fill=(255, 255, 230))
+        # Inner Incandescent Plasma Core
+        core_r = int(28 + math.sin(frame_idx * 0.45) * 8)
+        draw.ellipse([cx - cap_w // 2, cap_y - cap_h // 2, cx + cap_w // 2, cap_y + cap_h // 2], fill=(255, 175, 45))
+        draw.ellipse([cx - core_r, cap_y - core_r // 2, cx + core_r, cap_y + core_r // 2], fill=(255, 255, 235))
 
-        for di in range(16):
-            dx = cx + int(math.sin(di * 1.7 + frame_idx * 0.4) * (cap_w + 30))
-            dy = cap_y + int(math.cos(di * 2.3 + frame_idx * 0.3) * (cap_h + 40))
-            draw.ellipse([dx - 2, dy - 2, dx + 2, dy + 2], fill=(255, 240, 120))
+        # Tactical Detonation Banner
+        draw.rectangle([w // 2 - 240, 46, w // 2 + 240, 88], fill=(38, 12, 16), outline=(239, 68, 68), width=2)
+        draw.text((w // 2, 52), "*** THERMONUCLEAR DETONATION CONFIRMED ***", fill=(255, 255, 255), font=font_title, anchor="mt")
+        draw.text((w // 2, 70), f"TARGET GROUND ZERO: {target_name.upper()} • CATASTROPHIC IMPACT", fill=(252, 165, 165), font=font_hud, anchor="mt")
 
-        draw.rectangle([w//2 - 225, 48, w//2 + 225, 86], fill=(40, 10, 15), outline=(239, 68, 68), width=2)
-        draw.text((w//2, 54), "*** THERMONUCLEAR DETONATION CONFIRMED ***", fill=(255, 255, 255), font=font_title, anchor="mt")
-        draw.text((w//2, 71), f"TARGET GROUND ZERO: {target_name.upper()} • CATASTROPHIC IMPACT", fill=(252, 165, 165), font=font_sub, anchor="mt")
-
-    # Top cinematic HUD bar
-    draw.rectangle([0, 0, w, 38], fill=(15, 10, 15))
+    # Top & Bottom Tactical Broadcast Framing
+    draw.rectangle([0, 0, w, 38], fill=(16, 12, 18))
     draw.line([(0, 38), (w, 38)], fill=(239, 68, 68), width=2)
-    draw.text((15, 11), "[!]", fill=(239, 68, 68), font=font_hud)
-    draw.text((38, 11), f"STRATEGIC STRIKE: {attacker_name.upper()} -> {target_name.upper()}", fill=(255, 255, 255), font=font_hud)
-    draw.text((w - 15, 12), "[DEFCON 1: NUCLEAR DETONATION]", fill=(239, 68, 68), font=font_tag, anchor="rt")
+    draw.text((15, 10), "[!]", fill=(239, 68, 68), font=font_hud)
+    draw.text((38, 10), f"STRATEGIC STRIKE DISPATCH: {attacker_name.upper()} -> {target_name.upper()}", fill=(255, 255, 255), font=font_hud)
+    draw.text((w - 15, 12), "[DEFCON 1 ACTIVE]", fill=(239, 68, 68), font=font_tag, anchor="rt")
 
-    # Bottom ticker bar
-    draw.rectangle([0, h - 24, w, h], fill=(10, 8, 12))
+    draw.rectangle([0, h - 24, w, h], fill=(12, 10, 14))
     draw.line([(0, h - 24), (w, h - 24)], fill=(245, 158, 11), width=1)
-    draw.text((15, h - 18), "HIGH CASUALTIES REPORTED • NATIONAL INFRASTRUCTURE DAMAGED • CIVIL UNREST ERUPTING", fill=(203, 213, 225), font=font_tag)
+    draw.text((15, h - 18), "BALLISTIC WARNING ACTIVE • INTERCONTINENTAL FLIGHT DETECTED • GLOBAL DEFENSE COMMAND ON ALERT", fill=(252, 165, 165), font=font_micro)
 
     return im
 
@@ -1839,105 +2040,216 @@ def generate_commander_resigned_speech(country_name: str, commander_name: str, r
 # 🔥 POPULAR REVOLUTION / PROTEST OVERTHROW ANIMATED PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def render_revolution_scene_frame(
-    frame_idx: int,
+def render_revolution_scene_frame(frame_idx: int,
     total_frames: int,
     country_name: str,
     ousted_ruler_name: str
 ) -> Image.Image:
-    """Presidential Palace breached by rebel crowds, burning barricades, toppled regime."""
+    """Presidential Palace breached by massive sea of 150+ protesters, burning barricades & banners."""
     w, h = 640, 360
     im = Image.new("RGB", (w, h), (18, 10, 10))
     draw = ImageDraw.Draw(im)
 
-    font_hud = _get_font_bold(13)
-    font_hero = _get_font_bold(16)
-    font_sub = _get_font(11)
-    font_tag = _get_font_bold(10)
+    font_hud = _get_font_bold(12)
+    font_hero = _get_font_bold(15)
+    font_sub = _get_font(10)
+    font_tag = _get_font_bold(9)
+    font_sign = _get_font_bold(8)
 
-    # 1. Dark stormy fiery sky gradient
-    for y in range(210):
-        frac = y / 210.0
-        r = int(24 + frac * 80)
-        g = int(12 + frac * 28)
-        b = int(10 + frac * 12)
+    # 1. Dark stormy fiery sky gradient with smoke haze
+    for y in range(215):
+        frac = y / 215.0
+        r = int(25 + frac * 85)
+        g = int(12 + frac * 30)
+        b = int(10 + frac * 14)
         draw.line([(0, y), (w, y)], fill=(r, g, b))
 
-    # 2. Silhouetted Presidential Palace with dome & columns
+    # Rising smoke plumes from the burning palace
+    for px in (270, 320, 370):
+        for si in range(8):
+            s_prog = (frame_idx * 0.05 + si * 0.15) % 1.0
+            sm_x = px + int(math.sin(si + frame_idx * 0.2) * 16) - int(s_prog * 25)
+            sm_y = 130 - int(s_prog * 90)
+            sm_r = int(10 + s_prog * 22)
+            alpha_c = int(45 - s_prog * 25)
+            draw.ellipse([sm_x - sm_r, sm_y - sm_r, sm_x + sm_r, sm_y + sm_r], fill=(alpha_c + 20, alpha_c + 10, alpha_c + 10))
+
+    # 2. Silhouetted Classical Presidential Palace with dome & columns
     palace_pts = [
-        (220, 210), (220, 130), (250, 130), (250, 95), (290, 95),
-        (320, 60), (350, 95), (390, 95), (390, 130), (420, 130), (420, 210)
+        (180, 215), (180, 130), (220, 130), (220, 95), (275, 95),
+        (320, 52), (365, 95), (420, 95), (420, 130), (460, 130), (460, 215)
     ]
-    draw.polygon(palace_pts, fill=(28, 20, 22))
-    for cx in range(260, 385, 20):
-        draw.rectangle([cx, 130, cx + 8, 210], fill=(42, 30, 34))
+    draw.polygon(palace_pts, fill=(28, 20, 22), outline=(50, 35, 40))
 
-    # Broken ornate gates bent open
-    draw.line([(180, 210), (210, 150)], fill=(80, 60, 65), width=3)
-    draw.line([(460, 210), (430, 150)], fill=(80, 60, 65), width=3)
+    # Classical colonnade columns
+    for cx in range(235, 410, 18):
+        draw.rectangle([cx, 130, cx + 8, 215], fill=(42, 30, 34))
 
-    # 3. Ground / plaza pavement
-    draw.rectangle([0, 210, w, h], fill=(16, 12, 14))
-    for gy in range(215, h, 16):
+    # Broken ornate gates bent & trampled on the ground
+    draw.line([(140, 220), (190, 155)], fill=(75, 60, 65), width=3)
+    draw.line([(190, 155), (220, 205)], fill=(60, 50, 55), width=2)
+    draw.line([(500, 220), (450, 155)], fill=(75, 60, 65), width=3)
+    draw.line([(450, 155), (420, 205)], fill=(60, 50, 55), width=2)
+
+    # 3. Ground / plaza pavement with perspective grid lines
+    draw.rectangle([0, 215, w, h], fill=(16, 12, 14))
+    for gy in range(220, h, 14):
         draw.line([(0, gy), (w, gy)], fill=(32, 22, 24), width=1)
 
-    # 4. Flaming rebel barricades & fires (flickering)
+    # 4. Flaming rebel barricades (flickering wood & tire barricades)
     flame_phase = frame_idx * 0.4
-    fire_positions = [(120, 210), (240, 215), (400, 215), (520, 210)]
+    fire_positions = [(90, 220), (200, 225), (440, 225), (550, 220)]
     for fx, fy in fire_positions:
-        draw.rectangle([fx - 14, fy - 18, fx + 14, fy], fill=(40, 40, 45), outline=(70, 70, 75))
-        fl_h = int(28 + math.sin(flame_phase + fx) * 10)
+        # Barricade base (sandbags & scrap beams)
+        draw.rectangle([fx - 18, fy - 14, fx + 18, fy], fill=(36, 32, 32), outline=(60, 55, 55))
+        fl_h = int(28 + math.sin(flame_phase + fx * 0.1) * 9)
         fl_pts = [
-            (fx - 12, fy - 18),
-            (fx - 5, fy - 18 - fl_h + 6),
-            (fx, fy - 18 - fl_h),
-            (fx + 6, fy - 18 - fl_h + 8),
-            (fx + 12, fy - 18)
+            (fx - 14, fy - 14),
+            (fx - 6, fy - 14 - fl_h + 8),
+            (fx, fy - 14 - fl_h),
+            (fx + 6, fy - 14 - fl_h + 6),
+            (fx + 14, fy - 14)
         ]
         draw.polygon(fl_pts, fill=(245, 158, 11))
         fl_core = [
-            (fx - 6, fy - 18),
-            (fx, fy - 18 - int(fl_h * 0.65)),
-            (fx + 6, fy - 18)
+            (fx - 7, fy - 14),
+            (fx, fy - 14 - int(fl_h * 0.65)),
+            (fx + 7, fy - 14)
         ]
-        draw.polygon(fl_core, fill=(255, 255, 200))
+        draw.polygon(fl_core, fill=(255, 255, 210))
 
-    # 5. Crowd of protesters / rebel silhouettes with raised banners
-    crowd_x = [40, 75, 155, 185, 290, 320, 350, 450, 480, 560, 595]
-    for idx, cx in enumerate(crowd_x):
-        cy = 210 + int(math.sin(idx + frame_idx * 0.2) * 3)
-        draw.ellipse([cx - 5, cy - 26, cx + 5, cy - 16], fill=(12, 8, 10))
-        draw.polygon([(cx - 7, cy), (cx - 7, cy - 16), (cx + 7, cy - 16), (cx + 7, cy)], fill=(12, 8, 10))
-        if idx % 3 == 0:
-            draw.line([(cx + 4, cy - 12), (cx + 12, cy - 32)], fill=(12, 8, 10), width=2)
-            flag_w = int(18 + math.sin(frame_idx * 0.3 + idx) * 4)
-            draw.polygon([(cx + 12, cy - 32), (cx + 12 + flag_w, cy - 36), (cx + 12 + flag_w, cy - 24), (cx + 12, cy - 20)], fill=(220, 38, 38))
+    # ═══════════════════════════════════════════════════════════════════════════
+    # 5. MASSIVE 3-LAYER SEA OF PROTESTERS & ARMED REBELS (OVER 150 FIGURES)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # --- LAYER 1: Deep Background Sea of Demonstrators (Dense silhouettes, 75+ figures) ---
+    bg_y_base = 205
+    for i in range(75):
+        bx = int(i * 8.5 + (i * 7 % 5))
+        if 230 < bx < 410 and (i % 2 == 0):
+            # Behind central palace steps
+            continue
+        bob = int(math.sin(frame_idx * 0.25 + i * 0.7) * 2.5)
+        by = bg_y_base + bob + (i % 3) * 3
+        # Head
+        draw.ellipse([bx - 3, by - 14, bx + 3, by - 8], fill=(16, 12, 14))
+        # Torso
+        draw.rectangle([bx - 3, by - 8, bx + 3, by], fill=(16, 12, 14))
+        # Raised fist / torch
+        if i % 4 == 0:
+            draw.line([(bx + 2, by - 6), (bx + 4, by - 17)], fill=(16, 12, 14), width=1)
+            draw.ellipse([bx + 3, by - 19, bx + 6, by - 16], fill=(245, 158, 11))
+
+    # --- LAYER 2: Midground Protesters & Flag Bearers (50+ figures) ---
+    mg_y_base = 228
+    for j in range(48):
+        mx = int(j * 13.5 + (j * 11 % 8))
+        bob = int(math.sin(frame_idx * 0.3 + j * 0.5) * 3)
+        my = mg_y_base + bob + (j % 4) * 4
+        cloth_tone = (28, 20, 24) if j % 2 == 0 else (36, 24, 28)
+        # Head
+        draw.ellipse([mx - 4, my - 20, mx + 4, my - 12], fill=(20, 14, 16))
+        # Torso & Shoulders
+        draw.polygon([(mx - 6, my), (mx - 6, my - 12), (mx + 6, my - 12), (mx + 6, my)], fill=cloth_tone)
+
+        # Waving Banners & Flags (every 5th figure)
+        if j % 5 == 1:
+            flag_pole_h = 24
+            draw.line([(mx + 3, my - 8), (mx + 8, my - 20 - flag_pole_h)], fill=(15, 10, 12), width=2)
+            f_wave = int(math.sin(frame_idx * 0.35 + j) * 5)
+            f_col = (220, 38, 38) if j % 2 == 1 else (245, 158, 11)
+            draw.polygon([
+                (mx + 8, my - 20 - flag_pole_h),
+                (mx + 26 + f_wave, my - 22 - flag_pole_h),
+                (mx + 24 + f_wave, my - 10 - flag_pole_h),
+                (mx + 8, my - 12 - flag_pole_h)
+            ], fill=f_col)
+        elif j % 3 == 0:
+            # Raised arm / clenched fist
+            draw.line([(mx + 4, my - 10), (mx + 7, my - 22)], fill=(20, 14, 16), width=2)
+
+    # --- LAYER 3: Foreground High-Detail Demonstrators & Signs (30+ figures) ---
+    fg_x_coords = [
+        25, 48, 72, 98, 125, 152, 178, 205, 232, 260, 
+        290, 318, 345, 375, 402, 430, 458, 485, 512, 538, 565, 592, 618
+    ]
+    sign_texts = [
+        "FREEDOM", "RESIGN", "JUSTICE", "LIBERTY", "STEP DOWN", 
+        "POWER", "NO TAX", "THE THRONE MUST FALL", "FREE REALM"
+    ]
+
+    for k, fx in enumerate(fg_x_coords):
+        bob = int(math.sin(frame_idx * 0.35 + k * 0.6) * 4)
+        fy = 270 + bob + (k % 3) * 6
+
+        # Citizen body & jacket
+        jacket_color = (22, 16, 20) if k % 3 == 0 else ((32, 24, 28) if k % 3 == 1 else (40, 30, 35))
+        # Torso
+        draw.polygon([(fx - 9, fy + 40), (fx - 9, fy - 14), (fx + 9, fy - 14), (fx + 9, fy + 40)], fill=jacket_color)
+        # Head
+        draw.ellipse([fx - 6, fy - 26, fx + 6, fy - 14], fill=(24, 18, 20))
+
+        # Flare holders (red emergency signal flares with glowing smoke plumes)
+        if k in (3, 10, 18):
+            flare_x = fx + 8
+            flare_y = fy - 32
+            draw.line([(fx + 4, fy - 10), (flare_x, flare_y)], fill=(30, 20, 22), width=3)
+            # Burning flare flame
+            draw.ellipse([flare_x - 4, flare_y - 6, flare_x + 4, flare_y + 2], fill=(255, 50, 50))
+            draw.ellipse([flare_x - 2, flare_y - 4, flare_x + 2, flare_y], fill=(255, 255, 240))
+            # Glowing red smoke plume
+            for smi in range(5):
+                s_prg = (frame_idx * 0.1 + smi * 0.2) % 1.0
+                smx = flare_x + int(math.sin(smi + frame_idx * 0.3) * 10) - int(s_prg * 18)
+                smy = flare_y - int(s_prg * 35)
+                smr = int(6 + s_prg * 12)
+                draw.ellipse([smx - smr, smy - smr, smx + smr, smy + smr], fill=(200, 40, 40), outline=(239, 68, 68))
+
+        # Waving Picket Signs with readable revolutionary slogans
+        elif k % 2 == 1:
+            sign_text = sign_texts[(k // 2) % len(sign_texts)]
+            sign_pole_top_y = fy - 42
+            draw.line([(fx + 5, fy - 8), (fx + 5, sign_pole_top_y)], fill=(50, 35, 25), width=2)
+            # Sign placard board
+            sign_w = len(sign_text) * 6 + 10
+            sign_h = 16
+            sign_x0 = fx + 5 - sign_w // 2
+            sign_y0 = sign_pole_top_y - sign_h
+            draw.rectangle([sign_x0, sign_y0, sign_x0 + sign_w, sign_y0 + sign_h], fill=(235, 225, 210), outline=(80, 70, 60), width=1)
+            draw.text((sign_x0 + sign_w // 2, sign_y0 + 2), sign_text, fill=(180, 20, 20), font=font_sign, anchor="mt")
+
+        else:
+            # Raised clenched fist & arm
+            fist_tilt = int(math.sin(frame_idx * 0.4 + k) * 3)
+            draw.line([(fx + 5, fy - 8), (fx + 8 + fist_tilt, fy - 26)], fill=(24, 18, 20), width=3)
+            draw.ellipse([fx + 6 + fist_tilt, fy - 30, fx + 11 + fist_tilt, fy - 24], fill=(24, 18, 20))
 
     # 6. Central decree plaque / deposed ruler alert
-    pw, ph = 490, 110
-    px, py = w//2 - pw//2, 85
-    draw.rectangle([px, py, px + pw, py + ph], fill=(35, 12, 14), outline=(239, 68, 68), width=2)
+    pw, ph = 490, 105
+    px, py = w // 2 - pw // 2, 75
+    draw.rectangle([px, py, px + pw, py + ph], fill=(32, 10, 12), outline=(239, 68, 68), width=2)
     draw.rectangle([px + 4, py + 4, px + pw - 4, py + ph - 4], outline=(245, 158, 11), width=1)
 
-    draw.text((w//2, py + 12), "*** POPULAR REVOLUTION // PALACE BREACHED ***", fill=(255, 255, 255), font=font_hud, anchor="mt")
-    draw.text((w//2, py + 34), f"{ousted_ruler_name.upper()} DEPOSED FROM POWER", fill=(248, 113, 113), font=font_hero, anchor="mt")
-    draw.text((w//2, py + 58), f"Protesters & Rebel Factions Topple the Government of {country_name}", fill=(254, 240, 138), font=font_sub, anchor="mt")
-    draw.text((w//2, py + 80), "State sovereignty vacated • Reverted to Autonomous State Trust", fill=(203, 213, 225), font=font_sub, anchor="mt")
+    draw.text((w // 2, py + 10), "*** POPULAR REVOLUTION // PALACE BREACHED ***", fill=(255, 255, 255), font=font_hud, anchor="mt")
+    draw.text((w // 2, py + 30), f"{ousted_ruler_name.upper()} DEPOSED FROM POWER", fill=(248, 113, 113), font=font_hero, anchor="mt")
+    draw.text((w // 2, py + 54), f"Mass Protests & Rebel Factions Overthrow the Government of {country_name}", fill=(254, 240, 138), font=font_sub, anchor="mt")
+    draw.text((w // 2, py + 74), "State sovereignty vacated • Realm surrendered to Autonomous State Trust", fill=(203, 213, 225), font=font_sub, anchor="mt")
 
-    draw.polygon([(px + 8, py + 8), (px + 22, py + 8), (px + 8, py + 22)], fill=(239, 68, 68))
-    draw.polygon([(px + pw - 8, py + 8), (px + pw - 22, py + 8), (px + pw - 8, py + 22)], fill=(239, 68, 68))
+    # Corner heraldic brackets
+    draw.polygon([(px + 6, py + 6), (px + 18, py + 6), (px + 6, py + 18)], fill=(239, 68, 68))
+    draw.polygon([(px + pw - 6, py + 6), (px + pw - 18, py + 6), (px + pw - 6, py + 18)], fill=(239, 68, 68))
 
     # 7. Top cinematic HUD bar
     draw.rectangle([0, 0, w, 38], fill=(20, 10, 12))
     draw.line([(0, 38), (w, 38)], fill=(239, 68, 68), width=2)
-    draw.text((15, 11), "[!]", fill=(239, 68, 68), font=font_hud)
-    draw.text((38, 11), f"CIVIL REBELLION: {country_name.upper()} PALACE FALLEN", fill=(255, 255, 255), font=font_hud)
+    draw.text((15, 10), "[!]", fill=(239, 68, 68), font=font_hud)
+    draw.text((38, 10), f"CIVIL REBELLION: {country_name.upper()} PALACE FALLEN", fill=(255, 255, 255), font=font_hud)
     draw.text((w - 15, 12), "[REGIME TOPPLED]", fill=(248, 113, 113), font=font_tag, anchor="rt")
 
     # 8. Bottom ticker bar
     draw.rectangle([0, h - 24, w, h], fill=(12, 8, 10))
     draw.line([(0, h - 24), (w, h - 24)], fill=(245, 158, 11), width=1)
-    draw.text((15, h - 18), "CITIZEN PROTESTERS BREACH HIGH GATES • SOVEREIGN RULER OUSTED • TRANSITIONAL REGIME DECLARED", fill=(252, 165, 165), font=font_tag)
+    draw.text((15, h - 18), "HUNDREDS OF CITIZENS OVERRUN PALACE • SOVEREIGN RULER OUSTED • AUTONOMOUS TRUST ESTABLISHED", fill=(252, 165, 165), font=font_tag)
 
     return im
 
