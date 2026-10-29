@@ -5,6 +5,7 @@ Commands for national governance, cabinet appointments, infrastructure, espionag
 """
 
 import time
+import asyncio
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
