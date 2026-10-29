@@ -1273,6 +1273,16 @@ def generate_country_fallen_speech(country_name: str, conqueror_name: str) -> io
     )
     return generate_voice_narration(speech)
 
+def generate_trade_speech(country_a_name: str, country_b_name: str) -> io.BytesIO:
+    clean_a = clean_for_speech(country_a_name)
+    clean_b = clean_for_speech(country_b_name)
+    speech = (
+        f"International trade bulletin. A bilateral maritime trade treaty has been officially ratified! "
+        f"The sovereign nations of {clean_a} and {clean_b} have established active ocean sealanes. "
+        f"Commercial shipping fleets are now in transit, compounding hourly tariff revenues and economic prosperity."
+    )
+    return generate_voice_narration(speech)
+
 def generate_alliance_speech(country_a_name: str, country_b_name: str, alliance_name: str) -> io.BytesIO:
     clean_a = clean_for_speech(country_a_name)
     clean_b = clean_for_speech(country_b_name)

@@ -62,20 +62,23 @@ EARTH_SECTIONS = {
         "(heavy factory, bunker), advanced tools and allies. Use LIVE COUNTRY RANKINGS to name who leads right now."
     ),
     "economy": (
-        "ECONOMY: Two money pools: your personal wallet (Medals) and the national treasury. Rulers collect hourly "
+        "ECONOMY & TREASURY: Two money pools: your personal wallet (Medals) and the national treasury. Rulers collect hourly "
         "dividends (Economy dashboard button or the website): sum of all non-sabotaged building yields (yield x "
         "level) + 3,500/hour per active trade route, x economic doctrine multiplier (Free Market x1.25, Mixed x1.10, "
         "Command x0.90), accumulating up to 24 hours; 5-minute cooldown. Unrest >=30 cuts dividends 15%, unrest >=60 "
         "cuts 50% (riots). 20% of each payout is also deposited into the treasury. Citizens (non-rulers) get a stipend: "
         "3,500 (citizen) or 8,500 (minister) per claim minus the country's tax rate, and the tax goes to the treasury. "
         "Organic growth: GDP grows slowly each hour of peace (scaled by stability) and treasury gains tax rate x 250 "
-        "per hour x stability factor, only for ruled countries. TAX: set 0-50% with /earth policy via the Economy "
-        "dashboard or website (President or Economy Minister; the simulated Policy Council approves only 50% of "
-        "proposals, 15-minute cooldown between reviews). Tax >25% adds +15 unrest on approval, >15% adds +5. Every 6 hours "
-        "tax above 20% adds unrest pressure; if unrest reaches 85 with tax >=25% a REVOLUTION removes the ruler and "
-        "cabinet. Treasury withdrawal (President only): max 20% of the treasury at once, 25% corruption loss, treasury "
-        "must have at least 10,000. To grow wealth: build mines/rigs/ports/industrial core, sign trade routes, keep "
-        "stability high and tax moderate."
+        "per hour x stability factor, only for ruled countries. "
+        "SOVEREIGN TREASURY REINVESTMENT (/earth invest <amount> or '📈 Reinvest in GDP' button on the website): "
+        "Rulers can convert idle national treasury reserves into domestic infrastructure to permanently grow national GDP valuation. "
+        "Formula: Every 5,000 Medals reinvested from the treasury grants +1M GDP, +Stability, and reduces Unrest (minimum investment 10,000 Medals). "
+        "In addition, building construction (/earth build), army division recruitment (/earth defense), high-tech arsenal tools (/earth buy_tool), "
+        "and civil unrest relief (/earth quell) will automatically fall back to national treasury funds if the ruler's personal wallet is insufficient! "
+        "TAX: set 0-50% with /earth policy via the Economy dashboard or website (President or Economy Minister; 50% approval chance, 15m cooldown). "
+        "Tax >25% adds +15 unrest on approval, >15% adds +5. High tax pressure above 20%; if unrest reaches 85 with tax >=25% a REVOLUTION clears ruler and cabinet. "
+        "Treasury withdrawal (President only): max 20% of the treasury at once, 25% corruption loss, treasury must have at least 10,000. "
+        "Always manage your nation and monitor live treasury reserves on the official website: https://phantomregiment.apps.bot-hosting.cloud/ (website channel: https://discord.com/channels/1550544659217125467/1552470594380103822)."
     ),
     "buildings": (
         "BUILDINGS (/earth build; President or Economy Minister). Cost of the next level = base x multiplier^current "
@@ -95,7 +98,9 @@ EARTH_SECTIONS = {
         "Minister. Requirements: both countries ruled by players, both coastal, and at least one of them has a Naval "
         "Port. Only one route per pair. Each active route adds 3,500 Medals/hour (~85k/day) to the dividends of the "
         "countries involved, boosted by economic doctrine. Isolationist countries cannot sign ocean trade routes. "
-        "UN sanctions halve yields."
+        "UN sanctions halve yields. When a trade route treaty is accepted, an animated signed treaty order with deep male voice announcer narration "
+        "and sailing commercial ships is automatically broadcast to #earth-news (channel 1565082328550613083). "
+        "Track active trade lanes on the website: https://phantomregiment.apps.bot-hosting.cloud/ (website channel: https://discord.com/channels/1550544659217125467/1552470594380103822)."
     ),
     "spy": (
         "ESPIONAGE (Intelligence dashboard, /earth spy, /earth security; President or Director of Intelligence). "
@@ -143,10 +148,12 @@ EARTH_SECTIONS = {
     "diplomacy": (
         "DIPLOMACY & ALLIANCES: chartering an alliance costs 500,000 Medals (President or Chief Diplomat, name 3-32 "
         "characters). A country can be in one alliance; members cannot attack each other. Join requests are approved "
-        "by the alliance. Diplomatic stances: Neutral (standard), Interventionist (can defend allied members in "
+        "by the alliance. When an alliance is chartered or a member joins, an animated treaty paper signing video with deep male voice announcer narration "
+        "is automatically broadcast to #earth-news (channel 1565082328550613083). Diplomatic stances: Neutral (standard), Interventionist (can defend allied members in "
         "multi-day wars), Isolationist (immune to spy incitement, cannot sign ocean trade). Governments: socialist, "
         "democracy, communism, monarchy, dictatorship. Military doctrines: Professional x1.15 power; Conscription "
-        "x1.40 power but +10 unrest; Mechanized x1.60 power but 5,000 Medals/hr upkeep."
+        "x1.40 power but +10 unrest; Mechanized x1.60 power but 5,000 Medals/hr upkeep. "
+        "Manage diplomatic coalitions and alliances on the website: https://phantomregiment.apps.bot-hosting.cloud/ (website channel: https://discord.com/channels/1550544659217125467/1552470594380103822)."
     ),
     "politics": (
         "POLITICS & CABINET: the ruler is the President. Cabinet ministers (/earth cabinet appoint, accept, decline, "
@@ -352,7 +359,8 @@ class TacticalAdvisor:
                 "• ⚔️ **Virtual Earth:** Active wars, military fleets (jets, tanks, ships), and alliances.\n"
                 "• 🎲 **Games & Gambling:** Guides for `/fight`, `/blackjack`, `/coinflip`, `/roulette`, and `/scratch`.\n"
                 "• 🛡️ **Staff Applications:** How to apply for Server Staff, Recruitment, or Events.\n"
-                "• 🏛️ **Mayor & Elections:** Current Mayor status, powers, and voting cycles.\n\n"
+                "• 🏛️ **Mayor & Elections:** Current Mayor status, powers, and voting cycles.\n"
+                "• 🌐 **Official Website:** Explore 3D Virtual Earth, live stock trading & company holdings in <#1552470594380103822> (https://discord.com/channels/1550544659217125467/1552470594380103822) or https://phantomregiment.apps.bot-hosting.cloud/\n\n"
                 "*Ask me any specific question and I will pull the real-time intel for you!*"
             )
 
@@ -368,7 +376,8 @@ class TacticalAdvisor:
                 "• **No direct boost:** no command or building adds population; time is the main factor.\n"
                 "• **What lowers it:** recruiting divisions (5 civilians each), war casualties, and nuclear strikes (~5%).\n"
                 "• **Why it matters:** max divisions = pop/5, tanks = pop/25, jets = pop/50, ships = pop/50.\n"
-                "• **Tip:** avoid needless wars and over-recruiting, and keep stability high with schools and hospitals."
+                "• **Tip:** avoid needless wars and over-recruiting, and keep stability high with schools and hospitals.\n\n"
+                "🌐 **Manage Demographics on Web:** View population growth & live stats on the website: https://discord.com/channels/1550544659217125467/1552470594380103822 or https://phantomregiment.apps.bot-hosting.cloud/"
             )
 
         # 7c. STRONGEST / BIGGEST / RICHEST COUNTRY
@@ -383,6 +392,7 @@ class TacticalAdvisor:
                 "(the full combat score adds building/tool bonuses and a doctrine multiplier).\n"
                 "• **Stability** and **population** matter too: population caps how big the army can be.\n"
                 + (f"\n**Live rankings right now:**\n{ranking}" if ranking else "")
+                + "\n\n🌐 **Interactive 3D Earth:** Explore global rankings, GDP, and military fleets in 3D on the website: https://discord.com/channels/1550544659217125467/1552470594380103822 or https://phantomregiment.apps.bot-hosting.cloud/"
             )
 
         # 7d. ANY OTHER VIRTUAL EARTH TOPIC (economy, trade, spies, arsenal, war rules, diplomacy...)
@@ -390,7 +400,7 @@ class TacticalAdvisor:
         earth_detail = "" if (cleaned_words & live_words) else self.select_earth_detail(query)
         if earth_detail:
             body = earth_detail.replace("EARTH DETAIL:\n", "", 1)
-            return "🌍 **Virtual Earth Guide**\n" + body
+            return "🌍 **Virtual Earth Guide**\n" + body + "\n\n🌐 **Virtual Earth Web Deck:** Manage national policies, trade, alliances, and treasury reinvestment on the website: https://discord.com/channels/1550544659217125467/1552470594380103822 or https://phantomregiment.apps.bot-hosting.cloud/"
 
         # 2. FIGHT COMMAND SPECIFICALLY
         if "fight" in cleaned_words or "/fight" in q_lower:
@@ -472,6 +482,7 @@ class TacticalAdvisor:
                 parts.append("\n💡 **Advisor Tip:** Hold shares for 0.4% passive dividends. Check transaction tax rates before selling.")
             else:
                 parts.append("• No publicly traded equities found on the local exchange.")
+            parts.append("\n🌐 **Live Stock Exchange:** View real-time candlestick charts and execute buy/sell share orders directly on the website: https://discord.com/channels/1550544659217125467/1552470594380103822 or https://phantomregiment.apps.bot-hosting.cloud/")
             return "\n".join(parts)
 
         # 8. WARS SPECIFICALLY
@@ -497,6 +508,7 @@ class TacticalAdvisor:
                 parts.append("\n🛡️ **Defense Advisory:** Coastal nations require deployed Naval Fleets. Deploy Jet Squadrons for air superiority or Tanks to defend territory borders against invading divisions.")
             else:
                 parts.append("• **Current Geopolitical Status:** No active military war declarations detected. Global arena is operating under peace or UN ceasefire.")
+            parts.append("\n🌐 **Virtual Earth War Room:** Track live military theaters and troop deployments in 3D on the website: https://discord.com/channels/1550544659217125467/1552470594380103822 or https://phantomregiment.apps.bot-hosting.cloud/")
             return "\n".join(parts)
 
         # 9. GENERAL COMMANDS & HELP
@@ -505,9 +517,10 @@ class TacticalAdvisor:
             "• **Earning Medals:** `/daily`, `/work` (4h), `/crime` (2h), `/scavenge` (45m), `/trivia` (30m).\n"
             "• **Banking:** `/bank create`, `/bank deposit`, `/bank withdraw`, `/bank balance`, `/bank upgrade`.\n"
             "• **Gambling:** `/fight`, `/blackjack`, `/coinflip`, `/roulette`, `/scratch`, `/rps`.\n"
-            "• **Stock Market:** `/stocks` or the `/medals` web terminal for live shares.\n"
-            "• **Virtual Earth:** `/earth view`, `/earth my_country`, buy hardware (jets/tanks/ships), appoint ministers.\n"
-            "• **Mayor:** `/mayor salary`, `/mayor tax`, `/mayor doublexp`, `/mayor stimulus`, `/mayor award`, `/mayor pardon`."
+            "• **Stock Market:** `/stocks` or the official website for live shares and charts.\n"
+            "• **Virtual Earth:** `/earth view`, `/earth my_country`, `/earth economy`, `/earth defense`, `/earth build`, `/earth invest`.\n"
+            "• **Mayor:** `/mayor salary`, `/mayor tax`, `/mayor doublexp`, `/mayor stimulus`, `/mayor award`, `/mayor pardon`.\n\n"
+            "🌐 **Official Web Command Deck:** https://discord.com/channels/1550544659217125467/1552470594380103822 | https://phantomregiment.apps.bot-hosting.cloud/"
         )
 
     # ------------------------------------------------------------------
@@ -520,36 +533,43 @@ class TacticalAdvisor:
         managers = server_info.get("managers") or ["Server Staff Team"]
         return (
             "KNOWLEDGE BASE & SERVER PROFILE:\n"
+            "- OFFICIAL WEBSITE: https://phantomregiment.apps.bot-hosting.cloud/ | DISCORD WEBSITE CHANNEL: https://discord.com/channels/1550544659217125467/1552470594380103822 (<#1552470594380103822>).\n"
+            "  The website provides a full 3D interactive Virtual Earth globe, live stock market trading terminal with candlestick charts, company conglomerates, treasury reinvestment, trade route management, and leaderboards.\n"
             "- CLAN: Phantom Regiment (PR). Created September 18, 2026 as an official branch of TS Clan.\n"
             f"- LEADERSHIP: Server Owner: {owner} | Managers: {', '.join(managers)}\n"
             f"- CURRENT MAYOR: {mayor}\n"
-            "- STAFF APPLICATIONS: open when High Command runs /staffapplications. Roles: Server Staff "
-            "(moderation), Recruitment Management, Giveaways & Events Management. Flow: DM interview "
-            "(7-8 questions), answers go to #staff-app-review for Commander evaluation.\n"
-            "- GAMBLING (max bet 150,000 Medals): /coinflip <bet>; /blackjack <bet> (Hit/Stand/Double Down); "
-            "/roulette <bet> <bet_type> (Red/Black/Even/Odd 2x, Green 36x); /scratch <tier> (Bronze 500M, "
-            "Silver 2.5kM, Gold 10kM, up to 10x); /fight <@opponent> <bet> (1v1 PvP, equip loadout via modal, "
-            "turn-based Attack / Use Potion, winner takes pot); /rps <@opponent> <bet>.\n"
-            "- MAYOR (/mayor): salary (+12,500 Medals/day), tax <0-50%> (stock transaction tax), doublexp "
-            "(24h 2X XP, max 3 per 2 weeks), stimulus, award <@user> (+15,000 Medals), pardon <@user>, "
-            "stock_supply <sym> <qty>, stock_create (IPO), create_plot.\n"
-            "- ELECTIONS (/election): every 7 days, 48-hour voting window. /election status, "
-            "/election register (400k Medals fee), /election vote <@candidate>.\n"
-            "- ECONOMY: /daily, /work (4h), /weekly, /crime (2h), /scavenge (45m), /trivia (30m), /balance, "
-            "/transfer, /medalleaderboard, /globallb, /shop, /buyrole.\n"
-            "- BANKING (/bank): create, deposit, withdraw, balance, upgrade (10 vault tiers, up to 1M interest/day). "
-            "/rob = high-stakes bank robbery (needs lockpicks/C4).\n"
-            "- STOCKS: live exchange, holders earn passive dividends (0.4%), transaction tax set by the Mayor.\n"
-            "- VIRTUAL EARTH (/earth): sovereign countries with GDP, treasury, stability, tax yields; cabinet "
-            "(Foreign Minister, Defense Minister, Intelligence Director); /earth military (jets, tanks, warships), "
-            "wars, ceasefire.\n"
-            "- VIRTUAL EARTH (overview): players rule real-world countries (/earth claim, /earth join). A country "
-            "has GDP, treasury, stability, unrest, population, army (divisions, tanks, jets, ships), buildings, a "
-            "cabinet, spies and an arsenal. Players run it through /earth dashboards (economy, defense, diplomacy, "
-            "intelligence, president, ministry) and the website 3D command deck. Detailed rules for the topic asked "
-            "are provided below under EARTH DETAIL when relevant.\n"
-            "- SQUADS: Frontline (Tactical Combat), Los Bluchigis (Elite Cavalry), Nocturne Pheonix "
-            "(Archery & Shields).\n"
+            "- STOCKS & EQUITIES: View stock prices in Discord with `/stocks` or trade shares and inspect live charts on the website at https://phantomregiment.apps.bot-hosting.cloud/ (see <#1552470594380103822> / https://discord.com/channels/1550544659217125467/1552470594380103822). Shareholders earn 0.4% passive dividends. The Mayor sets the transaction tax rate (0-50%).\n"
+            "- VIRTUAL EARTH GEOPOLITICS (/earth): Real-world global simulator where players rule nations. Managed through interactive button dashboards and the official 3D website (https://phantomregiment.apps.bot-hosting.cloud/ or channel https://discord.com/channels/1550544659217125467/1552470594380103822).\n"
+            "  Real Discord Slash Commands:\n"
+            "  • `/earth my_country` — View your governed country, GDP, treasury, stability, and cabinet.\n"
+            "  • `/earth view <country>` — Inspect any sovereign country on Earth.\n"
+            "  • `/earth economy` — Interactive Ministry of Economy dashboard (collect hourly dividends, manage tax, view treasury).\n"
+            "  • `/earth defense` — Interactive Ministry of Defense dashboard (recruit divisions, purchase tanks, jets, naval warships).\n"
+            "  • `/earth diplomacy` — Interactive Foreign Affairs dashboard (form alliances, manage maritime trade routes).\n"
+            "  • `/earth intelligence` — Interactive Espionage dashboard (recruit operatives, dispatch spies, sweep bugs).\n"
+            "  • `/earth president` — Presidential High Command hub with executive sovereign controls.\n"
+            "  • `/earth ministry` — Sovereign Ministry Hub to switch between Cabinet portfolios.\n"
+            "  • `/earth invest <amount>` — Reinvest national treasury reserves into domestic infrastructure to permanently grow GDP valuation (every 5,000 Medals = +1M GDP, +Stability, -Unrest). Also available via the 'Reinvest in GDP' button on the website!\n"
+            "  • `/earth build <building>` — Construct infrastructure (School, Hospital, Gold Mine, Oil Rig, Heavy Factory, Bunker, Naval Port, Ocean Base). Can draw from national treasury if wallet is low!\n"
+            "  • `/earth war <target> <scale> <domain>` — Declare military campaign (Border Skirmish 24h, Annexation 72h, Conquest 120h; Land, Air, or Naval domain). Triggers animated order parchment with deep announcer narration in #earth-news!\n"
+            "  • `/earth martial_law` — Mobilize military divisions to impose emergency curfew and swiftly crush civil unrest (-45% unrest).\n"
+            "  • `/earth quell <type>` — Pacify unrest through civil stimulus ('relief', 'police', 'festival'). Treasury pays if wallet is low.\n"
+            "  • `/earth surrender` — Concede active war to prevent further casualties.\n"
+            "  • `/earth claim <country> [offer]` — Claim an unowned country from State Trust (0% tax, starting sovereignty).\n"
+            "  • `/earth join <country>` — Pledge allegiance to a nation as a citizen.\n"
+            "  • `/earth leave` — Renounce citizenship and become stateless.\n"
+            "  • `/earth citizens <country>` — View citizen roster.\n"
+            "  • `/earth arsenal` — View advanced high-tech tools (Iron Dome, Cyber Grid, Satellites, Drones, Nukes).\n"
+            "  • `/earth buy_tool <tool>` — Procure advanced tools from national treasury or wallet.\n"
+            "  • `/earth spy <target> <mission>` — Dispatch espionage operative on intel, sabotage, or riot missions.\n"
+            "  • TRADE & ALLIANCE TREATIES: Coastal nations with Naval Ports can sign ocean trade routes (+3,500/hr per route). Form or join alliances to create defense coalitions (+25 Defense per ally). Ratifying trade routes or joining alliances automatically broadcasts an animated signed treaty parchment video with deep male voice announcer narration to #earth-news!\n"
+            "- STAFF APPLICATIONS: open when High Command runs /staffapplications. Roles: Server Staff (moderation), Recruitment Management, Giveaways & Events Management. Flow: DM interview (7-8 questions), answers go to #staff-app-review for Commander evaluation.\n"
+            "- GAMBLING (max bet 150,000 Medals): /coinflip <bet>; /blackjack <bet> (Hit/Stand/Double Down); /roulette <bet> <bet_type> (Red/Black/Even/Odd 2x, Green 36x); /scratch <tier> (Bronze 500M, Silver 2.5kM, Gold 10kM, up to 10x); /fight <@opponent> <bet> (1v1 PvP, equip loadout via modal, turn-based Attack / Use Potion, winner takes pot); /rps <@opponent> <bet>.\n"
+            "- MAYOR (/mayor): salary (+12,500 Medals/day), tax <0-50%> (stock transaction tax), doublexp (24h 2X XP, max 3 per 2 weeks), stimulus, award <@user> (+15,000 Medals), pardon <@user>, stock_supply <sym> <qty>, stock_create (IPO), create_plot.\n"
+            "- ELECTIONS (/election): every 7 days, 48-hour voting window. /election status, /election register (400k Medals fee), /election vote <@candidate>.\n"
+            "- ECONOMY: /daily, /work (4h), /weekly, /crime (2h), /scavenge (45m), /trivia (30m), /balance, /transfer, /medalleaderboard, /globallb, /shop, /buyrole.\n"
+            "- BANKING (/bank): create, deposit, withdraw, balance, upgrade (10 vault tiers, up to 1M interest/day). /rob = high-stakes bank robbery (needs lockpicks/C4).\n"
+            "- SQUADS: Frontline (Tactical Combat), Los Bluchigis (Elite Cavalry), Nocturne Pheonix (Archery & Shields).\n"
         )
 
     def select_earth_detail(self, query: str, history: list = None) -> str:
@@ -602,6 +622,10 @@ class TacticalAdvisor:
             "the question, and answer ANY topic helpfully (general knowledge, advice, strategy, writing, "
             "maths, code, jokes), not just bot topics. Be friendly, confident and concise, with a light "
             "military tone when it fits.\n\n"
+            "MANDATORY DIRECTIVES ON WEBSITE & COMMANDS:\n"
+            "- CRITICAL: The server has an official website with an interactive 3D Virtual Earth globe, live stock market exchange, company holdings, and leaderboards at https://phantomregiment.apps.bot-hosting.cloud/ (see official website channel: https://discord.com/channels/1550544659217125467/1552470594380103822).\n"
+            "- WHENEVER answering ANY question about STOCKS / THE STOCK MARKET, OR VIRTUAL EARTH (nations, countries, wars, alliances, trade routes, treasury, economy, infrastructure, military fleets), you MUST ALWAYS explicitly instruct the user to check, monitor, and manage them directly on the official website via https://discord.com/channels/1550544659217125467/1552470594380103822 (channel <#1552470594380103822>) or https://phantomregiment.apps.bot-hosting.cloud/.\n"
+            "- NEVER invent non-existent Discord commands. Only state the REAL slash commands listed in the KNOWLEDGE BASE below. If an action is done via web UI or interactive button dashboards, explain that clearly instead of inventing commands.\n\n"
             "RULES:\n"
             "- For anything about this server, its bot, commands, economy, stocks, wars or leadership, rely "
             "on the KNOWLEDGE BASE and LIVE DATA below. Never invent commands, prices, costs or names that "
@@ -975,6 +999,24 @@ class TacticalAdvisor:
             ai_reply = self.generate_tactical_fallback(user_query, stocks, wars, server_info)
             source = "Phantom Tactical Intelligence Engine (Local Fail-Safe)"
             tier = 2
+
+        # Safeguard: Ensure that whenever the user asks about Stocks or Virtual Earth, the official website and Discord website channel are always mentioned!
+        q_lower = user_query.lower()
+        stocks_or_earth_keywords = [
+            "stock", "stocks", "market", "share", "shares", "dividend", "equity", "ipo",
+            "earth", "country", "countries", "nation", "nations", "treasury", "war", "wars",
+            "alliance", "trade route", "trade routes", "gdp", "unrest", "stability",
+            "annexation", "skirmish", "nuke", "bunker", "naval port", "invest"
+        ]
+        if any(kw in q_lower for kw in stocks_or_earth_keywords):
+            has_website_url = "phantomregiment.apps.bot-hosting.cloud" in ai_reply
+            has_website_channel = "1552470594380103822" in ai_reply
+            if not (has_website_url and has_website_channel):
+                ai_reply = ai_reply.rstrip() + (
+                    "\n\n🌐 **Official Web Command Deck:** You can view real-time data, trade stocks, and manage your Virtual Earth nation on our official website!\n"
+                    "• **Website:** https://phantomregiment.apps.bot-hosting.cloud/\n"
+                    "• **Website Channel:** <#1552470594380103822> (https://discord.com/channels/1550544659217125467/1552470594380103822)"
+                )
 
         self.last_source = source
         elapsed_ms = int((time.time() - start_time) * 1000)

@@ -4527,20 +4527,33 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         cost = int(base_cost * (cost_mult ** current_lvl))
 
-        # Check user medals
+        # Check funding: personal wallet first, then National Treasury reserves
         user_econ = await self.get_global_economy(user_id)
-        if user_econ.get("medals", 0) < cost:
-            return False, f"Insufficient Medals: This project requires {cost:,} Medals (You have {user_econ.get('medals', 0):,}).", 0
+        user_medals = user_econ.get("medals", 0)
+        
+        async with self._db.execute("SELECT treasury, is_coastal FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            c_row = await cur.fetchone()
+            treasury = c_row[0] if c_row else 0
+            is_coastal = c_row[1] if c_row else 0
+
+        paid_source = ""
+        if user_medals >= cost:
+            paid_source = "personal wallet"
+        elif treasury >= cost:
+            paid_source = "National Treasury"
+        else:
+            return False, f"Insufficient Medals: This project requires {cost:,} Medals (Wallet: {user_medals:,} M, Treasury Reserves: {treasury:,} M).", 0
 
         # Ocean infrastructure requires a coastal country.
         if building_type in ("naval_port", "ocean_base", "oil_rig"):
-            async with self._db.execute("SELECT is_coastal FROM earth_countries WHERE id = ?", (country_id,)) as cur:
-                c_row = await cur.fetchone()
-                if not c_row or not c_row[0]:
-                    return False, "⛔ Landlocked country: ports, ocean bases, and offshore oil rigs require a coastal country.", 0
+            if not is_coastal:
+                return False, "⛔ Landlocked country: ports, ocean bases, and offshore oil rigs require a coastal country.", 0
 
-        # Deduct medals
-        await self.subtract_medals(user_id, cost)
+        # Deduct funds
+        if paid_source == "personal wallet":
+            await self.subtract_medals(user_id, cost)
+        else:
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (cost, country_id))
 
         now = time.time()
         new_level = current_lvl + 1
@@ -5402,44 +5415,59 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         econ = await self.get_global_economy(user_id)
 
+        # Funding helper for civil relief: checks wallet first, then Treasury
+        async with self._db.execute("SELECT treasury FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            t_row = await cur.fetchone()
+            q_treasury = int(t_row[0] or 0) if t_row else 0
+        u_medals = econ.get("medals", 0)
+
+        async def _deduct_quell(cost_amount):
+            if u_medals >= cost_amount:
+                await self.subtract_medals(user_id, cost_amount)
+                return "personal wallet"
+            elif q_treasury >= cost_amount:
+                await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (cost_amount, country_id))
+                return "National Treasury"
+            return None
+
         if method == "relief":
             cost = 150000
-            if econ.get("medals", 0) < cost:
-                return False, f"Requires {cost:,} Medals for civilian emergency stimulus."
-            await self.subtract_medals(user_id, cost)
+            source = await _deduct_quell(cost)
+            if not source:
+                return False, f"Requires {cost:,} Medals for civilian emergency stimulus (Wallet: {u_medals:,} M, Treasury: {q_treasury:,} M)."
             await self._db.execute("""
                 UPDATE earth_countries 
                 SET unrest = max(0, unrest - 25), stability = min(100, stability + 15)
                 WHERE id = ?
             """, (country_id,))
             await self._db.commit()
-            return True, "🏥 Civilian Emergency Stimulus deployed: -25% Unrest, +15% Stability!"
+            return True, f"🏥 Civilian Emergency Stimulus deployed (-25% Unrest, +15% Stability, funded by {source})!"
 
         elif method == "police":
             cost = 80000
-            if econ.get("medals", 0) < cost:
-                return False, f"Requires {cost:,} Medals for tactical police suppression."
-            await self.subtract_medals(user_id, cost)
+            source = await _deduct_quell(cost)
+            if not source:
+                return False, f"Requires {cost:,} Medals for tactical police suppression (Wallet: {u_medals:,} M, Treasury: {q_treasury:,} M)."
             await self._db.execute("""
                 UPDATE earth_countries 
                 SET unrest = max(0, unrest - 35), stability = max(20, stability - 8)
                 WHERE id = ?
             """, (country_id,))
             await self._db.commit()
-            return True, "🛡️ Tactical Police Suppression deployed: -35% Unrest, -8% Civil Liberty."
+            return True, f"🛡️ Tactical Police Suppression deployed (-35% Unrest, -8% Civil Liberty, funded by {source})!"
 
         elif method == "festival":
             cost = 60000
-            if econ.get("medals", 0) < cost:
-                return False, f"Requires {cost:,} Medals to host a National Sovereign Jubilee."
-            await self.subtract_medals(user_id, cost)
+            source = await _deduct_quell(cost)
+            if not source:
+                return False, f"Requires {cost:,} Medals to host a National Sovereign Jubilee (Wallet: {u_medals:,} M, Treasury: {q_treasury:,} M)."
             await self._db.execute("""
                 UPDATE earth_countries 
                 SET unrest = max(0, unrest - 15), stability = min(100, stability + 20)
                 WHERE id = ?
             """, (country_id,))
             await self._db.commit()
-            return True, "🎉 National Sovereign Jubilee celebrated: -15% Unrest, +20% Stability!"
+            return True, f"🎉 National Sovereign Jubilee celebrated (-15% Unrest, +20% Stability, funded by {source})!"
 
         elif method in ("military", "martial_law"):
             # 🪖 Deploy Military / Enforce Martial Law Curfews
@@ -5564,6 +5592,75 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             return True, msg
 
         return False, "Unknown pacification method."
+
+    async def invest_earth_treasury_into_gdp(self, user_id: int, country_id: int, amount: int) -> tuple[bool, str, dict]:
+        """Reinvest national treasury reserves directly into domestic infrastructure to grow GDP valuation."""
+        if self._db is None:
+            await self.setup()
+
+        try:
+            amount = int(amount)
+        except (ValueError, TypeError):
+            return False, "Investment amount must be a whole number.", {}
+
+        if amount < 10000:
+            return False, "Minimum treasury investment is 10,000 Medals.", {}
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "economy")
+        if not can_manage:
+            return False, "⛔ Authorization Denied: Only the President or Minister of Economy can allocate national treasury investments!", {}
+
+        async with self._db.execute(
+            "SELECT id, name, flag, gdp, treasury, unrest, stability FROM earth_countries WHERE id = ?", (country_id,)
+        ) as cur:
+            c = await cur.fetchone()
+
+        if not c:
+            return False, "Target country not found.", {}
+
+        c_id, c_name, c_flag, gdp, treasury, unrest, stability = c
+        treasury = int(treasury or 0)
+        gdp = int(gdp or 0)
+        unrest = int(unrest or 0)
+        stability = int(stability or 80)
+
+        if treasury < amount:
+            return False, f"Insufficient Treasury Reserves: Country has {treasury:,} Medals in treasury (requested {amount:,} Medals).", {}
+
+        # 1. Calculate GDP Gain (Every 5,000 Medals = +1 Million GDP)
+        gdp_gain = max(1, int(amount / 5000))
+        new_gdp = gdp + gdp_gain
+
+        # 2. Civic morale boost
+        stability_gain = min(15, max(2, int(amount / 50000)))
+        unrest_drop = min(15, max(2, int(amount / 50000)))
+
+        new_stability = min(100, stability + stability_gain)
+        new_unrest = max(0, unrest - unrest_drop)
+        new_treasury = treasury - amount
+
+        await self._db.execute("""
+            UPDATE earth_countries
+            SET gdp = ?, treasury = ?, stability = ?, unrest = ?
+            WHERE id = ?
+        """, (new_gdp, new_treasury, new_stability, new_unrest, country_id))
+        await self._db.commit()
+
+        msg = (
+            f"🏛️ **Sovereign Infrastructure Investment Enacted!**\n"
+            f"**{c_flag} {c_name}** deployed `{amount:,} Medals` from Treasury Reserves into domestic development.\n"
+            f"• 📈 **National GDP Valuation:** `{gdp:,}M` ➔ `{new_gdp:,}M` (+{gdp_gain:,}M GDP!)\n"
+            f"• 🏦 **Remaining Treasury:** `{new_treasury:,} Medals`\n"
+            f"• 📈 **Civic Stability:** `{stability}%` ➔ `{new_stability}%` (+{stability_gain}%)\n"
+            f"• 📉 **Civil Unrest:** `{unrest}%` ➔ `{new_unrest}%` (-{unrest_drop}%)"
+        )
+        return True, msg, {
+            "gdp": new_gdp,
+            "treasury": new_treasury,
+            "stability": new_stability,
+            "unrest": new_unrest,
+            "gdp_gain": gdp_gain
+        }
 
     async def deploy_earth_military_curfew(self, user_id: int, country_id: int) -> tuple[bool, str]:
         """Deploy armed military divisions to enforce emergency curfews and crush civil unrest."""
@@ -6045,11 +6142,28 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             if population <= civilian_cost:
                 await self._db.rollback()
                 return False, f"Recruiting {divisions} divisions requires {civilian_cost} civilians; the country must retain at least 1 civilian."
-            async with self._db.execute("UPDATE global_economy SET medals=medals-? WHERE user_id=? AND medals>=?",(cost,user_id,cost)) as cur:
-                if cur.rowcount != 1:
-                    await self._db.rollback()
-                    return False,f"Recruiting {divisions} divisions costs {cost:,} Medals from your wallet."
-            await self._db.execute("UPDATE users SET medals=(SELECT medals FROM global_economy WHERE user_id=?) WHERE user_id=?",(user_id,user_id))
+            # Check funding: personal wallet first, then National Treasury
+            user_medals = 0
+            async with self._db.execute("SELECT medals FROM global_economy WHERE user_id=?", (user_id,)) as cur:
+                m_row = await cur.fetchone()
+                if m_row:
+                    user_medals = int(m_row[0] or 0)
+            
+            async with self._db.execute("SELECT treasury FROM earth_countries WHERE id=?", (country_id,)) as cur:
+                t_row = await cur.fetchone()
+                treasury = int(t_row[0] or 0) if t_row else 0
+
+            paid_source = ""
+            if user_medals >= cost:
+                paid_source = "personal wallet"
+                await self._db.execute("UPDATE global_economy SET medals=medals-? WHERE user_id=?", (cost, user_id))
+                await self._db.execute("UPDATE users SET medals=(SELECT medals FROM global_economy WHERE user_id=?) WHERE user_id=?", (user_id, user_id))
+            elif treasury >= cost:
+                paid_source = "National Treasury"
+                await self._db.execute("UPDATE earth_countries SET treasury=treasury-? WHERE id=?", (cost, country_id))
+            else:
+                await self._db.rollback()
+                return False, f"Recruiting {divisions} divisions costs {cost:,} Medals (Wallet: {user_medals:,} M, National Treasury: {treasury:,} M)."
             await self._db.execute("UPDATE earth_countries SET army_divisions=army_divisions+?, population=population-? WHERE id=?",(divisions,civilian_cost,country_id))
             await self._db.execute("INSERT INTO earth_military_log(country_id,actor_id,action,unit_type,amount,created_at) VALUES (?,?,'recruited','division',?,?)",(country_id,user_id,divisions,time.time()))
             await self._db.commit()
@@ -7398,11 +7512,20 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 return False, f"Your forces already deployed the {meta['emoji']} **{meta['name']}**!", {}
 
         econ = await self.get_global_economy(user_id)
-        if econ.get("medals", 0) < price:
-            return False, f"Insufficient Medals: Procuring {meta['name']} requires {price:,} Medals (You have {econ.get('medals', 0):,}).", {}
+        user_medals = econ.get("medals", 0)
+        async with self._db.execute("SELECT treasury FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            t_row = await cur.fetchone()
+            treasury = t_row[0] if t_row else 0
 
-        # Deduct medals
-        await self.subtract_medals(user_id, price)
+        paid_source = ""
+        if user_medals >= price:
+            paid_source = "personal wallet"
+            await self.subtract_medals(user_id, price)
+        elif treasury >= price:
+            paid_source = "National Treasury"
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (price, country_id))
+        else:
+            return False, f"Insufficient Medals: Procuring {meta['name']} requires {price:,} Medals (Wallet: {user_medals:,} M, National Treasury: {treasury:,} M).", {}
         now = time.time()
 
         await self._db.execute("""

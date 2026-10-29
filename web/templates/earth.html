@@ -6588,6 +6588,89 @@ async function submitPolicies() {
 
 
 
+function openInvestTreasuryModal() {
+    if (!selectedCountry) return;
+    const t = Number(selectedCountry.treasury || 0);
+    const container = document.getElementById("modal-container");
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🏛️</span> Sovereign Treasury Reinvestment
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+                <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:0.8rem;">
+                    Reinvest your national treasury reserves directly into domestic infrastructure to permanently grow GDP valuation and national wealth!
+                </div>
+                <div class="info-tile" style="margin-bottom:0.8rem;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                        <span style="color:#94a3b8;">Available Treasury:</span>
+                        <strong style="color:#38bdf8;">${t.toLocaleString()} Medals</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-top:0.3rem;">
+                        <span style="color:#94a3b8;">Conversion Formula:</span>
+                        <strong style="color:#10b981;">Every 5,000 M = +1M GDP</strong>
+                    </div>
+                </div>
+                <div style="margin-bottom:0.8rem;">
+                    <label style="font-size:0.72rem; color:#cbd5e1; display:block; margin-bottom:0.3rem;">Investment Amount (Medals):</label>
+                    <input type="number" id="invest-amount-input" class="custom-input" min="10000" max="${t}" step="5000" value="${Math.min(t, 50000)}" style="width:100%;" oninput="updateInvestGdpPreview(this.value)">
+                    <div id="invest-gdp-preview" style="font-size:0.72rem; color:#10b981; margin-top:0.3rem; font-weight:700;">
+                        Expected Gain: +${Math.floor(Math.min(t, 50000) / 5000)}M GDP (+Stability, -Unrest)
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.4rem; margin-bottom:0.9rem;">
+                    <button class="btn-action-sm" onclick="setInvestAmount(50000)" style="flex:1;">50k</button>
+                    <button class="btn-action-sm" onclick="setInvestAmount(100000)" style="flex:1;">100k</button>
+                    <button class="btn-action-sm" onclick="setInvestAmount(250000)" style="flex:1;">250k</button>
+                    <button class="btn-action-sm" onclick="setInvestAmount(${t})" style="flex:1; border-color:#38bdf8; color:#38bdf8;">Max</button>
+                </div>
+                <button class="btn-action-sm" style="width:100%; padding:0.6rem; font-size:0.85rem; font-weight:800; background:#38bdf8; color:#0f172a;" onclick="executeTreasuryInvest()">Enact Reinvestment</button>
+            </div>
+        </div>
+    `;
+}
+
+function updateInvestGdpPreview(val) {
+    const amt = Number(val || 0);
+    const gain = Math.floor(amt / 5000);
+    const el = document.getElementById("invest-gdp-preview");
+    if (el) el.innerHTML = `Expected Gain: +${gain.toLocaleString()}M GDP (+Stability, -Unrest)`;
+}
+
+function setInvestAmount(amt) {
+    const inp = document.getElementById("invest-amount-input");
+    if (inp) {
+        inp.value = amt;
+        updateInvestGdpPreview(amt);
+    }
+}
+
+async function executeTreasuryInvest() {
+    if (!selectedCountry) return;
+    const inp = document.getElementById("invest-amount-input");
+    const amt = Number(inp ? inp.value : 0);
+    if (!amt || amt < 10000) {
+        showToast("Minimum investment is 10,000 Medals.");
+        return;
+    }
+    try {
+        const res = await fetch("/api/earth/treasury/invest", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_id: selectedCountry.id, amount: amt })
+        });
+        const data = await res.json();
+        closeModal();
+        showToast(data.message);
+        loadVirtualEarthData();
+    } catch (e) {
+        showToast("Treasury investment request failed.");
+    }
+}
+
 function openQuellModal() {
 
     const container = document.getElementById("modal-container");
@@ -8297,6 +8380,7 @@ function openIntelModal(escapedJson) {
                         <div style="font-size:0.68rem; color:#94a3b8;">TREASURY RESERVES</div>
 
                         <div style="font-weight:800; font-size:1.1rem; color:#38bdf8;">${Number(d.treasury || 0).toLocaleString()} M</div>
+                        ${isLeader ? `<button class="btn-action-sm" onclick="openInvestTreasuryModal()" style="margin-top:0.35rem; width:100%; font-size:0.65rem; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.4); padding:2px 4px;">📈 Reinvest in GDP</button>` : ''}
 
                     </div>
 

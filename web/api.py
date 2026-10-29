@@ -127,6 +127,28 @@ async def _bg_broadcast_commander(country_id: int, commander_name: str, bot=None
         print(f"[DISCORD BROADCAST] Broadcasting new commander {commander_name} for {c.get('name')} to Discord...", flush=True)
         await earth_cog.broadcast_commander_news(c["name"], c["flag"], commander_name)
 
+async def _bg_broadcast_trade_ratified(country_a_id: int, country_b_id: int, bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            db = None
+    if not bot or not db:
+        return
+    c_a = await db.get_earth_country(country_a_id)
+    c_b = await db.get_earth_country(country_b_id)
+    if not c_a or not c_b:
+        return
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog:
+        print(f"[DISCORD BROADCAST] Broadcasting trade treaty between {c_a.get('name')} and {c_b.get('name')} to Discord...", flush=True)
+        await earth_cog.broadcast_trade_ratified_news(c_a["name"], c_a["flag"], c_b["name"], c_b["flag"])
+
 async def _bg_broadcast_alliance(country_id: int, alliance_name: str, alliance_id: int = None, partner_name: str = "Global Signatories", partner_flag: str = "🌐", bot=None, db=None):
     if not bot:
         try:
@@ -2614,6 +2636,26 @@ def api_earth_policies():
 
 
 
+@api_bp.route("/earth/treasury/invest", methods=["POST"])
+@login_required
+def api_earth_treasury_invest():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+        amount = int(data.get("amount", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg, res_data = run_async(db.invest_earth_treasury_into_gdp(user_id, country_id, amount))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "data": res_data
+    }), 200 if success else 400
+
+
 @api_bp.route("/earth/quell_unrest", methods=["POST"])
 @login_required
 def api_earth_quell_unrest():
@@ -3072,8 +3114,29 @@ def api_earth_trade_respond():
     accept = bool(data.get("accept", False))
     user_id = session["user"]["id"]
     db = get_db()
+
+    target_ca = None
+    target_cb = None
+    if accept:
+        try:
+            async def _get_tr():
+                if db._db:
+                    async with db._db.execute("SELECT country_a_id, country_b_id FROM earth_trade_routes WHERE id = ?", (route_id,)) as cur:
+                        return await cur.fetchone()
+                return None
+            tr_row = run_async(_get_tr())
+            if tr_row:
+                target_ca, target_cb = tr_row[0], tr_row[1]
+        except Exception:
+            pass
+
     success, msg = run_async(db.respond_trade_route(user_id, country_id, route_id, accept))
     routes = run_async(db.get_earth_trade_routes(country_id))
+
+    if success and accept and target_ca and target_cb:
+        bot = current_app.config.get("DISCORD_BOT")
+        dispatch_discord_coro(_bg_broadcast_trade_ratified(target_ca, target_cb, bot=bot, db=db))
+
     return jsonify({"success": success, "message": msg, "routes": routes}), 200 if success else 400
 
 
@@ -3217,20 +3280,28 @@ def api_earth_alliance_request_respond():
     try: request_id = int(data.get("request_id", 0))
     except (ValueError, TypeError): return jsonify({"success": False, "message": "Invalid request ID."}), 400
     accept = bool(data.get("accept", False))
-    success, msg = run_async(get_db().respond_earth_alliance_request(session["user"]["id"], request_id, accept))
-    if success and accept:
-        bot = current_app.config.get("DISCORD_BOT")
-        db_inst = current_app.config.get("DB")
-        async def _check_req():
-            try:
-                if db_inst and db_inst._db:
+    db_inst = get_db()
+
+    target_cid = None
+    target_aid = None
+    if accept:
+        try:
+            async def _get_req():
+                if db_inst._db:
                     async with db_inst._db.execute("SELECT country_id, alliance_id FROM earth_alliance_requests WHERE id=?", (request_id,)) as cur:
-                        r = await cur.fetchone()
-                        if r:
-                            await _bg_broadcast_alliance(r[0], "Allied Coalition", r[1], bot=bot, db=db_inst)
-            except Exception as e:
-                print(f"⚠️ Alliance check err: {e}", flush=True)
-        dispatch_discord_coro(_check_req())
+                        return await cur.fetchone()
+                return None
+            r = run_async(_get_req())
+            if r:
+                target_cid, target_aid = r[0], r[1]
+        except Exception:
+            pass
+
+    success, msg = run_async(db_inst.respond_earth_alliance_request(session["user"]["id"], request_id, accept))
+    if success and accept and target_cid and target_aid:
+        bot = current_app.config.get("DISCORD_BOT")
+        dispatch_discord_coro(_bg_broadcast_alliance(target_cid, "Allied Coalition", target_aid, bot=bot, db=db_inst))
+
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 

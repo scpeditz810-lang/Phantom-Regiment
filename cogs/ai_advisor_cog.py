@@ -271,6 +271,8 @@ class AIAdvisorDiscordCog(commands.Cog, name="AI Advisor"):
                 "owner_name": leadership.get("owner", "Server Owner"),
                 "managers": leadership.get("managers", []),
                 "asker_name": message.author.display_name,
+                "website_url": "https://phantomregiment.apps.bot-hosting.cloud/",
+                "website_channel": "https://discord.com/channels/1550544659217125467/1552470594380103822",
             }
 
             try:

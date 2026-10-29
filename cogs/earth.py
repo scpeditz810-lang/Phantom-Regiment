@@ -28,6 +28,7 @@ from utils.earth_anim import (
     generate_victory_speech,
     generate_country_fallen_speech,
     generate_alliance_speech,
+    generate_trade_speech,
     generate_commander_speech,
 )
 
@@ -312,6 +313,34 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 )
         except Exception as e:
             print(f"⚠️ Failed to broadcast Earth News: {e}", flush=True)
+
+    async def broadcast_trade_ratified_news(self, country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str):
+        """Broadcast bilateral maritime trade treaty to #earth-news with animated video & deep male voice narration."""
+        try:
+            speech_buf = generate_trade_speech(country_a_name, country_b_name)
+            gif_buf, mp4_buf = create_country_allied_media(
+                country_a_name, country_a_flag, country_b_name, country_b_flag,
+                "Bilateral Maritime Trade Treaty", audio_bytes=speech_buf
+            )
+            title = "🚢 BILATERAL MARITIME TRADE TREATY RATIFIED"
+            desc = (
+                f"**Commercial Sealane Officially Opened!**\n\n"
+                f"🤝 **Trading Partners:** {country_a_flag} **{country_a_name}** ⮂ **{country_b_flag} {country_b_name}**\n\n"
+                f"⚓ **Bilateral Trade Accord:** High-capacity commercial shipping lanes are officially active.\n"
+                f"💰 **Tariff Yield:** Generates `+3,500 Medals/hr` (~85,000 Medals daily) directly into national dividends.\n"
+                f"🌐 *Maritime trade routes compound economic growth and international prosperity.*"
+            )
+            await self.broadcast_news(
+                title=title,
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="trade_ratified.gif",
+                color=0x06B6D4,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting trade treaty news: {e}", flush=True)
 
     async def broadcast_alliance_news(self, country_a_name: str, country_a_flag: str, country_b_name: str, country_b_flag: str, alliance_name: str):
         """Broadcast international alliance formation / accession to #earth-news with animated card & audio."""
@@ -1083,6 +1112,28 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         else:
             await interaction.followup.send(f"❌ {msg}")
 
+
+    @earth_group.command(name="invest", description="Reinvest national treasury reserves into domestic infrastructure to grow GDP valuation.")
+    @app_commands.describe(amount="Amount of Medals to invest from national treasury (minimum 10,000)")
+    async def earth_invest(self, interaction: discord.Interaction, amount: int):
+        """Invest national treasury reserves into domestic infrastructure to grow national GDP."""
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("❌ You do not govern an Earth nation!", ephemeral=True)
+            return
+
+        success, msg, res_data = await self.bot.db.invest_earth_treasury_into_gdp(interaction.user.id, c["id"], amount)
+        if success:
+            embed = discord.Embed(
+                title="🏛️ SOVEREIGN WEALTH & INFRASTRUCTURE REINVESTMENT",
+                description=msg,
+                color=0x10B981
+            )
+            embed.set_footer(text="Virtual Earth 3D Geopolitics • Treasury Reinvestment")
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ {msg}")
 
     # ??? Custom Country Creation & Unowned Nation Claims ?????????????????????????
 
