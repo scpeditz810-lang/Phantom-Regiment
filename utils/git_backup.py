@@ -311,7 +311,11 @@ class GitBackup:
             
             # Synchronize with remote history before pushing to prevent rejection
             self._run(["git", "fetch", "--depth", "1", auth_url, "main"], cwd=self.repo_dir, check=False)
-            self._run(["git", "merge", "-s", "ours", "--no-edit", "--allow-unrelated-histories", "FETCH_HEAD"], cwd=self.repo_dir, check=False)
+            # Rebase snapshot on top of incoming code commits without destroying code changes
+            self._run(["git", "checkout", "FETCH_HEAD", "--", "bot.py", "cogs", "utils", "web", "requirements.txt"], cwd=self.repo_dir, check=False)
+            self._run(["git", "reset", "--soft", "FETCH_HEAD"], cwd=self.repo_dir, check=False)
+            self._run(["git", "add", self.snapshot_name], cwd=self.repo_dir, check=False)
+            self._run(["git", "commit", "-m", "Auto-backup"], cwd=self.repo_dir, check=False)
 
             self._run(["git", "push", "-u", auth_url, "main"], cwd=self.repo_dir)
             self._last_hash = current
