@@ -870,6 +870,172 @@ def render_commander_scene_frame(
 
     return im
 
+def render_martial_law_scene_frame(
+    frame_idx: int,
+    total_frames: int,
+    country_name: str
+) -> Image.Image:
+    """Scene 2: Armored military riot control convoy with tanks, flashing red/blue strobe sirens, searchlight, and riot shields."""
+    w, h = 640, 360
+    im = Image.new("RGB", (w, h), (12, 16, 24))
+    draw = ImageDraw.Draw(im)
+
+    font_hud = _get_font_bold(13)
+    font_sub = _get_font(11)
+    font_tag = _get_font_bold(10)
+
+    # 1. Dark stormy urban night sky
+    for y in range(195):
+        frac = y / 195.0
+        r = int(10 + frac * 22)
+        g = int(14 + frac * 24)
+        b = int(24 + frac * 32)
+        draw.line([(0, y), (w, y)], fill=(r, g, b))
+
+    # 2. Silhouetted skyscrapers
+    buildings = [
+        (10, 80, 55, 195),
+        (60, 50, 75, 195),
+        (130, 95, 60, 195),
+        (185, 40, 80, 195),
+        (260, 70, 70, 195),
+        (325, 45, 85, 195),
+        (405, 85, 65, 195),
+        (465, 30, 90, 195),
+        (550, 65, 80, 195),
+    ]
+    for bx, by, bw, bh in buildings:
+        draw.rectangle([bx, by, bx + bw, bh], fill=(22, 28, 42), outline=(32, 40, 58))
+        for wx in range(bx + 6, bx + bw - 6, 12):
+            for wy in range(by + 10, bh - 10, 16):
+                seed = (wx * 17 + wy * 31) % 11
+                if seed in (0, 1):
+                    draw.rectangle([wx, wy, wx + 6, wy + 8], fill=(245, 205, 95))
+                elif seed == 2:
+                    draw.rectangle([wx, wy, wx + 6, wy + 8], fill=(96, 165, 250))
+                else:
+                    draw.rectangle([wx, wy, wx + 6, wy + 8], fill=(30, 38, 55))
+
+    # 3. Oscillating military searchlight beam from rooftop
+    spot_orig = (510, 32)
+    sweep_ang = math.sin(frame_idx * 0.12) * 0.45 - 0.3
+    tgt_x = spot_orig[0] + math.sin(sweep_ang) * 290
+    tgt_y = 310
+    for i in range(-25, 26, 3):
+        frac = 1.0 - abs(i) / 25.0
+        c_val = int(45 + frac * 85)
+        draw.line([spot_orig, (tgt_x + i, tgt_y)], fill=(c_val, c_val, int(c_val * 0.85)), width=2)
+
+    # 4. Asphalt roadway & perspective lines
+    for y in range(195, h):
+        frac = (y - 195) / (h - 195)
+        gr = int(28 + frac * 14)
+        gg = int(32 + frac * 14)
+        gb = int(38 + frac * 14)
+        draw.line([(0, y), (w, y)], fill=(gr, gg, gb))
+
+    # Road lane markings
+    lane_t = (frame_idx * 3) % 40
+    for offset in range(-40, w + 80, 70):
+        lx = offset - lane_t
+        draw.line([(lx, 265), (lx + 35, 265)], fill=(120, 125, 135), width=3)
+
+    # 5. Barricades on left & right flank with hazard stripes
+    for bar_x, bar_y in [(30, 240), (530, 240)]:
+        draw.rectangle([bar_x, bar_y, bar_x + 80, bar_y + 35], fill=(35, 35, 40), outline=(80, 80, 90), width=2)
+        for s in range(bar_x, bar_x + 80, 14):
+            draw.line([(s, bar_y + 35), (s + 12, bar_y)], fill=(234, 179, 8), width=4)
+        draw.line([(bar_x + 10, bar_y + 35), (bar_x + 5, bar_y + 55)], fill=(100, 100, 110), width=3)
+        draw.line([(bar_x + 70, bar_y + 35), (bar_x + 75, bar_y + 55)], fill=(100, 100, 110), width=3)
+
+    # 6. Heavy Armored Personnel Carrier / Tank (Patrolling Center-Left)
+    apc_x = 200 + int(math.sin(frame_idx * 0.1) * 6)
+    apc_y = 205 + int(math.sin(frame_idx * 0.8) * 1.5)
+
+    # Tank shadow
+    draw.ellipse([apc_x - 10, apc_y + 60, apc_x + 230, apc_y + 82], fill=(15, 18, 22))
+
+    # Headlight Beams (casting bright light forward onto asphalt)
+    h_beam = [(apc_x + 200, apc_y + 40), (w, apc_y + 15), (w, apc_y + 115), (apc_x + 200, apc_y + 52)]
+    draw.polygon(h_beam, fill=(55, 55, 45))
+    h_beam_core = [(apc_x + 200, apc_y + 42), (w, apc_y + 35), (w, apc_y + 90), (apc_x + 200, apc_y + 48)]
+    draw.polygon(h_beam_core, fill=(90, 88, 65))
+
+    # Treads
+    draw.rectangle([apc_x + 10, apc_y + 45, apc_x + 200, apc_y + 72], fill=(30, 32, 36), outline=(60, 65, 75), width=2)
+    wheel_rot = (frame_idx * 0.3) % (math.pi * 2)
+    for wx in range(apc_x + 28, apc_x + 195, 34):
+        draw.ellipse([wx - 12, apc_y + 48, wx + 12, apc_y + 70], fill=(45, 50, 58), outline=(85, 90, 100), width=2)
+        draw.ellipse([wx - 4, apc_y + 55, wx + 4, apc_y + 63], fill=(20, 22, 25))
+        sx = wx + math.cos(wheel_rot) * 8
+        sy = apc_y + 59 + math.sin(wheel_rot) * 8
+        draw.line([(wx, apc_y + 59), (sx, sy)], fill=(120, 130, 145), width=2)
+
+    # Hull (Sloped Armored Steel)
+    hull_pts = [
+        (apc_x + 5, apc_y + 46),
+        (apc_x + 35, apc_y + 18),
+        (apc_x + 185, apc_y + 18),
+        (apc_x + 215, apc_y + 46)
+    ]
+    draw.polygon(hull_pts, fill=(55, 68, 62), outline=(75, 90, 82), width=2)
+    draw.line([(apc_x + 75, apc_y + 18), (apc_x + 85, apc_y + 46)], fill=(40, 50, 45), width=2)
+    draw.line([(apc_x + 145, apc_y + 18), (apc_x + 155, apc_y + 46)], fill=(40, 50, 45), width=2)
+
+    # Turret & Heavy Suppression Cannon
+    turret_pts = [(apc_x + 65, apc_y + 18), (apc_x + 80, apc_y - 8), (apc_x + 145, apc_y - 8), (apc_x + 155, apc_y + 18)]
+    draw.polygon(turret_pts, fill=(65, 80, 74), outline=(85, 102, 95), width=2)
+    draw.rectangle([apc_x + 145, apc_y - 2, apc_x + 235, apc_y + 8], fill=(45, 52, 48), outline=(70, 80, 75))
+    draw.rectangle([apc_x + 230, apc_y - 5, apc_x + 242, apc_y + 11], fill=(30, 35, 32))
+
+    # 7. Flashing Police & Military Strobe Light on Turret Roof!
+    strobe_state = (frame_idx // 3) % 4
+    siren_x, siren_y = apc_x + 112, apc_y - 12
+    draw.rectangle([siren_x - 12, siren_y, siren_x + 12, siren_y + 5], fill=(30, 32, 38))
+
+    if strobe_state in (0, 1):
+        # Bright Red Flash
+        draw.ellipse([siren_x - 35, siren_y - 30, siren_x + 35, siren_y + 25], fill=(80, 15, 15))
+        draw.ellipse([siren_x - 18, siren_y - 18, siren_x + 18, siren_y + 12], fill=(220, 30, 30))
+        draw.ellipse([siren_x - 8, siren_y - 10, siren_x + 8, siren_y + 4], fill=(255, 230, 230))
+        draw.ellipse([apc_x + 60, apc_y + 70, apc_x + 170, apc_y + 90], fill=(60, 20, 20))
+    else:
+        # Bright Blue Flash
+        draw.ellipse([siren_x - 35, siren_y - 30, siren_x + 35, siren_y + 25], fill=(15, 30, 80))
+        draw.ellipse([siren_x - 18, siren_y - 18, siren_x + 18, siren_y + 12], fill=(30, 120, 255))
+        draw.ellipse([siren_x - 8, siren_y - 10, siren_x + 8, siren_y + 4], fill=(230, 240, 255))
+        draw.ellipse([apc_x + 60, apc_y + 70, apc_x + 170, apc_y + 90], fill=(20, 30, 65))
+
+    # 8. Tactical Infantry Riot Squad Advancing Behind APC
+    for s_idx, (sx_off, sy_off) in enumerate([(apc_x - 65, apc_y + 15), (apc_x - 110, apc_y + 25)]):
+        soldier_x = sx_off + int(math.sin(frame_idx * 0.15 + s_idx) * 4)
+        soldier_y = sy_off
+        leg_step = math.sin(frame_idx * 0.35 + s_idx * 1.5) * 6
+        draw.line([(soldier_x - 4, soldier_y + 35), (soldier_x - 8 + leg_step, soldier_y + 55)], fill=(30, 35, 42), width=5)
+        draw.line([(soldier_x + 4, soldier_y + 35), (soldier_x + 8 - leg_step, soldier_y + 55)], fill=(25, 30, 38), width=5)
+        draw.rectangle([soldier_x - 10, soldier_y + 12, soldier_x + 10, soldier_y + 36], fill=(45, 52, 60), outline=(65, 75, 88), width=2)
+        draw.ellipse([soldier_x - 8, soldier_y - 4, soldier_x + 8, soldier_y + 12], fill=(35, 40, 48))
+        draw.rectangle([soldier_x - 5, soldier_y + 2, soldier_x + 7, soldier_y + 6], fill=(16, 185, 129))
+        sh_x = soldier_x + 10
+        draw.rectangle([sh_x, soldier_y + 6, sh_x + 7, soldier_y + 48], fill=(180, 200, 220), outline=(220, 235, 250), width=2)
+        draw.rectangle([sh_x + 1, soldier_y + 12, sh_x + 6, soldier_y + 22], fill=(40, 50, 65))
+
+    # 9. Top Tactical HUD Bar
+    draw.rectangle([0, 0, w, 38], fill=(15, 23, 42))
+    draw.line([(0, 38), (w, 38)], fill=(239, 68, 68), width=2)
+    alert_dot_col = (239, 68, 68) if (frame_idx // 3) % 2 == 0 else (255, 255, 255)
+    draw.ellipse([14, 13, 26, 25], fill=alert_dot_col)
+    clean_title = f"STATE OF EMERGENCY // MARTIAL LAW: {country_name.upper()[:24]}"
+    draw.text((36, 11), clean_title, fill=(255, 255, 255), font=font_hud)
+    draw.text((w - 15, 12), "[MILITARY CURFEW]", fill=(248, 113, 113), font=font_tag, anchor="rt")
+
+    # 10. Bottom Alert HUD Ribbon
+    draw.rectangle([0, h - 28, w, h], fill=(20, 24, 33))
+    draw.line([(0, h - 28), (w, h - 28)], fill=(185, 28, 28), width=1)
+    draw.text((15, h - 22), "🚨 ARMED DIVISIONS DEPLOYED // STRICT CURFEW ACTIVE // CIVIL UNREST SUPPRESSED", fill=(252, 165, 165), font=font_sub)
+
+    return im
+
 # === Frame Generation Pipelines (Long, unbroken animations, memory-streaming) =
 
 def generate_war_declared_frames(attacker_name: str, defender_name: str, scale: str, domain: str = "TERRESTRIAL", total_frames: int = 80):
@@ -1101,6 +1267,51 @@ def create_new_commander_media(country_name: str, country_flag: str, commander_n
         gif_buf = create_new_commander_gif(country_name, country_flag, commander_name)
     return gif_buf, mp4_buf
 
+def generate_martial_law_frames(country_name: str, total_frames: int = 80):
+    c_name = clean_tactical_text(country_name)
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        yield render_order_parchment_frame(
+            i, parchment_count,
+            "MARTIAL LAW DECREE",
+            c_name,
+            "CIVIL RIOT & UNREST SECTORS",
+            "ARMED MILITARY CURFEW ENFORCEMENT",
+            "ENFORCED",
+            (220, 38, 38)
+        )
+    for i in range(action_count):
+        yield render_martial_law_scene_frame(i, action_count, c_name)
+
+def create_martial_law_frames(country_name: str, total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_martial_law_frames(country_name, total_frames))
+
+def create_martial_law_gif(country_name: str, country_flag: str) -> io.BytesIO:
+    frames = create_martial_law_frames(country_name, total_frames=45)
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_martial_law_media(country_name: str, country_flag: str, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    mp4_buf = render_frames_to_mp4(
+        generate_martial_law_frames(country_name, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_martial_law_gif(country_name, country_flag)
+    return gif_buf, mp4_buf
+
 # === Spoken Voice Narration (TTS) & Deep Male Broadcaster DSP Engine ==========
 
 def clean_for_speech(text: str) -> str:
@@ -1301,5 +1512,15 @@ def generate_commander_speech(country_name: str, commander_name: str) -> io.Byte
         f"Supreme military command alert. A new commander has taken charge of the armed forces of {clean_c}! "
         f"General {clean_cm} has officially assumed office as Supreme Army Commander and Minister of Defense. "
         f"All armored divisions, air squadrons, and naval fleets are now mobilizing under their direct strategic command."
+    )
+    return generate_voice_narration(speech)
+
+def generate_martial_law_speech(country_name: str) -> io.BytesIO:
+    clean_c = clean_for_speech(country_name)
+    speech = (
+        f"Attention citizens of {clean_c}. By executive decree of Supreme Sovereign Command, "
+        f"an emergency state of martial law has been enacted! Armed military divisions and armored units "
+        f"have mobilized across all domestic sectors to crush civil unrest and enforce strict curfews. "
+        f"Return to your quarters immediately. Sovereign order is being restored by force."
     )
     return generate_voice_narration(speech)

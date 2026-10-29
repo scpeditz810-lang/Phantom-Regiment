@@ -241,6 +241,31 @@ async def _bg_broadcast_surrender(winner_name: str, winner_flag: str, loser_name
     else:
         print("⚠️ _bg_broadcast_surrender: Virtual Earth cog not found on bot!", flush=True)
 
+async def _bg_broadcast_martial_law(country_id: int, bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            db = None
+    if not bot or not db:
+        print(f"⚠️ _bg_broadcast_martial_law: bot ({bot}) or db ({db}) missing!", flush=True)
+        return
+    c = await db.get_earth_country(country_id)
+    if not c:
+        print(f"⚠️ _bg_broadcast_martial_law: country {country_id} not found!", flush=True)
+        return
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog:
+        print(f"[DISCORD BROADCAST] Broadcasting martial law riot suppression for {c.get('name')} to Discord...", flush=True)
+        await earth_cog.broadcast_martial_law_news(c.get("name", "Nation"), c.get("flag", "🏳️"))
+    else:
+        print("⚠️ _bg_broadcast_martial_law: Virtual Earth cog not found on bot!", flush=True)
+
 
 
 @api_bp.route("/stocks")
@@ -2675,20 +2700,7 @@ def api_earth_quell_unrest():
     # Broadcast to Discord #earth-news if martial law was declared
     if success and method in ("military", "martial_law") and c:
         bot = current_app.config.get("DISCORD_BOT")
-        if bot:
-            earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
-            if earth_cog:
-                try:
-                    run_async(earth_cog.broadcast_news(
-                        title="🪖 STATE OF EMERGENCY // MARTIAL LAW ENFORCED",
-                        description=(
-                            f"🚨 **National Emergency:** {c.get('flag', '🏳️')} **{c.get('name', 'Nation')}** has mobilized armed military divisions to quell severe street riots and enforce strict curfews!\n\n"
-                            f"🕊️ Armed patrols deployed across major city centres. Civilians instructed to remain indoors."
-                        ),
-                        color=0xDC2626
-                    ))
-                except Exception as b_err:
-                    print(f"⚠️ Failed to broadcast martial law news: {b_err}", flush=True)
+        dispatch_discord_coro(_bg_broadcast_martial_law(country_id, bot=bot, db=db))
 
     return jsonify({
         "success": success,
@@ -2717,20 +2729,7 @@ def api_earth_deploy_military():
 
     if success and c:
         bot = current_app.config.get("DISCORD_BOT")
-        if bot:
-            earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
-            if earth_cog:
-                try:
-                    run_async(earth_cog.broadcast_news(
-                        title="🪖 STATE OF EMERGENCY // MARTIAL LAW ENFORCED",
-                        description=(
-                            f"🚨 **National Emergency:** {c.get('flag', '🏳️')} **{c.get('name', 'Nation')}** has mobilized armed military divisions to quell severe street riots and enforce strict curfews!\n\n"
-                            f"🕊️ Armed patrols deployed across major city centres. Civilians instructed to remain indoors."
-                        ),
-                        color=0xDC2626
-                    ))
-                except Exception as b_err:
-                    print(f"⚠️ Failed to broadcast martial law news: {b_err}", flush=True)
+        dispatch_discord_coro(_bg_broadcast_martial_law(country_id, bot=bot, db=db))
 
     return jsonify({
         "success": success,

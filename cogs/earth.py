@@ -20,6 +20,7 @@ from utils.earth_anim import (
     create_country_allied_media,
     create_new_commander_gif,
     create_new_commander_media,
+    create_martial_law_media,
     generate_tactical_audio,
     generate_voice_narration,
     generate_ruler_speech,
@@ -30,6 +31,7 @@ from utils.earth_anim import (
     generate_alliance_speech,
     generate_trade_speech,
     generate_commander_speech,
+    generate_martial_law_speech,
 )
 
 from utils.constants import (
@@ -391,6 +393,31 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             )
         except Exception as e:
             print(f"⚠️ Error broadcasting commander news: {e}", flush=True)
+
+    async def broadcast_martial_law_news(self, country_name: str, country_flag: str):
+        """Broadcast state of emergency / martial law riot suppression to #earth-news with animated video & deep announcer narration."""
+        try:
+            speech_buf = generate_martial_law_speech(country_name)
+            gif_buf, mp4_buf = create_martial_law_media(country_name, country_flag, audio_bytes=speech_buf)
+            title = f"🪖 STATE OF EMERGENCY // MARTIAL LAW ENFORCED: {country_name.upper()}"
+            desc = (
+                f"🚨 **National Emergency Order Ratified!**\n\n"
+                f"🏛️ **Sovereign Nation:** {country_flag} **{country_name}**\n\n"
+                f"🛡️ **Military Mobilization:** Armed infantry divisions and heavy armored riot patrols have taken control of all domestic urban sectors.\n"
+                f"⚡ **Strict Curfew Enacted:** -45% Civil Unrest, All Rioting Forcefully Extinguished.\n"
+                f"🔒 *Citizens ordered to clear streets immediately. Sovereign military garrisons patrolling 24/7.*"
+            )
+            await self.broadcast_news(
+                title=title,
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="martial_law.gif",
+                color=0xEF4444,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting martial law news: {e}", flush=True)
 
     async def broadcast_war_declared(self, attacker_c: dict, defender_c: dict, scale_name: str, duration_hours: int, war_id: int, domain: str = "land", aggressor_mention: str = None):
         """Broadcast sovereign war declaration to #earth-news with animated card, announcer voice & surrender controls."""
@@ -1073,14 +1100,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             await interaction.followup.send(msg)
             if method.value in ("military", "martial_law"):
                 try:
-                    await self.broadcast_news(
-                        title="🪖 STATE OF EMERGENCY // MARTIAL LAW ENFORCED",
-                        description=(
-                            f"🚨 **National Emergency:** {c.get('flag', '🏳️')} **{c.get('name', 'Nation')}** has mobilized armed military divisions to quell severe street riots and enforce strict emergency curfews!\n\n"
-                            f"🕊️ Armed patrols deployed across major city centres. Civilians instructed to remain indoors."
-                        ),
-                        color=0xDC2626
-                    )
+                    await self.broadcast_martial_law_news(c.get('name', 'Nation'), c.get('flag', '🏳️'))
                 except Exception as b_err:
                     print(f"⚠️ Failed to broadcast martial law: {b_err}", flush=True)
         else:
@@ -1099,14 +1119,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         if success:
             await interaction.followup.send(msg)
             try:
-                await self.broadcast_news(
-                    title="🪖 STATE OF EMERGENCY // MARTIAL LAW ENFORCED",
-                    description=(
-                        f"🚨 **National Emergency:** {c.get('flag', '🏳️')} **{c.get('name', 'Nation')}** has mobilized armed military divisions to quell severe street riots and enforce strict emergency curfews!\n\n"
-                        f"🕊️ Armed patrols deployed across major city centres. Civilians instructed to remain indoors."
-                    ),
-                    color=0xDC2626
-                )
+                await self.broadcast_martial_law_news(c.get('name', 'Nation'), c.get('flag', '🏳️'))
             except Exception as b_err:
                 print(f"⚠️ Failed to broadcast martial law: {b_err}", flush=True)
         else:
