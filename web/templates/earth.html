@@ -4990,6 +4990,19 @@ function renderDossierTab(c, isLeader, isOwner, container) {
             </div>
         `}
 
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-top: 0.65rem; margin-bottom: 0.65rem;">
+            <div class="info-tile">
+                <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">👥 Citizen Population</div>
+                <div style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">${Number(c.population || 100).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">Citizens</span></div>
+                <div style="font-size: 0.68rem; color: #10b981; margin-top: 0.2rem;">🌱 +2% growth/day in peace</div>
+            </div>
+            <div class="info-tile">
+                <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">⚔️ Armed Divisions</div>
+                <div style="font-size: 1.15rem; font-weight: 800; color: #38bdf8;">${Number(c.army_divisions || 10).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">Divs</span></div>
+                <div style="font-size: 0.68rem; color: #cbd5e1; margin-top: 0.2rem;">🛡️ ${Number(c.tanks || 0)} Tanks · ✈️ ${Number(c.jets || 0)} Jets · 🚢 ${Number(c.ships || 0)} Ships</div>
+            </div>
+        </div>
+
 
 
         <div class="info-tile">
@@ -5625,35 +5638,31 @@ function renderIntelTab(c, isLeader, isOwner, container) {
         html += `<div style="text-align:center; padding:1rem; color:#94a3b8; font-size:0.75rem; background:rgba(15,23,42,0.5); border-radius:8px;">No foreign intelligence dossiers decrypted yet. Dispatch spies or purchase classified dossiers from brokers!</div>`;
 
     } else {
-
-        intel.forEach(i => {
-
+        window._intelDossiers = window._intelDossiers || {};
+        intel.forEach((i, idx) => {
+            const intelId = Number(i.id || (idx + 1));
+            window._intelDossiers[intelId] = i;
             const d = i.data || {};
+            const targetName = i.target_name || d.target_name || 'Target Power';
+            const targetFlag = i.target_flag || d.target_flag || '🌐';
+            const intelType = (i.intel_type || 'CLASSIFIED').replace('_', ' ').toUpperCase();
+            const summaryText = d.summary ? d.summary : `• GDP: ${Number(d.gdp || 0).toLocaleString()} • Treasury: ${Number(d.treasury || 0).toLocaleString()} Medals • Pop: ${Number(d.population || 0).toLocaleString()}`;
 
             html += `
-
-                <div class="info-tile" style="border-left: 3px solid #38bdf8; cursor: pointer; margin-bottom: 0.4rem;" onclick="openIntelModal('${escapeHtml(JSON.stringify(i))}')">
-
+                <div class="info-tile" style="border-left: 3px solid #38bdf8; cursor: pointer; margin-bottom: 0.45rem; transition: all 0.2s ease;" onclick="openIntelModal(${intelId})">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-
-                        <span style="font-weight: 800; font-size: 0.82rem;">${i.target_flag || '🌐'} ${i.target_name || 'Target Power'}</span>
-
-                        <span class="hud-tag" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">${i.intel_type ? i.intel_type.replace('_', ' ').toUpperCase() : 'DECRYPTED'}</span>
-
+                        <span style="font-weight: 800; font-size: 0.84rem; color:#f8fafc;">${targetFlag} ${escapeHtml(targetName)}</span>
+                        <span class="hud-tag" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3);">${escapeHtml(intelType)}</span>
                     </div>
-
                     <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.35rem;">
-
-                        ${d.summary ? d.summary : `• Treasury: ${Number(d.treasury || 0).toLocaleString()} M • Military: ${d.total_military_power || 'Classified'}`}
-
+                        ${escapeHtml(summaryText)}
                     </div>
-
+                    <div style="font-size: 0.68rem; color: #38bdf8; margin-top: 0.25rem; font-weight:700;">
+                        🔍 Click to decrypt & view full dossier ➔
+                    </div>
                 </div>
-
             `;
-
         });
-
     }
 
 
@@ -8407,98 +8416,125 @@ async function rejectOffer(offerId) {
 
 
 
-function openIntelModal(escapedJson) {
+function openIntelModal(intelParam) {
+    let raw = null;
+    if (typeof intelParam === 'number' || (typeof intelParam === 'string' && /^\d+$/.test(intelParam))) {
+        raw = (window._intelDossiers && window._intelDossiers[Number(intelParam)]) || null;
+    } else if (typeof intelParam === 'object' && intelParam !== null) {
+        raw = intelParam;
+    } else if (typeof intelParam === 'string') {
+        try {
+            raw = JSON.parse(unescapeHtml(intelParam));
+        } catch (e) {
+            console.error("Failed to parse intel dossier JSON:", e);
+        }
+    }
 
-    const raw = JSON.parse(unescapeHtml(escapedJson));
+    if (!raw) {
+        showToast("Classified dossier record could not be loaded.");
+        return;
+    }
 
     const d = raw.data || {};
-
     const container = document.getElementById("modal-container");
+    if (!container) return;
 
+    const targetFlag = raw.target_flag || d.target_flag || '🌐';
+    const targetName = raw.target_name || d.target_name || 'Target Nation';
+    const category = d.category || (raw.intel_type ? raw.intel_type.replace('_', ' ').toUpperCase() : 'CLASSIFIED DOSSIER');
 
+    let bodyHtml = '';
 
-    container.innerHTML = `
-
-        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
-
-            <div class="custom-modal-card">
-
-                <div class="custom-modal-header">
-
-                    <div class="custom-modal-title">
-
-                        <span>🛰️</span> ${raw.target_flag || '🌐'} Classified Dossier: ${raw.target_name}
-
-                    </div>
-
-                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
-
-                </div>
-
-
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
-
-                    <div class="info-tile">
-
-                        <div style="font-size:0.68rem; color:#94a3b8;">TREASURY RESERVES</div>
-
-                        <div style="font-weight:800; font-size:1.1rem; color:#38bdf8;">${Number(d.treasury || 0).toLocaleString()} M</div>
-                        ${isLeader ? `<button class="btn-action-sm" onclick="openInvestTreasuryModal()" style="margin-top:0.35rem; width:100%; font-size:0.65rem; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.4); padding:2px 4px;">📈 Reinvest in GDP</button>` : ''}
-
-                    </div>
-
-                    <div class="info-tile">
-
-                        <div style="font-size:0.68rem; color:#94a3b8;">GDP VALUATION</div>
-
-                        <div style="font-weight:800; font-size:1.1rem; color:#f8fafc;">${Number(d.gdp || 0).toLocaleString()} GDP</div>
-
-                    </div>
-
-                </div>
-
-
-
-                <div class="info-tile" style="margin-bottom: 0.75rem;">
-
-                    <div style="font-size:0.75rem; color:#cbd5e1;">
-
-                        • <strong>Military Assault Power:</strong> ${d.total_military_power || 'Classified'}<br>
-
-                        • <strong>Fortified Defense:</strong> ${d.total_defense_power || 'Classified'}<br>
-
-                        • <strong>Stability:</strong> ${d.stability || 80}% | <strong>Civil Unrest:</strong> ${d.unrest || 10}%<br>
-
-                        • <strong>Active Coalition:</strong> ${d.alliances || 'Non-Aligned'}
-
-                    </div>
-
-                </div>
-
-
-
-
-                <div class="info-tile" style="margin-bottom:.75rem;">
-                    <div style="font-size:.75rem;font-weight:800;margin-bottom:.35rem;">Detected Forces & Nuclear Readiness</div>
-                    <div style="font-size:.72rem;color:#cbd5e1;">Population: <b>${Number(d.population||0).toLocaleString()}</b> · Reserve divisions: <b>${Number(d.army_divisions||0)}</b><br>🛡️ ${Number(d.tanks||0)} tanks · ✈️ ${Number(d.jets||0)} jets · 🚢 ${Number(d.ships||0)} ships<br>☢️ ${d.nuclear_plot_detected ? 'Launch pad and tactical nuke both detected' : 'No ready nuclear launch capability detected'}</div>
-                </div>
-                <div class="info-tile" style="margin-bottom:.75rem;">
-                    <div style="font-size:.75rem;font-weight:800;margin-bottom:.35rem;">Recent recruitment and purchases · 30 days</div>
-                    ${(d.military_orders_last_30_days||[]).length ? d.military_orders_last_30_days.slice(0,8).map(order=>'<div style="font-size:.72rem;color:#cbd5e1;">'+escapeHtml(String(order.action||''))+': '+Number(order.amount||0)+' × '+escapeHtml(String(order.unit_type||''))+' · player '+Number(order.actor_id||0)+'</div>').join('') : '<div style="font-size:.72rem;color:#94a3b8;">No recent orders recorded.</div>'}
-                </div>
-                <div style="display:flex; justify-content:flex-end;">
-
-                    <button class="btn-action-sm" onclick="closeModal()">Close</button>
-
-                </div>
-
+    if (d.summary) {
+        bodyHtml += `
+            <div class="info-tile" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.3); margin-bottom: 0.75rem;">
+                <div style="font-size: 0.68rem; color: #38bdf8; text-transform: uppercase; font-weight: 700;">📡 Decrypted Intelligence Summary</div>
+                <div style="font-size: 0.78rem; color: #f8fafc; margin-top: 0.25rem; line-height: 1.4;">${escapeHtml(d.summary)}</div>
             </div>
+        `;
+    }
 
+    bodyHtml += `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.65rem;">
+            <div class="info-tile">
+                <div style="font-size:0.68rem; color:#94a3b8; text-transform: uppercase;">TREASURY RESERVES</div>
+                <div style="font-weight:800; font-size:1.1rem; color:#38bdf8;">${Number(d.treasury || 0).toLocaleString()} <span style="font-size:0.75rem; color:#94a3b8;">Medals</span></div>
+            </div>
+            <div class="info-tile">
+                <div style="font-size:0.68rem; color:#94a3b8; text-transform: uppercase;">GDP VALUATION</div>
+                <div style="font-weight:800; font-size:1.1rem; color:#f8fafc;">${Number(d.gdp || 0).toLocaleString()} <span style="font-size:0.75rem; color:#94a3b8;">GDP</span></div>
+            </div>
         </div>
 
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.65rem;">
+            <div class="info-tile">
+                <div style="font-size:0.68rem; color:#94a3b8; text-transform: uppercase;">👥 CITIZEN POPULATION</div>
+                <div style="font-weight:800; font-size:1.1rem; color:#f8fafc;">${d.population !== undefined ? Number(d.population).toLocaleString() : 'Classified'}</div>
+            </div>
+            <div class="info-tile">
+                <div style="font-size:0.68rem; color:#94a3b8; text-transform: uppercase;">⚔️ ARMED DIVISIONS</div>
+                <div style="font-weight:800; font-size:1.1rem; color:#38bdf8;">${d.army_divisions !== undefined ? Number(d.army_divisions).toLocaleString() : (d.total_military_power !== undefined ? d.total_military_power : 'Classified')}</div>
+            </div>
+        </div>
+
+        <div class="info-tile" style="margin-bottom: 0.65rem;">
+            <div style="font-size:0.72rem; color:#94a3b8; font-weight:700; margin-bottom:0.35rem; text-transform:uppercase;">Forces & Defense Posture</div>
+            <div style="font-size:0.75rem; color:#cbd5e1; line-height:1.5;">
+                • <strong>Fortified Defense Power:</strong> ${d.total_defense_power !== undefined ? d.total_defense_power : (d.bunker_defense !== undefined ? `${d.bunker_defense} Bunkers` : 'Classified')}<br>
+                • <strong>Mechanized Units:</strong> 🛡️ ${Number(d.tanks || 0)} Tanks · ✈️ ${Number(d.jets || 0)} Jets · 🚢 ${Number(d.ships || 0)} Ships<br>
+                • <strong>Stability:</strong> ${d.stability !== undefined ? d.stability + '%' : 'Classified'} | <strong>Civil Unrest:</strong> ${d.unrest !== undefined ? d.unrest + '%' : (d.is_rioting ? '🔥 Rioting' : 'Normal')}<br>
+                • <strong>Active Coalition:</strong> ${d.alliances || 'Non-Aligned'}<br>
+                • <strong>Nuclear Readiness:</strong> ${d.nuclear_plot_detected ? '⚠️ <span style="color:#ef4444; font-weight:700;">Tactical Nuke / Launch Pad Detected!</span>' : '<span style="color:#10b981;">No active nuclear launch capability detected</span>'}
+            </div>
+        </div>
     `;
 
+    if ((d.installed_arsenal || []).length > 0) {
+        bodyHtml += `
+            <div class="info-tile" style="margin-bottom: 0.65rem;">
+                <div style="font-size:0.72rem; color:#94a3b8; font-weight:700; margin-bottom:0.35rem; text-transform:uppercase;">Detected Arsenal Tools</div>
+                <div style="font-size:0.75rem; color:#cbd5e1;">${d.installed_arsenal.map(a => `<span class="hud-tag" style="margin:2px; background:rgba(56,189,248,0.15); color:#38bdf8;">${escapeHtml(a)}</span>`).join(' ')}</div>
+            </div>
+        `;
+    }
+
+    if ((d.foreign_incursions || []).length > 0) {
+        bodyHtml += `
+            <div class="info-tile" style="margin-bottom: 0.65rem;">
+                <div style="font-size:0.72rem; color:#94a3b8; font-weight:700; margin-bottom:0.35rem; text-transform:uppercase;">Covert Operations & Incursions</div>
+                ${d.foreign_incursions.map(f => `<div style="font-size:0.72rem; color:#cbd5e1; margin-bottom:0.25rem;">• Agent <b>${escapeHtml(f.codename || 'Unknown')}</b> (${escapeHtml(f.sponsor_nation || 'Foreign')}) - Status: <b>${escapeHtml(f.status || 'Active')}</b></div>`).join('')}
+            </div>
+        `;
+    }
+
+    if ((d.military_orders_last_30_days || []).length > 0) {
+        bodyHtml += `
+            <div class="info-tile" style="margin-bottom: 0.65rem;">
+                <div style="font-size:0.72rem; color:#94a3b8; font-weight:700; margin-bottom:0.35rem; text-transform:uppercase;">Recent Military Procurement (30 Days)</div>
+                ${d.military_orders_last_30_days.slice(0, 6).map(order => `<div style="font-size:0.72rem; color:#cbd5e1;">• ${escapeHtml(String(order.action || 'procured'))}: ${Number(order.amount || 0)} × ${escapeHtml(String(order.unit_type || 'unit'))}</div>`).join('')}
+            </div>
+        `;
+    }
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card" style="max-width: 520px; max-height: 85vh; overflow-y: auto;">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🛰️</span> ${targetFlag} Classified Dossier: ${escapeHtml(targetName)}
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+                <div style="font-size:0.72rem; color:#94a3b8; margin-bottom:0.75rem;">
+                    Category: <strong style="color:#38bdf8;">${escapeHtml(category)}</strong>
+                </div>
+                ${bodyHtml}
+                <div style="display:flex; justify-content:flex-end; margin-top:0.75rem;">
+                    <button class="btn-action-sm" onclick="closeModal()">Close Dossier</button>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 

@@ -7387,6 +7387,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 "category": "Covert Operations Audit",
                 "target_name": target_country["name"],
                 "target_flag": target_country["flag"],
+                "population": target_country.get("population", 100),
                 "foreign_incursions": recent_incursions,
                 "unrest": target_country.get("unrest", 0),
                 "is_rioting": bool(target_country.get("is_rioting", 0)),
@@ -7399,6 +7400,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 "category": "Military & Arsenal Blueprint",
                 "target_name": target_country["name"],
                 "target_flag": target_country["flag"],
+                "population": target_country.get("population", 100),
+                "army_divisions": target_country.get("army_divisions", 10),
+                "tanks": target_country.get("tanks", 1),
+                "jets": target_country.get("jets", 1),
+                "ships": target_country.get("ships", 1),
                 "active_wars": target_country.get("active_war_count", 0),
                 "installed_arsenal": [t.get("name", t.get("tool_key", "Tool")) for t in tools],
                 "bunker_defense": sum(b["level"] for b in target_country.get("buildings", []) if b["building_type"] == "bunker"),
@@ -7410,12 +7416,13 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 "category": "Treasury & Economic Audit",
                 "target_name": target_country["name"],
                 "target_flag": target_country["flag"],
+                "population": target_country.get("population", 100),
                 "treasury": target_country.get("treasury", 0),
                 "gdp": target_country.get("gdp", 0),
                 "tax_rate": f"{target_country.get('tax_rate', 10)}%",
                 "gold_mines": sum(b["level"] for b in target_country.get("buildings", []) if b["building_type"] == "gold_mine"),
                 "oil_rigs": sum(b["level"] for b in target_country.get("buildings", []) if b["building_type"] == "oil_rig"),
-                "summary": f"Confirmed treasury vault balance of {target_country.get('treasury', 0):,} Medals and GDP of {target_country.get('gdp', 0):,} Medals."
+                "summary": f"Confirmed treasury vault balance of {target_country.get('treasury', 0):,} Medals and GDP of {target_country.get('gdp', 0):,} GDP."
             }
 
         import json

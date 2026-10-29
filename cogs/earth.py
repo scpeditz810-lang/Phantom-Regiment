@@ -613,6 +613,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         embed.add_field(name="👑 Sovereign Ruler", value=leader_str, inline=True)
         embed.add_field(name="💰 GDP Valuation", value=f"`{c.get('gdp', 0):,} GDP`", inline=True)
         embed.add_field(name="🏦 State Treasury", value=f"`{c.get('treasury', 0):,} Medals`", inline=True)
+        embed.add_field(name="👥 Population", value=f"`{c.get('population', 100):,} Citizens`", inline=True)
+        embed.add_field(name="⚔️ Standing Army", value=f"`{c.get('army_divisions', 10):,} Divisions`", inline=True)
 
         embed.add_field(name=f"🛡️ National Stability ({stability}%)", value=stab_bar, inline=True)
         embed.add_field(name=f"⚡ Civil Unrest ({unrest}%)", value=unrest_bar, inline=True)
@@ -779,7 +781,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             title=f"🏛️ Sovereign Ministry Hub: {c['flag']} {c['name']} ({c['code']})",
             description=(
                 f"**Your Governed Portfolio:** `{c.get('role_title', 'Citizen')}`\n"
-                f"**National Treasury:** `{c.get('treasury', 0):,} Medals` | **GDP:** `{c.get('gdp', 0):,} GDP`\n"
+                f"**National Treasury:** `{c.get('treasury', 0):,} Medals` | **GDP:** `{c.get('gdp', 0):,} GDP` | **Population:** `{c.get('population', 100):,} Citizens`\n"
                 f"**Stability:** `{c.get('stability', 80)}%` | **Unrest:** `{c.get('unrest', 10)}%`\n\n"
                 f"Use the interactive dropdown below to access your department dashboard directly."
             ),
@@ -1524,6 +1526,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             color=0xF59E0B
         )
 
+        if "population" in dossier:
+            embed.add_field(name="👥 Citizen Population", value=f"{dossier.get('population', 100):,} Citizens", inline=True)
         if intel_type.value == "military_readiness":
             embed.add_field(name="Active War Theaters", value=str(dossier.get("active_wars", 0)), inline=True)
             embed.add_field(name="Fortification Bunkers", value=f"Lvl {dossier.get('bunker_defense', 0)}", inline=True)
