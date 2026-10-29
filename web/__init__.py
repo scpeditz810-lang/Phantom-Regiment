@@ -49,20 +49,8 @@ def create_app(bot=None, db=None, loop=None):
     def ping():
         return "OK", 200
 
-    _last_web_clean = 0
-
     @app.before_request
     def enforce_discord_verification():
-        nonlocal _last_web_clean
-        import time
-        now = time.time()
-        if now - _last_web_clean > 120:
-            _last_web_clean = now
-            try:
-                from bot import emergency_disk_clean
-                emergency_disk_clean()
-            except Exception:
-                pass
 
         path = request.path
         # Allow static files, ping, and favicon without authentication

@@ -299,13 +299,12 @@ class GitBackup:
                         except Exception:
                             pass
 
-            # 2. Expire reflogs, prune loose git objects, and repack git repository
+            # 2. Expire reflogs, prune loose git objects, and gc git repository
             git_dir = os.path.join(base_dir, ".git")
             if os.path.isdir(git_dir):
                 self._run(["git", "reflog", "expire", "--expire=now", "--all"], cwd=base_dir, check=False)
                 self._run(["git", "prune", "--expire=now"], cwd=base_dir, check=False)
-                self._run(["git", "repack", "-a", "-d", "-l"], cwd=base_dir, check=False)
-                self._run(["git", "gc", "--auto", "--prune=now"], cwd=base_dir, check=False)
+                self._run(["git", "gc", "--prune=now", "--quiet"], cwd=base_dir, check=False)
 
             # 3. Clean abandoned temporary files in /tmp and .cache
             for tmp_candidate in ("/tmp", os.path.join(base_dir, ".cache")):
@@ -363,8 +362,8 @@ class GitBackup:
             self._run(["git", "push", "-u", auth_url, "main"], cwd=self.repo_dir)
             self._last_hash = current
             self._backup_count = getattr(self, "_backup_count", 0) + 1
-            if self._backup_count % 10 == 0:
-                self.cleanup_space()
+            # Run cleanup every backup to keep container storage strictly under 15MB for .git
+            self.cleanup_space()
             try:
                 print(f"[Backup Success] Consistent SQLite snapshot backed up ({os.path.getsize(snapshot):,} bytes).", flush=True)
             except Exception:

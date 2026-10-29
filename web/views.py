@@ -314,28 +314,38 @@ def members_page():
 
 @views_bp.route("/earth")
 def earth_page():
-    user = session.get("user")
-    user_data = None
-    user_country = None
-    db = current_app.config["DB"]
-    if user:
-        raw_uid = user.get("id")
-        uid = int(raw_uid) if str(raw_uid).isdigit() else raw_uid
-        try:
-            user_data = run_async(db.get_global_economy(uid))
-        except Exception:
-            user_data = {"balance": 0, "bank": 0, "medals": 0}
-        try:
-            user_country = run_async(db.get_user_earth_country(uid))
-        except Exception:
-            user_country = None
+    try:
+        user = session.get("user")
+        user_data = None
+        user_country = None
+        db = current_app.config.get("DB")
+        if user and db:
+            raw_uid = user.get("id")
+            uid = int(raw_uid) if str(raw_uid).isdigit() else raw_uid
+            try:
+                user_data = run_async(db.get_global_economy(uid))
+            except Exception:
+                user_data = {"balance": 0, "bank": 0, "medals": 0}
+            try:
+                user_country = run_async(db.get_user_earth_country(uid))
+            except Exception:
+                user_country = None
 
-    return render_template(
-        "earth.html",
-        user=user,
-        user_data=user_data,
-        user_country=user_country
-    )
+        return render_template(
+            "earth.html",
+            user=user,
+            user_data=user_data or {"balance": 0, "bank": 0, "medals": 0},
+            user_country=user_country
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return render_template(
+            "earth.html",
+            user=session.get("user"),
+            user_data={"balance": 0, "bank": 0, "medals": 0},
+            user_country=None
+        )
 
 @views_bp.route("/mayor")
 @mayor_required

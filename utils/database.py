@@ -77,6 +77,14 @@ class Database:
 
         self._db.row_factory = aiosqlite.Row
 
+        try:
+            await self._db.execute("PRAGMA journal_mode = WAL")
+            await self._db.execute("PRAGMA synchronous = NORMAL")
+            await self._db.execute("PRAGMA journal_size_limit = 1048576")
+            await self._db.execute("PRAGMA wal_autocheckpoint = 100")
+        except Exception:
+            pass
+
 
 
         await self._db.executescript("""

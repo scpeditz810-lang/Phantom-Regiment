@@ -134,31 +134,31 @@ def emergency_disk_clean():
                 except Exception:
                     pass
 
-        # 5. Prune git reflogs and repack loose objects in base_dir/.git
+        # 5. Prune git reflogs, loose objects, and gc base_dir/.git
         if os.path.isdir(os.path.join(base_dir, ".git")):
             try:
                 subprocess.run(["git", "reflog", "expire", "--expire=now", "--all"], cwd=base_dir, timeout=15, capture_output=True)
                 subprocess.run(["git", "prune", "--expire=now"], cwd=base_dir, timeout=15, capture_output=True)
-                subprocess.run(["git", "repack", "-a", "-d"], cwd=base_dir, timeout=30, capture_output=True)
-                print("🧹 [Disk Cleanup] Repacked and pruned base_dir/.git", flush=True)
+                subprocess.run(["git", "gc", "--prune=now", "--quiet"], cwd=base_dir, timeout=30, capture_output=True)
+                print("🧹 [Disk Cleanup] Repacked and garbage-collected base_dir/.git", flush=True)
             except Exception as git_err:
-                print(f"⚠️ [Disk Cleanup] Git repack/prune notice: {git_err}", flush=True)
+                print(f"⚠️ [Disk Cleanup] Git gc notice: {git_err}", flush=True)
 
-        # 6. Auto-sync repository code from GitHub
-        if os.path.isdir(os.path.join(base_dir, ".git")):
-            token = os.environ.get("GITHUB_TOKEN", "").strip()
-            repo = os.environ.get("GITHUB_REPO", "").strip()
-            if token and repo:
-                auth_url = repo.replace("https://", f"https://{token}@")
-                try:
-                    subprocess.run(["git", "fetch", auth_url, "main"], cwd=base_dir, timeout=15, capture_output=True)
-                except Exception:
-                    pass
+        # 6. Checkpoint and truncate SQLite WAL to keep data/bot.db-wal under 1MB
+        db_file = os.path.join(data_dir, "bot.db")
+        if os.path.isfile(db_file):
+            try:
+                import sqlite3
+                conn = sqlite3.connect(db_file, timeout=10.0)
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                conn.execute("PRAGMA journal_size_limit = 1048576")
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         print(f"⚠️ Emergency disk cleanup notice: {e}", flush=True)
 
 emergency_disk_clean()
-
 
 
 
@@ -252,28 +252,14 @@ bot.tree.interaction_check = block_banned_app_commands
 
 _last_disk_clean = 0
 
-@tasks.loop(seconds=10)
-
+@tasks.loop(minutes=5)
 async def backup_loop():
-
-    """Push DB to GitHub every 10 seconds if it changed and keep disk space lean."""
-
-    global _last_disk_clean
-
+    """Push consistent DB snapshot to GitHub every 5 minutes if it changed and keep disk lean."""
     try:
-        now = time.time()
-        if now - _last_disk_clean > 300:
-            _last_disk_clean = now
-            await asyncio.to_thread(emergency_disk_clean)
-
+        await asyncio.to_thread(emergency_disk_clean)
         await asyncio.to_thread(backup.push_if_changed)
-
     except Exception as e:
-
         print(f"⚠️ Backup loop encountered an error: {e}")
-
-
-
 
 
 @bot.event

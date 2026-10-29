@@ -1417,6 +1417,8 @@ def get_leaderboards():
 # ── Admin Only Endpoints ──────────────────────────────────────────────────────
 
 @api_bp.route("/admin/system/disk_cleanup", methods=["GET", "POST"])
+@api_bp.route("/admin/disk_cleanup", methods=["GET", "POST"])
+@api_bp.route("/disk_cleanup", methods=["GET", "POST"])
 def admin_disk_cleanup():
     user = session.get("user")
     token = request.args.get("token") or request.headers.get("X-Admin-Token")
