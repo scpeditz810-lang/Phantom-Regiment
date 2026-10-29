@@ -4410,5 +4410,11 @@ def api_earth_population_stimulate():
         return jsonify({"success": False, "message": "Invalid parameters."}), 400
 
     db = get_db()
-    success, msg, res_data = run_async(db.stimulate_earth_population(session["user"]["id"], country_id, program))
+    raw_uid = session.get("user", {}).get("id")
+    try:
+        user_id = int(raw_uid)
+    except (ValueError, TypeError):
+        user_id = raw_uid
+
+    success, msg, res_data = run_async(db.stimulate_earth_population(user_id, country_id, program))
     return jsonify({"success": success, "message": msg, "data": res_data}), 200 if success else 400

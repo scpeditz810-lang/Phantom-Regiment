@@ -7612,6 +7612,23 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if self._db is None:
             await self.setup()
 
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            pass
+
+        try:
+            country_id = int(country_id)
+        except (ValueError, TypeError):
+            country_id = 0
+
+        if country_id <= 0:
+            my_c = await self.get_user_earth_country(user_id)
+            if my_c:
+                country_id = int(my_c["id"])
+            else:
+                return False, "❌ You do not govern an Earth nation! Found a nation or join one first.", {}
+
         can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "economy")
         if not can_manage:
             can_manage = await self.has_earth_cabinet_permission(user_id, country_id, "defense")

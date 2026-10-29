@@ -6749,7 +6749,7 @@ async function executeTreasuryInvest() {
 
 function openPopulationModal() {
     const container = document.getElementById("modal-container");
-    const c = selectedCountry || userCountry;
+    const c = (selectedCountry && (isOwner || selectedCountry.can_manage_economy)) ? selectedCountry : (userCountry || selectedCountry);
     if (!c) {
         showToast("❌ You do not govern an active nation!");
         return;
@@ -6813,7 +6813,7 @@ function openPopulationModal() {
 }
 
 async function stimulatePopulation(program) {
-    const c = selectedCountry || userCountry;
+    const c = (selectedCountry && (isOwner || selectedCountry.can_manage_economy)) ? selectedCountry : (userCountry || selectedCountry);
     if (!c) return;
     try {
         const res = await fetch("/api/earth/population/stimulate", {

@@ -1677,11 +1677,37 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         app_commands.Choice(name="🌍 Skilled Foreign Labor & Diaspora Visas (30k Treasury + 2.5k Medals: +80-150 Pop)", value="immigration"),
         app_commands.Choice(name="🏗️ Civic Suburban Expansion & Housing (65k Treasury + 5k Medals: +200-350 Pop)", value="housing")
     ])
-    async def earth_population(self, interaction: discord.Interaction, program: app_commands.Choice[str]):
+    async def earth_population(self, interaction: discord.Interaction, program: app_commands.Choice[str] | None = None):
         await interaction.response.defer()
         my_c = await self.bot.db.get_user_earth_country(interaction.user.id)
         if not my_c:
             await interaction.followup.send("❌ You do not govern an Earth nation! Found a nation or join one first.", ephemeral=True)
+            return
+
+        if not program:
+            pop = int(my_c.get("population", 100) or 100)
+            treasury = int(my_c.get("treasury", 0) or 0)
+            unrest = int(my_c.get("unrest", 10) or 10)
+            desc = (
+                f"👥 **Current Population:** `{pop:,} Citizens`\n"
+                f"🛡️ **Military Force Cap:** `{pop // 5:,} Army Divisions`\n"
+                f"💰 **National Treasury:** `{treasury:,}` | ⚡ **Unrest:** `{unrest}%`\n\n"
+                "**Available Stimulus Programs:**\n"
+                "• 🏥 **Healthcare Drive:** `/earth population program:healthcare`\n"
+                "  Cost: `12,000 Treasury` | Yield: `+35-55 Pop`, `-6% Unrest`\n"
+                "• 🌍 **Immigration Accord:** `/earth population program:immigration`\n"
+                "  Cost: `30k Treasury + 2.5k Medals` | Yield: `+80-150 Pop`\n"
+                "• 🏗️ **Housing Expansion:** `/earth population program:housing`\n"
+                "  Cost: `65k Treasury + 5k Medals` | Yield: `+200-350 Pop`, `+8% Stability`\n\n"
+                "*Run the command with a program selected or use the web dashboard to enact!*"
+            )
+            embed = discord.Embed(
+                title=f"📈 Demographics & Population: {my_c['flag']} {my_c['name']}",
+                description=desc,
+                color=0x10B981
+            )
+            embed.set_footer(text="Virtual Earth 3D • Demographics Overview")
+            await interaction.followup.send(embed=embed)
             return
 
         success, msg, res_data = await self.bot.db.stimulate_earth_population(interaction.user.id, my_c["id"], program.value)
