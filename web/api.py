@@ -337,6 +337,11 @@ async def _bg_broadcast_commander_resigned(country_id: int, commander_name: str,
 
 
 
+def _get_earth_cog(bot):
+    if not bot:
+        return None
+    return bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+
 async def _bg_broadcast_un_sanction(country_id: int, reason: str, signatory: str, bot=None, db=None):
     if not bot:
         try:
