@@ -4880,26 +4880,43 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self._db.commit()
         return True, "Nomination decree cancelled."
 
+
+class ResignationResult(tuple):
+    def __new__(cls, success: bool, message: str, data: dict = None):
+        return super().__new__(cls, (success, message))
+    def __init__(self, success: bool, message: str, data: dict = None):
+        self.data = data or {}
+
+class NuclearStrikeResult(tuple):
+    def __new__(cls, success: bool, message: str, data: dict = None):
+        return super().__new__(cls, (success, message))
+    def __init__(self, success: bool, message: str, data: dict = None):
+        self.data = data or {}
+
     async def resign_earth_cabinet(self, user_id: int, country_id: int = None) -> tuple[bool, str]:
         """A minister resigns from their cabinet portfolio."""
         if self._db is None:
             await self.setup()
         from utils.constants import EARTH_CABINET_ROLES
         sql = "SELECT country_id, role FROM earth_cabinet WHERE user_id = ?"
-        params = [user_id, user_id, user_id]
+        params = [user_id]
         if country_id:
             sql += " AND country_id = ?"
             params.append(country_id)
         async with self._db.execute(sql, tuple(params)) as cur:
             row = await cur.fetchone()
             if not row:
-                return False, "You do not currently hold any active ministerial cabinet portfolio."
-            cid, role = row[0], row[1]
+                return ResignationResult(False, "You do not currently hold any active ministerial cabinet portfolio.", {})
+            cid, role = row[0], role[1]
 
         await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ? AND country_id = ?", (user_id, cid))
         await self._db.commit()
         role_info = EARTH_CABINET_ROLES.get(role, {"title": role})
-        return True, f"Resignation tendered. You have stepped down as **{role_info.get('title', role)}**. Portfolio duties have reverted to the President."
+        return ResignationResult(
+            True,
+            f"Resignation tendered. You have stepped down as **{role_info.get('title', role)}**. Portfolio duties have reverted to the President.",
+            {"country_id": cid, "role": role, "role_title": role_info.get("title", role)}
+        )
 
     async def get_user_pending_cabinet_invites(self, user_id: int) -> list[dict]:
         """Get all pending cabinet appointment offers sent to a user."""
@@ -6131,7 +6148,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (war_id, source_country_id, target_country_id, int(user_id), damage, now))
             await self._db.commit()
-            return True, f"Nuclear strike launched. {damage:,} GDP damage, -20 stability, +25 unrest. The one-use tactical weapon was consumed."
+            return NuclearStrikeResult(
+                True,
+                f"Nuclear strike launched. {damage:,} GDP damage, -20 stability, +25 unrest. The one-use tactical weapon was consumed.",
+                {"target_country_id": target_country_id, "source_country_id": source_country_id, "damage": damage, "war_id": war_id}
+            )
         except Exception:
             await self._db.rollback()
             raise

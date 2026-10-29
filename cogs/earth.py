@@ -21,6 +21,12 @@ from utils.earth_anim import (
     create_new_commander_gif,
     create_new_commander_media,
     create_martial_law_media,
+    create_nuclear_strike_media,
+    generate_nuclear_strike_speech,
+    create_commander_resigned_media,
+    generate_commander_resigned_speech,
+    create_revolution_media,
+    generate_revolution_speech,
     generate_tactical_audio,
     generate_voice_narration,
     generate_ruler_speech,
@@ -419,6 +425,104 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         except Exception as e:
             print(f"⚠️ Error broadcasting martial law news: {e}", flush=True)
 
+    async def broadcast_nuclear_strike_news(
+        self,
+        attacker_c: dict,
+        target_c: dict,
+        damage: int = 0,
+        striker_name: str = None
+    ):
+        """Broadcast tactical nuclear detonation to #earth-news with video & spoken dispatch."""
+        try:
+            speech_buf = generate_nuclear_strike_speech(attacker_c["name"], target_c["name"])
+            gif_buf, mp4_buf = create_nuclear_strike_media(
+                attacker_c["name"], attacker_c["flag"],
+                target_c["name"], target_c["flag"],
+                audio_bytes=speech_buf
+            )
+            striker_label = striker_name or f"<@{attacker_c.get('owner_id')}>"
+            tgt_owner = target_c.get("owner_id")
+            tgt_str = f"<@{tgt_owner}>" if tgt_owner else "*Autonomous Sovereign Trust*"
+            desc = (
+                f"☢️ **Launching Power:** {attacker_c['flag']} **{attacker_c['name']}** (Authorized: {striker_label})\n"
+                f"🎯 **Target Ground Zero:** {target_c['flag']} **{target_c['name']}** (Leadership: {tgt_str})\n"
+                f"💥 **Detonation Damage:** `-{damage:,} GDP Valuation` | `-20 Stability` | `+25 Civil Unrest`\n"
+                f"👥 **Casualties:** Severe civilian casualties (-5% Population) and widespread fallout!\n\n"
+                f"🚨 All global powers are advised to verify ballistic missile defense readiness (Iron Dome / Hypersonic Shield) and prepare for strategic retaliation."
+            )
+            await self.broadcast_news(
+                title="☢️ SOVEREIGN NUCLEAR STRIKE // THERMONUCLEAR DETONATION",
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="nuclear_news.gif",
+                color=0xEF4444,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting nuclear strike news: {e}", flush=True)
+
+    async def broadcast_revolution_news(
+        self,
+        country_name: str,
+        country_flag: str,
+        ousted_ruler_name: str,
+        ousted_ruler_id: int = None
+    ):
+        """Broadcast popular revolution / rebel overthrow of a leader to #earth-news with video & spoken dispatch."""
+        try:
+            speech_buf = generate_revolution_speech(country_name, ousted_ruler_name)
+            gif_buf, mp4_buf = create_revolution_media(country_name, country_flag, ousted_ruler_name, audio_bytes=speech_buf)
+            ousted_mention = f"<@{ousted_ruler_id}>" if ousted_ruler_id else f"**{ousted_ruler_name}**"
+            desc = (
+                f"🔥 **Nation in Upheaval:** {country_flag} **{country_name}**\n"
+                f"👑 **Deposed Ruler:** {ousted_mention}\n"
+                f"⚡ **Revolutionary Cause:** Unbearable tax pressure & civil unrest caused citizen protesters and rebels to storm the sovereign palace.\n\n"
+                f"🏛️ **New Sovereign Status:** National leadership has collapsed! The nation has been placed into the autonomous State Trust. Any citizen may now step forward and claim the vacant throne."
+            )
+            await self.broadcast_news(
+                title="🔥 POPULAR REVOLUTION // SOVEREIGN REGIME OVERTHROWN",
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="revolution_news.gif",
+                color=0xDC2626,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting revolution news: {e}", flush=True)
+
+    async def broadcast_commander_resigned_news(
+        self,
+        country_name: str,
+        country_flag: str,
+        commander_name: str,
+        role_title: str = "Supreme Army Commander"
+    ):
+        """Broadcast high military command or cabinet minister resignation to #earth-news with video & spoken narration."""
+        try:
+            speech_buf = generate_commander_resigned_speech(country_name, commander_name, role_title)
+            gif_buf, mp4_buf = create_commander_resigned_media(
+                country_name, country_flag, commander_name, role_title, audio_bytes=speech_buf
+            )
+            desc = (
+                f"🏛️ **Sovereign Nation:** {country_flag} **{country_name}**\n"
+                f"👤 **Outgoing Official:** **{commander_name}**\n"
+                f"📜 **Relinquished Portfolio:** `{role_title}`\n\n"
+                f"🚪 Official commission has been surrendered. High ministerial authority and command portfolio duties have reverted to the Head of State."
+            )
+            await self.broadcast_news(
+                title="🚪 CABINET RESIGNATION // HIGH COMMAND RELINQUISHED",
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="commander_resigned.gif",
+                color=0xEAB308,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting commander resigned news: {e}", flush=True)
+
     async def broadcast_war_declared(self, attacker_c: dict, defender_c: dict, scale_name: str, duration_hours: int, war_id: int, domain: str = "land", aggressor_mention: str = None):
         """Broadcast sovereign war declaration to #earth-news with animated card, announcer voice & surrender controls."""
         try:
@@ -505,6 +609,23 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     @tasks.loop(seconds=60)
     async def earth_war_checker(self):
         try:
+            # Check for popular revolutions and deposed rulers
+            try:
+                rev_events = await self.bot.db.check_earth_riots_and_revolutions()
+                for rev in rev_events:
+                    if rev.get("type") == "revolution":
+                        ousted_id = rev.get("ousted_leader_id")
+                        ousted_user = await self.bot.fetch_user(ousted_id) if ousted_id else None
+                        ousted_name = ousted_user.display_name if ousted_user else "Sovereign Ruler"
+                        await self.broadcast_revolution_news(
+                            country_name=rev["name"],
+                            country_flag=rev["flag"],
+                            ousted_ruler_name=ousted_name,
+                            ousted_ruler_id=ousted_id
+                        )
+            except Exception as rev_err:
+                print(f"⚠️ Error checking revolutions: {rev_err}", flush=True)
+
             concluded = await self.bot.db.resolve_concluded_earth_wars()
             for res in concluded:
                 if res.get("status") in ("attacker_won", "defender_won"):
@@ -574,19 +695,33 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     # ─── Country Overview ─────────────────────────────────────────────────────
 
+    @earth_group.command(name="dossier", description="Open sovereign nation dossier, population, and status.")
+    @app_commands.describe(country="Country code or name (e.g. USA, RUS, IND) or leave blank for your own nation")
+    async def earth_dossier(self, interaction: discord.Interaction, country: str = None):
+        """Direct alias for /earth view so /earth dossier opens national status immediately."""
+        await self.earth_view(interaction, country)
+
     @earth_group.command(name="view", description="View sovereign dossier and status of an Earth nation.")
-    @app_commands.describe(country="3-letter country code or name (e.g. RUS, IND, USA)")
-    async def earth_view(self, interaction: discord.Interaction, country: str):
+    @app_commands.describe(country="3-letter country code or name (e.g. RUS, IND, USA) or leave blank for your own nation")
+    async def earth_view(self, interaction: discord.Interaction, country: str = None):
         await interaction.response.defer()
-        code = country.strip().upper()
-        c = await self.bot.db.get_earth_country_by_code(code)
-        if not c:
-            # Try searching by name substring
-            countries = await self.bot.db.get_earth_countries()
-            for cand in countries:
-                if country.lower() in cand["name"].lower():
-                    c = await self.bot.db.get_earth_country(cand["id"])
-                    break
+        if not country:
+            c = await self.bot.db.get_user_earth_country(interaction.user.id)
+            if not c:
+                await interaction.followup.send(
+                    f"❌ You do not currently govern an Earth nation. To view another nation's dossier, specify the country name or code: `/earth dossier USA`, or visit the [Virtual Earth Globe]({WEB_URL})!",
+                    ephemeral=True
+                )
+                return
+        else:
+            code = country.strip().upper()
+            c = await self.bot.db.get_earth_country_by_code(code)
+            if not c:
+                countries = await self.bot.db.get_earth_countries()
+                for cand in countries:
+                    if country.lower() in cand["name"].lower():
+                        c = await self.bot.db.get_earth_country(cand["id"])
+                        break
 
         if not c:
             await interaction.followup.send(f"❌ Sovereign country `{country}` not found. Try codes like `RUS`, `IND`, `USA`, `CHN`, `GBR`, `DEU`, etc.")
@@ -918,11 +1053,59 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @earth_group.command(name="resign", description="Resign from your current ministerial cabinet portfolio or command.")
+    async def earth_resign(self, interaction: discord.Interaction):
+        """Direct command to resign from your current cabinet portfolio or command."""
+        await self.cabinet_resign(interaction)
+
     @cabinet_group.command(name="resign", description="Resign from your current ministerial cabinet portfolio.")
     async def cabinet_resign(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        success, msg = await self.bot.db.resign_earth_cabinet(interaction.user.id)
+        res = await self.bot.db.resign_earth_cabinet(interaction.user.id)
+        success = res[0]
+        msg = res[1]
+        res_data = getattr(res, "data", {})
+        if not res_data and len(res) > 2:
+            res_data = res[2]
+
         await interaction.followup.send(f"🏛️ {msg}" if success else f"❌ {msg}", ephemeral=True)
+        if success and res_data.get("country_id"):
+            cid = res_data.get("country_id")
+            role_title = res_data.get("role_title", "Supreme Army Commander")
+            c = await self.bot.db.get_earth_country(cid)
+            if c:
+                await self.broadcast_commander_resigned_news(
+                    country_name=c["name"],
+                    country_flag=c["flag"],
+                    commander_name=interaction.user.display_name,
+                    role_title=role_title
+                )
+
+    @earth_group.command(name="nuke", description="Launch an authorized tactical nuclear strike against an active war adversary.")
+    @app_commands.describe(war_id="Active war ID where your country is engaged")
+    async def earth_nuke(self, interaction: discord.Interaction, war_id: int):
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("❌ You do not govern an Earth nation or hold defense command.", ephemeral=True)
+            return
+
+        res = await self.bot.db.launch_earth_nuclear_strike(interaction.user.id, c["id"], war_id)
+        success = res[0]
+        msg = res[1]
+        res_data = getattr(res, "data", {})
+        if not res_data and len(res) > 2:
+            res_data = res[2]
+
+        if success:
+            tgt_id = res_data.get("target_country_id")
+            damage = res_data.get("damage", 0)
+            tgt_c = await self.bot.db.get_earth_country(tgt_id) if tgt_id else None
+            await interaction.followup.send(f"☢️ **TACTICAL NUCLEAR MISSILE LAUNCHED!**\n{msg}")
+            if tgt_c:
+                await self.broadcast_nuclear_strike_news(c, tgt_c, damage=damage, striker_name=interaction.user.display_name)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
 
     # ─── Infrastructure Construction ──────────────────────────────────────────
 

@@ -266,6 +266,69 @@ async def _bg_broadcast_martial_law(country_id: int, bot=None, db=None):
     else:
         print("⚠️ _bg_broadcast_martial_law: Virtual Earth cog not found on bot!", flush=True)
 
+async def _bg_broadcast_nuclear_strike(source_country_id: int, target_country_id: int, damage: int = 0, striker_name: str = None, bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            db = None
+    if not bot or not db:
+        print(f"⚠️ _bg_broadcast_nuclear_strike: bot ({bot}) or db ({db}) missing!", flush=True)
+        return
+    source_c = await db.get_earth_country(source_country_id)
+    target_c = await db.get_earth_country(target_country_id)
+    if not source_c or not target_c:
+        print(f"⚠️ _bg_broadcast_nuclear_strike: countries ({source_country_id}, {target_country_id}) not found!", flush=True)
+        return
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog:
+        print(f"[DISCORD BROADCAST] Broadcasting strategic nuclear strike: {source_c.get('name')} -> {target_c.get('name')} to Discord...", flush=True)
+        await earth_cog.broadcast_nuclear_strike_news(source_c, target_c, damage=damage, striker_name=striker_name)
+    else:
+        print("⚠️ _bg_broadcast_nuclear_strike: Virtual Earth cog not found on bot!", flush=True)
+
+
+async def _bg_broadcast_revolution(country_name: str, country_flag: str, ousted_ruler_name: str, ousted_ruler_id: int = None, bot=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not bot:
+        return
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog:
+        print(f"[DISCORD BROADCAST] Broadcasting revolution overthrow for {country_name} to Discord...", flush=True)
+        await earth_cog.broadcast_revolution_news(country_name, country_flag, ousted_ruler_name, ousted_ruler_id)
+async def _bg_broadcast_commander_resigned(country_id: int, commander_name: str, role_title: str = "Supreme Army Commander", bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            db = None
+    if not bot or not db:
+        print(f"⚠️ _bg_broadcast_commander_resigned: bot ({bot}) or db ({db}) missing!", flush=True)
+        return
+    c = await db.get_earth_country(country_id)
+    if not c:
+        return
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog:
+        print(f"[DISCORD BROADCAST] Broadcasting resignation: {commander_name} from {c.get('name')} to Discord...", flush=True)
+        await earth_cog.broadcast_commander_resigned_news(c["name"], c["flag"], commander_name, role_title=role_title)
+    else:
+        print("⚠️ _bg_broadcast_commander_resigned: Virtual Earth cog not found on bot!", flush=True)
+
 
 
 @api_bp.route("/stocks")
@@ -2564,16 +2627,23 @@ def api_earth_cabinet_invite_cancel():
 
 
 @api_bp.route("/earth/cabinet/resign", methods=["POST"])
-
 @login_required
-
 def api_earth_cabinet_resign():
-
     user_id = session["user"]["id"]
-
     db = get_db()
+    res = run_async(db.resign_earth_cabinet(user_id))
+    success = res[0]
+    msg = res[1]
+    res_data = getattr(res, "data", {})
+    if not res_data and len(res) > 2:
+        res_data = res[2]
 
-    success, msg = run_async(db.resign_earth_cabinet(user_id))
+    if success and res_data.get("country_id"):
+        cid = res_data.get("country_id")
+        role_title = res_data.get("role_title", "Cabinet Minister")
+        user_name = session.get("user", {}).get("username", "Officer")
+        bot = current_app.config.get("DISCORD_BOT")
+        dispatch_discord_coro(_bg_broadcast_commander_resigned(cid, user_name, role_title, bot=bot, db=db))
 
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
@@ -3920,28 +3990,31 @@ def api_earth_tool_buy():
 
 
 @api_bp.route("/earth/nuclear/launch", methods=["POST"])
-
 @login_required
-
 def api_earth_nuclear_launch():
-
     data = request.get_json() or {}
-
     try:
-
         country_id = int(data.get("country_id", 0))
-
         war_id = int(data.get("war_id", 0))
-
     except (ValueError, TypeError):
-
         return jsonify({"success": False, "message": "Invalid country or war ID."}), 400
 
-    success, message = run_async(get_db().launch_earth_nuclear_strike(
-
+    db = get_db()
+    res = run_async(db.launch_earth_nuclear_strike(
         session["user"]["id"], country_id, war_id
-
     ))
+    success = res[0]
+    message = res[1]
+    res_data = getattr(res, "data", {})
+    if not res_data and len(res) > 2:
+        res_data = res[2]
+
+    if success:
+        target_country_id = res_data.get("target_country_id")
+        damage = res_data.get("damage", 0)
+        bot = current_app.config.get("DISCORD_BOT")
+        striker = session.get("user", {}).get("username", "High Command")
+        dispatch_discord_coro(_bg_broadcast_nuclear_strike(country_id, target_country_id, damage, striker, bot=bot, db=db))
 
     return jsonify({"success": success, "message": message}), 200 if success else 400
 

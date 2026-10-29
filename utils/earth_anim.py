@@ -1524,3 +1524,475 @@ def generate_martial_law_speech(country_name: str) -> io.BytesIO:
         f"Return to your quarters immediately. Sovereign order is being restored by force."
     )
     return generate_voice_narration(speech)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ☢️ NUCLEAR ATTACK ANIMATED BROADCAST PIPELINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def render_nuclear_strike_scene_frame(
+    frame_idx: int,
+    total_frames: int,
+    attacker_name: str,
+    target_name: str
+) -> Image.Image:
+    """Apocalyptic ICBM launch & thermonuclear fireball mushroom cloud detonation."""
+    w, h = 640, 360
+    im = Image.new("RGB", (w, h), (10, 8, 14))
+    draw = ImageDraw.Draw(im)
+
+    font_hud = _get_font_bold(13)
+    font_title = _get_font_bold(16)
+    font_sub = _get_font(11)
+    font_tag = _get_font_bold(10)
+
+    t = frame_idx / max(1, total_frames - 1)
+
+    # 1. Dark apocalyptic burning sky gradient
+    for y in range(240):
+        frac = y / 240.0
+        r = int(12 + frac * 85)
+        g = int(8 + frac * 28)
+        b = int(14 + frac * 18)
+        draw.line([(0, y), (w, y)], fill=(r, g, b))
+
+    # 2. Silhouetted mountains & defense radar station
+    mountains = [
+        [(0, 240), (80, 180), (160, 220), (260, 160), (360, 215), (480, 150), (580, 205), (640, 175), (640, 240)]
+    ]
+    for m in mountains:
+        draw.polygon(m, fill=(24, 16, 22))
+
+    # Ground plain
+    draw.rectangle([0, 235, w, h], fill=(18, 14, 20))
+    for gy in range(240, h, 14):
+        draw.line([(0, gy), (w, gy)], fill=(28, 22, 32), width=1)
+
+    if t < 0.45:
+        # Phase 1: Silo launch & rocket ascent
+        sub_t = t / 0.45
+        silo_x, silo_y = 160, 260
+        draw.rectangle([silo_x - 35, silo_y - 8, silo_x + 35, silo_y + 12], fill=(45, 45, 55), outline=(90, 90, 110))
+        door_slide = int(sub_t * 22)
+        draw.rectangle([silo_x - 35 - door_slide, silo_y - 12, silo_x - door_slide, silo_y - 4], fill=(70, 75, 90))
+        draw.rectangle([silo_x + door_slide, silo_y - 12, silo_x + 35 + door_slide, silo_y - 4], fill=(70, 75, 90))
+
+        for si in range(8):
+            sp_x = silo_x + int(math.sin(si * 1.2 + frame_idx * 0.3) * (20 + si * 6))
+            sp_y = silo_y + 2 + int(math.cos(si * 0.9) * 10)
+            sp_r = int(12 + si * 4)
+            draw.ellipse([sp_x - sp_r, sp_y - sp_r, sp_x + sp_r, sp_y + sp_r], fill=(120, 80, 50), outline=(160, 110, 60))
+
+        missile_progress = sub_t ** 1.3
+        mx = silo_x + int(missile_progress * 260)
+        my = silo_y - int(missile_progress * 210)
+
+        trail_pts = []
+        for step in range(15):
+            st_frac = step / 14.0
+            tx = silo_x + int((missile_progress * st_frac) * 260) + int(math.sin(step + frame_idx) * 3)
+            ty = silo_y - int((missile_progress * st_frac) * 210)
+            trail_pts.append((tx, ty))
+        if len(trail_pts) > 1:
+            draw.line(trail_pts, fill=(245, 158, 11), width=4)
+            draw.line(trail_pts, fill=(255, 255, 255), width=2)
+
+        draw.polygon([(mx - 6, my + 8), (mx + 6, my + 8), (mx, my + 26)], fill=(255, 200, 50))
+        draw.polygon([(mx - 3, my + 6), (mx + 3, my + 6), (mx, my + 18)], fill=(255, 255, 255))
+
+        draw.rectangle([mx - 4, my - 12, mx + 4, my + 6], fill=(220, 225, 235), outline=(100, 110, 130))
+        draw.polygon([(mx - 4, my - 12), (mx + 4, my - 12), (mx, my - 22)], fill=(40, 45, 55))
+        draw.polygon([(mx - 4, my + 2), (mx - 9, my + 7), (mx - 4, my + 7)], fill=(80, 85, 95))
+        draw.polygon([(mx + 4, my + 2), (mx + 9, my + 7), (mx + 4, my + 7)], fill=(80, 85, 95))
+
+        draw.rectangle([20, 48, 390, 86], fill=(20, 25, 35), outline=(245, 158, 11))
+        draw.text((28, 52), f"ICBM LAUNCH SEQUENCE: {attacker_name.upper()}", fill=(255, 255, 255), font=font_hud)
+        draw.text((28, 68), f"BOOSTER BURNOUT IN T+{int(sub_t * 60)}s • TARGETING {target_name.upper()}", fill=(245, 158, 11), font=font_sub)
+    else:
+        # Phase 2: Detonation & mushroom cloud
+        det_t = (t - 0.45) / 0.55
+        cx, cy = 340, 240
+
+        ring_r = int(det_t * 260)
+        draw.ellipse([cx - ring_r, cy - int(ring_r * 0.35), cx + ring_r, cy + int(ring_r * 0.35)], outline=(245, 158, 11), width=2)
+        if ring_r > 40:
+            draw.ellipse([cx - ring_r + 30, cy - int((ring_r - 30) * 0.35), cx + ring_r - 30, cy + int((ring_r - 30) * 0.35)], outline=(239, 68, 68), width=3)
+
+        stem_h = int(min(1.0, det_t * 1.5) * 150)
+        stem_top_y = cy - stem_h
+        for sy in range(cy, stem_top_y, -12):
+            sw = int(18 + math.sin((sy - stem_top_y) * 0.1) * 8)
+            col_r = int(220 + math.sin(sy * 0.2 + frame_idx) * 35)
+            col_g = int(120 + math.cos(sy * 0.3) * 30)
+            draw.ellipse([cx - sw, sy - 14, cx + sw, sy + 14], fill=(col_r, col_g, 40), outline=(239, 68, 68))
+
+        cap_w = int(35 + det_t * 140)
+        cap_h = int(25 + det_t * 70)
+        cap_y = stem_top_y - cap_h // 2
+        for ci in range(12):
+            ang = ci * (2 * math.pi / 12) + frame_idx * 0.05
+            puff_x = cx + int(math.cos(ang) * (cap_w * 0.75))
+            puff_y = cap_y + int(math.sin(ang) * (cap_h * 0.65))
+            pr = int(22 + math.sin(ci + frame_idx * 0.2) * 8)
+            draw.ellipse([puff_x - pr, puff_y - pr, puff_x + pr, puff_y + pr], fill=(180, 70, 30), outline=(245, 158, 11))
+
+        core_r = int(25 + math.sin(frame_idx * 0.5) * 8)
+        draw.ellipse([cx - cap_w//2, cap_y - cap_h//2, cx + cap_w//2, cap_y + cap_h//2], fill=(255, 180, 50))
+        draw.ellipse([cx - core_r, cap_y - core_r//2, cx + core_r, cap_y + core_r//2], fill=(255, 255, 230))
+
+        for di in range(16):
+            dx = cx + int(math.sin(di * 1.7 + frame_idx * 0.4) * (cap_w + 30))
+            dy = cap_y + int(math.cos(di * 2.3 + frame_idx * 0.3) * (cap_h + 40))
+            draw.ellipse([dx - 2, dy - 2, dx + 2, dy + 2], fill=(255, 240, 120))
+
+        draw.rectangle([w//2 - 225, 48, w//2 + 225, 86], fill=(40, 10, 15), outline=(239, 68, 68), width=2)
+        draw.text((w//2, 54), "*** THERMONUCLEAR DETONATION CONFIRMED ***", fill=(255, 255, 255), font=font_title, anchor="mt")
+        draw.text((w//2, 71), f"TARGET GROUND ZERO: {target_name.upper()} • CATASTROPHIC IMPACT", fill=(252, 165, 165), font=font_sub, anchor="mt")
+
+    # Top cinematic HUD bar
+    draw.rectangle([0, 0, w, 38], fill=(15, 10, 15))
+    draw.line([(0, 38), (w, 38)], fill=(239, 68, 68), width=2)
+    draw.text((15, 11), "[!]", fill=(239, 68, 68), font=font_hud)
+    draw.text((38, 11), f"STRATEGIC STRIKE: {attacker_name.upper()} -> {target_name.upper()}", fill=(255, 255, 255), font=font_hud)
+    draw.text((w - 15, 12), "[DEFCON 1: NUCLEAR DETONATION]", fill=(239, 68, 68), font=font_tag, anchor="rt")
+
+    # Bottom ticker bar
+    draw.rectangle([0, h - 24, w, h], fill=(10, 8, 12))
+    draw.line([(0, h - 24), (w, h - 24)], fill=(245, 158, 11), width=1)
+    draw.text((15, h - 18), "HIGH CASUALTIES REPORTED • NATIONAL INFRASTRUCTURE DAMAGED • CIVIL UNREST ERUPTING", fill=(203, 213, 225), font=font_tag)
+
+    return im
+
+def generate_nuclear_strike_frames(attacker_name: str, target_name: str, total_frames: int = 80):
+    atk_c = clean_tactical_text(attacker_name)
+    tgt_c = clean_tactical_text(target_name)
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        yield render_order_parchment_frame(
+            i, parchment_count,
+            "STRATEGIC NUCLEAR ORDER",
+            atk_c,
+            tgt_c,
+            "TACTICAL ICBM STRIKE AUTHORIZED",
+            "WARHEAD DETONATED",
+            (220, 38, 38)
+        )
+    for i in range(action_count):
+        yield render_nuclear_strike_scene_frame(i, action_count, atk_c, tgt_c)
+
+def create_nuclear_strike_frames(attacker_name: str, target_name: str, total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_nuclear_strike_frames(attacker_name, target_name, total_frames))
+
+def create_nuclear_strike_gif(attacker_name: str, attacker_flag: str, target_name: str, target_flag: str) -> io.BytesIO:
+    frames = create_nuclear_strike_frames(attacker_name, target_name, total_frames=45)
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_nuclear_strike_media(attacker_name: str, attacker_flag: str, target_name: str, target_flag: str, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    mp4_buf = render_frames_to_mp4(
+        generate_nuclear_strike_frames(attacker_name, target_name, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_nuclear_strike_gif(attacker_name, attacker_flag, target_name, target_flag)
+    return gif_buf, mp4_buf
+
+def generate_nuclear_strike_speech(attacker_name: str, target_name: str) -> io.BytesIO:
+    clean_atk = clean_for_speech(attacker_name)
+    clean_tgt = clean_for_speech(target_name)
+    speech = (
+        f"Attention all sovereign nations. A tactical nuclear strike has been authorized and launched by {clean_atk} "
+        f"against {clean_tgt}! Severe structural destruction, radiation fallout, and civilian unrest reported across the target territory. "
+        f"All global powers are ordered to maximum defense readiness."
+    )
+    return generate_voice_narration(speech)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🚪 COMMANDER RESIGNATION ANIMATED BROADCAST PIPELINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def render_commander_resigned_scene_frame(
+    frame_idx: int,
+    total_frames: int,
+    country_name: str,
+    commander_name: str,
+    role_title: str = "Supreme Army Commander"
+) -> Image.Image:
+    """War room briefing table with relinquished commission and sovereign cabinet transition."""
+    w, h = 640, 360
+    im = Image.new("RGB", (w, h), (14, 18, 28))
+    draw = ImageDraw.Draw(im)
+
+    font_hud = _get_font_bold(13)
+    font_hero = _get_font_bold(18)
+    font_sub = _get_font(12)
+    font_tag = _get_font_bold(10)
+
+    for x in range(0, w, 32):
+        draw.line([(x, 38), (x, h - 24)], fill=(22, 28, 42), width=1)
+    for y in range(38, h - 24, 32):
+        draw.line([(0, y), (w, y)], fill=(22, 28, 42), width=1)
+
+    rx, ry, rad = 320, 195, 100
+    draw.ellipse([rx - rad, ry - rad, rx + rad, ry + rad], outline=(45, 55, 75), width=2)
+    draw.ellipse([rx - rad//2, ry - rad//2, rx + rad//2, ry + rad//2], outline=(35, 45, 65), width=1)
+    draw.line([(rx - rad, ry), (rx + rad, ry)], fill=(35, 45, 65), width=1)
+    draw.line([(rx, ry - rad), (rx, ry + rad)], fill=(35, 45, 65), width=1)
+
+    pw, ph = 490, 150
+    px, py = w//2 - pw//2, 105
+    draw.rectangle([px, py, px + pw, py + ph], fill=(18, 24, 38), outline=(239, 68, 68), width=2)
+    draw.rectangle([px + 4, py + 4, px + pw - 4, py + ph - 4], outline=(71, 85, 105), width=1)
+
+    draw.text((w//2, py + 18), "RESIGNATION TENDERED // HIGH COMMAND", fill=(248, 113, 113), font=font_hud, anchor="mt")
+    draw.text((w//2, py + 46), f"{commander_name.upper()}", fill=(255, 255, 255), font=font_hero, anchor="mt")
+    draw.text((w//2, py + 78), f"Stepped down as {role_title} of {country_name}", fill=(148, 163, 184), font=font_sub, anchor="mt")
+    draw.text((w//2, py + 106), "Authority & portfolio duties have reverted to the Head of State", fill=(245, 158, 11), font=font_sub, anchor="mt")
+
+    draw.polygon([(px + 10, py + 10), (px + 26, py + 10), (px + 10, py + 26)], fill=(239, 68, 68))
+    draw.polygon([(px + pw - 10, py + 10), (px + pw - 26, py + 10), (px + pw - 10, py + 26)], fill=(239, 68, 68))
+
+    draw.rectangle([0, 0, w, 38], fill=(15, 23, 42))
+    draw.line([(0, 38), (w, 38)], fill=(239, 68, 68), width=2)
+    draw.text((15, 11), "[!]", fill=(239, 68, 68), font=font_hud)
+    draw.text((38, 11), f"CABINET DISPATCH: {country_name.upper()} HIGH COMMAND VACANCY", fill=(255, 255, 255), font=font_hud)
+    draw.text((w - 15, 12), "[COMMISSION RELINQUISHED]", fill=(248, 113, 113), font=font_tag, anchor="rt")
+
+    draw.rectangle([0, h - 24, w, h], fill=(10, 14, 22))
+    draw.line([(0, h - 24), (w, h - 24)], fill=(71, 85, 105), width=1)
+    draw.text((15, h - 18), "MINISTERIAL PORTFOLIO RETURNED TO SOVEREIGN HEAD OF STATE • SUCCESSOR PENDING", fill=(148, 163, 184), font=font_tag)
+
+    return im
+
+def generate_commander_resigned_frames(country_name: str, commander_name: str, role_title: str = "Supreme Army Commander", total_frames: int = 80):
+    c_c = clean_tactical_text(country_name)
+    c_m = clean_tactical_text(commander_name)
+    c_r = clean_tactical_text(role_title)
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        yield render_order_parchment_frame(
+            i, parchment_count,
+            "OFFICIAL RESIGNATION DECREE",
+            c_c,
+            c_m,
+            f"Relinquished {c_r} Portfolio",
+            "COMMISSION TENDERED",
+            (239, 68, 68)
+        )
+    for i in range(action_count):
+        yield render_commander_resigned_scene_frame(i, action_count, c_c, c_m, c_r)
+
+def create_commander_resigned_frames(country_name: str, commander_name: str, role_title: str = "Supreme Army Commander", total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_commander_resigned_frames(country_name, commander_name, role_title, total_frames))
+
+def create_commander_resigned_gif(country_name: str, country_flag: str, commander_name: str, role_title: str = "Supreme Army Commander") -> io.BytesIO:
+    frames = create_commander_resigned_frames(country_name, commander_name, role_title, total_frames=45)
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_commander_resigned_media(country_name: str, country_flag: str, commander_name: str, role_title: str = "Supreme Army Commander", audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    mp4_buf = render_frames_to_mp4(
+        generate_commander_resigned_frames(country_name, commander_name, role_title, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_commander_resigned_gif(country_name, country_flag, commander_name, role_title)
+    return gif_buf, mp4_buf
+
+def generate_commander_resigned_speech(country_name: str, commander_name: str, role_title: str = "Supreme Army Commander") -> io.BytesIO:
+    clean_c = clean_for_speech(country_name)
+    clean_cm = clean_for_speech(commander_name)
+    clean_rt = clean_for_speech(role_title)
+    speech = (
+        f"Official sovereign announcement. {clean_cm} has formally tendered their resignation and stepped down as {clean_rt} of {clean_c}. "
+        f"High command and ministerial portfolio duties have temporarily reverted to the Head of State."
+    )
+    return generate_voice_narration(speech)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🔥 POPULAR REVOLUTION / PROTEST OVERTHROW ANIMATED PIPELINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def render_revolution_scene_frame(
+    frame_idx: int,
+    total_frames: int,
+    country_name: str,
+    ousted_ruler_name: str
+) -> Image.Image:
+    """Presidential Palace breached by rebel crowds, burning barricades, toppled regime."""
+    w, h = 640, 360
+    im = Image.new("RGB", (w, h), (18, 10, 10))
+    draw = ImageDraw.Draw(im)
+
+    font_hud = _get_font_bold(13)
+    font_hero = _get_font_bold(16)
+    font_sub = _get_font(11)
+    font_tag = _get_font_bold(10)
+
+    # 1. Dark stormy fiery sky gradient
+    for y in range(210):
+        frac = y / 210.0
+        r = int(24 + frac * 80)
+        g = int(12 + frac * 28)
+        b = int(10 + frac * 12)
+        draw.line([(0, y), (w, y)], fill=(r, g, b))
+
+    # 2. Silhouetted Presidential Palace with dome & columns
+    palace_pts = [
+        (220, 210), (220, 130), (250, 130), (250, 95), (290, 95),
+        (320, 60), (350, 95), (390, 95), (390, 130), (420, 130), (420, 210)
+    ]
+    draw.polygon(palace_pts, fill=(28, 20, 22))
+    for cx in range(260, 385, 20):
+        draw.rectangle([cx, 130, cx + 8, 210], fill=(42, 30, 34))
+
+    # Broken ornate gates bent open
+    draw.line([(180, 210), (210, 150)], fill=(80, 60, 65), width=3)
+    draw.line([(460, 210), (430, 150)], fill=(80, 60, 65), width=3)
+
+    # 3. Ground / plaza pavement
+    draw.rectangle([0, 210, w, h], fill=(16, 12, 14))
+    for gy in range(215, h, 16):
+        draw.line([(0, gy), (w, gy)], fill=(32, 22, 24), width=1)
+
+    # 4. Flaming rebel barricades & fires (flickering)
+    flame_phase = frame_idx * 0.4
+    fire_positions = [(120, 210), (240, 215), (400, 215), (520, 210)]
+    for fx, fy in fire_positions:
+        draw.rectangle([fx - 14, fy - 18, fx + 14, fy], fill=(40, 40, 45), outline=(70, 70, 75))
+        fl_h = int(28 + math.sin(flame_phase + fx) * 10)
+        fl_pts = [
+            (fx - 12, fy - 18),
+            (fx - 5, fy - 18 - fl_h + 6),
+            (fx, fy - 18 - fl_h),
+            (fx + 6, fy - 18 - fl_h + 8),
+            (fx + 12, fy - 18)
+        ]
+        draw.polygon(fl_pts, fill=(245, 158, 11))
+        fl_core = [
+            (fx - 6, fy - 18),
+            (fx, fy - 18 - int(fl_h * 0.65)),
+            (fx + 6, fy - 18)
+        ]
+        draw.polygon(fl_core, fill=(255, 255, 200))
+
+    # 5. Crowd of protesters / rebel silhouettes with raised banners
+    crowd_x = [40, 75, 155, 185, 290, 320, 350, 450, 480, 560, 595]
+    for idx, cx in enumerate(crowd_x):
+        cy = 210 + int(math.sin(idx + frame_idx * 0.2) * 3)
+        draw.ellipse([cx - 5, cy - 26, cx + 5, cy - 16], fill=(12, 8, 10))
+        draw.polygon([(cx - 7, cy), (cx - 7, cy - 16), (cx + 7, cy - 16), (cx + 7, cy)], fill=(12, 8, 10))
+        if idx % 3 == 0:
+            draw.line([(cx + 4, cy - 12), (cx + 12, cy - 32)], fill=(12, 8, 10), width=2)
+            flag_w = int(18 + math.sin(frame_idx * 0.3 + idx) * 4)
+            draw.polygon([(cx + 12, cy - 32), (cx + 12 + flag_w, cy - 36), (cx + 12 + flag_w, cy - 24), (cx + 12, cy - 20)], fill=(220, 38, 38))
+
+    # 6. Central decree plaque / deposed ruler alert
+    pw, ph = 490, 110
+    px, py = w//2 - pw//2, 85
+    draw.rectangle([px, py, px + pw, py + ph], fill=(35, 12, 14), outline=(239, 68, 68), width=2)
+    draw.rectangle([px + 4, py + 4, px + pw - 4, py + ph - 4], outline=(245, 158, 11), width=1)
+
+    draw.text((w//2, py + 12), "*** POPULAR REVOLUTION // PALACE BREACHED ***", fill=(255, 255, 255), font=font_hud, anchor="mt")
+    draw.text((w//2, py + 34), f"{ousted_ruler_name.upper()} DEPOSED FROM POWER", fill=(248, 113, 113), font=font_hero, anchor="mt")
+    draw.text((w//2, py + 58), f"Protesters & Rebel Factions Topple the Government of {country_name}", fill=(254, 240, 138), font=font_sub, anchor="mt")
+    draw.text((w//2, py + 80), "State sovereignty vacated • Reverted to Autonomous State Trust", fill=(203, 213, 225), font=font_sub, anchor="mt")
+
+    draw.polygon([(px + 8, py + 8), (px + 22, py + 8), (px + 8, py + 22)], fill=(239, 68, 68))
+    draw.polygon([(px + pw - 8, py + 8), (px + pw - 22, py + 8), (px + pw - 8, py + 22)], fill=(239, 68, 68))
+
+    # 7. Top cinematic HUD bar
+    draw.rectangle([0, 0, w, 38], fill=(20, 10, 12))
+    draw.line([(0, 38), (w, 38)], fill=(239, 68, 68), width=2)
+    draw.text((15, 11), "[!]", fill=(239, 68, 68), font=font_hud)
+    draw.text((38, 11), f"CIVIL REBELLION: {country_name.upper()} PALACE FALLEN", fill=(255, 255, 255), font=font_hud)
+    draw.text((w - 15, 12), "[REGIME TOPPLED]", fill=(248, 113, 113), font=font_tag, anchor="rt")
+
+    # 8. Bottom ticker bar
+    draw.rectangle([0, h - 24, w, h], fill=(12, 8, 10))
+    draw.line([(0, h - 24), (w, h - 24)], fill=(245, 158, 11), width=1)
+    draw.text((15, h - 18), "CITIZEN PROTESTERS BREACH HIGH GATES • SOVEREIGN RULER OUSTED • TRANSITIONAL REGIME DECLARED", fill=(252, 165, 165), font=font_tag)
+
+    return im
+
+def generate_revolution_frames(country_name: str, ousted_ruler_name: str, total_frames: int = 80):
+    c_c = clean_tactical_text(country_name)
+    c_r = clean_tactical_text(ousted_ruler_name)
+    parchment_count = 35
+    action_count = max(45, total_frames - parchment_count)
+
+    for i in range(parchment_count):
+        yield render_order_parchment_frame(
+            i, parchment_count,
+            "POPULAR REVOLUTION DECREE",
+            c_c,
+            c_r,
+            "CIVIL PROTESTERS & REBEL FACTIONS",
+            "REGIME OVERTHROWN",
+            (239, 68, 68)
+        )
+    for i in range(action_count):
+        yield render_revolution_scene_frame(i, action_count, c_c, c_r)
+
+def create_revolution_frames(country_name: str, ousted_ruler_name: str, total_frames: int = 80) -> list[Image.Image]:
+    return list(generate_revolution_frames(country_name, ousted_ruler_name, total_frames))
+
+def create_revolution_gif(country_name: str, country_flag: str, ousted_ruler_name: str) -> io.BytesIO:
+    frames = create_revolution_frames(country_name, ousted_ruler_name, total_frames=45)
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_revolution_media(country_name: str, country_flag: str, ousted_ruler_name: str, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    mp4_buf = render_frames_to_mp4(
+        generate_revolution_frames(country_name, ousted_ruler_name, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_revolution_gif(country_name, country_flag, ousted_ruler_name)
+    return gif_buf, mp4_buf
+
+def generate_revolution_speech(country_name: str, ousted_ruler_name: str) -> io.BytesIO:
+    clean_c = clean_for_speech(country_name)
+    clean_r = clean_for_speech(ousted_ruler_name)
+    speech = (
+        f"Emergency geopolitical bulletin! A popular revolution has erupted in {clean_c}! "
+        f"Protesters and armed citizen rebels have breached the presidential palace and forcibly removed {clean_r} from power! "
+        f"All ministerial authority has collapsed, and sovereign leadership has reverted to an emergency state trust. The regime has fallen!"
+    )
+    return generate_voice_narration(speech)

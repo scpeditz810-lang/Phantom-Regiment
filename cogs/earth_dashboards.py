@@ -852,8 +852,17 @@ class DefenseDashboardView(discord.ui.View):
     @discord.ui.button(label="Resign Command", style=discord.ButtonStyle.danger, emoji="🚪", row=1)
     async def resign_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
-        success, msg = await self.bot.db.resign_earth_cabinet(self.user_id, self.country["id"])
+        res = await self.bot.db.resign_earth_cabinet(self.user_id, self.country["id"])
+        success, msg = res[0], res[1]
         await interaction.followup.send(msg, ephemeral=True)
+        if success:
+            earth_cog = self.bot.get_cog("Virtual Earth") or self.bot.get_cog("EarthCog")
+            if earth_cog:
+                res_data = getattr(res, "data", {})
+                role_title = res_data.get("role_title", "Cabinet Minister")
+                await earth_cog.broadcast_commander_resigned_news(
+                    self.country["name"], self.country["flag"], interaction.user.display_name, role_title=role_title
+                )
 
 
 class InfrastructureSelect(discord.ui.Select):
@@ -969,8 +978,17 @@ class EconomyDashboardView(discord.ui.View):
     @discord.ui.button(label="Resign Office", style=discord.ButtonStyle.danger, emoji="🚪", row=3)
     async def resign_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
-        success, msg = await self.bot.db.resign_earth_cabinet(self.user_id, self.country["id"])
+        res = await self.bot.db.resign_earth_cabinet(self.user_id, self.country["id"])
+        success, msg = res[0], res[1]
         await interaction.followup.send(msg, ephemeral=True)
+        if success:
+            earth_cog = self.bot.get_cog("Virtual Earth") or self.bot.get_cog("EarthCog")
+            if earth_cog:
+                res_data = getattr(res, "data", {})
+                role_title = res_data.get("role_title", "Cabinet Minister")
+                await earth_cog.broadcast_commander_resigned_news(
+                    self.country["name"], self.country["flag"], interaction.user.display_name, role_title=role_title
+                )
 
 
 class DiplomacyDashboardView(discord.ui.View):
@@ -1059,8 +1077,17 @@ class DiplomacyDashboardView(discord.ui.View):
     @discord.ui.button(label="Resign Office", style=discord.ButtonStyle.danger, emoji="🚪", row=2)
     async def resign_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
-        success, msg = await self.bot.db.resign_earth_cabinet(self.user_id, self.country["id"])
+        res = await self.bot.db.resign_earth_cabinet(self.user_id, self.country["id"])
+        success, msg = res[0], res[1]
         await interaction.followup.send(msg, ephemeral=True)
+        if success:
+            earth_cog = self.bot.get_cog("Virtual Earth") or self.bot.get_cog("EarthCog")
+            if earth_cog:
+                res_data = getattr(res, "data", {})
+                role_title = res_data.get("role_title", "Cabinet Minister")
+                await earth_cog.broadcast_commander_resigned_news(
+                    self.country["name"], self.country["flag"], interaction.user.display_name, role_title=role_title
+                )
 
 
 class OffersInboxView(discord.ui.View):
@@ -1157,8 +1184,17 @@ class IntelligenceDashboardView(discord.ui.View):
     @discord.ui.button(label="Resign Office", style=discord.ButtonStyle.danger, emoji="🚪", row=2)
     async def resign_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
-        success, msg = await self.bot.db.resign_earth_cabinet(self.user_id, self.country["id"])
+        res = await self.bot.db.resign_earth_cabinet(self.user_id, self.country["id"])
+        success, msg = res[0], res[1]
         await interaction.followup.send(msg, ephemeral=True)
+        if success:
+            earth_cog = self.bot.get_cog("Virtual Earth") or self.bot.get_cog("EarthCog")
+            if earth_cog:
+                res_data = getattr(res, "data", {})
+                role_title = res_data.get("role_title", "Cabinet Minister")
+                await earth_cog.broadcast_commander_resigned_news(
+                    self.country["name"], self.country["flag"], interaction.user.display_name, role_title=role_title
+                )
 
 
 class DismissMinisterSelect(discord.ui.Select):

@@ -2020,6 +2020,8 @@ body.virtual-earth-page {
 
                 <span id="dock-nation-name">Global Command</span>
 
+                <span id="dock-nation-pop-badge" class="hud-tag" style="display:none; font-size:0.68rem; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3);">👥 100 Pop</span>
+
                 <button id="dock-nation-riot-badge" class="btn-action-sm" style="display:none; font-size:0.68rem; background:rgba(239,68,68,0.25); color:#fca5a5; border:1px solid #ef4444; padding:2px 8px; border-radius:6px; font-weight:800; cursor:pointer;" onclick="openQuellModal()">🚨 Manage Riots</button>
 
             </div>
@@ -4514,6 +4516,12 @@ function selectCountry(c) {
 
     document.getElementById("dock-nation-name").innerText = c.name;
 
+    const popBadge = document.getElementById("dock-nation-pop-badge");
+    if (popBadge) {
+        popBadge.style.display = "inline-flex";
+        popBadge.innerText = `👥 ${Number(c.population || 100).toLocaleString()} Pop`;
+    }
+
     const riotBadge = document.getElementById("dock-nation-riot-badge");
     if (riotBadge) {
         const viewerId = (statsData && statsData.user) ? String(statsData.user.id) : null;
@@ -4589,6 +4597,7 @@ function switchDockTab(tabKey, btn) {
     }
 
     renderDockContent();
+    toggleDock(true);
 
 }
 
@@ -9792,6 +9801,12 @@ async function submitUNAid() {
 
 
 
+
+window.openIntelModal = openIntelModal;
+window.switchDockTab = switchDockTab;
+window.selectCountry = selectCountry;
+window.toggleDock = toggleDock;
+window.resignMinisterOffice = resignMinisterOffice;
 </script>
 
 {% endblock %}
