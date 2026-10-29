@@ -793,10 +793,9 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     earth_group = app_commands.Group(name="earth", description="🌍 Virtual Earth: Global Geopolitics Simulation")
     cabinet_group = app_commands.Group(name="cabinet", parent=earth_group, description="🏛️ Sovereign Cabinet & Ministers")
     # Discord allows at most 25 direct child commands per slash-command group.
-    # Keep UN, security, and broadcast actions under subgroups so all Earth commands register cleanly within Discord's 25-child limit.
+    # Keep UN and security actions under subgroups so all Earth commands register cleanly within Discord's 25-child limit.
     un_group = app_commands.Group(name="un", parent=earth_group, description="🇺🇳 United Nations peacekeeping actions")
     security_group = app_commands.Group(name="security", parent=earth_group, description="🛡️ Counter-intelligence and detainee operations")
-    broadcast_group = app_commands.Group(name="broadcast", parent=earth_group, description="📢 Official Sovereign Broadcasts & News Media")
 
     # ─── Country Overview ─────────────────────────────────────────────────────
 
@@ -2122,93 +2121,6 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             annexed=annexed,
             conceded_by=interaction.user.mention
         )
-
-    @broadcast_group.command(name="speech", description="Broadcast an official presidential voice announcement to Earth News.")
-    @app_commands.describe(speech="Official speech text to be spoken by the global news announcer")
-    async def earth_announce_speech(self, interaction: discord.Interaction, speech: str):
-        await interaction.response.defer()
-        c = await self.bot.db.get_user_earth_country(interaction.user.id)
-        if not c:
-            await interaction.followup.send("❌ Only a sovereign leader or Minister can issue presidential dispatches!", ephemeral=True)
-            return
-
-        speech_text = speech.strip()
-        if len(speech_text) < 5 or len(speech_text) > 400:
-            await interaction.followup.send("❌ Speech text must be between 5 and 400 characters.", ephemeral=True)
-            return
-
-        clean = clean_for_speech(speech_text)
-        speech_buf = generate_voice_narration(f"Presidential address from {c['name']}. {clean}")
-        gif = create_new_ruler_gif(c["name"], c["flag"], interaction.user.display_name)
-
-        desc = (
-            f"🏛️ **Sovereign Nation:** {c['flag']} **{c['name']}**\n"
-            f"👑 **Addressed By:** {interaction.user.mention} (`{interaction.user.display_name}`)\n"
-            f"📜 **Official Dispatch:** \"*{speech_text}*\"\n\n"
-            f"🎙️ *Spoken audio broadcast transmitted across all sovereign frequencies.*"
-        )
-
-        embed = discord.Embed(
-            title=f"🎙️ PRESIDENTIAL DISPATCH // {c['name'].upper()}",
-            description=desc,
-            color=0x38BDF8
-        )
-        gif.seek(0)
-        speech_buf.seek(0)
-        files = [
-            discord.File(gif, filename="address.gif"),
-            discord.File(speech_buf, filename="voice_announcement.mp3")
-        ]
-        embed.set_image(url="attachment://address.gif")
-        embed.set_footer(text="Virtual Earth Geopolitics • Voice Narration Transmitted 🎙️")
-        await interaction.followup.send(embed=embed, files=files)
-
-        # Broadcast to #earth-news
-        news_gif = create_new_ruler_gif(c["name"], c["flag"], interaction.user.display_name)
-        speech_buf2 = generate_voice_narration(f"Presidential address from {c['name']}. {clean}")
-        await self.broadcast_news(
-            title=f"🎙️ PRESIDENTIAL DISPATCH // {c['name'].upper()}",
-            description=desc,
-            gif_bytes=news_gif,
-            filename="address_news.gif",
-            color=0x38BDF8,
-            speech_bytes=speech_buf2
-        )
-
-    @broadcast_group.command(name="commander", description="Broadcast an official military commander appointment video to Earth News.")
-    @app_commands.describe(commander="Discord member serving as Supreme Military Commander")
-    async def earth_announce_commander(self, interaction: discord.Interaction, commander: discord.Member):
-        await interaction.response.defer()
-        c = await self.bot.db.get_user_earth_country(interaction.user.id)
-        if not c:
-            await interaction.followup.send("❌ You do not govern a sovereign Earth nation!", ephemeral=True)
-            return
-        await self.broadcast_commander_news(c["name"], c["flag"], commander.display_name)
-        await interaction.followup.send(f"⚔️ Military commander appointment video and spoken dispatch broadcasted to <#{EARTH_NEWS_CHANNEL_ID}> for **{commander.display_name}**!")
-
-    @broadcast_group.command(name="alliance", description="Broadcast an official strategic alliance video to Earth News.")
-    @app_commands.describe(partner="Partner allied country code or name")
-    async def earth_announce_alliance(self, interaction: discord.Interaction, partner: str):
-        await interaction.response.defer()
-        c = await self.bot.db.get_user_earth_country(interaction.user.id)
-        if not c:
-            await interaction.followup.send("❌ You do not govern a sovereign Earth nation!", ephemeral=True)
-            return
-        
-        partner_code = partner.strip().upper()
-        p_c = await self.bot.db.get_earth_country_by_code(partner_code)
-        if not p_c:
-            all_c = await self.bot.db.get_earth_countries()
-            for cand in all_c:
-                if partner.lower() in cand["name"].lower():
-                    p_c = await self.bot.db.get_earth_country(cand["id"])
-                    break
-        partner_name = p_c["name"] if p_c else partner.strip()
-        partner_flag = p_c["flag"] if p_c else "🌐"
-        al_name = c.get("alliance_name") or f"{c['name']}-{partner_name} Strategic Accord"
-
-        await self.broadcast_alliance_news(c["name"], c["flag"], partner_name, partner_flag, al_name)
-        await interaction.followup.send(f"🤝 Strategic alliance video and spoken dispatch broadcasted to <#{EARTH_NEWS_CHANNEL_ID}> for **{c['name']}** & **{partner_name}**!")
 
 
 async def setup(bot: commands.Bot):

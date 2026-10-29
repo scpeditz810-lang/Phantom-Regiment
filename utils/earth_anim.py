@@ -2334,82 +2334,305 @@ def generate_revolution_speech(country_name: str, ousted_ruler_name: str) -> io.
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 🇺🇳 UNITED NATIONS DIPLOMATIC & PEACEKEEPING ANIMATED BROADCAST PIPELINE
+# 🇺🇳 UNITED NATIONS SECURITY COUNCIL ANIMATED BROADCAST PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def render_un_sanction_frame(frame_idx: int, total_frames: int, country_name: str, country_flag: str, reason: str) -> Image.Image:
+_UN_COUNCIL_NATIONS = ["USA", "GBR", "FRA", "CHN", "RUS", "BRA", "IND", "DEU", "JPN", "SAF", "KOR", "ITA", "EGY", "MEX", "NGR"]
+
+def _render_un_council_scene(
+    frame_idx: int,
+    total_frames: int,
+    action_type: str, # "sanction", "ceasefire", "aid"
+    title_text: str,
+    target_primary: str,
+    target_secondary: str = "",
+    reason: str = "",
+    detail_text: str = ""
+) -> Image.Image:
     w, h = 640, 360
-    im = Image.new("RGB", (w, h), (8, 14, 26))
+    im = Image.new("RGBA", (w, h), (10, 15, 26, 255))
     draw = ImageDraw.Draw(im)
 
+    font_banner = _get_font_bold(11)
     font_hud = _get_font_bold(13)
-    font_hero = _get_font_bold(20)
+    font_hero = _get_font_bold(18)
     font_sub = _get_font_bold(12)
-    font_body = _get_font(11)
-    font_tag = _get_font_bold(10)
+    font_body = _get_font(10)
+    font_tag = _get_font_bold(9)
+    font_micro = _get_font_bold(8)
 
-    # UN subtle blue background grid
-    for x in range(0, w, 32):
-        draw.line([(x, 38), (x, h - 24)], fill=(14, 24, 44), width=1)
-    for y in range(38, h - 24, 32):
-        draw.line([(0, y), (w, y)], fill=(14, 24, 44), width=1)
+    # 1. Architectural Chamber Wall (Deep Blue Scandinavian Slats)
+    for y in range(32, 200):
+        draw.line([(0, y), (w, y)], fill=(12, 18, 30))
 
-    # UN Security Council circle watermark
-    cx, cy, rad = 320, 195, 110
-    draw.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], outline=(24, 45, 80), width=2)
-    draw.ellipse([cx - rad//2, cy - rad//2, cx + rad//2, cy + rad//2], outline=(20, 38, 68), width=1)
-    draw.arc([cx - rad - 20, cy - rad, cx - 10, cy + rad], 30, 150, fill=(30, 60, 110), width=2)
-    draw.arc([cx + 10, cy - rad, cx + rad + 20, cy + rad], 30, 150, fill=(30, 60, 110), width=2)
+    # Vertical slatted wood texture lines
+    for x in range(0, w, 16):
+        draw.line([(x, 32), (x, 190)], fill=(20, 28, 44), width=1)
+    for x in range(0, w, 64):
+        draw.line([(x, 32), (x, 190)], fill=(32, 44, 68), width=2)
 
-    # Animated radar pulse sweep
-    sweep_angle = (frame_idx / max(1, total_frames)) * 2 * math.pi
-    sx = int(cx + rad * math.cos(sweep_angle))
-    sy = int(cy + rad * math.sin(sweep_angle))
-    draw.line([(cx, cy), (sx, sy)], fill=(37, 99, 235), width=2)
+    # Ambient ceiling downlight cones
+    for lx in (140, 320, 500):
+        light_poly = [(lx, 32), (lx - 70, 190), (lx + 70, 190)]
+        overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        ol_draw = ImageDraw.Draw(overlay)
+        ol_draw.polygon(light_poly, fill=(59, 130, 246, 12))
+        im = Image.alpha_composite(im, overlay)
+        draw = ImageDraw.Draw(im)
 
-    # Top Header Banner
-    draw.rectangle([0, 0, w, 38], fill=(13, 27, 56))
-    draw.line([(0, 38), (w, 38)], fill=(239, 68, 68), width=2)
-    draw.text((15, 11), "🌐 [UNSC DIPLOMATIC DISPATCH]", fill=(59, 130, 246), font=font_hud)
-    draw.text((235, 11), "SECURITY COUNCIL RESOLUTION // CHAPTER VII", fill=(255, 255, 255), font=font_hud)
-    draw.text((w - 15, 12), "[EMBARGO ENACTED]", fill=(239, 68, 68), font=font_tag, anchor="rt")
+    # 2. UN World Emblem on Center Wall
+    cx_wall, cy_wall = 320, 95
+    draw.ellipse([cx_wall - 42, cy_wall - 42, cx_wall + 42, cy_wall + 42], outline=(212, 175, 55), width=2)
+    draw.ellipse([cx_wall - 30, cy_wall - 30, cx_wall + 30, cy_wall + 30], outline=(180, 145, 40), width=1)
+    draw.ellipse([cx_wall - 16, cy_wall - 16, cx_wall + 16, cy_wall + 16], outline=(150, 120, 30), width=1)
+    draw.line([(cx_wall - 40, cy_wall), (cx_wall + 40, cy_wall)], fill=(180, 145, 40), width=1)
+    draw.line([(cx_wall, cy_wall - 40), (cx_wall, cy_wall + 40)], fill=(180, 145, 40), width=1)
+    draw.arc([cx_wall - 52, cy_wall - 46, cx_wall - 10, cy_wall + 46], 70, 290, fill=(234, 179, 8), width=2)
+    draw.arc([cx_wall + 10, cy_wall - 46, cx_wall + 52, cy_wall + 46], 250, 110, fill=(234, 179, 8), width=2)
+    draw.text((cx_wall, cy_wall + 48), "UNITED NATIONS", fill=(212, 175, 55), font=font_tag, anchor="mt")
+    draw.text((cx_wall, cy_wall + 60), "SECURITY COUNCIL", fill=(148, 163, 184), font=font_micro, anchor="mt")
 
-    # Center Embargo Plaque
-    pw, ph = 520, 175
-    px, py = w//2 - pw//2, 95
-    draw.rectangle([px, py, px + pw, py + ph], fill=(14, 20, 34), outline=(239, 68, 68), width=2)
-    draw.rectangle([px + 4, py + 4, px + pw - 4, py + ph - 4], outline=(51, 65, 85), width=1)
+    # 3. Chamber Carpet Floor
+    draw.rectangle([0, 190, w, h - 22], fill=(15, 23, 42))
+    for i in range(-5, 6):
+        fx = 320 + i * 85
+        draw.line([(320 + i * 20, 190), (fx, h - 22)], fill=(20, 32, 54), width=1)
 
-    # Embargo Banner inside Plaque
-    draw.rectangle([px + 10, py + 10, px + pw - 10, py + 36], fill=(185, 28, 28))
-    draw.text((w//2, py + 16), "🚫 INTERNATIONAL SANCTIONS & ARMS EMBARGO ACTIVE", fill=(255, 255, 255), font=font_hud, anchor="mt")
+    # 4. Horseshoe Table Perspective
+    table_cx, table_cy = 320, 215
+    rx_out, ry_out = 250, 95
+    rx_in, ry_in = 205, 75
 
-    # Target Nation
-    display_name = f"{country_flag} {country_name}".strip()
-    draw.text((w//2, py + 48), display_name.upper(), fill=(255, 255, 255), font=font_hero, anchor="mt")
+    num_pts = 30
+    outer_pts = []
+    inner_pts = []
+    for step in range(num_pts + 1):
+        angle = math.pi * 0.12 + (math.pi * 0.76) * (step / num_pts)
+        ox = table_cx + rx_out * math.cos(angle)
+        oy = table_cy + ry_out * math.sin(angle)
+        ix = table_cx + rx_in * math.cos(angle)
+        iy = table_cy + ry_in * math.sin(angle)
+        outer_pts.append((ox, oy))
+        inner_pts.append((ix, iy))
 
-    # Reason box
-    rw, rh = pw - 40, 38
-    rx, ry = px + 20, py + 78
-    draw.rectangle([rx, ry, rx + rw, ry + rh], fill=(22, 28, 44), outline=(71, 85, 105), width=1)
-    clean_reason = (reason[:58] + "...") if len(reason) > 60 else reason
-    draw.text((w//2, ry + 6), "OFFICIAL SECURITY COUNCIL JUSTIFICATION:", fill=(148, 163, 184), font=font_tag, anchor="mt")
-    draw.text((w//2, ry + 20), f'"{clean_reason}"', fill=(253, 224, 71), font=font_sub, anchor="mt")
+    table_poly = outer_pts + inner_pts[::-1]
+    shadow_poly = [(x, y + 8) for (x, y) in table_poly]
+    draw.polygon(shadow_poly, fill=(8, 12, 20))
+    draw.polygon(table_poly, fill=(66, 36, 20), outline=(139, 69, 19), width=2)
 
-    # Penalty bullets
-    draw.text((w//2, py + 128), "⚠️ OFFENSIVE ARMS PURCHASES BARRED • TRADE REVENUES -50% • WARFARE FROZEN", fill=(248, 113, 113), font=font_tag, anchor="mt")
-    draw.text((w//2, py + 148), "Enforced under Chapter VII authority by the UN Secretary-General & High Council", fill=(148, 163, 184), font=font_body, anchor="mt")
+    # Table inner polished highlight
+    highlight_pts = []
+    for step in range(num_pts + 1):
+        angle = math.pi * 0.12 + (math.pi * 0.76) * (step / num_pts)
+        hx = table_cx + (rx_out - 6) * math.cos(angle)
+        hy = table_cy + (ry_out - 4) * math.sin(angle)
+        highlight_pts.append((hx, hy))
+    if len(highlight_pts) >= 2:
+        draw.line(highlight_pts, fill=(160, 90, 44), width=2)
 
-    # Hazard corner triangles
-    draw.polygon([(px + 1, py + 1), (px + 18, py + 1), (px + 1, py + 18)], fill=(239, 68, 68))
-    draw.polygon([(px + pw - 1, py + 1), (px + pw - 18, py + 1), (px + pw - 1, py + 18)], fill=(239, 68, 68))
+    # 5. Seated Delegates around Horseshoe
+    num_delegates = len(_UN_COUNCIL_NATIONS)
+    if frame_idx < 6:
+        active_votes = 0
+    elif frame_idx < 22:
+        active_votes = min(15, int(((frame_idx - 6) / 16.0) * 15) + 1)
+    else:
+        active_votes = 15
 
-    # Bottom Ticker
-    draw.rectangle([0, h - 24, w, h], fill=(6, 10, 18))
-    draw.line([(0, h - 24), (w, h - 24)], fill=(51, 65, 85), width=1)
-    draw.text((15, h - 18), "DIPLOMATIC ISOLATION MANDATED • 48-HOUR ENFORCEMENT TERM • ALL SOVEREIGN BORDERS MONITORED", fill=(148, 163, 184), font=font_tag)
+    for d_idx in range(num_delegates):
+        t_frac = d_idx / (num_delegates - 1)
+        angle = math.pi * 0.13 + (math.pi * 0.74) * t_frac
+        
+        dx = table_cx + (rx_out + 4) * math.cos(angle)
+        dy = table_cy + (ry_out + 4) * math.sin(angle)
 
-    return im
+        is_voting = (d_idx < active_votes)
+
+        head_y = dy - 26
+        head_color = (245, 208, 140) if d_idx % 2 == 0 else (220, 180, 130)
+        draw.ellipse([dx - 5, head_y - 6, dx + 5, head_y + 6], fill=head_color)
+        draw.arc([dx - 5, head_y - 7, dx + 5, head_y], 180, 360, fill=(30, 20, 15), width=2)
+        suit_color = (30, 41, 59) if d_idx % 3 != 0 else (15, 23, 42)
+        draw.polygon([(dx - 10, dy - 8), (dx + 10, dy - 8), (dx + 8, dy + 6), (dx - 8, dy + 6)], fill=suit_color)
+        draw.polygon([(dx - 3, dy - 8), (dx + 3, dy - 8), (dx, dy - 2)], fill=(240, 240, 245))
+        tie_color = (220, 38, 38) if d_idx % 2 == 0 else (37, 99, 235)
+        draw.line([(dx, dy - 6), (dx, dy - 1)], fill=tie_color, width=2)
+
+        if is_voting:
+            draw.line([(dx + 8, dy - 6), (dx + 13, dy - 22)], fill=suit_color, width=3)
+            draw.ellipse([dx + 11, dy - 27, dx + 16, dy - 21], fill=head_color)
+        else:
+            draw.line([(dx + 8, dy - 6), (dx + 11, dy + 2)], fill=suit_color, width=2)
+
+        mic_base_x = table_cx + (rx_in + 15) * math.cos(angle)
+        mic_base_y = table_cy + (ry_in + 10) * math.sin(angle)
+        draw.ellipse([mic_base_x - 2, mic_base_y - 2, mic_base_x + 2, mic_base_y + 2], fill=(71, 85, 105))
+        draw.line([(mic_base_x, mic_base_y), (mic_base_x - 3, mic_base_y - 9)], fill=(100, 116, 139), width=1)
+        draw.ellipse([mic_base_x - 4, mic_base_y - 11, mic_base_x - 2, mic_base_y - 9], fill=(239, 68, 68) if is_voting else (34, 197, 94))
+
+        code = _UN_COUNCIL_NATIONS[d_idx]
+        pl_x = (dx + mic_base_x) / 2
+        pl_y = (dy + mic_base_y) / 2
+        draw.rectangle([pl_x - 9, pl_y - 3, pl_x + 9, pl_y + 4], fill=(248, 250, 252), outline=(100, 116, 139), width=1)
+        draw.text((pl_x, pl_y - 2), code, fill=(15, 23, 42), font=font_micro, anchor="mm")
+
+    # 6. Presidential Dais in the Center Opening
+    px, py = 320, 215
+    draw.rectangle([px - 44, py - 10, px + 44, py + 14], fill=(54, 28, 14), outline=(180, 110, 50), width=2)
+    draw.rectangle([px - 40, py - 8, px + 40, py - 4], fill=(130, 70, 30))
+
+    # Council President Figure
+    draw.ellipse([px - 6, py - 28, px + 6, py - 16], fill=(235, 195, 135))
+    draw.arc([px - 6, py - 29, px + 6, py - 22], 180, 360, fill=(40, 30, 25), width=2)
+    draw.polygon([(px - 12, py - 16), (px + 12, py - 16), (px + 10, py - 2), (px - 10, py - 2)], fill=(15, 23, 42))
+    draw.polygon([(px - 3, py - 16), (px + 3, py - 16), (px, py - 8)], fill=(255, 255, 255))
+    draw.line([(px, py - 14), (px, py - 6)], fill=(217, 119, 6), width=2)
+
+    draw.rectangle([px - 24, py + 5, px + 24, py + 12], fill=(212, 175, 55), outline=(15, 23, 42), width=1)
+    draw.text((px, py + 8), "PRESIDENT", fill=(15, 23, 42), font=font_micro, anchor="mm")
+
+    # 7. Sound Block & Gavel Strike Mechanics!
+    sb_x, sb_y = px + 18, py - 3
+    draw.rectangle([sb_x - 8, sb_y - 3, sb_x + 8, sb_y + 4], fill=(78, 40, 20), outline=(212, 175, 55), width=1)
+
+    gavel_strike_frame = 25
+    if frame_idx < 18:
+        draw.line([(sb_x - 14, sb_y - 1), (sb_x + 2, sb_y - 1)], fill=(180, 120, 60), width=2)
+        draw.rectangle([sb_x - 1, sb_y - 5, sb_x + 5, sb_y + 3], fill=(120, 70, 35), outline=(212, 175, 55), width=1)
+    elif frame_idx < gavel_strike_frame:
+        raise_ratio = (frame_idx - 18) / 7.0
+        gavel_angle = -35 - 35 * raise_ratio
+        gx = px + 10
+        gy = py - 12 - int(raise_ratio * 14)
+        draw.line([(px + 10, py - 14), (gx, gy)], fill=(15, 23, 42), width=3)
+        rad_g = math.radians(gavel_angle)
+        ghx = gx + int(18 * math.cos(rad_g))
+        ghy = gy + int(18 * math.sin(rad_g))
+        draw.line([(gx, gy), (ghx, ghy)], fill=(190, 130, 70), width=3)
+        head_ortho_x = int(6 * math.sin(rad_g))
+        head_ortho_y = int(-6 * math.cos(rad_g))
+        draw.line([(ghx - head_ortho_x, ghy - head_ortho_y), (ghx + head_ortho_x, ghy + head_ortho_y)], fill=(130, 75, 40), width=5)
+    elif frame_idx == gavel_strike_frame:
+        draw.line([(px + 10, py - 12), (sb_x + 2, sb_y - 2)], fill=(15, 23, 42), width=3)
+        draw.line([(sb_x - 12, sb_y - 2), (sb_x + 2, sb_y - 2)], fill=(190, 130, 70), width=3)
+        draw.rectangle([sb_x, sb_y - 6, sb_x + 6, sb_y + 2], fill=(140, 80, 40), outline=(255, 255, 255), width=2)
+
+        # IMPACT FLASH & SHOCKWAVE STARBURST
+        flash_overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        fl_draw = ImageDraw.Draw(flash_overlay)
+        for radius in (12, 28, 50, 75):
+            fl_draw.ellipse([sb_x - radius, sb_y - radius, sb_x + radius, sb_y + radius], outline=(255, 255, 255, 220 - radius * 2), width=3)
+        for deg in range(0, 360, 30):
+            sp_rad = math.radians(deg)
+            sp_len = 35 + (deg % 20)
+            sx2 = sb_x + int(sp_len * math.cos(sp_rad))
+            sy2 = sb_y + int(sp_len * math.sin(sp_rad))
+            fl_draw.line([(sb_x, sb_y), (sx2, sy2)], fill=(253, 224, 71, 240), width=2)
+        im = Image.alpha_composite(im, flash_overlay)
+        draw = ImageDraw.Draw(im)
+    else:
+        draw.line([(px + 10, py - 12), (sb_x + 2, sb_y - 1)], fill=(15, 23, 42), width=3)
+        draw.line([(sb_x - 14, sb_y - 1), (sb_x + 2, sb_y - 1)], fill=(180, 120, 60), width=2)
+        draw.rectangle([sb_x - 1, sb_y - 5, sb_x + 5, sb_y + 3], fill=(120, 70, 35), outline=(212, 175, 55), width=1)
+        fade_step = frame_idx - gavel_strike_frame
+        if fade_step < 12:
+            alpha = max(0, 180 - fade_step * 15)
+            ring_r = 15 + fade_step * 6
+            overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            ol_draw = ImageDraw.Draw(overlay)
+            ol_draw.ellipse([sb_x - ring_r, sb_y - ring_r, sb_x + ring_r, sb_y + ring_r], outline=(234, 179, 8, alpha), width=2)
+            im = Image.alpha_composite(im, overlay)
+            draw = ImageDraw.Draw(im)
+
+    # 8. Council Digital Vote Tally Screen (Upper Center)
+    if frame_idx < gavel_strike_frame:
+        tally_bg = (15, 23, 42)
+        tally_border = (59, 130, 246)
+        status_text = f"COUNCIL VOTE IN PROGRESS... [IN FAVOR: {active_votes} / 15]"
+        status_color = (147, 197, 253)
+    else:
+        tally_bg = (20, 83, 45) if action_type == "ceasefire" else ((127, 29, 29) if action_type == "sanction" else (12, 74, 110))
+        tally_border = (34, 197, 94) if action_type == "ceasefire" else ((239, 68, 68) if action_type == "sanction" else (14, 165, 233))
+        status_text = "★ UNANIMOUS RESOLUTION ADOPTED ★ [15-0-0]"
+        status_color = (255, 255, 255)
+
+    draw.rectangle([160, 38, 480, 58], fill=tally_bg, outline=tally_border, width=1)
+    draw.text((320, 48), status_text, fill=status_color, font=font_sub, anchor="mm")
+
+    # 9. Main Resolution Plaque / HUD Overlay (Phase 2 & 3: Frames 26 to end)
+    if frame_idx >= 26:
+        pop_in = min(1.0, (frame_idx - 25) / 5.0)
+        card_w = 540
+        card_h = int(145 * pop_in)
+        card_x = w // 2 - card_w // 2
+        card_y = 66
+
+        if card_h > 20:
+            overlay_card = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            oc_draw = ImageDraw.Draw(overlay_card)
+            theme_color = (239, 68, 68) if action_type == "sanction" else ((16, 185, 129) if action_type == "ceasefire" else (14, 165, 233))
+            theme_bg = (15, 23, 42, 235)
+
+            oc_draw.rectangle([card_x, card_y, card_x + card_w, card_y + card_h], fill=theme_bg, outline=theme_color, width=2)
+            oc_draw.polygon([(card_x, card_y), (card_x + 16, card_y), (card_x, card_y + 16)], fill=theme_color)
+            oc_draw.polygon([(card_x + card_w, card_y), (card_x + card_w - 16, card_y), (card_x + card_w, card_y + 16)], fill=theme_color)
+
+            im = Image.alpha_composite(im, overlay_card)
+            draw = ImageDraw.Draw(im)
+
+            if pop_in >= 0.8:
+                draw.rectangle([card_x + 6, card_y + 6, card_x + card_w - 6, card_y + 30], fill=theme_color)
+                draw.text((w // 2, card_y + 17), title_text.upper(), fill=(255, 255, 255), font=font_hud, anchor="mm")
+
+                if target_secondary:
+                    display_subj = f"{target_primary}   ⚔️   {target_secondary}".upper()
+                else:
+                    display_subj = target_primary.upper()
+                draw.text((w // 2, card_y + 44), display_subj, fill=(255, 255, 255), font=font_hero, anchor="mm")
+
+                rw, rh = card_w - 30, 34
+                rx, ry = card_x + 15, card_y + 60
+                draw.rectangle([rx, ry, rx + rw, ry + rh], fill=(24, 34, 56), outline=(71, 85, 105), width=1)
+                clean_r = (reason[:65] + "...") if len(reason) > 68 else reason
+                draw.text((w // 2, ry + 6), "OFFICIAL SECURITY COUNCIL JUSTIFICATION:", fill=(148, 163, 184), font=font_micro, anchor="mt")
+                draw.text((w // 2, ry + 18), f'"{clean_r}"', fill=(253, 224, 71), font=font_sub, anchor="mt")
+
+                draw.text((w // 2, card_y + 104), detail_text, fill=(248, 113, 113) if action_type == "sanction" else ((52, 211, 153) if action_type == "ceasefire" else (56, 189, 248)), font=font_tag, anchor="mt")
+                draw.text((w // 2, card_y + 120), "Adopted unanimously by the 15 Member Nations of the United Nations Security Council", fill=(148, 163, 184), font=font_body, anchor="mt")
+
+    # 10. Top & Bottom Broadcast Framing Banners
+    draw.rectangle([0, 0, w, 32], fill=(8, 14, 26))
+    top_border_color = (239, 68, 68) if action_type == "sanction" else ((16, 185, 129) if action_type == "ceasefire" else (14, 165, 233))
+    draw.line([(0, 32), (w, 32)], fill=top_border_color, width=2)
+    draw.text((15, 9), "🌐 [UN SECURITY COUNCIL LIVE TRANSMISSION]", fill=(59, 130, 246), font=font_banner)
+    draw.text((w - 15, 9), "CHAMBER NEW YORK • VERBATIM RECORD", fill=(148, 163, 184), font=font_tag, anchor="rt")
+
+    draw.rectangle([0, h - 22, w, h], fill=(6, 10, 18))
+    draw.line([(0, h - 22), (w, h - 22)], fill=(51, 65, 85), width=1)
+    if action_type == "sanction":
+        ticker = "EMBARGO ENACTED • OFFENSIVE ARMS PURCHASES BARRED • ALL SOVEREIGN BORDERS MONITORED BY SATELLITE"
+    elif action_type == "ceasefire":
+        ticker = "ARMISTICE ENFORCED • UN BLUE HELMET PEACEKEEPERS DEPLOYED TO DMZ • AIRSPACE RESTRICTED"
+    else:
+        ticker = "HUMANITARIAN RELIEF DISBURSED • -25% UNREST • CIVIC FOOD & MEDICAL CONVOYS SECURED"
+    draw.text((15, h - 16), ticker, fill=(148, 163, 184), font=font_micro)
+
+    return im.convert("RGB")
+
+
+def render_un_sanction_frame(frame_idx: int, total_frames: int, country_name: str, country_flag: str, reason: str) -> Image.Image:
+    target_primary = f"{country_flag} {country_name}".strip()
+    detail_text = "🚫 OFFENSIVE ARMS PURCHASES BARRED • TRADE REVENUES -50% • WARFARE FROZEN"
+    return _render_un_council_scene(
+        frame_idx=frame_idx,
+        total_frames=total_frames,
+        action_type="sanction",
+        title_text="SECURITY COUNCIL RESOLUTION // CHAPTER VII",
+        target_primary=target_primary,
+        target_secondary="",
+        reason=reason,
+        detail_text=detail_text
+    )
 
 def generate_un_sanction_frames(country_name: str, country_flag: str, reason: str, total_frames: int = 80):
     for idx in range(total_frames):
@@ -2439,84 +2662,32 @@ def create_un_sanction_media(country_name: str, country_flag: str, reason: str, 
         gif_buf = create_un_sanction_gif(country_name, country_flag, reason)
     return gif_buf, mp4_buf
 
-def generate_un_sanction_speech(country_name: str, reason: str) -> io.BytesIO:
+def generate_un_sanction_speech(country_name: str, reason: str, signatory_name: str = "UN Secretary-General") -> io.BytesIO:
     clean_c = clean_for_speech(country_name)
     clean_r = clean_for_speech(reason)
     speech = (
-        f"United Nations diplomatic bulletin! Under emergency authority of Chapter Seven of the United Nations Charter, "
-        f"the UN Security Council and Secretariat have enacted immediate international economic and arms sanctions against {clean_c}! "
-        f"The Security Council cites: {clean_r}. "
-        f"Effective immediately, all offensive warfare and foreign arms procurement are barred, and sovereign trade yields are penalized fifty percent."
+        f"Attention all sovereign nations. The United Nations Security Council has convened an emergency session in New York! "
+        f"Under Chapter VII authority, the Security Council has unanimously passed a binding sanctions and arms embargo resolution against {clean_c}! "
+        f"Justification recorded: {clean_r}! "
+        f"All international arms transfers, foreign trade pipelines, and offensive military operations are frozen under immediate United Nations surveillance."
     )
     return generate_voice_narration(speech)
 
 
 def render_un_ceasefire_frame(frame_idx: int, total_frames: int, atk_name: str, atk_flag: str, dfn_name: str, dfn_flag: str, war_id: int, reason: str = "Hostilities Terminated by UN Resolution") -> Image.Image:
-    w, h = 640, 360
-    im = Image.new("RGB", (w, h), (8, 16, 28))
-    draw = ImageDraw.Draw(im)
-
-    font_hud = _get_font_bold(13)
-    font_hero = _get_font_bold(17)
-    font_sub = _get_font_bold(12)
-    font_body = _get_font(11)
-    font_tag = _get_font_bold(10)
-
-    for x in range(0, w, 32):
-        draw.line([(x, 38), (x, h - 24)], fill=(15, 28, 48), width=1)
-    for y in range(38, h - 24, 32):
-        draw.line([(0, y), (w, y)], fill=(15, 28, 48), width=1)
-
-    cx, cy, rad = 320, 195, 110
-    draw.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], outline=(20, 50, 90), width=2)
-    draw.ellipse([cx - rad//2, cy - rad//2, cx + rad//2, cy + rad//2], outline=(15, 38, 70), width=1)
-
-    sweep_angle = (frame_idx / max(1, total_frames)) * 2 * math.pi
-    sx = int(cx + rad * math.cos(sweep_angle))
-    sy = int(cy + rad * math.sin(sweep_angle))
-    draw.line([(cx, cy), (sx, sy)], fill=(16, 185, 129), width=2)
-
-    # Top Header Banner
-    draw.rectangle([0, 0, w, 38], fill=(13, 34, 64))
-    draw.line([(0, 38), (w, 38)], fill=(16, 185, 129), width=2)
-    draw.text((15, 11), "🕊️ [UN PEACEKEEPING MISSION]", fill=(52, 211, 153), font=font_hud)
-    draw.text((230, 11), f"EMERGENCY ARMISTICE MANDATE • WAR #{war_id}", fill=(255, 255, 255), font=font_hud)
-    draw.text((w - 15, 12), "[CEASEFIRE RATIFIED]", fill=(52, 211, 153), font=font_tag, anchor="rt")
-
-    # Center Plaque
-    pw, ph = 530, 175
-    px, py = w//2 - pw//2, 95
-    draw.rectangle([px, py, px + pw, py + ph], fill=(14, 22, 38), outline=(16, 185, 129), width=2)
-    draw.rectangle([px + 4, py + 4, px + pw - 4, py + ph - 4], outline=(51, 65, 85), width=1)
-
-    # Ceasefire Banner
-    draw.rectangle([px + 10, py + 10, px + pw - 10, py + 36], fill=(5, 150, 105))
-    draw.text((w//2, py + 16), f"🕊️ IMMEDIATE BILATERAL CEASEFIRE ENFORCED // WAR #{war_id}", fill=(255, 255, 255), font=font_hud, anchor="mt")
-
-    # Belligerents
-    draw.text((w//2, py + 46), f"{atk_flag} {atk_name}  ⚔️  {dfn_flag} {dfn_name}".upper(), fill=(255, 255, 255), font=font_hero, anchor="mt")
-
-    # Terms Box
-    rw, rh = pw - 40, 42
-    rx, ry = px + 20, py + 74
-    draw.rectangle([rx, ry, rx + rw, ry + rh], fill=(20, 30, 48), outline=(52, 211, 153), width=1)
-    clean_reason = (reason[:65] + "...") if len(reason) > 68 else reason
-    draw.text((w//2, ry + 6), "UN SECURITY COUNCIL MANDATE & BUFFER ACCORD:", fill=(148, 163, 184), font=font_tag, anchor="mt")
-    draw.text((w//2, ry + 22), f'"{clean_reason}"', fill=(110, 231, 183), font=font_sub, anchor="mt")
-
-    # Peacekeeper notice
-    draw.text((w//2, py + 128), "🛡️ UN BLUE HELMET BATTALIONS DEPLOYED TO DMZ BUFFER • OFFENSIVE COMBAT TERMINATED", fill=(52, 211, 153), font=font_tag, anchor="mt")
-    draw.text((w//2, py + 148), "All frontline troops frozen in place • Violations subject to Chapter VII military sanctions", fill=(148, 163, 184), font=font_body, anchor="mt")
-
-    draw.polygon([(px + 1, py + 1), (px + 18, py + 1), (px + 1, py + 18)], fill=(16, 185, 129))
-    draw.polygon([(px + pw - 1, py + 1), (px + pw - 18, py + 1), (px + pw - 1, py + 18)], fill=(16, 185, 129))
-
-    # Bottom Ticker
-    draw.rectangle([0, h - 24, w, h], fill=(6, 12, 22))
-    draw.line([(0, h - 24), (w, h - 24)], fill=(16, 185, 129), width=1)
-    draw.text((15, h - 18), "DEMILITARIZED ZONE ACTIVE • ARMISTICE SIGNED • INTERNATIONAL OBSERVERS SUPERVISING AIRSPACE", fill=(148, 163, 184), font=font_tag)
-
-    return im
+    target_primary = f"{atk_flag} {atk_name}".strip()
+    target_secondary = f"{dfn_flag} {dfn_name}".strip()
+    detail_text = "🕊️ FRONTLINE COMBAT TERMINATED • UN BLUE HELMET PEACEKEEPERS DEPLOYED TO DMZ"
+    return _render_un_council_scene(
+        frame_idx=frame_idx,
+        total_frames=total_frames,
+        action_type="ceasefire",
+        title_text=f"EMERGENCY ARMISTICE MANDATE // WAR #{war_id}",
+        target_primary=target_primary,
+        target_secondary=target_secondary,
+        reason=reason,
+        detail_text=detail_text
+    )
 
 def generate_un_ceasefire_frames(atk_name: str, atk_flag: str, dfn_name: str, dfn_flag: str, war_id: int, reason: str, total_frames: int = 80):
     for idx in range(total_frames):
@@ -2559,61 +2730,18 @@ def generate_un_ceasefire_speech(attacker_name: str, defender_name: str, war_id:
 
 
 def render_un_aid_frame(frame_idx: int, total_frames: int, country_name: str, country_flag: str, grant_amount: int = 50000) -> Image.Image:
-    w, h = 640, 360
-    im = Image.new("RGB", (w, h), (8, 20, 28))
-    draw = ImageDraw.Draw(im)
-
-    font_hud = _get_font_bold(13)
-    font_hero = _get_font_bold(18)
-    font_sub = _get_font_bold(12)
-    font_body = _get_font(11)
-    font_tag = _get_font_bold(10)
-
-    for x in range(0, w, 32):
-        draw.line([(x, 38), (x, h - 24)], fill=(14, 32, 46), width=1)
-    for y in range(38, h - 24, 32):
-        draw.line([(0, y), (w, y)], fill=(14, 32, 46), width=1)
-
-    # Top Header Banner
-    draw.rectangle([0, 0, w, 38], fill=(12, 42, 60))
-    draw.line([(0, 38), (w, 38)], fill=(14, 165, 233), width=2)
-    draw.text((15, 11), "📦 [UN HUMANITARIAN MISSION]", fill=(56, 189, 248), font=font_hud)
-    draw.text((230, 11), "EMERGENCY RELIEF AIRLIFT // CIVIC STABILITY", fill=(255, 255, 255), font=font_hud)
-    draw.text((w - 15, 12), "[AID DELIVERED]", fill=(56, 189, 248), font=font_tag, anchor="rt")
-
-    # Center Plaque
-    pw, ph = 520, 175
-    px, py = w//2 - pw//2, 95
-    draw.rectangle([px, py, px + pw, py + ph], fill=(12, 26, 38), outline=(14, 165, 233), width=2)
-    draw.rectangle([px + 4, py + 4, px + pw - 4, py + ph - 4], outline=(51, 65, 85), width=1)
-
-    # Aid Banner
-    draw.rectangle([px + 10, py + 10, px + pw - 10, py + 36], fill=(2, 132, 199))
-    draw.text((w//2, py + 16), "📦 UN EMERGENCY HUMANITARIAN RELIEF GRANT DELIVERED", fill=(255, 255, 255), font=font_hud, anchor="mt")
-
-    # Recipient Nation
-    draw.text((w//2, py + 48), f"{country_flag} {country_name}".upper(), fill=(255, 255, 255), font=font_hero, anchor="mt")
-
-    # Grant box
-    rw, rh = pw - 40, 38
-    rx, ry = px + 20, py + 78
-    draw.rectangle([rx, ry, rx + rw, ry + rh], fill=(16, 36, 52), outline=(56, 189, 248), width=1)
-    draw.text((w//2, ry + 6), "HUMANITARIAN STABILIZATION GRANT DISBURSED:", fill=(148, 163, 184), font=font_tag, anchor="mt")
-    draw.text((w//2, ry + 20), f"+{grant_amount:,} MEDALS DIRECT AID DISBURSED", fill=(250, 204, 21), font=font_sub, anchor="mt")
-
-    # Stability indicators
-    draw.text((w//2, py + 128), "✨ -25% CIVIL UNREST • RIOTS SUPPRESSED • MEDICAL & FOOD CONVOYS UNLOADED", fill=(56, 189, 248), font=font_tag, anchor="mt")
-    draw.text((w//2, py + 148), "Authorized by the UN Secretary-General to protect civilian life and restore order", fill=(148, 163, 184), font=font_body, anchor="mt")
-
-    draw.polygon([(px + 1, py + 1), (px + 18, py + 1), (px + 1, py + 18)], fill=(14, 165, 233))
-    draw.polygon([(px + pw - 1, py + 1), (px + pw - 18, py + 1), (px + pw - 1, py + 18)], fill=(14, 165, 233))
-
-    # Bottom Ticker
-    draw.rectangle([0, h - 24, w, h], fill=(6, 14, 20))
-    draw.line([(0, h - 24), (w, h - 24)], fill=(14, 165, 233), width=1)
-    draw.text((15, h - 18), "RELIEF CONVOY SECURED • HOSPITAL AID OPERATIONAL • RECONSTRUCTION UNDERWAY", fill=(148, 163, 184), font=font_tag)
-
-    return im
+    target_primary = f"{country_flag} {country_name}".strip()
+    detail_text = f"✨ +{grant_amount:,} MEDALS DIRECT DISBURSAL • -25% CIVIL UNREST • FOOD & MEDICAL CONVOYS"
+    return _render_un_council_scene(
+        frame_idx=frame_idx,
+        total_frames=total_frames,
+        action_type="aid",
+        title_text="UN HUMANITARIAN RELIEF COMMISSION // DIRECT AIRLIFT",
+        target_primary=target_primary,
+        target_secondary="",
+        reason="Emergency Stabilization Grant Authorized by UN Secretary-General",
+        detail_text=detail_text
+    )
 
 def generate_un_aid_frames(country_name: str, country_flag: str, grant_amount: int = 50000, total_frames: int = 80):
     for idx in range(total_frames):
