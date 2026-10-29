@@ -265,8 +265,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     async def broadcast_un_sanction_news(self, country_name: str, country_flag: str, reason: str, signatory: str = "UN Secretary-General"):
         """Broadcast UN Security Council sanctions & embargo decree to #earth-news with video & spoken narration."""
         try:
-            speech_buf = generate_un_sanction_speech(country_name, reason)
-            gif_buf, mp4_buf = create_un_sanction_media(country_name, country_flag, reason, signatory_name=signatory, audio_bytes=speech_buf)
+            speech_buf = await asyncio.to_thread(generate_un_sanction_speech, country_name, reason)
+            gif_buf, mp4_buf = await asyncio.to_thread(create_un_sanction_media, country_name, country_flag, reason, signatory, speech_buf)
             title = f"🌐 UN SECURITY COUNCIL EMBARGO // {country_flag} {country_name.upper()}"
             desc = (
                 f"🚫 **Chapter VII International Sanctions Enacted!**\n\n"
@@ -294,8 +294,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     async def broadcast_un_ceasefire_news(self, attacker_name: str, attacker_flag: str, defender_name: str, defender_flag: str, war_id: int, reason: str = "Hostilities Terminated by UN Resolution", signatory: str = "UN Secretary-General"):
         """Broadcast UN emergency ceasefire & armistice order to #earth-news with video & spoken narration."""
         try:
-            speech_buf = generate_un_ceasefire_speech(attacker_name, defender_name, war_id, reason)
-            gif_buf, mp4_buf = create_un_ceasefire_media(attacker_name, attacker_flag, defender_name, defender_flag, war_id, reason=reason, audio_bytes=speech_buf)
+            speech_buf = await asyncio.to_thread(generate_un_ceasefire_speech, attacker_name, defender_name, war_id, reason)
+            gif_buf, mp4_buf = await asyncio.to_thread(create_un_ceasefire_media, attacker_name, attacker_flag, defender_name, defender_flag, war_id, reason, speech_buf)
             title = f"🕊️ UN EMERGENCY CEASEFIRE // WAR #{war_id} TERMINATED"
             desc = (
                 f"🛡️ **Security Council Armistice Mandate Enacted!**\n\n"
@@ -321,8 +321,8 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     async def broadcast_un_aid_news(self, country_name: str, country_flag: str, grant_amount: int = 50000, signatory: str = "UN Secretary-General"):
         """Broadcast UN emergency humanitarian relief mission to #earth-news with video & spoken narration."""
         try:
-            speech_buf = generate_un_aid_speech(country_name, grant_amount)
-            gif_buf, mp4_buf = create_un_aid_media(country_name, country_flag, grant_amount=grant_amount, audio_bytes=speech_buf)
+            speech_buf = await asyncio.to_thread(generate_un_aid_speech, country_name, grant_amount)
+            gif_buf, mp4_buf = await asyncio.to_thread(create_un_aid_media, country_name, country_flag, grant_amount, speech_buf)
             title = f"📦 UN HUMANITARIAN RELIEF DELIVERED // {country_flag} {country_name.upper()}"
             desc = (
                 f"✨ **Emergency Stabilization Mission Completed!**\n\n"
