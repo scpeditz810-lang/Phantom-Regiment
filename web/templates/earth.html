@@ -2014,11 +2014,13 @@ body.virtual-earth-page {
 
         <div class="dock-header">
 
-            <div class="dock-title">
+            <div class="dock-title" style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
 
                 <span id="dock-nation-flag">🌍</span>
 
                 <span id="dock-nation-name">Global Command</span>
+
+                <button id="dock-nation-riot-badge" class="btn-action-sm" style="display:none; font-size:0.68rem; background:rgba(239,68,68,0.25); color:#fca5a5; border:1px solid #ef4444; padding:2px 8px; border-radius:6px; font-weight:800; cursor:pointer;" onclick="openQuellModal()">🚨 Manage Riots</button>
 
             </div>
 
@@ -4512,6 +4514,24 @@ function selectCountry(c) {
 
     document.getElementById("dock-nation-name").innerText = c.name;
 
+    const riotBadge = document.getElementById("dock-nation-riot-badge");
+    if (riotBadge) {
+        const viewerId = (statsData && statsData.user) ? String(statsData.user.id) : null;
+        const countryOwnerId = c.owner_id ? String(c.owner_id) : null;
+        const canManage = Boolean(
+            (viewerId && countryOwnerId && viewerId === countryOwnerId) ||
+            c.can_appoint_cabinet === true ||
+            c.can_manage_military === true ||
+            (userCountry && userCountry.owner_id && countryOwnerId && String(userCountry.owner_id) === countryOwnerId && (!userCountry.user_role || userCountry.user_role !== 'citizen'))
+        );
+        if (canManage && (c.unrest >= 30 || c.is_rioting)) {
+            riotBadge.style.display = "inline-flex";
+            riotBadge.innerText = `🚨 Manage Riots (${c.unrest || 0}% Unrest)`;
+        } else {
+            riotBadge.style.display = "none";
+        }
+    }
+
     const mobFlag = document.getElementById("mobile-dock-title-flag");
 
     if (mobFlag) mobFlag.innerText = c.flag;
@@ -4683,7 +4703,13 @@ async function renderActiveTabContent(c, body) {
         (userCountry && userCountry.owner_id && countryOwnerId &&
             String(userCountry.owner_id) === countryOwnerId)
     );
-    const isLeader = Boolean(sameSovereign && userCountry && userCountry.user_role !== 'citizen');
+    const isLeader = Boolean(
+        directOwner ||
+        c.can_appoint_cabinet === true ||
+        c.can_manage_military === true ||
+        c.can_manage_economy === true ||
+        (sameSovereign && (!userCountry || !userCountry.user_role || userCountry.user_role !== 'citizen'))
+    );
     // Use the same authenticated owner check as the appointment API.
     // A cached userCountry role can belong to a previous/stale selection and
     // must not expose a control that the server will reject.
@@ -4807,29 +4833,57 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
         riotAlertHtml = `
 
-            <div class="war-pulse-banner">
+            <div class="war-pulse-banner" style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; padding:0.75rem 0.9rem; margin-bottom:0.75rem;">
 
                 <div>
 
-                    <strong>🔥 IMMINENT REVOLUTION RISK!</strong><br>
+                    <strong style="color:#ef4444; font-size:0.85rem;">🔥 IMMINENT REVOLUTION RISK! (${unrest}% Unrest)</strong><br>
 
-                    <span style="font-size: 0.72rem;">Citizens are threatening to storm the palace and oust the leadership! Deploy emergency pacification immediately!</span>
+                    <span style="font-size: 0.72rem; color:#fca5a5;">Citizens are threatening to storm the palace! Deploy emergency curfew or pacification immediately!</span>
 
                 </div>
+
+                ${isLeader ? `<button class="btn-action-sm" style="background:#ef4444; border-color:#ef4444; color:#fff; font-weight:800; padding:6px 14px; white-space:nowrap;" onclick="openQuellModal()">🚨 Manage Riots</button>` : ''}
 
             </div>
 
         `;
 
-    } else if (unrest >= 60) {
+    } else if (unrest >= 60 || c.is_rioting) {
 
         riotAlertHtml = `
 
-            <div class="riot-banner">
+            <div class="riot-banner" style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; padding:0.75rem 0.9rem; margin-bottom:0.75rem;">
 
-                <strong>🔥 MASSIVE URBAN RIOTS ACTIVE!</strong>
+                <div>
 
-                <span style="font-size: 0.72rem;">Civil unrest has crippled commerce. National yield halved (-50%). Build hospitals or deploy police to restore peace!</span>
+                    <strong style="color:#f59e0b; font-size:0.85rem;">🔥 MASSIVE URBAN RIOTS ACTIVE! (${unrest}% Unrest)</strong><br>
+
+                    <span style="font-size: 0.72rem; color:#fde68a;">Civil unrest has crippled commerce. National yield halved (-50%). Deploy military martial law, stimulus, or police!</span>
+
+                </div>
+
+                ${isLeader ? `<button class="btn-action-sm" style="background:#f59e0b; border-color:#d97706; color:#0f172a; font-weight:800; padding:6px 14px; white-space:nowrap;" onclick="openQuellModal()">🚨 Manage Riots</button>` : ''}
+
+            </div>
+
+        `;
+
+    } else if (unrest >= 30) {
+
+        riotAlertHtml = `
+
+            <div class="info-tile" style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; background:rgba(245,158,11,0.08); border-color:rgba(245,158,11,0.3); padding:0.6rem 0.85rem; margin-bottom:0.75rem;">
+
+                <div>
+
+                    <strong style="color:#f59e0b; font-size:0.82rem;">⚠️ Civil Discontent Growing (${unrest}% Unrest)</strong>
+
+                    <div style="font-size:0.71rem; color:#94a3b8;">Dividends cut by 15%. Deploy police or civil relief before street riots erupt.</div>
+
+                </div>
+
+                ${isLeader ? `<button class="btn-action-sm" style="font-size:0.72rem; border-color:#f59e0b; color:#fbbf24; padding:4px 10px;" onclick="openQuellModal()">🚨 Manage Riots</button>` : ''}
 
             </div>
 
@@ -4940,11 +4994,17 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
         <div class="info-tile">
 
-            <div style="display:flex; justify-content:space-between; font-size: 0.78rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size: 0.78rem;">
 
                 <span>🛡️ Stability: <strong>${stab}%</strong></span>
 
-                <span>⚡ Civil Unrest: <strong>${unrest}%</strong></span>
+                <div style="display:flex; align-items:center;">
+
+                    <span>⚡ Civil Unrest: <strong style="color:${unrestColor}">${unrest}%</strong></span>
+
+                    ${isLeader ? `<button class="btn-action-sm" onclick="openQuellModal()" style="font-size:0.65rem; padding:2px 7px; margin-left:0.5rem; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5; font-weight:700;">🚨 Manage Riots</button>` : ''}
+
+                </div>
 
             </div>
 
@@ -4970,13 +5030,13 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
         ${isLeader ? `
 
-            <div class="info-tile">
+            <div class="info-tile" style="border-left: 3px solid #ef4444;">
 
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.4rem;">
 
-                    <span style="font-size: 0.8rem; font-weight: 700;">🚨 Quell Civil Unrest & Riots</span>
+                    <span style="font-size: 0.82rem; font-weight: 800; color:#f8fafc;">🚨 Quell Civil Unrest & Riots</span>
 
-                    <button class="btn-action-sm" onclick="openQuellModal()">Manage</button>
+                    <button class="btn-action-sm" style="background:#ef4444; border-color:#ef4444; color:#fff; font-weight:800; padding:4px 12px;" onclick="openQuellModal()">🚨 Manage Riots</button>
 
                 </div>
 
@@ -5694,7 +5754,11 @@ function renderWarsTab(c, isLeader, isOwner, container) {
 
                         </button>
 
-                        
+                        <button class="btn-action-sm" onclick="openQuellModal()" style="border-color:#ef4444; color:#fca5a5;">
+
+                            🪖 Quell Riots / Martial Law
+
+                        </button>
 
                     </div>
 
