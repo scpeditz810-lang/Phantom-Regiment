@@ -898,6 +898,7 @@ class QuellUnrestSelect(discord.ui.Select):
         self.user_id = user_id
 
         options = [
+            discord.SelectOption(label="Deploy Military / Martial Law", value="military", emoji="🪖", description="Cost: 50k M + 2 Divs (-45% Unrest, -12% Stability)"),
             discord.SelectOption(label="Civilian Emergency Stimulus", value="relief", emoji="🏥", description="Cost: 150k M (-25% Unrest, +15% Stability)"),
             discord.SelectOption(label="Tactical Police Suppression", value="police", emoji="🛡️", description="Cost: 80k M (-35% Unrest, -8% Liberty)"),
             discord.SelectOption(label="Sovereign Jubilee Celebration", value="festival", emoji="🎉", description="Cost: 60k M (-15% Unrest, +20% Stability)")

@@ -1027,6 +1027,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     @earth_group.command(name="quell", description="Deploy resources to quell civil unrest and suppress riots.")
     @app_commands.describe(method="Pacification strategy")
     @app_commands.choices(method=[
+        app_commands.Choice(name="🪖 Deploy Military / Martial Law (50k M + 2 Divs: -45% Unrest, -12% Stability)", value="military"),
         app_commands.Choice(name="🏥 Emergency Civilian Stimulus (150k M: -25% Unrest, +15% Stability)", value="relief"),
         app_commands.Choice(name="🛡️ Tactical Police Suppression (80k M: -35% Unrest, -8% Liberty)", value="police"),
         app_commands.Choice(name="🎉 Sovereign Jubilee (60k M: -15% Unrest, +20% Stability)", value="festival"),
@@ -1039,7 +1040,48 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             return
 
         success, msg = await self.bot.db.quell_earth_unrest(interaction.user.id, c["id"], method.value)
-        await interaction.followup.send(f"{msg}" if success else f"❌ {msg}")
+        if success:
+            await interaction.followup.send(msg)
+            if method.value in ("military", "martial_law"):
+                try:
+                    await self.broadcast_news(
+                        title="🪖 STATE OF EMERGENCY // MARTIAL LAW ENFORCED",
+                        description=(
+                            f"🚨 **National Emergency:** {c.get('flag', '🏳️')} **{c.get('name', 'Nation')}** has mobilized armed military divisions to quell severe street riots and enforce strict emergency curfews!\n\n"
+                            f"🕊️ Armed patrols deployed across major city centres. Civilians instructed to remain indoors."
+                        ),
+                        color=0xDC2626
+                    )
+                except Exception as b_err:
+                    print(f"⚠️ Failed to broadcast martial law: {b_err}", flush=True)
+        else:
+            await interaction.followup.send(f"❌ {msg}")
+
+    @earth_group.command(name="martial_law", description="Mobilize armed military divisions to impose emergency curfews and crush civil unrest.")
+    async def earth_martial_law(self, interaction: discord.Interaction):
+        """Deploy armed military divisions to enforce state emergency curfews and crush riots."""
+        await interaction.response.defer()
+        c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not c:
+            await interaction.followup.send("❌ You do not govern an Earth nation!", ephemeral=True)
+            return
+
+        success, msg = await self.bot.db.quell_earth_unrest(interaction.user.id, c["id"], "military")
+        if success:
+            await interaction.followup.send(msg)
+            try:
+                await self.broadcast_news(
+                    title="🪖 STATE OF EMERGENCY // MARTIAL LAW ENFORCED",
+                    description=(
+                        f"🚨 **National Emergency:** {c.get('flag', '🏳️')} **{c.get('name', 'Nation')}** has mobilized armed military divisions to quell severe street riots and enforce strict emergency curfews!\n\n"
+                        f"🕊️ Armed patrols deployed across major city centres. Civilians instructed to remain indoors."
+                    ),
+                    color=0xDC2626
+                )
+            except Exception as b_err:
+                print(f"⚠️ Failed to broadcast martial law: {b_err}", flush=True)
+        else:
+            await interaction.followup.send(f"❌ {msg}")
 
 
     # ??? Custom Country Creation & Unowned Nation Claims ?????????????????????????

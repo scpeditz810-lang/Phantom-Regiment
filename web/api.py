@@ -2615,47 +2615,88 @@ def api_earth_policies():
 
 
 @api_bp.route("/earth/quell_unrest", methods=["POST"])
-
 @login_required
-
 def api_earth_quell_unrest():
-
     data = request.get_json() or {}
-
     try:
-
         country_id = int(data.get("country_id", 0))
-
         method = str(data.get("method", "relief")).strip().lower()
-
     except (ValueError, TypeError):
-
         return jsonify({"success": False, "message": "Invalid parameters."}), 400
-
         
-
     user_id = session["user"]["id"]
-
     db = get_db()
-
     success, msg = run_async(db.quell_earth_unrest(user_id, country_id, method))
-
     econ = run_async(db.get_global_economy(user_id))
-
     c = run_async(db.get_earth_country(country_id))
 
+    # Broadcast to Discord #earth-news if martial law was declared
+    if success and method in ("military", "martial_law") and c:
+        bot = current_app.config.get("DISCORD_BOT")
+        if bot:
+            earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+            if earth_cog:
+                try:
+                    run_async(earth_cog.broadcast_news(
+                        title="🪖 STATE OF EMERGENCY // MARTIAL LAW ENFORCED",
+                        description=(
+                            f"🚨 **National Emergency:** {c.get('flag', '🏳️')} **{c.get('name', 'Nation')}** has mobilized armed military divisions to quell severe street riots and enforce strict curfews!\n\n"
+                            f"🕊️ Armed patrols deployed across major city centres. Civilians instructed to remain indoors."
+                        ),
+                        color=0xDC2626
+                    ))
+                except Exception as b_err:
+                    print(f"⚠️ Failed to broadcast martial law news: {b_err}", flush=True)
+
     return jsonify({
-
         "success": success,
-
         "message": msg,
-
         "wallet": econ.get("medals", 0),
-
         "stability": c.get("stability", 80) if c else 80,
+        "unrest": c.get("unrest", 10) if c else 10,
+        "army_divisions": c.get("army_divisions", 10) if c else 10
+    }), 200 if success else 400
 
-        "unrest": c.get("unrest", 10) if c else 10
 
+@api_bp.route("/earth/deploy_military", methods=["POST"])
+@login_required
+def api_earth_deploy_military():
+    data = request.get_json() or {}
+    try:
+        country_id = int(data.get("country_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.quell_earth_unrest(user_id, country_id, "military"))
+    econ = run_async(db.get_global_economy(user_id))
+    c = run_async(db.get_earth_country(country_id))
+
+    if success and c:
+        bot = current_app.config.get("DISCORD_BOT")
+        if bot:
+            earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+            if earth_cog:
+                try:
+                    run_async(earth_cog.broadcast_news(
+                        title="🪖 STATE OF EMERGENCY // MARTIAL LAW ENFORCED",
+                        description=(
+                            f"🚨 **National Emergency:** {c.get('flag', '🏳️')} **{c.get('name', 'Nation')}** has mobilized armed military divisions to quell severe street riots and enforce strict curfews!\n\n"
+                            f"🕊️ Armed patrols deployed across major city centres. Civilians instructed to remain indoors."
+                        ),
+                        color=0xDC2626
+                    ))
+                except Exception as b_err:
+                    print(f"⚠️ Failed to broadcast martial law news: {b_err}", flush=True)
+
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "wallet": econ.get("medals", 0),
+        "stability": c.get("stability", 80) if c else 80,
+        "unrest": c.get("unrest", 10) if c else 10,
+        "army_divisions": c.get("army_divisions", 10) if c else 10
     }), 200 if success else 400
 
 

@@ -155,7 +155,7 @@ EARTH_SECTIONS = {
         "The President has all powers. /earth claim takes an unclaimed country (one starting country per player, offer "
         "0-2 billion Medals, no tax); /earth join makes you a citizen of a ruled country; /earth leave renounces it. "
         "Rulers can also list a country for sale (market price) and receive buyout offers on the website. "
-        "/earth quell pacifies unrest: relief 150k (-25 unrest, +15 stability), police 80k (-35 unrest, -8 liberty), "
+        "/earth quell or /earth martial_law pacifies unrest: military / martial law 50k + 2 divs (-45% to -50% unrest, -8% to -15% stability curfew strain, 15m cooldown, urban casualty risk if unrest >= 50%), relief 150k (-25 unrest, +15 stability), police 80k (-35 unrest, -8 liberty), "
         "jubilee 60k (-15 unrest, +20 stability). UN (/earth un): the Mayor acts as Secretary-General and can "
         "impose sanctions (yields halved, offensive war barred), lift them, order a ceasefire, or send 50,000 Medals "
         "in aid (-35 unrest, +20 stability)."

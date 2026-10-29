@@ -869,6 +869,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             "ALTER TABLE earth_wars ADD COLUMN defender_ships INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE earth_citizens ADD COLUMN last_yield_claim REAL DEFAULT 0",
             "ALTER TABLE earth_trade_routes ADD COLUMN proposer_country_id INTEGER DEFAULT 0",
+            "ALTER TABLE earth_countries ADD COLUMN last_martial_law REAL DEFAULT 0",
             "PRAGMA journal_mode=WAL"
 
         ]:
@@ -5440,7 +5441,133 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self._db.commit()
             return True, "🎉 National Sovereign Jubilee celebrated: -15% Unrest, +20% Stability!"
 
+        elif method in ("military", "martial_law"):
+            # 🪖 Deploy Military / Enforce Martial Law Curfews
+            # Balance Model:
+            # - Requires at least 2 uncommitted Army Divisions (not currently fighting in active foreign wars)
+            # - Costs 50,000 Medals logistics fee (paid from user medals or national treasury)
+            # - Drastically cuts unrest: -45% base (-50% if nation has tanks)
+            # - Civil liberty / stability penalty: -8% (authoritarian) to -15% (democratic)
+            # - Attrition / Casualty risk: if unrest >= 50%, 1 division is lost in urban combat
+            # - Operational Cooldown: 15 minutes (900 seconds)
+
+            async with self._db.execute(
+                "SELECT id, name, flag, unrest, stability, army_divisions, tanks, treasury, government_type, COALESCE(last_martial_law, 0) "
+                "FROM earth_countries WHERE id = ?", (country_id,)
+            ) as cur:
+                c = await cur.fetchone()
+            if not c:
+                return False, "Target country not found."
+
+            c_id, c_name, c_flag, unrest, stability, army_divisions, tanks, treasury, gov_type, last_ml = c
+            army_divisions = int(army_divisions or 0)
+            tanks = int(tanks or 0)
+            treasury = int(treasury or 0)
+            unrest = int(unrest or 0)
+            stability = int(stability or 80)
+            now = time.time()
+
+            # 1. Operational Cooldown Check (15 minutes)
+            cooldown = 900
+            if (now - last_ml) < cooldown:
+                mins_left = int((cooldown - (now - last_ml)) // 60) + 1
+                return False, f"⏳ Armed forces are currently maintaining active martial law curfews in {c_flag} **{c_name}**. Operational cooldown: {mins_left} minute(s) remaining."
+
+            # 2. Check Uncommitted Army Divisions
+            async with self._db.execute(
+                "SELECT COALESCE(SUM(attacker_divisions), 0) FROM earth_wars WHERE status = 'active' AND attacker_country_id = ?",
+                (country_id,)
+            ) as cur:
+                war_row = await cur.fetchone()
+                deployed_in_war = int(war_row[0] or 0)
+
+            available_divisions = max(0, army_divisions - deployed_in_war)
+            if available_divisions < 2:
+                return False, (
+                    f"⚠️ Military deployment requires at least **2 uncommitted Army Divisions** "
+                    f"(Total: {army_divisions}, Deployed in Foreign Wars: {deployed_in_war}, Available: {available_divisions}). "
+                    f"Recruit reserve divisions or conclude current wars first!"
+                )
+
+            # 3. Logistical Funding (50,000 Medals from wallet or treasury)
+            cost = 50000
+            paid_source = ""
+            user_medals = econ.get("medals", 0)
+            if user_medals >= cost:
+                await self.subtract_medals(user_id, cost)
+                paid_source = "personal wallet"
+            elif treasury >= cost:
+                await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (cost, country_id))
+                paid_source = "National Treasury"
+            else:
+                return False, (
+                    f"⚠️ Deploying military logistics requires **{cost:,} Medals** "
+                    f"(Wallet: {user_medals:,} M, National Treasury: {treasury:,} M). Both lack sufficient funds!"
+                )
+
+            # 4. Unrest Reduction Calculation
+            unrest_drop = 50 if tanks >= 1 else 45
+            new_unrest = max(0, unrest - unrest_drop)
+            actual_unrest_reduced = unrest - new_unrest
+
+            # 5. Stability / Civil Liberty Trade-off (by Government Type)
+            gov = (gov_type or "democracy").lower()
+            if gov == "democracy":
+                stability_penalty = 15  # Democratic populace heavily protests military tanks in civilian streets
+            elif gov in ("socialist", "mixed"):
+                stability_penalty = 12
+            elif gov in ("monarchy", "dictatorship", "communism"):
+                stability_penalty = 8   # Authoritarian regimes normalize armed internal security
+            else:
+                stability_penalty = 12
+
+            new_stability = max(10, stability - stability_penalty)
+
+            # 6. Urban Combat Casualties / Attrition (if unrest >= 50%)
+            division_lost = False
+            new_army_divisions = army_divisions
+            if unrest >= 50 and army_divisions > 1:
+                new_army_divisions = army_divisions - 1
+                division_lost = True
+
+            # 7. Apply updates atomically
+            await self._db.execute("""
+                UPDATE earth_countries
+                SET unrest = ?, stability = ?, army_divisions = ?, last_martial_law = ?
+                WHERE id = ?
+            """, (new_unrest, new_stability, new_army_divisions, now, country_id))
+
+            # 8. Log military action
+            try:
+                await self._db.execute("""
+                    INSERT INTO earth_military_log (country_id, actor_id, action, unit_type, amount, created_at)
+                    VALUES (?, ?, 'martial_law', 'army_divisions', 2, ?)
+                """, (country_id, user_id, now))
+            except Exception:
+                pass
+
+            await self._db.commit()
+
+            # 9. Format response message
+            tank_str = " (reinforced with armored tank patrols)" if tanks >= 1 else ""
+            casualty_str = "\n💥 **Urban Attrition:** 1 Army Division suffered casualties while engaging armed insurgent barricades." if division_lost else ""
+            coup_warning = f"\n⚠️ **High Alert:** State stability is dangerously low ({new_stability}%). Continued martial law risks an armed coup!" if new_stability < 25 else ""
+
+            msg = (
+                f"🪖 **Martial Law Declared & Military Deployed!**\n"
+                f"Armed units deployed to city centers across {c_flag} **{c_name}**{tank_str}.\n"
+                f"• 📉 **Civil Unrest:** `{unrest}%` ➔ `{new_unrest}%` (-{actual_unrest_reduced}% riots crushed)\n"
+                f"• ⚖️ **Stability / Liberty:** `{stability}%` ➔ `{new_stability}%` (-{stability_penalty}% curfew strain)\n"
+                f"• 💰 **Logistics Funded:** `{cost:,} Medals` from {paid_source}."
+                f"{casualty_str}{coup_warning}"
+            )
+            return True, msg
+
         return False, "Unknown pacification method."
+
+    async def deploy_earth_military_curfew(self, user_id: int, country_id: int) -> tuple[bool, str]:
+        """Deploy armed military divisions to enforce emergency curfews and crush civil unrest."""
+        return await self.quell_earth_unrest(user_id, country_id, "military")
 
     async def check_earth_riots_and_revolutions(self) -> list[dict]:
         """Apply tax unrest pressure on a six-hour clock, regardless of page refresh rate."""

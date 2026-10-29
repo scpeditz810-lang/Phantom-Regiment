@@ -4980,7 +4980,7 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
                 </div>
 
-                <div style="font-size: 0.72rem; color: #94a3b8;">Deploy civilian subsidies, police crackdowns, or sovereign jubilees.</div>
+                <div style="font-size: 0.72rem; color: #94a3b8;">Deploy civilian subsidies, police crackdowns, military martial law, or sovereign jubilees.</div>
 
             </div>
 
@@ -6608,6 +6608,19 @@ function openQuellModal() {
 
                     <button class="btn-action-sm" onclick="closeModal()">✕</button>
 
+                </div>
+
+                <div class="selectable-card" onclick="quellUnrest('military'); closeModal();" style="border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); margin-top: 0.7rem;">
+                    <div style="font-weight: 800; color: #f87171; display: flex; justify-content: space-between; align-items: center;">
+                        <span>🪖 Deploy Military / Martial Law (50,000 M)</span>
+                        <span style="font-size: 0.65rem; background: rgba(239, 68, 68, 0.25); color: #fca5a5; padding: 2px 6px; border-radius: 4px; font-weight: 700;">FORCE DEPLOYMENT</span>
+                    </div>
+                    <div style="font-size: 0.72rem; color: #cbd5e1; margin-top: 0.25rem;">
+                        Mobilize armed divisions to enforce curfews and crush riots: <strong style="color:#4ade80;">-45% to -50% Unrest</strong>. Requires <strong>≥2 available army divisions</strong>.
+                    </div>
+                    <div style="font-size: 0.68rem; color: #fca5a5; margin-top: 0.2rem;">
+                        ⚖️ Balanced Trade-off: <strong style="color: #f87171;">-8% to -15% Stability (curfew strain)</strong>, risk of 1 division casualty if unrest ≥ 50%, 15m cooldown.
+                    </div>
                 </div>
 
 
