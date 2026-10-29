@@ -56,31 +56,71 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-def is_current_mayor(user_id: int) -> bool:
+def is_current_mayor(user_id: int | str) -> bool:
     if not user_id:
         return False
+    try:
+        uid_int = int(user_id)
+        uid_str = str(user_id)
+    except (ValueError, TypeError):
+        return False
+
+    # 1. Check active session if available
+    try:
+        user_sess = session.get("user")
+        if user_sess:
+            if user_sess.get("is_owner"):
+                return True
+            roles = user_sess.get("roles") or []
+            if any("mayor" in str(r).lower() or "🏛️" in str(r) for r in roles):
+                return True
+    except Exception:
+        pass
+
     bot = current_app.config.get("DISCORD_BOT")
     db = current_app.config.get("DB")
     cfg = get_oauth_config()
+
+    # 2. Check Discord Guild & Member roles directly
     if bot:
-        guild = bot.get_guild(cfg["guild_id"]) or (bot.guilds[0] if bot.guilds else None)
-        if guild:
-            if guild.owner_id == user_id:
+        guilds = []
+        if cfg.get("guild_id"):
+            g = bot.get_guild(cfg["guild_id"])
+            if g:
+                guilds.append(g)
+        guilds.extend(bot.guilds or [])
+        for guild in guilds:
+            if not guild:
+                continue
+            if getattr(guild, "owner_id", None) == uid_int:
                 return True
-            member = guild.get_member(user_id)
-            if member and any(r.name == "🏛️ Mayor" for r in member.roles):
+            member = guild.get_member(uid_int)
+            if member and any("mayor" in r.name.lower() or "🏛️" in r.name for r in member.roles):
                 return True
+
+    # 3. Check Database elections
     if db:
         from web.views import run_async
         import time
-        curr = run_async(db.get_current_commander(cfg["guild_id"]))
-        if curr and curr.get("winner_id") == user_id:
-            return True
-        latest = run_async(db.get_latest_election(cfg["guild_id"]))
-        if latest and latest.get("winner_id") == user_id:
-            term_end = latest.get("term_end", 0) or 0
-            if time.time() < term_end:
+        now = time.time()
+        try:
+            if run_async(db.is_user_current_mayor(uid_int)):
                 return True
+        except Exception:
+            pass
+
+        try:
+            curr = run_async(db.get_current_commander(cfg["guild_id"]))
+            if curr and str(curr.get("winner_id")) == uid_str:
+                return True
+            latest = run_async(db.get_latest_election(cfg["guild_id"]))
+            if latest and str(latest.get("winner_id")) == uid_str:
+                term_end = latest.get("term_end", 0) or 0
+                if now < term_end:
+                    return True
+        except Exception:
+            pass
+
     return False
 
 def admin_required(f):
@@ -203,6 +243,7 @@ def callback():
             except Exception:
                 pass
 
+        is_mayor = is_current_mayor(user_id)
         session["user"] = {
             "id": user_id,
             "username": user_data.get("username", "Unknown"),
@@ -214,6 +255,7 @@ def callback():
             ),
             "is_owner": is_owner,
             "is_manager": is_manager,
+            "is_mayor": is_mayor,
             "roles": roles
         }
 

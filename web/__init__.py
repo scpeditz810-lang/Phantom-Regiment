@@ -24,9 +24,20 @@ def create_app(bot=None, db=None, loop=None):
     # Context processors for all Jinja2 templates
     @app.context_processor
     def inject_global_data():
+        user = session.get("user")
+        user_is_mayor = False
+        if user and user.get("id"):
+            try:
+                from web.auth import is_current_mayor
+                user_is_mayor = bool(is_current_mayor(user["id"]))
+                user["is_mayor"] = user_is_mayor
+                session["user"] = user
+            except Exception:
+                user_is_mayor = bool(user.get("is_mayor"))
         return {
             "current_year": 2026,
-            "bot_online": bool(bot and bot.is_ready())
+            "bot_online": bool(bot and bot.is_ready()),
+            "user_is_mayor": user_is_mayor
         }
 
     # Register blueprints
@@ -68,6 +79,13 @@ def create_app(bot=None, db=None, loop=None):
         }
         if request.endpoint in exempt_endpoints or path in ["/login", "/callback", "/logout", "/verify"]:
             return None
+
+        if "user" in session and session["user"].get("id"):
+            try:
+                from web.auth import is_current_mayor
+                session["user"]["is_mayor"] = bool(is_current_mayor(session["user"]["id"]))
+            except Exception:
+                pass
 
         # If not verified via Discord OAuth, block access
         if "user" not in session:

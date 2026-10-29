@@ -2196,8 +2196,10 @@ def api_earth_stats():
 
         user_c = run_async(db.get_user_earth_country(uid))
 
+        from web.auth import is_current_mayor
         user_stats["id"] = uid
-
+        user_stats["is_mayor"] = bool(is_current_mayor(uid))
+        user_stats["is_owner"] = bool(curr_user.get("is_owner"))
         user_stats["wallet"] = econ.get("medals", 0)
 
         user_stats["pending_invites"] = run_async(db.get_user_pending_cabinet_invites(uid))

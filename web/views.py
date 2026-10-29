@@ -346,9 +346,13 @@ def mayor_page():
 
     from web.auth import get_oauth_config
     cfg = get_oauth_config()
-    latest_ele = run_async(db.get_latest_election(cfg["guild_id"]))
+    latest_ele = run_async(db.get_current_commander(cfg["guild_id"]))
+    if not latest_ele:
+        latest_ele = run_async(db.get_latest_election(cfg["guild_id"]))
+    if not latest_ele:
+        latest_ele = run_async(db.get_active_or_latest_election_any(cfg.get("guild_id")))
     import time
-    term_end = latest_ele.get("term_end", 0) if latest_ele else 0
+    term_end = latest_ele.get("term_end", 0) if latest_ele else (time.time() + 14 * 86400)
     now = time.time()
     term_days_left = max(0, int((term_end - now) // 86400))
     term_hours_left = max(0, int(((term_end - now) % 86400) // 3600))

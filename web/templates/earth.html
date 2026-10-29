@@ -9287,7 +9287,7 @@ function openUNSecurityCouncilModal() {
 
     const currentUserId = statsData.user ? String(statsData.user.id) : null;
 
-    const isMayor = currentUserId && (currentUserId === String(unData.mayor_id));
+    const isMayor = Boolean(currentUserId && (currentUserId === String(unData.mayor_id) || (statsData.user && (statsData.user.is_mayor || statsData.user.is_owner))));
 
     
 

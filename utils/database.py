@@ -1022,6 +1022,69 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self._db.rollback()
             raise
 
+    async def is_user_current_mayor(self, user_id: int) -> bool:
+        """Check if user_id is the active Mayor across any guild or global election."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        try:
+            uid = int(user_id)
+        except (ValueError, TypeError):
+            return False
+        # 1. Check active concluded elections
+        async with self._db.execute("""
+            SELECT id FROM elections 
+            WHERE status = 'concluded' 
+              AND winner_id = ? 
+              AND term_end > ? 
+            LIMIT 1
+        """, (uid, now)) as cur:
+            if await cur.fetchone():
+                return True
+
+        # 2. Check latest concluded election regardless of term_end
+        async with self._db.execute("""
+            SELECT winner_id, term_end FROM elections 
+            WHERE status = 'concluded' AND winner_id IS NOT NULL 
+            ORDER BY id DESC LIMIT 1
+        """) as cur:
+            row = await cur.fetchone()
+            if row and row[0] is not None:
+                if int(row[0]) == uid and (row[1] is None or row[1] > now):
+                    return True
+        return False
+
+    async def get_active_or_latest_election_any(self, guild_id: int | None = None) -> dict | None:
+        """Get the current active or latest concluded election across guilds."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        if guild_id:
+            async with self._db.execute("""
+                SELECT * FROM elections 
+                WHERE guild_id = ? AND status = 'concluded' AND winner_id IS NOT NULL AND term_end > ? 
+                ORDER BY id DESC LIMIT 1
+            """, (guild_id, now)) as cur:
+                row = await cur.fetchone()
+                if row:
+                    return dict(row)
+        async with self._db.execute("""
+            SELECT * FROM elections 
+            WHERE status = 'concluded' AND winner_id IS NOT NULL AND term_end > ? 
+            ORDER BY id DESC LIMIT 1
+        """, (now,)) as cur:
+            row = await cur.fetchone()
+            if row:
+                return dict(row)
+        async with self._db.execute("""
+            SELECT * FROM elections 
+            WHERE winner_id IS NOT NULL 
+            ORDER BY id DESC LIMIT 1
+        """) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+
     async def normalize_inflated_earth_gdps_once(self) -> list[dict]:
         """Normalize historical inflated GDP values down to balanced baselines."""
         marker = "earth_gdp_nerf_normalize_2026_10_29_v1"
@@ -1056,8 +1119,16 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         mayor_id = None
         mayor_name = "UN Security Council (Vacant - Run in /elections)"
         try:
-            async with self._db.execute("SELECT winner_id FROM elections WHERE winner_id IS NOT NULL ORDER BY id DESC LIMIT 1") as cur:
+            now = time.time()
+            async with self._db.execute("""
+                SELECT winner_id FROM elections 
+                WHERE status = 'concluded' AND winner_id IS NOT NULL AND term_end > ? 
+                ORDER BY id DESC LIMIT 1
+            """, (now,)) as cur:
                 row = await cur.fetchone()
+                if not row:
+                    async with self._db.execute("SELECT winner_id FROM elections WHERE winner_id IS NOT NULL ORDER BY id DESC LIMIT 1") as cur2:
+                        row = await cur2.fetchone()
                 if row and row[0]:
                     mayor_id = row[0]
                     async with self._db.execute("SELECT username FROM users WHERE user_id = ?", (mayor_id,)) as ucur:
