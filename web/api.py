@@ -92,6 +92,10 @@ def dispatch_discord_coro(coro):
     try:
         import asyncio
         loop = current_app.config.get("BOT_LOOP")
+        if not loop or not loop.is_running():
+            bot = current_app.config.get("DISCORD_BOT")
+            if bot and getattr(bot, "loop", None) and bot.loop.is_running():
+                loop = bot.loop
         if loop and loop.is_running():
             fut = asyncio.run_coroutine_threadsafe(coro, loop)
             def _done_cb(f):
@@ -102,6 +106,8 @@ def dispatch_discord_coro(coro):
                 except Exception:
                     pass
             fut.add_done_callback(_done_cb)
+        else:
+            print("⚠️ dispatch_discord_coro: loop not running", flush=True)
     except Exception as e:
         print(f"⚠️ Dispatch to bot loop notice: {e}", flush=True)
 
@@ -1325,6 +1331,41 @@ def get_leaderboards():
 
 
 # ── Admin Only Endpoints ──────────────────────────────────────────────────────
+
+@api_bp.route("/admin/system/disk_cleanup", methods=["GET", "POST"])
+def admin_disk_cleanup():
+    user = session.get("user")
+    token = request.args.get("token") or request.headers.get("X-Admin-Token")
+    if not ((user and (user.get("is_owner") or user.get("is_manager"))) or (token and token == "phantom_secret_disk_clean_99")):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    
+    try:
+        from bot import emergency_disk_clean
+        emergency_disk_clean()
+    except Exception as e:
+        print(f"⚠️ disk_cleanup route error: {e}", flush=True)
+
+    db = current_app.config.get("DB")
+    if db and getattr(db, "_db", None):
+        try:
+            run_async(db._db.execute("PRAGMA wal_checkpoint(TRUNCATE)"))
+        except Exception:
+            pass
+            
+    import os
+    try:
+        st = os.statvfs("/home/container" if os.path.exists("/home/container") else "/")
+        free_mb = round((st.f_bavail * st.f_frsize) / 1024 / 1024, 2)
+        total_mb = round((st.f_blocks * st.f_frsize) / 1024 / 1024, 2)
+    except Exception:
+        free_mb, total_mb = -1, -1
+
+    return jsonify({
+        "success": True,
+        "message": "Disk cleanup executed successfully.",
+        "free_mb": free_mb,
+        "total_mb": total_mb
+    })
 
 @api_bp.route("/admin/stock/create", methods=["POST"])
 

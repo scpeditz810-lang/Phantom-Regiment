@@ -124,13 +124,25 @@ def emergency_disk_clean():
                             except Exception:
                                 pass
 
-        # 5. Prune git reflogs if data/.git is heavy
-        if os.path.isdir(os.path.join(data_dir, ".git")):
+        # Remove redundant root database files if data/bot.db is present
+        for db_name in ("bot.db", "bot_snapshot.db"):
+            root_db = os.path.join(base_dir, db_name)
+            if os.path.isfile(root_db) and os.path.isfile(os.path.join(data_dir, "bot.db")):
+                try:
+                    os.remove(root_db)
+                    print(f"🧹 [Disk Cleanup] Removed redundant root {db_name}", flush=True)
+                except Exception:
+                    pass
+
+        # 5. Prune git reflogs and repack loose objects in base_dir/.git
+        if os.path.isdir(os.path.join(base_dir, ".git")):
             try:
-                subprocess.run(["git", "reflog", "expire", "--expire=now", "--all"], cwd=data_dir, timeout=10, capture_output=True)
-                subprocess.run(["git", "prune", "--expire=now"], cwd=data_dir, timeout=10, capture_output=True)
-            except Exception:
-                pass
+                subprocess.run(["git", "reflog", "expire", "--expire=now", "--all"], cwd=base_dir, timeout=15, capture_output=True)
+                subprocess.run(["git", "prune", "--expire=now"], cwd=base_dir, timeout=15, capture_output=True)
+                subprocess.run(["git", "repack", "-a", "-d"], cwd=base_dir, timeout=30, capture_output=True)
+                print("🧹 [Disk Cleanup] Repacked and pruned base_dir/.git", flush=True)
+            except Exception as git_err:
+                print(f"⚠️ [Disk Cleanup] Git repack/prune notice: {git_err}", flush=True)
 
         # 6. Auto-sync repository code from GitHub
         if os.path.isdir(os.path.join(base_dir, ".git")):

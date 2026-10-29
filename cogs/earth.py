@@ -313,12 +313,25 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
                     embed.set_footer(text="Virtual Earth 3D Geopolitics • Spoken Narration Attached 🎙️")
 
-                await channel.send(
-                    content=f"<@&{EARTH_NEWS_ROLE_ID}> 🚨 **SOVEREIGN GEOPOLITICAL DISPATCH!**",
-                    embed=embed,
-                    files=files_to_send,
-                    view=view
-                )
+                try:
+                    await channel.send(
+                        content=f"<@&{EARTH_NEWS_ROLE_ID}> 🚨 **SOVEREIGN GEOPOLITICAL DISPATCH!**",
+                        embed=embed,
+                        files=files_to_send,
+                        view=view
+                    )
+                except Exception as send_err:
+                    print(f"⚠️ Failed to send with view/files ({send_err}), retrying without view...", flush=True)
+                    for f in files_to_send:
+                        try:
+                            f.reset()
+                        except Exception:
+                            pass
+                    await channel.send(
+                        content=f"<@&{EARTH_NEWS_ROLE_ID}> 🚨 **SOVEREIGN GEOPOLITICAL DISPATCH!**",
+                        embed=embed,
+                        files=files_to_send
+                    )
         except Exception as e:
             print(f"⚠️ Failed to broadcast Earth News: {e}", flush=True)
 
@@ -701,8 +714,6 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         """Direct alias for /earth view so /earth dossier opens national status immediately."""
         await self.earth_view(interaction, country)
 
-    @earth_group.command(name="view", description="View sovereign dossier and status of an Earth nation.")
-    @app_commands.describe(country="3-letter country code or name (e.g. RUS, IND, USA) or leave blank for your own nation")
     async def earth_view(self, interaction: discord.Interaction, country: str = None):
         await interaction.response.defer()
         if not country:
@@ -775,7 +786,6 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
         await interaction.followup.send(embed=embed, view=view)
 
-    @earth_group.command(name="my_country", description="View your governed country and ministerial duties.")
     async def earth_my_country(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         c = await self.bot.db.get_user_earth_country(interaction.user.id)
@@ -1566,7 +1576,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     # ??? Advanced Military Tools & High-Tech Arsenal ?????????????????????????????
 
-    @earth_group.command(name="arsenal", description="View advanced high-tech tools, missile shields, drone swarms, and superweapons.")
+    @security_group.command(name="arsenal", description="View advanced high-tech tools, missile shields, drone swarms, and superweapons.")
     async def earth_arsenal(self, interaction: discord.Interaction):
         await interaction.response.defer()
         from utils.constants import EARTH_ADVANCED_TOOLS
@@ -1601,7 +1611,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         view.add_item(discord.ui.Button(label="Open 3D High-Tech Deck", url=WEB_URL, style=discord.ButtonStyle.link, emoji="??"))
         await interaction.followup.send(embed=embed, view=view)
 
-    @earth_group.command(name="buy_tool", description="Procure an advanced military tool, missile defense shield, or drone swarm with Medals.")
+    @security_group.command(name="buy_tool", description="Procure an advanced military tool, missile defense shield, or drone swarm with Medals.")
     @app_commands.describe(tool_key="Asset key (e.g. drone_swarm, iron_dome, hypersonic_battery, tactical_nuke, sat_recon)")
     async def earth_buy_tool(self, interaction: discord.Interaction, tool_key: str):
         await interaction.response.defer()

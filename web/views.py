@@ -321,8 +321,14 @@ def earth_page():
     if user:
         raw_uid = user.get("id")
         uid = int(raw_uid) if str(raw_uid).isdigit() else raw_uid
-        user_data = run_async(db.get_global_economy(uid))
-        user_country = run_async(db.get_user_earth_country(uid))
+        try:
+            user_data = run_async(db.get_global_economy(uid))
+        except Exception:
+            user_data = {"balance": 0, "bank": 0, "medals": 0}
+        try:
+            user_country = run_async(db.get_user_earth_country(uid))
+        except Exception:
+            user_country = None
 
     return render_template(
         "earth.html",

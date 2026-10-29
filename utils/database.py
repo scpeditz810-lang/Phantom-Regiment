@@ -7560,13 +7560,16 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 days = min(30, int((now - pop_last) // 86400))
                 population = min(1_000_000, population + max(1, int(population * 0.02 * days)))
                 population_tick = pop_last + days * 86400
-            await self._db.execute("""
-                UPDATE earth_countries
-                SET gdp = ?, treasury = ?, unrest = ?, last_growth_tick = ?,
-                    population = ?, population_last_growth = ?
-                WHERE id = ?
-            """, (new_gdp, new_treasury, new_unrest, now, population, population_tick, country["id"]))
-            await self._db.commit()
+            try:
+                await self._db.execute("""
+                    UPDATE earth_countries
+                    SET gdp = ?, treasury = ?, unrest = ?, last_growth_tick = ?,
+                        population = ?, population_last_growth = ?
+                    WHERE id = ?
+                """, (new_gdp, new_treasury, new_unrest, now, population, population_tick, country["id"]))
+                await self._db.commit()
+            except Exception as db_err:
+                print(f"⚠️ apply_organic_growth DB update failed: {db_err}", flush=True)
             
             country["gdp"] = new_gdp
             country["treasury"] = new_treasury
