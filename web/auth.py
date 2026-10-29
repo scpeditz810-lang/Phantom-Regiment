@@ -35,7 +35,7 @@ def get_clean_next(target: str | None) -> str | None:
                 "127.0.0.1"
             }
             host = parsed.netloc.lower()
-            if host not in allowed_hosts and not host.endswith(".onrender.com") and not host.endswith(".apps.bot-hosting.cloud"):
+            if host not in allowed_hosts and not host.endswith(".onrender.com") and not host.endswith(".apps.bot-hosting.cloud") and not host.endswith(".koyeb.app") and not host.endswith(".fly.dev"):
                 return None
 
         path = parsed.path or ""
