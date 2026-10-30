@@ -5004,7 +5004,7 @@ function renderDossierTab(c, isLeader, isOwner, container) {
                 <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">👥 Citizen Population</div>
                 <div style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">${Number(c.population || 100).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">Citizens</span></div>
                 <div style="font-size: 0.68rem; color: #10b981; margin-top: 0.2rem;">🌱 Growth Active · <strong>+${Math.floor(Number(c.population || 100) * 35 * (1 + Number(c.tax_rate || 10) / 50)).toLocaleString()} M/hr</strong> civilian yield</div>
-                ${(isOwner || c.can_manage_economy) ? `<button class="btn-action-sm" onclick="openPopulationModal(${c.id})" style="font-size:0.65rem; padding:2px 7px; margin-top:0.35rem; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#6ee7b7; font-weight:700; width:100%;">📈 Stimulate Growth</button>` : ''}
+                ${(isLeader || isOwner || c.can_manage_economy) ? `<button class="btn-action-sm" onclick="openPopulationModal(${c.id})" style="font-size:0.65rem; padding:2px 7px; margin-top:0.35rem; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#6ee7b7; font-weight:700; width:100%;">📈 Stimulate Growth</button>` : ''}
             </div>
             <div class="info-tile">
                 <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">⚔️ Armed Divisions</div>
@@ -6810,7 +6810,7 @@ function openPopulationModal(countryId) {
                     Target: <strong style="color:#f8fafc;">${c.flag || ''} ${c.name}</strong> · Population: <strong style="color:#f8fafc;">${currPop.toLocaleString()} Citizens</strong> (Division force ceiling: <strong>${Math.floor(currPop/2)} divisions</strong>). Enact strategic demographic programs to expand your sovereign population base.
                 </div>
 
-                <div class="selectable-card" onclick="stimulatePopulation('healthcare', ${targetCountryId}); closeModal();" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
+                <div class="selectable-card" onclick="stimulatePopulation('healthcare', ${targetCountryId}); closeModal();" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08); cursor: pointer;">
                     <div style="font-weight: 800; color: #34d399; display:flex; justify-content:space-between; align-items:center;">
                         <span>🏥 Maternal & Public Healthcare Drive</span>
                         <span style="font-size: 0.65rem; background: rgba(16, 185, 129, 0.25); color: #6ee7b7; padding: 2px 6px; border-radius: 4px; font-weight: 700;">12,000 TREASURY</span>
@@ -6823,7 +6823,7 @@ function openPopulationModal(countryId) {
                     </div>
                 </div>
 
-                <div class="selectable-card" onclick="stimulatePopulation('immigration', ${targetCountryId}); closeModal();" style="border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); margin-top:0.6rem;">
+                <div class="selectable-card" onclick="stimulatePopulation('immigration', ${targetCountryId}); closeModal();" style="border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); margin-top:0.6rem; cursor: pointer;">
                     <div style="font-weight: 800; color: #38bdf8; display:flex; justify-content:space-between; align-items:center;">
                         <span>🌍 Skilled Foreign Labor & Diaspora Visas</span>
                         <span style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.25); color: #7dd3fc; padding: 2px 6px; border-radius: 4px; font-weight: 700;">30k T + 2.5k M</span>
@@ -6836,7 +6836,7 @@ function openPopulationModal(countryId) {
                     </div>
                 </div>
 
-                <div class="selectable-card" onclick="stimulatePopulation('housing', ${targetCountryId}); closeModal();" style="border: 1px solid rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); margin-top:0.6rem;">
+                <div class="selectable-card" onclick="stimulatePopulation('housing', ${targetCountryId}); closeModal();" style="border: 1px solid rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); margin-top:0.6rem; cursor: pointer;">
                     <div style="font-weight: 800; color: #facc15; display:flex; justify-content:space-between; align-items:center;">
                         <span>🏗️ Civic Suburban Expansion & Housing</span>
                         <span style="font-size: 0.65rem; background: rgba(250, 204, 21, 0.25); color: #fde047; padding: 2px 6px; border-radius: 4px; font-weight: 700;">65k T + 5k M</span>
@@ -6851,6 +6851,26 @@ function openPopulationModal(countryId) {
             </div>
         </div>
     `;
+}
+
+async function loadDossier(countryId) {
+    try {
+        await loadVirtualEarthData();
+        if (countryId) {
+            const found = (countriesData || []).find(x => Number(x.id) === Number(countryId));
+            if (found) {
+                selectCountry(found);
+                return;
+            }
+        }
+        if (selectedCountry) {
+            const ref = (countriesData || []).find(x => Number(x.id) === Number(selectedCountry.id));
+            if (ref) selectCountry(ref);
+            else renderDockContent();
+        }
+    } catch (e) {
+        console.error("Error reloading dossier:", e);
+    }
 }
 
 async function stimulatePopulation(program, countryId) {
@@ -6869,7 +6889,10 @@ async function stimulatePopulation(program, countryId) {
     if (!c) {
         c = userCountry || selectedCountry;
     }
-    if (!c) return;
+    if (!c) {
+        showToast("❌ You do not govern an active nation!");
+        return;
+    }
     try {
         const res = await fetch("/api/earth/population/stimulate", {
             method: "POST",
@@ -6891,7 +6914,7 @@ async function stimulatePopulation(program, countryId) {
                     userCountry.treasury = d.data.treasury;
                 }
             }
-            loadDossier(c.id);
+            await loadDossier(c.id);
         } else {
             showToast(d.message || "Failed to enact population program", "error");
         }

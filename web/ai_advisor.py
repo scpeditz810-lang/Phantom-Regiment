@@ -46,12 +46,13 @@ MAX_REPLY_TOKENS = 700
 # ----------------------------------------------------------------------------
 EARTH_SECTIONS = {
     "population": (
-        "POPULATION: every country starts at 100 and grows +2% per day (at least +1), compounding, capped at "
-        "1,000,000. It updates when the country is loaded (/earth my_country, /earth view, website), catching up "
-        "to 30 missed days. NO command or building adds population directly, so time and not losing people is the "
-        "way to grow it. It is reduced by recruiting divisions (5 civilians each), war casualties (winner loses ~15% "
-        "of committed divisions as civilians, loser ~35%) and nuclear strikes (~5%). Population caps the army: "
-        "max divisions = pop/5, tanks = pop/25, jets = pop/50, ships = pop/50."
+        "POPULATION & CIVILIANS (/earth population, /earth harvest): Every country begins with 100 citizens. "
+        "Dynamic Growth: grows +2% per day (compounding up to 10,000,000). Rulers can stimulate growth directly using "
+        "/earth population or web buttons: Maternal Healthcare Drive (12k Treasury: +35-55 Pop, -6% Unrest), Foreign Labor Accord "
+        "(30k Treasury + 2.5k Medals: +80-150 Pop), and Suburban Housing (65k Treasury + 5k Medals: +200-350 Pop, +8% Stability). "
+        "ECONOMIC WORKFORCE IMPACT: Civilians directly generate hourly labor yield: 35 Medals x Population x (1 + Tax/50), "
+        "plus up to +50% labor efficiency on all domestic buildings. Rulers collect this via /earth harvest. "
+        "Military recruitment (/earth defense) costs 10k Medals and only 1 civilian per division. Army divisions are capped at Population // 2."
     ),
     "strength": (
         "STRONGEST COUNTRY: no official title. The country list is sorted by GDP (economic strength). Military power "
@@ -132,18 +133,30 @@ EARTH_SECTIONS = {
         "coastal only), limited by population caps. Only the President or Army Commander buys military."
     ),
     "war": (
-        "WAR (/earth war, Defense dashboard; President or Army Commander). Scales: Border Skirmish 24h (min 5 divisions, "
-        "plunder 15% of defender treasury, 100k reparations); Strategic Annexation 72h (min 15 divisions, plunder 40%, "
-        "500k reparations); Total Sovereign Conquest 120h (min 30 divisions, plunder 75%, 1.5M reparations). Domains: "
-        "land, air or naval; you may commit up to 50 equipment (tanks/jets/ships). You cannot attack unclaimed "
-        "countries, yourself, your own other states, or fellow alliance members, and only one active campaign per pair. "
-        "Resolution when the timer ends: score = side power + divisions x3 + random 10-50; higher score wins. Attacker "
-        "win: plunders treasury, defender +20 unrest, and a LAND annexation/total war also captures the country (max 5 "
-        "countries per ruler; captured state gets 35 unrest, 50 stability, cabinet cleared). Defender win: gains reparations. "
-        "Losses: winner loses ~10% of committed equipment and ~12% of divisions, loser ~35% and ~32%. Reinforce an active war "
-        "with more units. NUCLEAR STRIKE: needs a Launch Pad AND a Tactical Nuke, only during an active war, once per "
-        "country per war; deals damage equal to 20% of target GDP, -20 stability, +25 unrest, ~5% population. "
-        "UN SANCTIONS bar offensive warfare for the sanctioned country."
+        "WAR & OCCUPATION (/earth war, Defense dashboard; President or Army Commander). Balanced campaign scales: "
+        "Border Skirmish (12h, min 2 divisions, 15% plunder, 50k reparations); Strategic Annexation (24h, min 5 divisions, "
+        "35% plunder, annexes state); Total World War (48h, min 10 divisions, 60% plunder, total conquest). "
+        "Rulers can customize exact divisions and equipment dispatched to the front line. "
+        "REAL-LIFE IMPERIAL INTEGRATION: When a country is conquered, annexed, or bought: "
+        "1. Wealth & Economy: The captured territory's Treasury and GDP are fully transferred and added to the conqueror's primary motherland nation. "
+        "The captured state's treasury is swept to 0 into imperial coffers. "
+        "2. Civilians & Military Stay Local: Local civilians (population) remain in the conquered land. Surviving military formations remain stationed as local defense forces. "
+        "3. Occupied Resistance & High Riot Chances: Conquered lands start with 80% Unrest and 20% Stability (is_occupied=1). "
+        "Partisans face passive resistance pressure every 2 hours. Stationing armed divisions pacifies unrest (-2% unrest per division). "
+        "High Riot Probability (65% chance when unrest >= 60%) causes civilian casualties and garrison clashes. "
+        "If unrest reaches >=85% with weak garrison (<5 divisions), a PARTISAN NATIONAL LIBERATION occurs, expelling foreign occupiers back to State Trust! "
+        "Maximum 4 conquered states + 1 motherland = 5 total territories per ruler."
+    ),
+    "loans": (
+        "SOVEREIGN BILATERAL DEBT & LOANS (/earth loan, Market/Economy dashboard): Sovereign nations can extend credit "
+        "directly from their National Treasury to other countries. "
+        "Terms: Custom loan principal, custom interest rate (5% to 25%), and duration (12, 24, 48, or 72 hours). "
+        "Territory Collateral: The debtor nation must pledge a territory/state as collateral. "
+        "Default Enforcement & Land Seizure Decree: If the borrower defaults (fails to repay by deadline), the creditor nation's "
+        "ministers gain the legal authority to execute a Sovereign Seizure Decree (/earth loan seize or web button) to permanently "
+        "SEIZE & ANNEX the debtor's pledged territory into their empire! "
+        "Commands: /earth loan offer <target> <principal> <interest> <hours>, /earth loan list, /earth loan accept <id>, "
+        "/earth loan repay <id>, /earth loan seize <id>, /earth loan reject <id>, and /earth harvest."
     ),
     "diplomacy": (
         "DIPLOMACY & ALLIANCES: chartering an alliance costs 500,000 Medals (President or Chief Diplomat, name 3-32 "
@@ -165,28 +178,33 @@ EARTH_SECTIONS = {
         "/earth quell or /earth martial_law pacifies unrest: military / martial law 50k + 2 divs (-45% to -50% unrest, -8% to -15% stability curfew strain, 15m cooldown, urban casualty risk if unrest >= 50%), relief 150k (-25 unrest, +15 stability), police 80k (-35 unrest, -8 liberty), "
         "jubilee 60k (-15 unrest, +20 stability). UN (/earth un): the Mayor acts as Secretary-General and can "
         "impose sanctions (yields halved, offensive war barred), lift them, order a ceasefire, or send 50,000 Medals "
-        "in aid (-35 unrest, +20 stability)."
+        "in aid (-35 unrest, +20 stability). "
+        "MAYORAL ELECTIONS & POWER REVOCATION: When a Mayoral term ends (via /end mayorterm by server owner or term expiration), "
+        "the Mayor immediately and permanently loses ALL power. The '🏛️ Mayor' role is automatically stripped in Discord, "
+        "all /mayor commands reject access, UN Security Council powers (/un ceasefire, /un sanction, /un aid) are revoked, "
+        "and web dashboard access to the Mayor Executive Suite is locked out."
     ),
 }
 
 EARTH_KEYWORDS = {
-    "population": ["population", "citizens", "people", "grow", "growth", "increase", "civilians"],
+    "population": ["population", "citizens", "people", "grow", "growth", "increase", "civilians", "stimulate", "workforce", "labor", "harvest"],
     "strength": ["strongest", "powerful", "superpower", "richest", "biggest", "mightiest", "best country", "top country", "rank", "ranking", "leader"],
-    "economy": ["economy", "economic", "gdp", "treasury", "tax", "taxes", "money", "medals", "income", "dividend", "dividends", "yield", "revenue", "profit", "rich", "earn", "policy", "revolution", "stipend", "unrest", "riot", "stability", "doctrine"],
+    "economy": ["economy", "economic", "gdp", "treasury", "tax", "taxes", "money", "medals", "income", "dividend", "dividends", "yield", "revenue", "profit", "rich", "earn", "policy", "revolution", "stipend", "unrest", "riot", "stability", "doctrine", "harvest"],
     "buildings": ["build", "building", "buildings", "school", "hospital", "mine", "oil", "factory", "bunker", "port", "ocean base", "infrastructure", "upgrade"],
     "trade": ["trade", "route", "routes", "tariff", "shipping", "export", "ocean"],
+    "loans": ["loan", "loans", "debt", "borrow", "lend", "lender", "borrower", "credit", "collateral", "seize", "seizure", "repay", "interest", "maturity"],
     "spy": ["spy", "spies", "espionage", "intel", "intelligence", "agent", "agents", "sabotage", "infiltrate", "dossier", "counter", "sweep", "interrogate", "execute", "academy", "riot", "incite"],
     "arsenal": ["arsenal", "tool", "tools", "satellite", "drone", "iron dome", "cyber", "hypersonic", "nuke", "nuclear", "missile", "launch pad", "buy_tool", "weapon", "weapons", "tank", "tanks", "jet", "jets", "ship", "ships", "division", "divisions", "military", "army", "recruit"],
-    "war": ["war", "wars", "attack", "invade", "conquer", "conquest", "annex", "annexation", "defend", "battle", "campaign", "ceasefire", "sanction", "sanctions", "plunder", "nuke", "nuclear"],
+    "war": ["war", "wars", "attack", "invade", "conquer", "conquest", "annex", "annexation", "defend", "battle", "campaign", "ceasefire", "sanction", "sanctions", "plunder", "nuke", "nuclear", "occupied", "occupation", "resistance", "insurgency", "liberation", "partisan"],
     "diplomacy": ["alliance", "alliances", "diplomacy", "diplomat", "treaty", "stance", "coalition", "government", "isolationist", "interventionist", "neutral"],
-    "politics": ["cabinet", "minister", "president", "claim", "join", "leave", "citizen", "quell", "un", "united nations", "secretary", "offer", "sell", "buy country", "ruler", "rule"],
+    "politics": ["cabinet", "minister", "president", "claim", "join", "leave", "citizen", "quell", "un", "united nations", "secretary", "offer", "sell", "buy country", "ruler", "rule", "mayor", "mayor term"],
 }
-EARTH_TRIGGER_WORDS = {"earth", "country", "countries", "nation", "nations", "virtual"}
+EARTH_TRIGGER_WORDS = {"earth", "country", "countries", "nation", "nations", "virtual", "loan", "loans"}
 EARTH_SPECIFIC_TERMS = (
     "espionage", "sabotage", "annexation", "naval port", "iron dome", "hypersonic", "launch pad", "buy_tool",
     "trade route", "alliance", "cabinet", "quell", "dossier", "counter-intel", "counter intel", "spy",
     "divisions", "nuclear", "nuke", "sanction", "gdp", "stability", "unrest", "oil rig", "gold mine", "bunker",
-    "population",
+    "population", "loan", "loans", "sovereign debt", "collateral", "seize", "seizure", "occupied", "liberation",
 )
 
 
@@ -457,25 +475,57 @@ class TacticalAdvisor:
                 "*Ask me any specific question and I will pull the real-time intel for you!*"
             )
 
-        # 7b. VIRTUAL EARTH POPULATION / GROWTH
-        pop_triggers = {"population", "populations", "citizens", "grow", "growth", "increase", "people"}
+        # 7b. VIRTUAL EARTH POPULATION / GROWTH & CIVILIAN EARNINGS
+        pop_triggers = {"population", "populations", "citizens", "grow", "growth", "increase", "people", "stimulate", "workforce", "labor", "harvest"}
         if cleaned_words.intersection(pop_triggers) and ("earth" in cleaned_words or "country" in cleaned_words
-                                                        or "population" in cleaned_words):
+                                                        or "population" in cleaned_words or "citizen" in cleaned_words or "labor" in cleaned_words):
             return (
-                "🌍 **Virtual Earth: Population Guide**\n"
-                "• **Start:** every country begins with 100 citizens.\n"
-                "• **Growth:** +2% per day (minimum +1), compounding, up to a hard cap of 1,000,000. "
-                "It updates when your country is loaded (`/earth my_country`, `/earth view`, the website).\n"
-                "• **No direct boost:** no command or building adds population; time is the main factor.\n"
-                "• **What lowers it:** recruiting divisions (5 civilians each), war casualties, and nuclear strikes (~5%).\n"
-                "• **Why it matters:** max divisions = pop/5, tanks = pop/25, jets = pop/50, ships = pop/50.\n"
-                "• **Tip:** avoid needless wars and over-recruiting, and keep stability high with schools and hospitals.\n\n"
-                "🌐 **Manage Demographics on Web:** View population growth & live stats on the website: https://discord.com/channels/1550544659217125467/1552470594380103822 or https://phantomregiment.apps.bot-hosting.cloud/"
+                "🌍 **Virtual Earth: Population & Civilian Economic Impact Guide**\n"
+                "• **Start:** Every country begins with **100 citizens** and grows organically +2% per day.\n"
+                "• **Civilian Workforce Yields:** Citizens now directly generate hourly Medals! Formula: `35 Medals x Population x (1 + Tax/50)`, plus up to `+50%` labor efficiency multiplier on all domestic factories and buildings. Collect via `/earth harvest`!\n"
+                "• **Demographic Stimulus Programs (`/earth population`):**\n"
+                "  - 🏥 **Healthcare Drive:** `12,000 Treasury` -> `+35-55 Pop`, `-6% Unrest`\n"
+                "  - 🌍 **Immigration Accord:** `30k Treasury + 2.5k Medals` -> `+80-150 Pop` (scales with stability)\n"
+                "  - 🏗️ **Housing Expansion:** `65k Treasury + 5k Medals` -> `+200-350 Pop`, `+8% Stability`\n"
+                "• **Military Force Cap:** Armed divisions are capped at `Population // 2` (recruiting costs 10k Medals and only 1 civilian per division).\n\n"
+                "🌐 **Manage Demographics on Web:** Enact demographic stimulus and monitor civilian yields on the website: https://discord.com/channels/1550544659217125467/1552470594380103822 or https://phantomregiment.apps.bot-hosting.cloud/"
+            )
+
+        # 7b2. SOVEREIGN LOANS & COLLATERAL LAND SEIZURE
+        loan_triggers = {"loan", "loans", "debt", "borrow", "borrower", "lender", "lend", "credit", "collateral", "seize", "seizure", "repay"}
+        if cleaned_words.intersection(loan_triggers) and ("earth" in cleaned_words or "country" in cleaned_words or "loan" in cleaned_words or "debt" in cleaned_words or "land" in cleaned_words or "seize" in cleaned_words):
+            return (
+                "🏛️ **Virtual Earth: Sovereign Loans & Territorial Land Seizure Guide**\n"
+                "Sovereign nations can extend credit directly from their National Treasury backed by territorial state collateral!\n\n"
+                "• **Lending Capital:** Loan principal is escrowed directly from the lender's National Treasury.\n"
+                "• **Interest & Terms:** Custom interest rates (`5% to 25%`) and repayment duration (`12h`, `24h`, `48h`, or `72h`).\n"
+                "• **Territorial Land Collateral:** The debtor nation pledges an individual state or territory as collateral.\n"
+                "• **🚨 Default Enforcement (Land Seizure):** If the debtor defaults (fails to repay by deadline), the creditor nation's ministers gain the legal right to execute a **Sovereign Seizure Decree** (`/earth loan seize` or web button) to permanently **SEIZE & ANNEX** the debtor's pledged territory into their empire!\n"
+                "• **Commands:**\n"
+                "  - `/earth loan offer <target> <principal> <interest_rate> <duration_hours>`\n"
+                "  - `/earth loan list` — Review active debt ledgers and countdowns\n"
+                "  - `/earth loan accept <loan_id>` — Disburse funds into treasury\n"
+                "  - `/earth loan repay <loan_id>` — Settle debt with interest\n"
+                "  - `/earth loan seize <loan_id>` — Annex defaulting debtor's land\n"
+                "  - `/earth harvest` — Claim dividends and civilian yields\n\n"
+                "🌐 **Sovereign Debt Ledger:** Issue credit and review collateral on the website: https://phantomregiment.apps.bot-hosting.cloud/ (see <#1552470594380103822>)"
+            )
+
+        # 7b3. MAYOR TERM ENDING & POWER REVOCATION
+        mayor_term_triggers = {"term", "terms", "ended", "ending", "end", "lose", "power", "powers", "revoked", "remove", "stripped"}
+        if ("mayor" in cleaned_words or "/mayor" in q_lower) and cleaned_words.intersection(mayor_term_triggers):
+            return (
+                "🏛️ **Office of the Mayor: Term Ending & Power Revocation**\n"
+                "• **Term Termination:** When a Mayor's term ends (via `/end mayorterm` by the Server Owner or upon term expiration), **ALL Mayoral powers are immediately and permanently revoked**.\n"
+                "• **Discord Role Purge:** The `🏛️ Mayor` role is instantly stripped across all servers.\n"
+                "• **Command Lockout:** Former mayors are immediately blocked from all `/mayor` commands (`/mayor doublexp`, `/mayor tax`, `/mayor salary`, `/mayor stimulus`, `/mayor award`, `/mayor pardon`, etc.).\n"
+                "• **UN High Office Revocation:** United Nations Security Council Secretary-General powers (`/un ceasefire`, `/un sanction`, `/un aid`) are terminated.\n"
+                "• **Web Suite Locked:** The Mayoral Command Suite on the web dashboard is permanently locked."
             )
 
         # 7c2. MOST CONQUERS / LANDS CAPTURED / CONQUEST LEADERBOARD
-        conquest_triggers = {"conquer", "conquere", "conqueres", "conquerer", "conquerers", "conquers", "conquered", "conquest", "conquests", "lands", "territory", "territories", "captured", "annex", "annexed", "annexation", "empire"}
-        if cleaned_words.intersection(conquest_triggers) and any(k in q_lower for k in ["conquer", "land", "territor", "captured", "annex", "most", "who", "which", "top", "leader"]):
+        conquest_triggers = {"conquer", "conquere", "conqueres", "conquerer", "conquerers", "conquers", "conquered", "conquest", "conquests", "lands", "territory", "territories", "captured", "captures", "capture", "annex", "annexed", "annexation", "empire", "occupy", "occupied", "buyout", "bought"}
+        if cleaned_words.intersection(conquest_triggers) and any(k in q_lower for k in ["conquer", "land", "territor", "captur", "annex", "most", "who", "which", "top", "leader", "occup", "buy", "bought"]):
             stats = self.get_conquest_stats()
             reply_lines = ["🌍 **Virtual Earth: Global Conquest & Captured Lands Intelligence**\n"]
             
@@ -505,10 +555,14 @@ class TacticalAdvisor:
             else:
                 reply_lines.append("• All active rulers currently govern single founding motherlands.")
 
-            reply_lines.append("\n💡 **Conquest & Annexation Rules:**")
-            reply_lines.append("• **Balanced Duration:** Strategic Annexation is now **24 Hours** (min 5 divisions); Total World War is **48 Hours** (min 10 divisions).")
-            reply_lines.append("• **Empire Cap:** Sovereign rulers can conquer and annex up to **4 foreign states** (governing 5 total territories).")
-            reply_lines.append("• **Launch Campaign:** Issue declarations via `/earth war` or directly on the 3D map.")
+            reply_lines.append("\n💡 **Conquest, Buyout & Imperial Integration Rules (Like Real Life):**")
+            reply_lines.append("• **Balanced Duration:** Strategic Annexation is **24 Hours** (min 5 divisions); Total World War is **48 Hours** (min 10 divisions); Border Skirmish is **12 Hours** (min 2 divisions).")
+            reply_lines.append("• **Wealth & GDP Absorption:** When you capture or buy a land, its Treasury and GDP are fully transferred and added to your primary motherland nation! The captured territory's treasury is swept to 0 into imperial coffers.")
+            reply_lines.append("• **Civilians & Military Stay Local:** Conquered civilians (population) remain in their regional homeland. Surviving armed formations remain stationed as local defense garrisons.")
+            reply_lines.append("• **Partisan Resistance & High Riot Chances:** Conquered states start with 80% Unrest and 20% Stability (is_occupied=1). Partisans rebel with a 65% riot chance if unrest >= 60%! Stationing armed divisions pacifies unrest (-2% per division).")
+            reply_lines.append("• **National Liberation Revolt:** If unrest reaches >=85% and garrison is weak (<5 divisions), conquered citizens overthrow the occupier and liberate the nation back to the Sovereign State Trust!")
+            reply_lines.append("• **Empire Cap:** Sovereign rulers can govern up to **4 conquered states + 1 motherland** (5 total realms).")
+            reply_lines.append("• **Launch Campaign:** Issue declarations via `/earth war` or buy territories under the Market tab on the 3D globe.")
             reply_lines.append("\n🌐 **Virtual Earth Command Deck:** Track live military campaigns and border maps in 3D: https://phantomregiment.apps.bot-hosting.cloud/ (see <#1552470594380103822>)")
             return "\n".join(reply_lines)
 
@@ -686,7 +740,12 @@ class TacticalAdvisor:
             "  • `/earth war <target> <scale> <domain>` — Declare military campaign (Border Skirmish 24h, Annexation 72h, Conquest 120h; Land, Air, or Naval domain). Triggers animated order parchment with deep announcer narration in #earth-news!\n"
             "  • `/earth martial_law` — Mobilize military divisions to impose emergency curfew and swiftly crush civil unrest (-45% unrest).\n"
             "  • `/earth quell <type>` — Pacify unrest through civil stimulus ('relief', 'police', 'festival'). Treasury pays if wallet is low.\n"
+            "  • `/earth population [program]` — Enact sovereign demographic programs to grow civilian population (Healthcare Drive, Foreign Labor, Suburban Housing).\n"
+            "  • `/earth harvest` — Collect national hourly dividends, civilian workforce labor yields, and citizen stipends.\n"
+            "  • `/earth loan <offer|list|accept|repay|seize|reject>` — Sovereign bilateral debt backed by territorial state collateral! If a debtor defaults, creditor can legally SEIZE and annex the pledged land!\n"
+            "  • `/earth conquests` — Review global military conquest leaderboard and annexed state holdings.\n"
             "  • `/earth surrender` — Concede active war to prevent further casualties.\n"
+            "  • REAL-LIFE CONQUEST INTEGRATION: Conquering or buying a foreign territory merges its Treasury and GDP directly into your primary motherland capital! Civilians and military garrisons remain local in the captured territory. Conquered lands face realistic occupied partisan resistance (80% unrest, 20% stability, 65% riot chance) and can stage a National Liberation Revolt if not pacified by stationed divisions!\n"
             "  • `/earth claim <country> [offer]` — Claim an unowned country from State Trust (0% tax, starting sovereignty).\n"
             "  • `/earth join <country>` — Pledge allegiance to a nation as a citizen.\n"
             "  • `/earth leave` — Renounce citizenship and become stateless.\n"
@@ -697,7 +756,7 @@ class TacticalAdvisor:
             "  • TRADE & ALLIANCE TREATIES: Coastal nations with Naval Ports can sign ocean trade routes (+3,500/hr per route). Form or join alliances to create defense coalitions (+25 Defense per ally). Ratifying trade routes or joining alliances automatically broadcasts an animated signed treaty parchment video with deep male voice announcer narration to #earth-news!\n"
             "- STAFF APPLICATIONS: open when High Command runs /staffapplications. Roles: Server Staff (moderation), Recruitment Management, Giveaways & Events Management. Flow: DM interview (7-8 questions), answers go to #staff-app-review for Commander evaluation.\n"
             "- GAMBLING (max bet 150,000 Medals): /coinflip <bet>; /blackjack <bet> (Hit/Stand/Double Down); /roulette <bet> <bet_type> (Red/Black/Even/Odd 2x, Green 36x); /scratch <tier> (Bronze 500M, Silver 2.5kM, Gold 10kM, up to 10x); /fight <@opponent> <bet> (1v1 PvP, equip loadout via modal, turn-based Attack / Use Potion, winner takes pot); /rps <@opponent> <bet>.\n"
-            "- MAYOR (/mayor): salary (+12,500 Medals/day), tax <0-50%> (stock transaction tax), doublexp (24h 2X XP, max 3 per 2 weeks), stimulus, award <@user> (+15,000 Medals), pardon <@user>, stock_supply <sym> <qty>, stock_create (IPO), create_plot.\n"
+            "- MAYOR (/mayor): salary (+12,500 Medals/day), tax <0-50%> (stock transaction tax), doublexp (24h 2X XP, max 3 per 2 weeks), stimulus, award <@user> (+15,000 Medals), pardon <@user>, stock_supply <sym> <qty>, stock_create (IPO), create_plot. Term Termination: When a Mayor's term ends (/end mayorterm by Server Owner or upon term expiry), ALL mayoral powers, UN Security Council privileges, and web executive suite access are immediately and permanently revoked! The '🏛️ Mayor' role is purged across all servers.\n"
             "- ELECTIONS (/election): every 7 days, 48-hour voting window. /election status, /election register (400k Medals fee), /election vote <@candidate>.\n"
             "- ECONOMY: /daily, /work (4h), /weekly, /crime (2h), /scavenge (45m), /trivia (30m), /balance, /transfer, /medalleaderboard, /globallb, /shop, /buyrole.\n"
             "- BANKING (/bank): create, deposit, withdraw, balance, upgrade (10 vault tiers, up to 1M interest/day). /rob = high-stakes bank robbery (needs lockpicks/C4).\n"
