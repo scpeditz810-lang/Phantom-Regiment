@@ -4060,55 +4060,51 @@ def api_earth_counter_sweep():
 
 
 @api_bp.route("/earth/tools")
-
-@login_required
-
 def api_earth_tools():
-
     try:
-
         country_id = int(request.args.get("country_id", 0))
-
     except (ValueError, TypeError):
-
-        return jsonify({"error": "Invalid country_id"}), 400
-
-
+        country_id = 0
 
     from utils.constants import EARTH_ADVANCED_TOOLS
 
     db = get_db()
-    user_id = session["user"]["id"]
-    # Do not disclose another country's advanced arsenal through this endpoint.
-    if not run_async(db.has_earth_cabinet_permission(user_id, country_id, "defense")):
-        return jsonify({"success": False, "message": "This country's arsenal is classified."}), 403
+    curr_user = session.get("user")
+    user_id = None
+    if curr_user and curr_user.get("id"):
+        raw_uid = str(curr_user["id"])
+        user_id = int(raw_uid) if raw_uid.isdigit() else raw_uid
 
-    owned_tools = run_async(db.get_country_tools(country_id))
+    owned_tools = []
+    if country_id > 0:
+        try:
+            owned_tools = run_async(db.get_country_tools(country_id)) or []
+        except Exception as e:
+            print(f"⚠️ Error fetching tools for country {country_id}: {e}")
+            owned_tools = []
 
-    owned_keys = {t["tool_key"] for t in owned_tools}
-
-
+    owned_keys = {t["tool_key"] for t in owned_tools} if owned_tools else set()
 
     catalogue = []
-
     for key, val in EARTH_ADVANCED_TOOLS.items():
-
         catalogue.append({
-
             **val,
-
             "owned": key in owned_keys
-
         })
 
-
+    can_procure = False
+    if user_id and country_id > 0:
+        try:
+            can_procure = bool(run_async(db.has_earth_cabinet_permission(user_id, country_id, "defense")))
+        except Exception:
+            can_procure = False
 
     return jsonify({
-
+        "success": True,
         "catalogue": catalogue,
-
-        "owned": owned_tools
-
+        "owned": owned_tools,
+        "can_procure": can_procure,
+        "country_id": country_id
     })
 
 
