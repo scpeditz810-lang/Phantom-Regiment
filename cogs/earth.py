@@ -901,11 +901,11 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             print(f"⚠️ Error checking concluded earth wars: {e}", flush=True)
 
     earth_group = app_commands.Group(name="earth", description="🌍 Virtual Earth: Global Geopolitics Simulation")
-    cabinet_group = app_commands.Group(name="cabinet", parent=earth_group, description="🏛️ Sovereign Cabinet & Ministers")
+    cabinet_group = app_commands.Group(name="cabinet", description="🏛️ Sovereign Cabinet & Ministers")
     # Discord allows at most 25 direct child commands per slash-command group.
     # Keep UN and security actions under subgroups so all Earth commands register cleanly within Discord's 25-child limit.
-    un_group = app_commands.Group(name="un", parent=earth_group, description="🇺🇳 United Nations peacekeeping actions")
-    security_group = app_commands.Group(name="security", parent=earth_group, description="🛡️ Counter-intelligence and detainee operations")
+    un_group = app_commands.Group(name="un", description="🇺🇳 United Nations peacekeeping actions")
+    security_group = app_commands.Group(name="security", description="🛡️ Counter-intelligence and detainee operations")
 
     # ─── Country Overview ─────────────────────────────────────────────────────
 
@@ -1547,7 +1547,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     # ─── Sovereign Bilateral Loans & Collateral Land Seizure ──────────────────
 
-    loan_group = app_commands.Group(name="loan", description="🏛️ Sovereign bilateral loans and territorial collateral seizure", parent=earth_group)
+    loan_group = app_commands.Group(name="earth_loan", description="🏛️ Sovereign loans & territorial collateral")
 
     @loan_group.command(name="offer", description="Issue a sovereign loan to another nation backed by state territorial collateral.")
     @app_commands.describe(
@@ -2024,10 +2024,10 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
     @earth_group.command(name="population", description="Enact sovereign programs to stimulate population growth and immigration.")
     @app_commands.describe(program="Demographic or public health policy to stimulate civilian growth")
     @app_commands.choices(program=[
-        app_commands.Choice(name="🏥 Community Health Clinics (3.5k Treasury: +20-40 Pop)", value="clinic"),
-        app_commands.Choice(name="🏥 Maternal & Public Healthcare Drive (8k Treasury: +45-75 Pop)", value="healthcare"),
-        app_commands.Choice(name="🌍 Skilled Foreign Labor & Diaspora Visas (20k Treasury + 1.5k Medals: +90-160 Pop)", value="immigration"),
-        app_commands.Choice(name="🏗️ Civic Suburban Expansion & Housing (45k Treasury + 3.5k Medals: +220-380 Pop)", value="housing")
+        app_commands.Choice(name="🏥 Community Clinics (3.5k T: +20-40 Pop)", value="clinic"),
+        app_commands.Choice(name="🏥 Maternity Healthcare (8k T: +45-75 Pop)", value="healthcare"),
+        app_commands.Choice(name="🌍 Foreign Labor Visas (20k T + 1.5k M: +90-160 Pop)", value="immigration"),
+        app_commands.Choice(name="🏗️ Suburban Housing (45k T + 3.5k M: +220-380 Pop)", value="housing")
     ])
     async def earth_population(self, interaction: discord.Interaction, program: app_commands.Choice[str] | None = None):
         await interaction.response.defer()
