@@ -202,14 +202,38 @@ class TacticalAdvisor:
         self._model_cache = {}
         self._working_model = {}
 
+    def _find_working_db_path(self) -> str:
+        if hasattr(self, "db") and getattr(self.db, "db_path", None):
+            if os.path.exists(self.db.db_path) and os.path.getsize(self.db.db_path) > 10000:
+                return self.db.db_path
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        candidates = [
+            os.path.join(base_dir, "data", "bot.db"),
+            os.path.join(base_dir, "bot_snapshot.db"),
+            os.path.join(base_dir, "bot.db"),
+            "data/bot.db",
+            "bot.db",
+            "bot_snapshot.db"
+        ]
+        import sqlite3
+        for p in candidates:
+            if os.path.exists(p) and os.path.getsize(p) > 10000:
+                try:
+                    c = sqlite3.connect(p)
+                    cur = c.cursor()
+                    cur.execute("SELECT 1 FROM earth_countries LIMIT 1")
+                    c.close()
+                    return p
+                except Exception:
+                    continue
+        return "data/bot.db"
+
     def get_market_data(self):
         """Extract live stock prices, trends, supply, and tax rates directly from SQLite."""
         stocks_info = []
         try:
             import sqlite3
-            db_path = getattr(self.db, "db_path", "data/bot.db")
-            if not os.path.exists(db_path):
-                db_path = "bot.db"
+            db_path = self._find_working_db_path()
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
@@ -245,9 +269,7 @@ class TacticalAdvisor:
         wars_info = []
         try:
             import sqlite3
-            db_path = getattr(self.db, "db_path", "data/bot.db")
-            if not os.path.exists(db_path):
-                db_path = "bot.db"
+            db_path = self._find_working_db_path()
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
@@ -301,9 +323,7 @@ class TacticalAdvisor:
         countries = []
         try:
             import sqlite3
-            db_path = getattr(self.db, "db_path", "data/bot.db")
-            if not os.path.exists(db_path):
-                db_path = "bot.db"
+            db_path = self._find_working_db_path()
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
@@ -329,6 +349,79 @@ class TacticalAdvisor:
         except Exception as e:
             print(f"[Advisor] Error reading countries data: {e}")
         return countries
+
+    def get_conquest_stats(self) -> dict:
+        """Fetch statistics on which countries did the most conquers and which country captured the most lands."""
+        stats = {
+            "top_conquerors": [],
+            "top_victors": [],
+            "top_land_holders": [],
+            "annexed_states": []
+        }
+        try:
+            import sqlite3
+            db_path = self._find_working_db_path()
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+
+            # 1. Most offensive conquers (attacker won)
+            cur.execute("""
+                SELECT c.name, c.flag, count(w.id) as conquers
+                FROM earth_wars w
+                JOIN earth_countries c ON c.id = w.attacker_country_id
+                WHERE w.status = 'attacker_won'
+                GROUP BY w.attacker_country_id
+                ORDER BY conquers DESC
+                LIMIT 5
+            """)
+            stats["top_conquerors"] = [dict(r) for r in cur.fetchall()]
+
+            # 2. Total war victories (all won wars)
+            cur.execute("""
+                SELECT c.name, c.flag, count(w.id) as victories
+                FROM earth_wars w
+                JOIN earth_countries c ON c.id = w.winner_country_id
+                WHERE w.winner_country_id IS NOT NULL AND w.status IN ('attacker_won', 'defender_won')
+                GROUP BY w.winner_country_id
+                ORDER BY victories DESC
+                LIMIT 5
+            """)
+            stats["top_victors"] = [dict(r) for r in cur.fetchall()]
+
+            # 3. Lands held & captured per ruler
+            cur.execute("""
+                SELECT owner_id, count(*) as count
+                FROM earth_countries
+                WHERE owner_id IS NOT NULL
+                GROUP BY owner_id
+                ORDER BY count DESC
+                LIMIT 5
+            """)
+            owner_rows = cur.fetchall()
+            for r in owner_rows:
+                oid = r["owner_id"]
+                cur.execute("SELECT id, name, flag FROM earth_countries WHERE owner_id = ? ORDER BY id ASC", (oid,))
+                territories = [dict(t) for t in cur.fetchall()]
+                motherland = territories[0] if territories else None
+                conquered = territories[1:] if len(territories) > 1 else []
+                stats["top_land_holders"].append({
+                    "owner_id": oid,
+                    "total_lands": len(territories),
+                    "motherland": motherland,
+                    "conquered": conquered
+                })
+                for c_state in conquered:
+                    stats["annexed_states"].append({
+                        "conquered_name": c_state["name"],
+                        "conquered_flag": c_state["flag"],
+                        "motherland_name": motherland["name"] if motherland else "Empire",
+                        "motherland_flag": motherland["flag"] if motherland else "👑"
+                    })
+            conn.close()
+        except Exception as e:
+            print(f"[Advisor] Error reading conquest stats: {e}")
+        return stats
 
     def _ranking_text(self, countries: list, limit: int = 5) -> str:
         if not countries:
@@ -379,6 +472,45 @@ class TacticalAdvisor:
                 "• **Tip:** avoid needless wars and over-recruiting, and keep stability high with schools and hospitals.\n\n"
                 "🌐 **Manage Demographics on Web:** View population growth & live stats on the website: https://discord.com/channels/1550544659217125467/1552470594380103822 or https://phantomregiment.apps.bot-hosting.cloud/"
             )
+
+        # 7c2. MOST CONQUERS / LANDS CAPTURED / CONQUEST LEADERBOARD
+        conquest_triggers = {"conquer", "conquere", "conqueres", "conquerer", "conquerers", "conquers", "conquered", "conquest", "conquests", "lands", "territory", "territories", "captured", "annex", "annexed", "annexation", "empire"}
+        if cleaned_words.intersection(conquest_triggers) and any(k in q_lower for k in ["conquer", "land", "territor", "captured", "annex", "most", "who", "which", "top", "leader"]):
+            stats = self.get_conquest_stats()
+            reply_lines = ["🌍 **Virtual Earth: Global Conquest & Captured Lands Intelligence**\n"]
+            
+            # Top Conquerors
+            if stats.get("top_conquerors"):
+                reply_lines.append("⚔️ **Top Nations by Offensive Conquers (Attacker Won):**")
+                for i, c in enumerate(stats["top_conquerors"]):
+                    reply_lines.append(f"• **{i+1}. {c['flag']} {c['name']}** — **{c['conquers']}** military conquests")
+            elif stats.get("top_victors"):
+                reply_lines.append("⚔️ **Top Nations by Total War Victories:**")
+                for i, c in enumerate(stats["top_victors"]):
+                    reply_lines.append(f"• **{i+1}. {c['flag']} {c['name']}** — **{c['victories']}** victories")
+            else:
+                reply_lines.append("⚔️ **Military Conquers:** No offensive conquests completed yet. The international board is open for conquest!")
+
+            # Most Lands Captured
+            reply_lines.append("\n👑 **Most Lands Captured & Sovereign Territories Held:**")
+            if stats.get("top_land_holders"):
+                for i, h in enumerate(stats["top_land_holders"]):
+                    m = h["motherland"]
+                    conq = h["conquered"]
+                    if conq:
+                        conq_desc = ", ".join(f"{s['flag']} **{s['name']}**" for s in conq)
+                        reply_lines.append(f"• **{i+1}. {m['flag']} {m['name']}** — Controls **{h['total_lands']} sovereign realms** (Founding motherland + captured state: {conq_desc})")
+                    else:
+                        reply_lines.append(f"• **{i+1}. {m['flag']} {m['name']}** — Controls **{h['total_lands']} realm** ({m['flag']} {m['name']})")
+            else:
+                reply_lines.append("• All active rulers currently govern single founding motherlands.")
+
+            reply_lines.append("\n💡 **Conquest & Annexation Rules:**")
+            reply_lines.append("• **Balanced Duration:** Strategic Annexation is now **24 Hours** (min 5 divisions); Total World War is **48 Hours** (min 10 divisions).")
+            reply_lines.append("• **Empire Cap:** Sovereign rulers can conquer and annex up to **4 foreign states** (governing 5 total territories).")
+            reply_lines.append("• **Launch Campaign:** Issue declarations via `/earth war` or directly on the 3D map.")
+            reply_lines.append("\n🌐 **Virtual Earth Command Deck:** Track live military campaigns and border maps in 3D: https://phantomregiment.apps.bot-hosting.cloud/ (see <#1552470594380103822>)")
+            return "\n".join(reply_lines)
 
         # 7c. STRONGEST / BIGGEST / RICHEST COUNTRY
         power_triggers = {"strongest", "powerful", "superpower", "richest", "biggest", "mightiest", "best", "top"}
@@ -611,6 +743,17 @@ class TacticalAdvisor:
         ranking = self._ranking_text(countries or [])
         if ranking:
             lines.append("LIVE COUNTRY RANKINGS:\n" + ranking)
+        conquest_stats = self.get_conquest_stats()
+        if conquest_stats.get("top_conquerors"):
+            cq_str = "; ".join(f"{i+1}. {c['flag']} {c['name']} ({c['conquers']} offensive conquers)" for i, c in enumerate(conquest_stats["top_conquerors"]))
+            lines.append("Top Conquering Countries (Offensive Conquers Won): " + cq_str)
+        if conquest_stats.get("top_land_holders"):
+            lh_str = "; ".join(
+                f"{i+1}. {h['motherland']['flag']} {h['motherland']['name']} ({h['total_lands']} territories" +
+                (f", holding conquered: {', '.join(s['flag']+' '+s['name'] for s in h['conquered'])}" if h['conquered'] else "") + ")"
+                for i, h in enumerate(conquest_stats["top_land_holders"][:5])
+            )
+            lines.append("Most Lands Captured / Sovereign Realms Held: " + lh_str)
         return "\n".join(lines)
 
     def build_system_prompt(self, stocks: list, wars: list, server_info: dict = None, countries: list = None,

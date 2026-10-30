@@ -375,34 +375,34 @@ EARTH_WAR_SCALES = {
         "key": "border",
         "name": "Border Skirmish",
         "emoji": "⚔️",
-        "duration_hours": 24,
-        "duration_seconds": 86400,
-        "desc": "Tactical skirmish along national frontier. Low risk, fast resolution.",
+        "duration_hours": 12,
+        "duration_seconds": 43200,
+        "desc": "Tactical skirmish along national frontier (12 Hours). Fast resolution, low requirements.",
         "treasury_plunder_pct": 0.15,
-        "min_divisions": 5,
-        "reparations": 100000
+        "min_divisions": 2,
+        "reparations": 50000
     },
     "annexation": {
         "key": "annexation",
         "name": "Strategic Annexation Campaign",
         "emoji": "🚩",
-        "duration_hours": 72,
-        "duration_seconds": 259200,
-        "desc": "Large-scale strategic campaign to seize key resource nodes and cripple enemy defenses.",
-        "treasury_plunder_pct": 0.40,
-        "min_divisions": 15,
-        "reparations": 500000
+        "duration_hours": 24,
+        "duration_seconds": 86400,
+        "desc": "Balanced 24-Hour strategic offensive. Seize resource nodes and annex conquered states into your empire!",
+        "treasury_plunder_pct": 0.35,
+        "min_divisions": 5,
+        "reparations": 200000
     },
     "world_war": {
         "key": "world_war",
         "name": "Total Sovereign Conquest",
         "emoji": "💥",
-        "duration_hours": 120,
-        "duration_seconds": 432000,
-        "desc": "All-out existential war spanning five full days! Devastates target nation, seizing 75% treasury.",
-        "treasury_plunder_pct": 0.75,
-        "min_divisions": 30,
-        "reparations": 1500000
+        "duration_hours": 48,
+        "duration_seconds": 172800,
+        "desc": "48-Hour existential total conquest war! Seize territory, plunder treasury, and establish global dominion.",
+        "treasury_plunder_pct": 0.60,
+        "min_divisions": 10,
+        "reparations": 500000
     }
 }
 

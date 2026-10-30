@@ -3102,18 +3102,21 @@ def api_earth_war_declare():
         scale = str(data.get("scale", "border")).strip().lower()
         domain = str(data.get("domain", "land")).strip().lower()
         equipment = int(data.get("equipment", 0))
+        divisions = int(data.get("divisions", 0))
 
     except (ValueError, TypeError):
 
         return jsonify({"success": False, "message": "Invalid parameters."}), 400
 
-        
-
-    user_id = session["user"]["id"]
+    raw_uid = session.get("user", {}).get("id")
+    try:
+        user_id = int(raw_uid)
+    except (ValueError, TypeError):
+        user_id = raw_uid
 
     db = get_db()
 
-    success, msg, war_data = run_async(db.declare_earth_war(user_id, attacker_country_id, defender_country_id, scale, domain, equipment))
+    success, msg, war_data = run_async(db.declare_earth_war(user_id, attacker_country_id, defender_country_id, scale, domain, equipment, divisions))
 
     if success and war_data:
         w_id = war_data.get("war_id") or 0

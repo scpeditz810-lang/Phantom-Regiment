@@ -5004,7 +5004,7 @@ function renderDossierTab(c, isLeader, isOwner, container) {
                 <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">👥 Citizen Population</div>
                 <div style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">${Number(c.population || 100).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">Citizens</span></div>
                 <div style="font-size: 0.68rem; color: #10b981; margin-top: 0.2rem;">🌱 Dynamic Growth Active</div>
-                ${(isOwner || c.can_manage_economy) ? `<button class="btn-action-sm" onclick="openPopulationModal()" style="font-size:0.65rem; padding:2px 7px; margin-top:0.35rem; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#6ee7b7; font-weight:700; width:100%;">📈 Stimulate Growth</button>` : ''}
+                ${(isOwner || c.can_manage_economy) ? `<button class="btn-action-sm" onclick="openPopulationModal(${c.id})" style="font-size:0.65rem; padding:2px 7px; margin-top:0.35rem; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#6ee7b7; font-weight:700; width:100%;">📈 Stimulate Growth</button>` : ''}
             </div>
             <div class="info-tile">
                 <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">⚔️ Armed Divisions</div>
@@ -5803,7 +5803,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
 
     if (isOwnCountry && c.can_command_defense) {
         const reserve = Math.max(0, Number(c.army_divisions || 0));
-        const maxTotal = Math.max(0, Math.floor(Number(c.population || 0) / 5));
+        const maxTotal = Math.max(0, Math.floor(Number(c.population || 0) / 2));
         html += `
             <div class="info-tile" style="margin-bottom:0.85rem;border-color:rgba(56,189,248,.4);">
                 <div style="font-weight:800;color:#7dd3fc;margin-bottom:.45rem;">🪖 National Defense Forces</div>
@@ -5818,7 +5818,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                     <button class="btn-action-sm" onclick="purchaseEarthHardware(${c.id},'jet')">Buy Jet · 350k</button>
                     ${c.is_coastal ? '<button class="btn-action-sm" onclick="purchaseEarthHardware(' + c.id + ',&#39;ship&#39;)">Buy Ship · 300k</button>' : ''}
                 </div>
-                <div style="font-size:.68rem;color:#94a3b8;margin-top:.35rem;">Force capacity grows with population. Recruitment costs 25,000 Medals and 5 civilians per division; both are consumed. Deployed troops come from this reserve.</div>
+                <div style="font-size:.68rem;color:#94a3b8;margin-top:.35rem;">Force capacity grows with population. Recruitment costs 10,000 Medals and 1 civilian per division. Deployed troops come from this reserve.</div>
             </div>`;
     }
 
@@ -6747,14 +6747,30 @@ async function executeTreasuryInvest() {
 }
 
 
-function openPopulationModal() {
+function openPopulationModal(countryId) {
     const container = document.getElementById("modal-container");
-    const c = (selectedCountry && (isOwner || selectedCountry.can_manage_economy)) ? selectedCountry : (userCountry || selectedCountry);
+    if (!container) return;
+    const viewerId = (statsData && statsData.user && statsData.user.id != null) ? String(statsData.user.id) : "";
+    let c = null;
+    if (countryId) {
+        c = (countriesData || []).find(x => Number(x.id) === Number(countryId));
+    }
+    if (!c && selectedCountry) {
+        const ownerId = selectedCountry.owner_id != null ? String(selectedCountry.owner_id) : "";
+        const isOwner = Boolean(selectedCountry.can_appoint_cabinet || (viewerId && ownerId && viewerId === ownerId));
+        if (isOwner || selectedCountry.can_manage_economy) {
+            c = selectedCountry;
+        }
+    }
+    if (!c) {
+        c = userCountry || selectedCountry;
+    }
     if (!c) {
         showToast("❌ You do not govern an active nation!");
         return;
     }
     const currPop = Number(c.population || 100);
+    const targetCountryId = c.id;
 
     container.innerHTML = `
         <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
@@ -6766,10 +6782,10 @@ function openPopulationModal() {
                     <button class="btn-action-sm" onclick="closeModal()">✕</button>
                 </div>
                 <div style="font-size:0.75rem; color:#94a3b8; margin-top:0.4rem; margin-bottom:0.7rem;">
-                    Current Population: <strong style="color:#f8fafc;">${currPop.toLocaleString()} Citizens</strong> (Division force ceiling: <strong>${Math.floor(currPop/5)} divisions</strong>). Enact strategic demographic programs to expand your sovereign population base.
+                    Target: <strong style="color:#f8fafc;">${c.flag || ''} ${c.name}</strong> · Population: <strong style="color:#f8fafc;">${currPop.toLocaleString()} Citizens</strong> (Division force ceiling: <strong>${Math.floor(currPop/2)} divisions</strong>). Enact strategic demographic programs to expand your sovereign population base.
                 </div>
 
-                <div class="selectable-card" onclick="stimulatePopulation('healthcare'); closeModal();" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
+                <div class="selectable-card" onclick="stimulatePopulation('healthcare', ${targetCountryId}); closeModal();" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
                     <div style="font-weight: 800; color: #34d399; display:flex; justify-content:space-between; align-items:center;">
                         <span>🏥 Maternal & Public Healthcare Drive</span>
                         <span style="font-size: 0.65rem; background: rgba(16, 185, 129, 0.25); color: #6ee7b7; padding: 2px 6px; border-radius: 4px; font-weight: 700;">12,000 TREASURY</span>
@@ -6782,7 +6798,7 @@ function openPopulationModal() {
                     </div>
                 </div>
 
-                <div class="selectable-card" onclick="stimulatePopulation('immigration'); closeModal();" style="border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); margin-top:0.6rem;">
+                <div class="selectable-card" onclick="stimulatePopulation('immigration', ${targetCountryId}); closeModal();" style="border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); margin-top:0.6rem;">
                     <div style="font-weight: 800; color: #38bdf8; display:flex; justify-content:space-between; align-items:center;">
                         <span>🌍 Skilled Foreign Labor & Diaspora Visas</span>
                         <span style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.25); color: #7dd3fc; padding: 2px 6px; border-radius: 4px; font-weight: 700;">30k T + 2.5k M</span>
@@ -6795,7 +6811,7 @@ function openPopulationModal() {
                     </div>
                 </div>
 
-                <div class="selectable-card" onclick="stimulatePopulation('housing'); closeModal();" style="border: 1px solid rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); margin-top:0.6rem;">
+                <div class="selectable-card" onclick="stimulatePopulation('housing', ${targetCountryId}); closeModal();" style="border: 1px solid rgba(250, 204, 21, 0.4); background: rgba(250, 204, 21, 0.08); margin-top:0.6rem;">
                     <div style="font-weight: 800; color: #facc15; display:flex; justify-content:space-between; align-items:center;">
                         <span>🏗️ Civic Suburban Expansion & Housing</span>
                         <span style="font-size: 0.65rem; background: rgba(250, 204, 21, 0.25); color: #fde047; padding: 2px 6px; border-radius: 4px; font-weight: 700;">65k T + 5k M</span>
@@ -6812,8 +6828,22 @@ function openPopulationModal() {
     `;
 }
 
-async function stimulatePopulation(program) {
-    const c = (selectedCountry && (isOwner || selectedCountry.can_manage_economy)) ? selectedCountry : (userCountry || selectedCountry);
+async function stimulatePopulation(program, countryId) {
+    const viewerId = (statsData && statsData.user && statsData.user.id != null) ? String(statsData.user.id) : "";
+    let c = null;
+    if (countryId) {
+        c = (countriesData || []).find(x => Number(x.id) === Number(countryId));
+    }
+    if (!c && selectedCountry) {
+        const ownerId = selectedCountry.owner_id != null ? String(selectedCountry.owner_id) : "";
+        const isOwner = Boolean(selectedCountry.can_appoint_cabinet || (viewerId && ownerId && viewerId === ownerId));
+        if (isOwner || selectedCountry.can_manage_economy) {
+            c = selectedCountry;
+        }
+    }
+    if (!c) {
+        c = userCountry || selectedCountry;
+    }
     if (!c) return;
     try {
         const res = await fetch("/api/earth/population/stimulate", {
@@ -7346,34 +7376,46 @@ function openDeclareWarModal(targetId, targetName, targetFlag) {
                         <option value="naval">Naval campaign (ships only)</option>
                     </select>
                     <div id="war-domain-inventory" style="font-size:.75rem;color:#94a3b8;margin-top:.4rem;"></div>
-                    <label class="custom-form-label" for="war-domain-equipment" style="margin-top:.55rem;">Equipment to dispatch</label>
+                    
+                    <div id="war-divisions-container" style="margin-top:.6rem;">
+                        <label class="custom-form-label" for="war-troops-divisions" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>🪖 Divisions / Troops to Dispatch</span>
+                            <span id="war-divisions-status" style="color:#38bdf8; font-weight:700;"></span>
+                        </label>
+                        <input id="war-troops-divisions" type="number" min="2" max="50" value="5" inputmode="numeric" style="width:100%;min-height:2.7rem;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:8px;padding:.55rem;" oninput="validateTroopsInput()">
+                        <div id="war-divisions-hint" style="font-size:.7rem;color:#94a3b8;margin-top:.3rem;">
+                            Dispatch your ready reserve divisions to the frontline. Committing more troops directly strengthens attack power and ensures decisive battlefield victory!
+                        </div>
+                    </div>
+
+                    <label class="custom-form-label" for="war-domain-equipment" style="margin-top:.65rem;">Equipment to dispatch (Optional Armor / Air / Fleet)</label>
                     <input id="war-domain-equipment" type="number" min="0" max="50" value="0" inputmode="numeric" style="width:100%;min-height:2.7rem;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:8px;padding:.55rem;">
                     <div style="font-size:.7rem;color:#94a3b8;margin-top:.3rem;">Land dispatches tanks. Air dispatches jets. Naval dispatches ships. Amounts are reserved from available stock. Only a land victory can annex a country.</div>
                 </div>
                 <div class="custom-form-group">
-                    <label class="custom-form-label">Campaign Duration & Impact · division requirements apply to land only</label>
+                    <label class="custom-form-label">Campaign Duration & Objective · Balanced Fast Conquests</label>
 
                     <div class="selectable-card active" id="war-scale-border" onclick="selectWarScale('border')">
 
-                        <div style="font-weight: 800; color: #f8fafc;">⚔️ Border Skirmish (1 Day / 24 Hours)</div>
+                        <div style="font-weight: 800; color: #f8fafc;">⚔️ Border Skirmish (12 Hours)</div>
 
-                        <div style="font-size: 0.72rem; color: #94a3b8;">5 Min Divisions • 15% Treasury Plunder • 100k War Reparations</div>
+                        <div style="font-size: 0.72rem; color: #94a3b8;">2 Min Divisions • 15% Treasury Plunder • 50k Reparations</div>
 
                     </div>
 
                     <div class="selectable-card" id="war-scale-annexation" onclick="selectWarScale('annexation')">
 
-                        <div style="font-weight: 800; color: #f59e0b;">🚩 Strategic Annexation (3 Days / 72 Hours)</div>
+                        <div style="font-weight: 800; color: #f59e0b;">🚩 Strategic Annexation (24 Hours)</div>
 
-                        <div style="font-size: 0.72rem; color: #94a3b8;">15 Min Divisions • 40% Treasury Plunder • <strong>Conquered state annexed into imperial domain (Max 4 states)</strong></div>
+                        <div style="font-size: 0.72rem; color: #94a3b8;">5 Min Divisions • 35% Treasury Plunder • <strong>Conquered state annexed into imperial domain (Max 4 states)</strong></div>
 
                     </div>
 
                     <div class="selectable-card" id="war-scale-world_war" onclick="selectWarScale('world_war')">
 
-                        <div style="font-weight: 800; color: #ef4444;">💥 Total World War (5 Days / 120 Hours)</div>
+                        <div style="font-weight: 800; color: #ef4444;">💥 Total World War (48 Hours)</div>
 
-                        <div style="font-size: 0.72rem; color: #94a3b8;">30 Min Divisions • 75% Treasury Plunder • Total imperial annexation & global mobilization</div>
+                        <div style="font-size: 0.72rem; color: #94a3b8;">10 Min Divisions • 60% Treasury Plunder • Total imperial annexation & global mobilization</div>
 
                     </div>
 
@@ -7432,6 +7474,7 @@ function updateWarDomainFields() {
     const select = document.getElementById("war-domain-select");
     const input = document.getElementById("war-domain-equipment");
     const note = document.getElementById("war-domain-inventory");
+    const divContainer = document.getElementById("war-divisions-container");
     if (!select || !input || !note || !userCountry) return;
     const domain = select.value;
     const unit = domain === "air" ? "jets" : domain === "naval" ? "ships" : "tanks";
@@ -7442,8 +7485,30 @@ function updateWarDomainFields() {
     input.value = required ? String(Math.min(1, available)) : "0";
     input.disabled = available === 0;
     note.textContent = "Available " + unit + ": " + available + (required && available === 0 ? " · Buy or free a unit before declaring this campaign." : "");
+    if (divContainer) {
+        divContainer.style.display = domain === "land" ? "block" : "none";
+        validateTroopsInput();
+    }
 }
 
+function validateTroopsInput() {
+    const scaleEl = document.getElementById("selected-war-scale");
+    const scale = scaleEl ? scaleEl.value : 'border';
+    const minDivs = scale === 'world_war' ? 10 : (scale === 'annexation' ? 5 : 2);
+    const reserve = Math.max(0, Number(userCountry?.army_divisions || 0));
+    const divInput = document.getElementById("war-troops-divisions");
+    const statusEl = document.getElementById("war-divisions-status");
+    if (divInput) {
+        divInput.min = String(minDivs);
+        divInput.max = String(Math.max(minDivs, reserve));
+        if (Number(divInput.value) < minDivs) {
+            divInput.value = minDivs;
+        }
+    }
+    if (statusEl) {
+        statusEl.innerText = `${reserve} reserve ready (Min: ${minDivs})`;
+    }
+}
 
 function selectWarScale(scale) {
 
@@ -7455,6 +7520,7 @@ function selectWarScale(scale) {
 
     document.getElementById("war-scale-world_war").classList.toggle("active", scale === 'world_war');
 
+    validateTroopsInput();
 }
 
 
@@ -7476,6 +7542,22 @@ async function submitDeclareWarFromModal() {
     if (!Number.isInteger(equipment) || equipment < (domain === "land" ? 0 : 1) || equipment > available || equipment > 50) {
         showToast("Choose an available equipment amount for this campaign.");
         return;
+    }
+
+    const minDivs = scale === 'world_war' ? 10 : (scale === 'annexation' ? 5 : 2);
+    const reserve = Math.max(0, Number(userCountry?.army_divisions || 0));
+    let divisions = 0;
+    if (domain === "land") {
+        const divInput = document.getElementById("war-troops-divisions");
+        divisions = Number(divInput?.value || minDivs);
+        if (divisions < minDivs) {
+            showToast(`This campaign requires committing at least ${minDivs} divisions.`);
+            return;
+        }
+        if (divisions > reserve) {
+            showToast(`You only have ${reserve} divisions ready in reserve. Recruit more first!`);
+            return;
+        }
     }
 
     closeModal();
@@ -7504,7 +7586,8 @@ async function submitDeclareWarFromModal() {
 
                 scale: scale,
                 domain: domain,
-                equipment: equipment
+                equipment: equipment,
+                divisions: divisions
 
             })
 

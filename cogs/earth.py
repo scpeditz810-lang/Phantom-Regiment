@@ -1295,17 +1295,18 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     # ─── Multi-Day Military Conquest ──────────────────────────────────────────
 
-    @earth_group.command(name="war", description="Declare a strategic multi-day military conquest campaign (1 to 5 Days).")
+    @earth_group.command(name="war", description="Declare a strategic military conquest campaign (12 to 48 Hours).")
     @app_commands.describe(
         target_country="Target country code (e.g. USA, CHN, RUS)",
-        scale="Scale and duration of conquest campaign"
+        scale="Scale and duration of conquest campaign",
+        divisions="Number of reserve divisions/troops to deploy (defaults to campaign minimum)"
     )
     @app_commands.choices(scale=[
-        app_commands.Choice(name="⚔️ Border Skirmish (1 Day / 24 Hours)", value="border"),
-        app_commands.Choice(name="🚩 Strategic Annexation Campaign (3 Days / 72 Hours)", value="annexation"),
-        app_commands.Choice(name="💥 Total Sovereign Conquest (5 Days / 120 Hours)", value="world_war"),
+        app_commands.Choice(name="⚔️ Border Skirmish (12 Hours)", value="border"),
+        app_commands.Choice(name="🚩 Strategic Annexation Campaign (24 Hours)", value="annexation"),
+        app_commands.Choice(name="💥 Total Sovereign Conquest (48 Hours)", value="world_war"),
     ])
-    async def earth_war(self, interaction: discord.Interaction, target_country: str, scale: app_commands.Choice[str]):
+    async def earth_war(self, interaction: discord.Interaction, target_country: str, scale: app_commands.Choice[str], divisions: int = 0):
         await interaction.response.defer()
         c = await self.bot.db.get_user_earth_country(interaction.user.id)
         if not c:
@@ -1317,16 +1318,18 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             await interaction.followup.send(f"❌ Target country `{target_country}` not found.")
             return
 
-        success, msg, war_data = await self.bot.db.declare_earth_war(interaction.user.id, c["id"], tgt["id"], scale.value)
+        success, msg, war_data = await self.bot.db.declare_earth_war(interaction.user.id, c["id"], tgt["id"], scale.value, "land", 0, divisions)
         if success:
             war_id = war_data.get("war_id") or 0
             war_speech_buf = generate_war_speech(c["name"], tgt["name"], scale.name)
             gif, mp4_buf = create_war_declared_media(c["name"], tgt["name"], scale.name, "land", audio_bytes=war_speech_buf)
 
+            deployed_divs = divisions if divisions > 0 else (war_data.get("duration_hours") and scale.value == "world_war" and 10 or scale.value == "annexation" and 5 or 2)
             embed = discord.Embed(
                 title="🚨 DECLARATION OF SOVEREIGN WAR",
                 description=f"**{c['flag']} {c['name']}** has officially declared war on **{tgt['flag']} {tgt['name']}**!\n\n"
                             f"🌐 **Campaign Scale:** {scale.name}\n"
+                            f"🪖 **Force Committed:** `{deployed_divs} Divisions`\n"
                             f"⏳ **Duration:** `{war_data.get('duration_hours')} Hours`\n"
                             f"⚔️ **Front Line Active:** Armored divisions clashing along the border! Follow the front on the 3D globe.",
                 color=0xDC2626
@@ -1363,6 +1366,58 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             )
         else:
             await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @earth_group.command(name="conquests", description="View nations with the most military conquests and lands captured.")
+    async def earth_conquests(self, interaction: discord.Interaction):
+        """Display real-time leaderboard of conquest victories and captured sovereign states."""
+        await interaction.response.defer()
+        from web.ai_advisor import get_advisor
+        adv = get_advisor(db=self.bot.db)
+        stats = adv.get_conquest_stats()
+
+        embed = discord.Embed(
+            title="🌍 GLOBAL CONQUEST & CAPTURED LANDS INTELLIGENCE",
+            description="Real-time geopolitical rankings of territorial expansion, offensive conquests, and sovereign domains.",
+            color=0xD97706
+        )
+
+        # Most Conquers
+        conq_lines = []
+        if stats.get("top_conquerors"):
+            for i, c in enumerate(stats["top_conquerors"]):
+                conq_lines.append(f"**#{i+1} {c['flag']} {c['name']}** — `{c['conquers']} conquests`")
+        elif stats.get("top_victors"):
+            for i, c in enumerate(stats["top_victors"]):
+                conq_lines.append(f"**#{i+1} {c['flag']} {c['name']}** — `{c['victories']} victories`")
+        else:
+            conq_lines.append("No recorded conquest victories yet.")
+        embed.add_field(name="⚔️ Top Conquerors (Offensive Conquers)", value="\n".join(conq_lines), inline=False)
+
+        # Most Lands Captured
+        land_lines = []
+        if stats.get("top_land_holders"):
+            for i, h in enumerate(stats["top_land_holders"]):
+                m = h["motherland"]
+                conq = h["conquered"]
+                if conq:
+                    conq_desc = ", ".join(f"{s['flag']} **{s['name']}**" for s in conq)
+                    land_lines.append(f"**#{i+1} {m['flag']} {m['name']}** — Controls `{h['total_lands']} lands`\n  └ Conquered: {conq_desc}")
+                else:
+                    land_lines.append(f"**#{i+1} {m['flag']} {m['name']}** — Controls `{h['total_lands']} land`")
+        else:
+            land_lines.append("All sovereign rulers govern their single founding homeland.")
+        embed.add_field(name="👑 Most Lands Captured & Imperial Domains", value="\n".join(land_lines), inline=False)
+
+        embed.add_field(
+            name="⚖️ Balanced Conquest Rules",
+            value="• **Border Skirmish:** 12 Hours • Min 2 Divisions\n"
+                  "• **Strategic Annexation:** 24 Hours • Min 5 Divisions (seizes target into your empire)\n"
+                  "• **Total World War:** 48 Hours • Min 10 Divisions • Plunders 60% treasury\n"
+                  "• Rulers can conquer and hold up to **4 foreign states** (5 total territories).",
+            inline=False
+        )
+        embed.set_footer(text="Virtual Earth 3D Geopolitics • Track live frontiers at phantomregiment.apps.bot-hosting.cloud")
+        await interaction.followup.send(embed=embed)
 
     # ─── Quell Unrest & Riots ─────────────────────────────────────────────────
 
