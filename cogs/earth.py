@@ -250,6 +250,116 @@ class WarSurrenderView(discord.ui.View):
             )
 
 
+class EarthPopulationView(discord.ui.View):
+    def __init__(self, bot, user_id: int, country_id: int):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.user_id = user_id
+        self.country_id = country_id
+        if WEB_URL:
+            self.add_item(discord.ui.Button(label="🌍 View on 3D Globe", url=WEB_URL, style=discord.ButtonStyle.link))
+
+    @discord.ui.button(label="🏥 Clinic (3.5k T)", style=discord.ButtonStyle.success)
+    async def btn_clinic(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This demographic console is restricted to the governing leader who opened it.", ephemeral=True)
+            return
+        await interaction.response.defer()
+        success, msg, res_data = await self.bot.db.stimulate_earth_population(self.user_id, self.country_id, "clinic")
+        if not success:
+            await interaction.followup.send(msg, ephemeral=True)
+            return
+        embed = discord.Embed(
+            title="📈 Demographic Stimulus Enacted",
+            description=msg,
+            color=0x10B981
+        )
+        embed.set_footer(text="Virtual Earth 3D • Demographics & Human Capital")
+        for item in self.children:
+            if not isinstance(item, discord.ui.Button) or not item.url:
+                item.disabled = True
+        try:
+            await interaction.message.edit(view=self)
+        except Exception:
+            pass
+        await interaction.followup.send(embed=embed)
+
+    @discord.ui.button(label="🏥 Healthcare (8k T)", style=discord.ButtonStyle.primary)
+    async def btn_healthcare(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This demographic console is restricted to the governing leader who opened it.", ephemeral=True)
+            return
+        await interaction.response.defer()
+        success, msg, res_data = await self.bot.db.stimulate_earth_population(self.user_id, self.country_id, "healthcare")
+        if not success:
+            await interaction.followup.send(msg, ephemeral=True)
+            return
+        embed = discord.Embed(
+            title="📈 Demographic Stimulus Enacted",
+            description=msg,
+            color=0x38BDF8
+        )
+        embed.set_footer(text="Virtual Earth 3D • Demographics & Human Capital")
+        for item in self.children:
+            if not isinstance(item, discord.ui.Button) or not item.url:
+                item.disabled = True
+        try:
+            await interaction.message.edit(view=self)
+        except Exception:
+            pass
+        await interaction.followup.send(embed=embed)
+
+    @discord.ui.button(label="🌍 Foreign Labor (20k T + 1.5k M)", style=discord.ButtonStyle.primary)
+    async def btn_immigration(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This demographic console is restricted to the governing leader who opened it.", ephemeral=True)
+            return
+        await interaction.response.defer()
+        success, msg, res_data = await self.bot.db.stimulate_earth_population(self.user_id, self.country_id, "immigration")
+        if not success:
+            await interaction.followup.send(msg, ephemeral=True)
+            return
+        embed = discord.Embed(
+            title="📈 Demographic Stimulus Enacted",
+            description=msg,
+            color=0x38BDF8
+        )
+        embed.set_footer(text="Virtual Earth 3D • Demographics & Human Capital")
+        for item in self.children:
+            if not isinstance(item, discord.ui.Button) or not item.url:
+                item.disabled = True
+        try:
+            await interaction.message.edit(view=self)
+        except Exception:
+            pass
+        await interaction.followup.send(embed=embed)
+
+    @discord.ui.button(label="🏗️ Housing (45k T + 3.5k M)", style=discord.ButtonStyle.secondary)
+    async def btn_housing(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This demographic console is restricted to the governing leader who opened it.", ephemeral=True)
+            return
+        await interaction.response.defer()
+        success, msg, res_data = await self.bot.db.stimulate_earth_population(self.user_id, self.country_id, "housing")
+        if not success:
+            await interaction.followup.send(msg, ephemeral=True)
+            return
+        embed = discord.Embed(
+            title="📈 Demographic Stimulus Enacted",
+            description=msg,
+            color=0xFACC15
+        )
+        embed.set_footer(text="Virtual Earth 3D • Demographics & Human Capital")
+        for item in self.children:
+            if not isinstance(item, discord.ui.Button) or not item.url:
+                item.disabled = True
+        try:
+            await interaction.message.edit(view=self)
+        except Exception:
+            pass
+        await interaction.followup.send(embed=embed)
+
+
 class EarthCog(commands.Cog, name="Virtual Earth"):
     """Global sovereign governance, cabinet appointments, and military conquests."""
 
@@ -849,7 +959,10 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
         embed.add_field(name="👑 Sovereign Ruler", value=leader_str, inline=True)
         embed.add_field(name="💰 GDP Valuation", value=f"`{c.get('gdp', 0):,} GDP`", inline=True)
-        embed.add_field(name="🏦 State Treasury", value=f"`{c.get('treasury', 0):,} Medals`", inline=True)
+        if c.get("is_imperial"):
+            embed.add_field(name="🏦 Imperial Treasury 👑", value=f"`{c.get('treasury', 0):,} Medals`\n*({c.get('empire_count', 1)} Realms Pool)*", inline=True)
+        else:
+            embed.add_field(name="🏦 State Treasury", value=f"`{c.get('treasury', 0):,} Medals`", inline=True)
         embed.add_field(name="👥 Population", value=f"`{c.get('population', 100):,} Citizens`", inline=True)
         embed.add_field(name="⚔️ Standing Army", value=f"`{c.get('army_divisions', 10):,} Divisions`", inline=True)
 
@@ -1153,11 +1266,6 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             color=0xF1C40F
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
-
-    @earth_group.command(name="resign", description="Resign from your current ministerial cabinet portfolio or command.")
-    async def earth_resign(self, interaction: discord.Interaction):
-        """Direct command to resign from your current cabinet portfolio or command."""
-        await self.cabinet_resign(interaction)
 
     @cabinet_group.command(name="resign", description="Resign from your current ministerial cabinet portfolio.")
     async def cabinet_resign(self, interaction: discord.Interaction):
@@ -1635,7 +1743,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         else:
             await interaction.followup.send(f"❌ {msg}")
 
-    @earth_group.command(name="martial_law", description="Mobilize armed military divisions to impose emergency curfews and crush civil unrest.")
+    @security_group.command(name="martial_law", description="Mobilize armed military divisions to impose emergency curfews and crush civil unrest.")
     async def earth_martial_law(self, interaction: discord.Interaction):
         """Deploy armed military divisions to enforce state emergency curfews and crush riots."""
         await interaction.response.defer()
@@ -1913,96 +2021,13 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
     # ── Population & Demographics Stimulus ─────────────────────────────────────────
 
-class EarthPopulationView(discord.ui.View):
-    def __init__(self, bot, user_id: int, country_id: int):
-        super().__init__(timeout=180)
-        self.bot = bot
-        self.user_id = user_id
-        self.country_id = country_id
-        if WEB_URL:
-            self.add_item(discord.ui.Button(label="🌍 View on 3D Globe", url=WEB_URL, style=discord.ButtonStyle.link))
-
-    @discord.ui.button(label="🏥 Healthcare (12k T)", style=discord.ButtonStyle.success)
-    async def btn_healthcare(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ This demographic console is restricted to the governing leader who opened it.", ephemeral=True)
-            return
-        await interaction.response.defer()
-        success, msg, res_data = await self.bot.db.stimulate_earth_population(self.user_id, self.country_id, "healthcare")
-        if not success:
-            await interaction.followup.send(msg, ephemeral=True)
-            return
-        embed = discord.Embed(
-            title="📈 Demographic Stimulus Enacted",
-            description=msg,
-            color=0x10B981
-        )
-        embed.set_footer(text="Virtual Earth 3D • Demographics & Human Capital")
-        for item in self.children:
-            if not isinstance(item, discord.ui.Button) or not item.url:
-                item.disabled = True
-        try:
-            await interaction.message.edit(view=self)
-        except Exception:
-            pass
-        await interaction.followup.send(embed=embed)
-
-    @discord.ui.button(label="🌍 Foreign Labor (30k T + 2.5k M)", style=discord.ButtonStyle.primary)
-    async def btn_immigration(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ This demographic console is restricted to the governing leader who opened it.", ephemeral=True)
-            return
-        await interaction.response.defer()
-        success, msg, res_data = await self.bot.db.stimulate_earth_population(self.user_id, self.country_id, "immigration")
-        if not success:
-            await interaction.followup.send(msg, ephemeral=True)
-            return
-        embed = discord.Embed(
-            title="📈 Demographic Stimulus Enacted",
-            description=msg,
-            color=0x38BDF8
-        )
-        embed.set_footer(text="Virtual Earth 3D • Demographics & Human Capital")
-        for item in self.children:
-            if not isinstance(item, discord.ui.Button) or not item.url:
-                item.disabled = True
-        try:
-            await interaction.message.edit(view=self)
-        except Exception:
-            pass
-        await interaction.followup.send(embed=embed)
-
-    @discord.ui.button(label="🏗️ Housing (65k T + 5k M)", style=discord.ButtonStyle.secondary)
-    async def btn_housing(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ This demographic console is restricted to the governing leader who opened it.", ephemeral=True)
-            return
-        await interaction.response.defer()
-        success, msg, res_data = await self.bot.db.stimulate_earth_population(self.user_id, self.country_id, "housing")
-        if not success:
-            await interaction.followup.send(msg, ephemeral=True)
-            return
-        embed = discord.Embed(
-            title="📈 Demographic Stimulus Enacted",
-            description=msg,
-            color=0xFACC15
-        )
-        embed.set_footer(text="Virtual Earth 3D • Demographics & Human Capital")
-        for item in self.children:
-            if not isinstance(item, discord.ui.Button) or not item.url:
-                item.disabled = True
-        try:
-            await interaction.message.edit(view=self)
-        except Exception:
-            pass
-        await interaction.followup.send(embed=embed)
-
     @earth_group.command(name="population", description="Enact sovereign programs to stimulate population growth and immigration.")
     @app_commands.describe(program="Demographic or public health policy to stimulate civilian growth")
     @app_commands.choices(program=[
-        app_commands.Choice(name="🏥 Maternal & Public Healthcare Drive (12k Treasury: +35-55 Pop)", value="healthcare"),
-        app_commands.Choice(name="🌍 Skilled Foreign Labor & Diaspora Visas (30k Treasury + 2.5k Medals: +80-150 Pop)", value="immigration"),
-        app_commands.Choice(name="🏗️ Civic Suburban Expansion & Housing (65k Treasury + 5k Medals: +200-350 Pop)", value="housing")
+        app_commands.Choice(name="🏥 Community Health Clinics (3.5k Treasury: +20-40 Pop)", value="clinic"),
+        app_commands.Choice(name="🏥 Maternal & Public Healthcare Drive (8k Treasury: +45-75 Pop)", value="healthcare"),
+        app_commands.Choice(name="🌍 Skilled Foreign Labor & Diaspora Visas (20k Treasury + 1.5k Medals: +90-160 Pop)", value="immigration"),
+        app_commands.Choice(name="🏗️ Civic Suburban Expansion & Housing (45k Treasury + 3.5k Medals: +220-380 Pop)", value="housing")
     ])
     async def earth_population(self, interaction: discord.Interaction, program: app_commands.Choice[str] | None = None):
         await interaction.response.defer()
@@ -2015,17 +2040,21 @@ class EarthPopulationView(discord.ui.View):
             pop = int(my_c.get("population", 100) or 100)
             treasury = int(my_c.get("treasury", 0) or 0)
             unrest = int(my_c.get("unrest", 10) or 10)
+            is_imp = my_c.get("is_imperial")
+            t_label = f"💰 **Imperial Treasury Pool:** `{treasury:,}` ({my_c.get('empire_count', 1)} Realms)" if is_imp else f"💰 **National Treasury:** `{treasury:,}`"
             desc = (
                 f"👥 **Current Population:** `{pop:,} Citizens`\n"
                 f"🛡️ **Military Force Cap:** `{pop // 5:,} Army Divisions`\n"
-                f"💰 **National Treasury:** `{treasury:,}` | ⚡ **Unrest:** `{unrest}%`\n\n"
+                f"{t_label} | ⚡ **Unrest:** `{unrest}%`\n\n"
                 "**Available Stimulus Programs:**\n"
+                "• 🏥 **Community Clinics:** `/earth population program:clinic`\n"
+                "  Cost: `3,500 Treasury` | Yield: `+20-40 Pop`, `-4% Unrest`\n"
                 "• 🏥 **Healthcare Drive:** `/earth population program:healthcare`\n"
-                "  Cost: `12,000 Treasury` | Yield: `+35-55 Pop`, `-6% Unrest`\n"
+                "  Cost: `8,000 Treasury` | Yield: `+45-75 Pop`, `-6% Unrest`\n"
                 "• 🌍 **Immigration Accord:** `/earth population program:immigration`\n"
-                "  Cost: `30k Treasury + 2.5k Medals` | Yield: `+80-150 Pop`\n"
+                "  Cost: `20k Treasury + 1.5k Medals` | Yield: `+90-160 Pop`\n"
                 "• 🏗️ **Housing Expansion:** `/earth population program:housing`\n"
-                "  Cost: `65k Treasury + 5k Medals` | Yield: `+200-350 Pop`, `+8% Stability`\n\n"
+                "  Cost: `45k Treasury + 3.5k Medals` | Yield: `+220-380 Pop`, `+8% Stability`\n\n"
                 "*Click a button below or select a program parameter to enact instantly!*"
             )
             embed = discord.Embed(

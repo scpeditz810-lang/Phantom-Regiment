@@ -1020,6 +1020,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         await self.cap_excess_medals_once()
         await self.force_full_season_reset_once()
         await self.normalize_inflated_earth_gdps_once()
+        await self.consolidate_imperial_treasuries()
 
 
 
@@ -4367,6 +4368,113 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         # All base countries begin unclaimed; player ownership is earned in game.
         await self._db.commit()
 
+    async def get_country_effective_treasury(self, country_id: int) -> int:
+        """Returns the unified imperial treasury if owned by a ruler, else local country treasury."""
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT owner_id, treasury FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return 0
+        owner_id, local_treasury = row[0], int(row[1] or 0)
+        if not owner_id:
+            return local_treasury
+        async with self._db.execute("SELECT SUM(treasury) FROM earth_countries WHERE owner_id = ?", (owner_id,)) as cur:
+            sum_row = await cur.fetchone()
+            return int(sum_row[0] or 0) if sum_row and sum_row[0] is not None else local_treasury
+
+    async def deduct_country_treasury(self, country_id: int, amount: int) -> bool:
+        """Deducts from the imperial treasury pool if owned, or local treasury if unowned."""
+        if amount <= 0:
+            return True
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT owner_id, treasury FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False
+        owner_id, local_treasury = row[0], int(row[1] or 0)
+        if not owner_id:
+            if local_treasury < amount:
+                return False
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ? AND treasury >= ?", (amount, country_id, amount))
+            return True
+
+        # Check total empire treasury
+        async with self._db.execute("SELECT SUM(treasury) FROM earth_countries WHERE owner_id = ?", (owner_id,)) as cur:
+            sum_row = await cur.fetchone()
+            total_treasury = int(sum_row[0] or 0) if sum_row and sum_row[0] is not None else 0
+        if total_treasury < amount:
+            return False
+
+        # Deduct starting from primary motherland (lowest ID), then secondary realms if needed
+        remaining = amount
+        async with self._db.execute("SELECT id, treasury FROM earth_countries WHERE owner_id = ? ORDER BY id ASC", (owner_id,)) as cur:
+            homelands = await cur.fetchall()
+
+        for h_id, h_treasury in homelands:
+            h_t = int(h_treasury or 0)
+            if h_t <= 0:
+                continue
+            to_deduct = min(remaining, h_t)
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (to_deduct, h_id))
+            remaining -= to_deduct
+            if remaining <= 0:
+                break
+        return True
+
+    async def add_country_treasury(self, country_id: int, amount: int):
+        """Deposits treasury into the primary motherland if owned, else directly into the country."""
+        if amount <= 0:
+            return
+        if self._db is None:
+            await self.setup()
+        async with self._db.execute("SELECT owner_id FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+            row = await cur.fetchone()
+        owner_id = row[0] if row else None
+        if not owner_id:
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (amount, country_id))
+            return
+        # Find primary motherland
+        async with self._db.execute("SELECT id FROM earth_countries WHERE owner_id = ? ORDER BY id ASC LIMIT 1", (owner_id,)) as cur:
+            m_row = await cur.fetchone()
+        target_id = m_row[0] if m_row else country_id
+        await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (amount, target_id))
+
+    async def consolidate_imperial_treasuries(self):
+        """Consolidates treasury of all multi-realm empires into each ruler's primary motherland."""
+        if self._db is None:
+            return
+        try:
+            async with self._db.execute("""
+                SELECT owner_id, COUNT(*) as c_count
+                FROM earth_countries
+                WHERE owner_id IS NOT NULL
+                GROUP BY owner_id
+                HAVING COUNT(*) > 1
+            """) as cur:
+                multi_owners = await cur.fetchall()
+
+            for m_row in multi_owners:
+                owner_id = m_row[0]
+                async with self._db.execute("""
+                    SELECT id, treasury FROM earth_countries
+                    WHERE owner_id = ?
+                    ORDER BY id ASC
+                """, (owner_id,)) as cur:
+                    lands = await cur.fetchall()
+                if not lands or len(lands) <= 1:
+                    continue
+                motherland_id = lands[0][0]
+                colony_treasuries = sum(int(l[1] or 0) for l in lands[1:])
+                if colony_treasuries > 0:
+                    await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (colony_treasuries, motherland_id))
+                    for l in lands[1:]:
+                        await self._db.execute("UPDATE earth_countries SET treasury = 0 WHERE id = ?", (l[0],))
+            await self._db.commit()
+        except Exception as e:
+            logger.error(f"Error consolidating imperial treasuries: {e}")
+
     async def get_earth_countries(self) -> list[dict]:
         """Fetch all countries with owner profiles, stats, active wars, and stability."""
         if self._db is None:
@@ -4393,9 +4501,28 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             ORDER BY c.gdp DESC
         """) as cur:
             rows = await cur.fetchall()
+            # Compute imperial aggregates for owners
+            owner_aggregates = {}
+            for r in rows:
+                oid = r["owner_id"]
+                if oid:
+                    if oid not in owner_aggregates:
+                        owner_aggregates[oid] = {"count": 0, "treasury": 0}
+                    owner_aggregates[oid]["count"] += 1
+                    owner_aggregates[oid]["treasury"] += int(r["treasury"] or 0)
+
             result = []
             for r in rows:
                 item = dict(r)
+                oid = item.get("owner_id")
+                if oid and oid in owner_aggregates:
+                    item["treasury"] = owner_aggregates[oid]["treasury"]
+                    item["is_imperial"] = (owner_aggregates[oid]["count"] > 1)
+                    item["empire_count"] = owner_aggregates[oid]["count"]
+                else:
+                    item["is_imperial"] = False
+                    item["empire_count"] = 1
+
                 item["is_rioting"] = (item.get("unrest", 0) >= 60)
                 item["is_revolution_risk"] = (item.get("unrest", 0) >= 85)
                 # Compute total defense power
@@ -4469,9 +4596,13 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if country.get("owner_id"):
             country = await self.apply_organic_growth(country)
             # Imperial commonwealth & conquered state metadata
-            async with self._db.execute("SELECT id, name, flag, gdp FROM earth_countries WHERE owner_id = ? ORDER BY gdp DESC, id ASC", (country["owner_id"],)) as cur:
+            async with self._db.execute("SELECT id, name, flag, gdp, treasury FROM earth_countries WHERE owner_id = ? ORDER BY gdp DESC, id ASC", (country["owner_id"],)) as cur:
                 empire_rows = await cur.fetchall()
             country["total_states_owned"] = len(empire_rows)
+            empire_treasury = sum(int(r[4] or 0) for r in empire_rows)
+            country["treasury"] = empire_treasury
+            country["is_imperial"] = (len(empire_rows) > 1)
+            country["empire_count"] = len(empire_rows)
             if empire_rows and len(empire_rows) > 1:
                 prim = empire_rows[0]
                 if prim[0] != country_id:
@@ -4682,10 +4813,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         paid_source = ""
         if user_medals >= cost:
             paid_source = "personal wallet"
-        elif treasury >= cost:
+        elif await self.get_country_effective_treasury(country_id) >= cost:
             paid_source = "National Treasury"
         else:
-            return False, f"Insufficient Medals: This project requires {cost:,} Medals (Wallet: {user_medals:,} M, Treasury Reserves: {treasury:,} M).", 0
+            eff_t = await self.get_country_effective_treasury(country_id)
+            return False, f"Insufficient Medals: This project requires {cost:,} Medals (Wallet: {user_medals:,} M, Treasury Reserves: {eff_t:,} M).", 0
 
         # Ocean infrastructure requires a coastal country.
         if building_type in ("naval_port", "ocean_base", "oil_rig"):
@@ -4696,7 +4828,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if paid_source == "personal wallet":
             await self.subtract_medals(user_id, cost)
         else:
-            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (cost, country_id))
+            await self.deduct_country_treasury(country_id, cost)
 
         now = time.time()
         new_level = current_lvl + 1
@@ -5492,9 +5624,10 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         treasury_deposit = int(total_payout * 0.20) + civilian_tax_payout
         await self._db.execute("""
             UPDATE earth_countries 
-            SET last_yield_claim = ?, treasury = treasury + ?
+            SET last_yield_claim = ?
             WHERE id = ?
-        """, (now, treasury_deposit, c["id"]))
+        """, (now, c["id"]))
+        await self.add_country_treasury(c["id"], treasury_deposit)
         await self._db.commit()
 
         civ_payout = int(civilian_workforce_yield * elapsed_hours * riot_penalty)
@@ -5575,9 +5708,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         econ = await self.get_global_economy(user_id)
 
         # Funding helper for civil relief: checks wallet first, then Treasury
-        async with self._db.execute("SELECT treasury FROM earth_countries WHERE id = ?", (country_id,)) as cur:
-            t_row = await cur.fetchone()
-            q_treasury = int(t_row[0] or 0) if t_row else 0
+        q_treasury = await self.get_country_effective_treasury(country_id)
         u_medals = econ.get("medals", 0)
 
         async def _deduct_quell(cost_amount):
@@ -5585,7 +5716,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self.subtract_medals(user_id, cost_amount)
                 return "personal wallet"
             elif q_treasury >= cost_amount:
-                await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (cost_amount, country_id))
+                await self.deduct_country_treasury(country_id, cost_amount)
                 return "National Treasury"
             return None
 
@@ -5680,16 +5811,17 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             cost = 50000
             paid_source = ""
             user_medals = econ.get("medals", 0)
+            eff_treasury = await self.get_country_effective_treasury(country_id)
             if user_medals >= cost:
                 await self.subtract_medals(user_id, cost)
                 paid_source = "personal wallet"
-            elif treasury >= cost:
-                await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (cost, country_id))
+            elif eff_treasury >= cost:
+                await self.deduct_country_treasury(country_id, cost)
                 paid_source = "National Treasury"
             else:
                 return False, (
                     f"⚠️ Deploying military logistics requires **{cost:,} Medals** "
-                    f"(Wallet: {user_medals:,} M, National Treasury: {treasury:,} M). Both lack sufficient funds!"
+                    f"(Wallet: {user_medals:,} M, National Treasury: {eff_treasury:,} M). Both lack sufficient funds!"
                 )
 
             # 4. Unrest Reduction Calculation
@@ -5784,8 +5916,9 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         unrest = int(unrest or 0)
         stability = int(stability or 80)
 
-        if treasury < amount:
-            return False, f"Insufficient Treasury Reserves: Country has {treasury:,} Medals in treasury (requested {amount:,} Medals).", {}
+        eff_treasury = await self.get_country_effective_treasury(country_id)
+        if eff_treasury < amount:
+            return False, f"Insufficient Treasury Reserves: Nation has {eff_treasury:,} Medals in treasury (requested {amount:,} Medals).", {}
 
         # 1. Calculate GDP Gain (Every 5,000 Medals = +1 Million GDP)
         gdp_gain = max(1, int(amount // 50000))
@@ -5797,13 +5930,15 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         new_stability = min(100, stability + stability_gain)
         new_unrest = max(0, unrest - unrest_drop)
-        new_treasury = treasury - amount
+
+        await self.deduct_country_treasury(country_id, amount)
+        new_treasury = await self.get_country_effective_treasury(country_id)
 
         await self._db.execute("""
             UPDATE earth_countries
-            SET gdp = ?, treasury = ?, stability = ?, unrest = ?
+            SET gdp = ?, stability = ?, unrest = ?
             WHERE id = ?
-        """, (new_gdp, new_treasury, new_stability, new_unrest, country_id))
+        """, (new_gdp, new_stability, new_unrest, country_id))
         await self._db.commit()
 
         msg = (
@@ -7480,8 +7615,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         await self._db.execute("BEGIN IMMEDIATE")
         try:
-            # Escrow principal from lender treasury
-            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (principal, lender_country_id))
+            # Escrow principal from lender treasury (imperial combined)
+            await self.deduct_country_treasury(lender_country_id, principal)
             async with self._db.execute("""
                 INSERT INTO earth_sovereign_loans (
                     lender_country_id, borrower_country_id, lender_user_id,
@@ -7533,8 +7668,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         await self._db.execute("BEGIN IMMEDIATE")
         try:
-            # Deposit principal into borrower treasury
-            await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loan["principal"], loan["borrower_country_id"]))
+            # Deposit principal into borrower treasury (imperial combined)
+            await self.add_country_treasury(loan["borrower_country_id"], loan["principal"])
             await self._db.execute("""
                 UPDATE earth_sovereign_loans
                 SET status = 'active', accepted_at = ?, due_date = ?, borrower_user_id = ?
@@ -7578,8 +7713,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         now_status = "cancelled" if is_lender else "rejected"
         await self._db.execute("BEGIN IMMEDIATE")
         try:
-            # Refund escrowed principal back to lender
-            await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loan["principal"], loan["lender_country_id"]))
+            # Refund escrowed principal back to lender (imperial combined)
+            await self.add_country_treasury(loan["lender_country_id"], loan["principal"])
             await self._db.execute("UPDATE earth_sovereign_loans SET status = ? WHERE id = ?", (now_status, loan_id))
             await self._db.commit()
         except Exception:
@@ -7624,8 +7759,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         now = time.time()
         await self._db.execute("BEGIN IMMEDIATE")
         try:
-            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (total_due, loan["borrower_country_id"]))
-            await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (total_due, loan["lender_country_id"]))
+            await self.deduct_country_treasury(loan["borrower_country_id"], total_due)
+            await self.add_country_treasury(loan["lender_country_id"], total_due)
             await self._db.execute("UPDATE earth_sovereign_loans SET status = 'repaid', repaid_at = ? WHERE id = ?", (now, loan_id))
             await self._db.commit()
         except Exception:
@@ -8234,47 +8369,57 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         stab = country.get("stability", 80)
         unrest = country.get("unrest", 10)
         curr_pop = max(100, int(country.get("population", 100) or 100))
-        treasury = int(country.get("treasury", 0) or 0)
+        effective_treasury = await self.get_country_effective_treasury(country_id)
 
         econ = await self.get_global_economy(user_id)
         user_medals = int(econ.get("medals", 0) or 0)
 
-        # Program configurations
+        # Program configurations (with starter clinic for developing provinces)
         programs = {
+            "clinic": {
+                "name": "🏥 Community Health & Sanitation Clinics",
+                "treasury_cost": 3500,
+                "medals_cost": 0,
+                "cooldown": 7200,  # 2 hours
+                "min_pop_gain": 20,
+                "max_pop_gain": 40,
+                "unrest_reduction": 4,
+                "stability_gain": 3
+            },
             "healthcare": {
                 "name": "🏥 National Maternity & Public Healthcare Drive",
-                "treasury_cost": 12000,
+                "treasury_cost": 8000,
                 "medals_cost": 0,
                 "cooldown": 14400, # 4 hours
-                "min_pop_gain": 35,
-                "max_pop_gain": 55,
+                "min_pop_gain": 45,
+                "max_pop_gain": 75,
                 "unrest_reduction": 6,
-                "stability_gain": 4
+                "stability_gain": 5
             },
             "immigration": {
                 "name": "🌍 Skilled Foreign Labor & Diaspora Accord",
-                "treasury_cost": 30000,
-                "medals_cost": 2500,
+                "treasury_cost": 20000,
+                "medals_cost": 1500,
                 "cooldown": 21600, # 6 hours
-                "min_pop_gain": 80,
-                "max_pop_gain": 150,
+                "min_pop_gain": 90,
+                "max_pop_gain": 160,
                 "unrest_reduction": 0,
-                "stability_gain": 5
+                "stability_gain": 6
             },
             "housing": {
                 "name": "🏗️ Suburban Expansion & Civic Settlement Grant",
-                "treasury_cost": 65000,
-                "medals_cost": 5000,
+                "treasury_cost": 45000,
+                "medals_cost": 3500,
                 "cooldown": 28800, # 8 hours
-                "min_pop_gain": 200,
-                "max_pop_gain": 350,
-                "unrest_reduction": 3,
+                "min_pop_gain": 220,
+                "max_pop_gain": 380,
+                "unrest_reduction": 4,
                 "stability_gain": 8
             }
         }
 
         if program_type not in programs:
-            return False, f"❌ Unknown program '{program_type}'. Available programs: healthcare, immigration, housing.", {}
+            return False, f"❌ Unknown program '{program_type}'. Available programs: clinic, healthcare, immigration, housing.", {}
 
         cfg = programs[program_type]
         elapsed = now - last_prog
@@ -8286,8 +8431,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if program_type == "immigration" and unrest >= 50:
             return False, "⚠️ Immigration Refused: Civil unrest is too intense (≥50%). Foreign workers and immigrants refuse to relocate into a rioting nation!", {}
 
-        if treasury < cfg["treasury_cost"]:
-            return False, f"❌ Insufficient National Treasury: Requires `{cfg['treasury_cost']:,} Treasury` (Nation currently has `{treasury:,}`).", {}
+        if effective_treasury < cfg["treasury_cost"]:
+            return False, f"❌ Insufficient National Treasury: Requires `{cfg['treasury_cost']:,} Treasury` (Empire currently holds `{effective_treasury:,}`).", {}
 
         if cfg["medals_cost"] > 0 and user_medals < cfg["medals_cost"]:
             return False, f"❌ Insufficient Personal Medals: Requires `{cfg['medals_cost']:,} Medals` to subsidize visas/relocation grants (You have `{user_medals:,}`).", {}
@@ -8295,7 +8440,6 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         stab_multiplier = max(0.6, stab / 100.0)
         pop_gain = int(cfg["min_pop_gain"] + (cfg["max_pop_gain"] - cfg["min_pop_gain"]) * stab_multiplier)
         new_pop = min(10_000_000, curr_pop + pop_gain)
-        new_treasury = treasury - cfg["treasury_cost"]
         new_unrest = max(0, unrest - cfg["unrest_reduction"])
         new_stab = min(100, stab + cfg["stability_gain"])
 
@@ -8303,18 +8447,24 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             if cfg["medals_cost"] > 0:
                 await self.update_global_medals(user_id, -cfg["medals_cost"])
 
+            deducted = await self.deduct_country_treasury(country_id, cfg["treasury_cost"])
+            if not deducted:
+                return False, "❌ Treasury deduction failed. Insufficient funds in imperial reserves.", {}
+
             await self._db.execute("""
                 UPDATE earth_countries
-                SET population = ?, treasury = ?, unrest = ?, stability = ?,
+                SET population = ?, unrest = ?, stability = ?,
                     last_pop_program = ?, last_pop_program_type = ?
                 WHERE id = ?
-            """, (new_pop, new_treasury, new_unrest, new_stab, now, program_type, country_id))
+            """, (new_pop, new_unrest, new_stab, now, program_type, country_id))
             await self._db.commit()
+
+            new_treasury = await self.get_country_effective_treasury(country_id)
 
             msg = (
                 f"✅ **{cfg['name']} Successfully Enacted!**\n"
                 f"📈 **Population Growth:** `+{pop_gain:,} Citizens` (Total National Population: `{new_pop:,}`)\n"
-                f"💰 **Treasury Invested:** `-{cfg['treasury_cost']:,} Treasury`"
+                f"💰 **Treasury Invested:** `-{cfg['treasury_cost']:,} Treasury` (Empire Remaining: `{new_treasury:,}`)"
                 + (f" • `-{cfg['medals_cost']:,} Medals`" if cfg["medals_cost"] > 0 else "") + "\n"
                 f"🛡️ **Military Force Cap:** Can now recruit up to `{new_pop // 5:,} Army Divisions`!"
             )
@@ -8390,14 +8540,15 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             treasury = t_row[0] if t_row else 0
 
         paid_source = ""
+        eff_treasury = await self.get_country_effective_treasury(country_id)
         if user_medals >= price:
             paid_source = "personal wallet"
             await self.subtract_medals(user_id, price)
-        elif treasury >= price:
+        elif eff_treasury >= price:
             paid_source = "National Treasury"
-            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (price, country_id))
+            await self.deduct_country_treasury(country_id, price)
         else:
-            return False, f"Insufficient Medals: Procuring {meta['name']} requires {price:,} Medals (Wallet: {user_medals:,} M, National Treasury: {treasury:,} M).", {}
+            return False, f"Insufficient Medals: Procuring {meta['name']} requires {price:,} Medals (Wallet: {user_medals:,} M, National Treasury: {eff_treasury:,} M).", {}
         now = time.time()
 
         await self._db.execute("""
