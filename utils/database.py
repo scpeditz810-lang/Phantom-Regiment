@@ -776,6 +776,27 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 FOREIGN KEY(country_id) REFERENCES earth_countries(id)
             );
 
+            CREATE TABLE IF NOT EXISTS earth_sovereign_loans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lender_country_id INTEGER NOT NULL,
+                borrower_country_id INTEGER NOT NULL,
+                lender_user_id INTEGER NOT NULL,
+                borrower_user_id INTEGER DEFAULT 0,
+                principal INTEGER NOT NULL,
+                interest_rate INTEGER NOT NULL,
+                total_due INTEGER NOT NULL,
+                duration_hours INTEGER NOT NULL,
+                collateral_state_id INTEGER DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at REAL NOT NULL,
+                accepted_at REAL DEFAULT 0,
+                due_date REAL DEFAULT 0,
+                repaid_at REAL DEFAULT 0,
+                seized_at REAL DEFAULT 0,
+                seized_state_id INTEGER DEFAULT 0,
+                notes TEXT DEFAULT ''
+            );
+
 
         """)
 
@@ -5425,18 +5446,27 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if elapsed_hours < (5.0 / 60.0): # 5 min cooldown
             return 0, "Dividends compound hourly. Please check back shortly!"
 
-        # Sum building yields
+        # Sum building yields with civilian workforce labor multiplier
         buildings = await self.get_country_buildings(c["id"])
-        hourly_yield = sum(b.get("hourly_yield", 0) for b in buildings if not b.get("is_sabotaged"))
+        base_building_yield = sum(b.get("hourly_yield", 0) for b in buildings if not b.get("is_sabotaged"))
+
+        # Civilian workforce production & tax revenue
+        population = max(0, int(c.get("population", 100) or 100))
+        tax_rate = max(0, min(50, int(c.get("tax_rate", 10) or 10)))
+        # Every citizen works and contributes to national earnings (base 35 M/hr with tax rate bonus)
+        civilian_workforce_yield = int(population * 35 * (1.0 + (tax_rate / 50.0)))
+        # Citizens provide labor efficiency to industrial buildings (up to +50% bonus)
+        labor_mult = min(1.50, 1.0 + (population / 2500.0))
+        building_yield = int(round(base_building_yield * labor_mult))
 
         # Add trade route tariffs
         trade_routes = await self.get_earth_trade_routes(c["id"])
-        hourly_yield += len(trade_routes) * 3500
+        tariff_yield = len(trade_routes) * 3500
 
         # Apply economic doctrine multiplier
         doc = c.get("economic_doctrine", "free_market")
         doc_mult = EARTH_DOCTRINES.get("economic", {}).get(doc, {}).get("yield_mult", 1.0)
-        hourly_yield = int(round(hourly_yield * doc_mult))
+        hourly_yield = int(round((building_yield + civilian_workforce_yield + tariff_yield) * doc_mult))
 
         # Check unrest penalty
         unrest = c.get("unrest", 0)
@@ -5451,12 +5481,13 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         total_payout = int(round(hourly_yield * elapsed_hours * riot_penalty))
         if total_payout <= 0:
-            return 0, "No productive infrastructure yet. Build a school, mine, factory, oil rig, or port before collecting national dividends."
+            return 0, "National economic output is currently 0. Grow population or construct infrastructure to produce dividends."
 
         # Credit player medals
         await self.add_medals(user_id, total_payout)
-        # Credit 20% into national treasury
-        treasury_deposit = int(total_payout * 0.20)
+        # Credit tax share + 20% into national treasury
+        civilian_tax_payout = int(round(civilian_workforce_yield * elapsed_hours * riot_penalty * (tax_rate / 100.0)))
+        treasury_deposit = int(total_payout * 0.20) + civilian_tax_payout
         await self._db.execute("""
             UPDATE earth_countries 
             SET last_yield_claim = ?, treasury = treasury + ?
@@ -5464,7 +5495,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         """, (now, treasury_deposit, c["id"]))
         await self._db.commit()
 
-        return total_payout, f"⚡ Harvested +{total_payout:,} Medals from national infrastructure! (+{treasury_deposit:,} deposited into Treasury){riot_warning}"
+        civ_payout = int(civilian_workforce_yield * elapsed_hours * riot_penalty)
+        return total_payout, f"⚡ Harvested +{total_payout:,} Medals! (Includes +{civ_payout:,} M from {population:,} working citizens with {int(labor_mult*100)}% labor efficiency. +{treasury_deposit:,} deposited into National Treasury){riot_warning}"
 
     async def update_earth_policies(self, user_id: int, country_id: int, economic: str,
                                    military: str, diplomatic: str, tax_rate: int,
@@ -7218,6 +7250,389 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
     # ??? Citizenship & Allegiance ?????????????????????????????????????????????
 
+    # ─── Sovereign Bilateral Loans & Collateral Land Seizure ──────────────────
+
+    async def create_earth_sovereign_loan(self, user_id: int, lender_country_id: int, borrower_country_id: int,
+                                          principal: int, interest_rate: int, duration_hours: int,
+                                          collateral_state_id: int = 0, notes: str = "") -> tuple[bool, str, dict]:
+        """Offer a sovereign bilateral loan backed by state territorial collateral."""
+        if self._db is None:
+            await self.setup()
+
+        try:
+            user_id = int(user_id)
+            lender_country_id = int(lender_country_id)
+            borrower_country_id = int(borrower_country_id)
+            principal = int(principal)
+            interest_rate = int(interest_rate)
+            duration_hours = int(duration_hours)
+            collateral_state_id = int(collateral_state_id or 0)
+        except (ValueError, TypeError):
+            return False, "Invalid loan parameters.", {}
+
+        if lender_country_id == borrower_country_id:
+            return False, "A sovereign nation cannot issue a loan to itself!", {}
+        if principal < 10000:
+            return False, "Minimum sovereign loan amount is 10,000 Medals.", {}
+        if not 0 <= interest_rate <= 100:
+            return False, "Interest rate must be between 0% and 100%.", {}
+        if not 1 <= duration_hours <= 168:
+            return False, "Loan duration must be between 1 and 168 Hours (7 Days).", {}
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, lender_country_id, "economy")
+        if not can_manage:
+            return False, "⛔ Authorization Denied: Only the President or Economy Minister can issue sovereign loans!", {}
+
+        async with self._db.execute("SELECT id, name, flag, treasury, owner_id FROM earth_countries WHERE id = ?", (lender_country_id,)) as cur:
+            lender_row = await cur.fetchone()
+        async with self._db.execute("SELECT id, name, flag, owner_id FROM earth_countries WHERE id = ?", (borrower_country_id,)) as cur:
+            borrower_row = await cur.fetchone()
+
+        if not lender_row or not borrower_row:
+            return False, "Lender or borrower nation not found.", {}
+        lender = dict(lender_row)
+        borrower = dict(borrower_row)
+
+        if not borrower.get("owner_id"):
+            return False, "Cannot issue loans to autonomous unclaimed nations.", {}
+
+        if int(lender.get("treasury", 0) or 0) < principal:
+            return False, f"Insufficient Treasury: {lender['name']} only has {int(lender.get('treasury',0) or 0):,} Medals in reserves.", {}
+
+        # If a specific collateral state is pledged, verify borrower owns it
+        collateral_name = ""
+        if collateral_state_id > 0:
+            async with self._db.execute("SELECT id, name, flag, owner_id FROM earth_countries WHERE id = ?", (collateral_state_id,)) as cur:
+                col_row = await cur.fetchone()
+            if not col_row or col_row["owner_id"] != borrower["owner_id"]:
+                return False, "Selected collateral state does not belong to the borrower's sovereign realm.", {}
+            collateral_name = f"{col_row['flag']} {col_row['name']}"
+
+        total_due = principal + int(round(principal * (interest_rate / 100.0)))
+        now = time.time()
+
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            # Escrow principal from lender treasury
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (principal, lender_country_id))
+            async with self._db.execute("""
+                INSERT INTO earth_sovereign_loans (
+                    lender_country_id, borrower_country_id, lender_user_id,
+                    principal, interest_rate, total_due, duration_hours,
+                    collateral_state_id, status, created_at, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            """, (lender_country_id, borrower_country_id, user_id, principal, interest_rate, total_due, duration_hours, collateral_state_id, now, notes)) as cur:
+                loan_id = cur.lastrowid
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            raise
+
+        return True, f"🏛️ Sovereign loan offer of {principal:,} Medals sent to {borrower['flag']} {borrower['name']}! (Interest: {interest_rate}%, Repay: {total_due:,} M within {duration_hours}h). Principal reserved in diplomatic escrow.", {
+            "loan_id": loan_id,
+            "lender_name": lender["name"],
+            "borrower_name": borrower["name"],
+            "principal": principal,
+            "interest_rate": interest_rate,
+            "total_due": total_due,
+            "duration_hours": duration_hours,
+            "collateral": collateral_name or "Sovereign Territory / Conquered State"
+        }
+
+    async def accept_earth_sovereign_loan(self, user_id: int, loan_id: int) -> tuple[bool, str, dict]:
+        """Borrower nation accepts loan; principal deposited into their treasury and clock starts."""
+        if self._db is None:
+            await self.setup()
+        try:
+            loan_id = int(loan_id)
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return False, "Invalid loan ID.", {}
+
+        async with self._db.execute("SELECT * FROM earth_sovereign_loans WHERE id = ?", (loan_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, "Loan offer not found.", {}
+        loan = dict(row)
+        if loan["status"] != "pending":
+            return False, f"This loan is no longer pending (current status: {loan['status']}).", {}
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, loan["borrower_country_id"], "economy")
+        if not can_manage:
+            return False, "⛔ Only the President or Economy Minister of the borrower nation can accept loans!", {}
+
+        now = time.time()
+        due_date = now + (loan["duration_hours"] * 3600)
+
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            # Deposit principal into borrower treasury
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loan["principal"], loan["borrower_country_id"]))
+            await self._db.execute("""
+                UPDATE earth_sovereign_loans
+                SET status = 'active', accepted_at = ?, due_date = ?, borrower_user_id = ?
+                WHERE id = ?
+            """, (now, due_date, user_id, loan_id))
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            raise
+
+        return True, f"✅ Sovereign loan accepted! +{loan['principal']:,} Medals deposited into your National Treasury. Repayment of {loan['total_due']:,} Medals is due in {loan['duration_hours']} hours.", {
+            "loan_id": loan_id,
+            "principal": loan["principal"],
+            "total_due": loan["total_due"],
+            "due_date": due_date
+        }
+
+    async def cancel_or_reject_earth_sovereign_loan(self, user_id: int, loan_id: int) -> tuple[bool, str]:
+        """Cancel an outgoing loan or reject an incoming loan offer, returning escrowed principal to lender."""
+        if self._db is None:
+            await self.setup()
+        try:
+            loan_id = int(loan_id)
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return False, "Invalid loan ID."
+
+        async with self._db.execute("SELECT * FROM earth_sovereign_loans WHERE id = ?", (loan_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, "Loan offer not found."
+        loan = dict(row)
+        if loan["status"] != "pending":
+            return False, f"Loan is no longer pending (current status: {loan['status']})."
+
+        is_lender = await self.has_earth_cabinet_permission(user_id, loan["lender_country_id"], "economy")
+        is_borrower = await self.has_earth_cabinet_permission(user_id, loan["borrower_country_id"], "economy")
+        if not is_lender and not is_borrower:
+            return False, "⛔ Only authorized ministers of the lender or borrower nation can cancel or reject this loan."
+
+        now_status = "cancelled" if is_lender else "rejected"
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            # Refund escrowed principal back to lender
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (loan["principal"], loan["lender_country_id"]))
+            await self._db.execute("UPDATE earth_sovereign_loans SET status = ? WHERE id = ?", (now_status, loan_id))
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            raise
+
+        action_word = "cancelled" if is_lender else "rejected"
+        return True, f"Sovereign loan offer {action_word}. {loan['principal']:,} Medals refunded to Lender Treasury."
+
+    async def repay_earth_sovereign_loan(self, user_id: int, loan_id: int) -> tuple[bool, str, dict]:
+        """Repay active sovereign loan with interest from borrower treasury to lender treasury."""
+        if self._db is None:
+            await self.setup()
+        try:
+            loan_id = int(loan_id)
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return False, "Invalid loan ID.", {}
+
+        async with self._db.execute("SELECT * FROM earth_sovereign_loans WHERE id = ?", (loan_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, "Loan not found.", {}
+        loan = dict(row)
+        if loan["status"] not in ("active", "defaulted"):
+            return False, f"Loan cannot be repaid (status: {loan['status']}).", {}
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, loan["borrower_country_id"], "economy")
+        if not can_manage:
+            return False, "⛔ Only the President or Economy Minister can authorize loan repayments!", {}
+
+        async with self._db.execute("SELECT treasury, name, flag FROM earth_countries WHERE id = ?", (loan["borrower_country_id"],)) as cur:
+            b_row = await cur.fetchone()
+        async with self._db.execute("SELECT name, flag FROM earth_countries WHERE id = ?", (loan["lender_country_id"],)) as cur:
+            l_row = await cur.fetchone()
+
+        borrower_treasury = int(b_row[0] or 0) if b_row else 0
+        total_due = int(loan["total_due"])
+        if borrower_treasury < total_due:
+            return False, f"Insufficient Treasury: Your nation has {borrower_treasury:,} Medals, but {total_due:,} Medals are required to repay this loan.", {}
+
+        now = time.time()
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury - ? WHERE id = ?", (total_due, loan["borrower_country_id"]))
+            await self._db.execute("UPDATE earth_countries SET treasury = treasury + ? WHERE id = ?", (total_due, loan["lender_country_id"]))
+            await self._db.execute("UPDATE earth_sovereign_loans SET status = 'repaid', repaid_at = ? WHERE id = ?", (now, loan_id))
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            raise
+
+        lender_name = l_row[0] if l_row else "Lender"
+        lender_flag = l_row[1] if l_row else "🏛️"
+        return True, f"🎉 Sovereign loan fully settled! Transferred {total_due:,} Medals ({loan['principal']:,} principal + {total_due - loan['principal']:,} interest) to {lender_flag} {lender_name}. Sovereign credit restored!", {
+            "loan_id": loan_id,
+            "total_due": total_due,
+            "interest": total_due - loan["principal"]
+        }
+
+    async def seize_earth_loan_collateral(self, user_id: int, loan_id: int, target_state_id: int = 0) -> tuple[bool, str, dict]:
+        """Default enforcement: Lender seizes a territory / state from defaulting borrower."""
+        if self._db is None:
+            await self.setup()
+        try:
+            loan_id = int(loan_id)
+            user_id = int(user_id)
+            target_state_id = int(target_state_id or 0)
+        except (ValueError, TypeError):
+            return False, "Invalid parameters.", {}
+
+        async with self._db.execute("SELECT * FROM earth_sovereign_loans WHERE id = ?", (loan_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return False, "Loan not found.", {}
+        loan = dict(row)
+
+        now = time.time()
+        is_past_due = (loan["status"] == "active" and now >= float(loan.get("due_date") or 0))
+        if loan["status"] != "defaulted" and not is_past_due:
+            return False, "This loan is not defaulted yet! The borrower still has time to repay.", {}
+
+        can_manage = await self.has_earth_cabinet_permission(user_id, loan["lender_country_id"], "defense")
+        if not can_manage:
+            can_manage = await self.has_earth_cabinet_permission(user_id, loan["lender_country_id"], "economy")
+        if not can_manage:
+            return False, "⛔ Only the President, Defense Minister, or Economy Minister can execute collateral seizure!", {}
+
+        async with self._db.execute("SELECT id, name, flag, owner_id FROM earth_countries WHERE id = ?", (loan["lender_country_id"],)) as cur:
+            lender_row = await cur.fetchone()
+        async with self._db.execute("SELECT id, name, flag, owner_id FROM earth_countries WHERE id = ?", (loan["borrower_country_id"],)) as cur:
+            borrower_row = await cur.fetchone()
+
+        if not lender_row or not borrower_row:
+            return False, "Lender or borrower nation record not found.", {}
+        lender = dict(lender_row)
+        borrower = dict(borrower_row)
+
+        lender_owner = lender["owner_id"]
+        borrower_owner = borrower["owner_id"]
+        if not borrower_owner:
+            return False, "Borrower is already an unclaimed entity.", {}
+
+        # Check lender empire capacity
+        async with self._db.execute("SELECT COUNT(*) FROM earth_countries WHERE owner_id = ?", (lender_owner,)) as cur:
+            lender_territory_count = (await cur.fetchone())[0]
+
+        # Find which state to seize:
+        state_candidates = []
+        if loan.get("collateral_state_id") and loan["collateral_state_id"] > 0:
+            state_candidates.append(loan["collateral_state_id"])
+        if target_state_id > 0:
+            state_candidates.append(target_state_id)
+
+        # Query all territories owned by borrower ruler
+        async with self._db.execute("SELECT id, name, flag FROM earth_countries WHERE owner_id = ? ORDER BY id DESC", (borrower_owner,)) as cur:
+            borrower_lands = [dict(r) for r in await cur.fetchall()]
+
+        if not borrower_lands:
+            return False, "Borrower holds no sovereign territories to seize.", {}
+
+        state_to_seize = None
+        for cid in state_candidates:
+            matched = next((x for x in borrower_lands if x["id"] == cid), None)
+            if matched:
+                state_to_seize = matched
+                break
+
+        if not state_to_seize:
+            # If multiple lands, pick a conquered state first (id != borrower_country_id)
+            conquered_lands = [x for x in borrower_lands if x["id"] != loan["borrower_country_id"]]
+            if conquered_lands:
+                state_to_seize = conquered_lands[0]
+            else:
+                state_to_seize = borrower_lands[0]
+
+        if lender_territory_count >= 5:
+            return False, f"Your empire already governs the maximum of 5 territories! You must cede a state before seizing new lands.", {}
+
+        seized_id = state_to_seize["id"]
+        seized_name = state_to_seize["name"]
+        seized_flag = state_to_seize["flag"]
+
+        await self._db.execute("BEGIN IMMEDIATE")
+        try:
+            # Seize territory: transfer ownership to lender's sovereign ruler
+            await self._db.execute("""
+                UPDATE earth_countries
+                SET owner_id = ?, unrest = 35, stability = 50
+                WHERE id = ?
+            """, (lender_owner, seized_id))
+            await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (seized_id,))
+            await self._db.execute("""
+                UPDATE earth_sovereign_loans
+                SET status = 'seized', seized_at = ?, seized_state_id = ?
+                WHERE id = ?
+            """, (now, seized_id, loan_id))
+            await self._db.commit()
+        except Exception:
+            await self._db.rollback()
+            raise
+
+        return True, f"🚨 DEFAULT ENFORCED // TERRITORY SEIZED: {lender['flag']} {lender['name']} has seized and annexed {seized_flag} {seized_name} from {borrower['flag']} {borrower['name']} due to defaulting on {loan['total_due']:,} Medals debt!", {
+            "loan_id": loan_id,
+            "seized_country_id": seized_id,
+            "seized_name": seized_name,
+            "seized_flag": seized_flag,
+            "lender_name": lender["name"],
+            "borrower_name": borrower["name"],
+            "total_due": loan["total_due"]
+        }
+
+    async def get_earth_sovereign_loans(self, country_id: int | None = None) -> list[dict]:
+        """Fetch all sovereign loans with auto-default check and rich country metadata."""
+        if self._db is None:
+            await self.setup()
+        now = time.time()
+        # Auto-mark expired active loans as defaulted
+        try:
+            await self._db.execute("""
+                UPDATE earth_sovereign_loans
+                SET status = 'defaulted'
+                WHERE status = 'active' AND due_date > 0 AND due_date <= ?
+            """, (now,))
+            await self._db.commit()
+        except Exception:
+            pass
+
+        query = """
+            SELECT l.*,
+                   c1.name AS lender_name, c1.flag AS lender_flag, c1.owner_id AS lender_owner_id,
+                   c2.name AS borrower_name, c2.flag AS borrower_flag, c2.owner_id AS borrower_owner_id,
+                   cs.name AS collateral_state_name, cs.flag AS collateral_state_flag,
+                   sz.name AS seized_state_name, sz.flag AS seized_state_flag
+            FROM earth_sovereign_loans l
+            LEFT JOIN earth_countries c1 ON l.lender_country_id = c1.id
+            LEFT JOIN earth_countries c2 ON l.borrower_country_id = c2.id
+            LEFT JOIN earth_countries cs ON l.collateral_state_id = cs.id
+            LEFT JOIN earth_countries sz ON l.seized_state_id = sz.id
+        """
+        args = []
+        if country_id and int(country_id) > 0:
+            query += " WHERE l.lender_country_id = ? OR l.borrower_country_id = ?"
+            args = [int(country_id), int(country_id)]
+        query += " ORDER BY l.id DESC"
+
+        loans = []
+        async with self._db.execute(query, tuple(args)) as cur:
+            for row in await cur.fetchall():
+                item = dict(row)
+                due = float(item.get("due_date") or 0)
+                if item["status"] == "active" and due > now:
+                    item["seconds_remaining"] = int(due - now)
+                    item["hours_remaining"] = round((due - now) / 3600.0, 1)
+                else:
+                    item["seconds_remaining"] = 0
+                    item["hours_remaining"] = 0
+                loans.append(item)
+        return loans
+
     async def join_earth_country(self, user_id: int, country_id: int) -> tuple[bool, str]:
         """Pledge allegiance and join an existing sovereign nation as an official citizen."""
         if self._db is None:
@@ -7646,7 +8061,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if not can_manage:
             return False, "⛔ Authorization Denied: Only the President or Cabinet Ministers can enact demographic programs!", {}
 
-        async with self._db.execute("SELECT id, name, flag, treasury, medals, stability, unrest, population, last_pop_program, last_pop_program_type FROM earth_countries WHERE id = ?", (country_id,)) as cur:
+        async with self._db.execute("SELECT id, name, flag, treasury, stability, unrest, population, last_pop_program, last_pop_program_type FROM earth_countries WHERE id = ?", (country_id,)) as cur:
             row = await cur.fetchone()
         if not row:
             return False, "❌ Country not found.", {}

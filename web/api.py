@@ -4421,3 +4421,126 @@ def api_earth_population_stimulate():
 
     success, msg, res_data = run_async(db.stimulate_earth_population(user_id, country_id, program))
     return jsonify({"success": success, "message": msg, "data": res_data}), 200 if success else 400
+
+
+@api_bp.route("/earth/loans", methods=["GET"])
+@login_required
+def api_earth_loans_list():
+    country_id = request.args.get("country_id")
+    try:
+        cid = int(country_id) if country_id else None
+    except (ValueError, TypeError):
+        cid = None
+    db = get_db()
+    loans = run_async(db.get_earth_sovereign_loans(cid))
+    return jsonify({"success": True, "loans": loans})
+
+
+@api_bp.route("/earth/loans/create", methods=["POST"])
+@login_required
+def api_earth_loans_create():
+    data = request.get_json() or {}
+    try:
+        lender_country_id = int(data.get("lender_country_id", 0))
+        borrower_country_id = int(data.get("borrower_country_id", 0))
+        principal = int(data.get("principal", 0))
+        interest_rate = int(data.get("interest_rate", 10))
+        duration_hours = int(data.get("duration_hours", 24))
+        collateral_state_id = int(data.get("collateral_state_id", 0))
+        notes = str(data.get("notes", "")).strip()
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid loan parameters."}), 400
+
+    raw_uid = session.get("user", {}).get("id")
+    try:
+        user_id = int(raw_uid)
+    except (ValueError, TypeError):
+        user_id = raw_uid
+
+    db = get_db()
+    success, msg, loan_data = run_async(db.create_earth_sovereign_loan(
+        user_id, lender_country_id, borrower_country_id, principal,
+        interest_rate, duration_hours, collateral_state_id, notes
+    ))
+    return jsonify({"success": success, "message": msg, "data": loan_data}), 200 if success else 400
+
+
+@api_bp.route("/earth/loans/accept", methods=["POST"])
+@login_required
+def api_earth_loans_accept():
+    data = request.get_json() or {}
+    try:
+        loan_id = int(data.get("loan_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid loan ID."}), 400
+
+    raw_uid = session.get("user", {}).get("id")
+    try:
+        user_id = int(raw_uid)
+    except (ValueError, TypeError):
+        user_id = raw_uid
+
+    db = get_db()
+    success, msg, loan_data = run_async(db.accept_earth_sovereign_loan(user_id, loan_id))
+    return jsonify({"success": success, "message": msg, "data": loan_data}), 200 if success else 400
+
+
+@api_bp.route("/earth/loans/reject", methods=["POST"])
+@login_required
+def api_earth_loans_reject():
+    data = request.get_json() or {}
+    try:
+        loan_id = int(data.get("loan_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid loan ID."}), 400
+
+    raw_uid = session.get("user", {}).get("id")
+    try:
+        user_id = int(raw_uid)
+    except (ValueError, TypeError):
+        user_id = raw_uid
+
+    db = get_db()
+    success, msg = run_async(db.cancel_or_reject_earth_sovereign_loan(user_id, loan_id))
+    return jsonify({"success": success, "message": msg}), 200 if success else 400
+
+
+@api_bp.route("/earth/loans/repay", methods=["POST"])
+@login_required
+def api_earth_loans_repay():
+    data = request.get_json() or {}
+    try:
+        loan_id = int(data.get("loan_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid loan ID."}), 400
+
+    raw_uid = session.get("user", {}).get("id")
+    try:
+        user_id = int(raw_uid)
+    except (ValueError, TypeError):
+        user_id = raw_uid
+
+    db = get_db()
+    success, msg, loan_data = run_async(db.repay_earth_sovereign_loan(user_id, loan_id))
+    return jsonify({"success": success, "message": msg, "data": loan_data}), 200 if success else 400
+
+
+@api_bp.route("/earth/loans/seize", methods=["POST"])
+@login_required
+def api_earth_loans_seize():
+    data = request.get_json() or {}
+    try:
+        loan_id = int(data.get("loan_id", 0))
+        target_state_id = int(data.get("target_state_id", 0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    raw_uid = session.get("user", {}).get("id")
+    try:
+        user_id = int(raw_uid)
+    except (ValueError, TypeError):
+        user_id = raw_uid
+
+    db = get_db()
+    success, msg, data = run_async(db.seize_earth_loan_collateral(user_id, loan_id, target_state_id))
+    return jsonify({"success": success, "message": msg, "data": data}), 200 if success else 400

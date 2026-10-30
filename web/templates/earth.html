@@ -5003,7 +5003,7 @@ function renderDossierTab(c, isLeader, isOwner, container) {
             <div class="info-tile">
                 <div style="font-size: 0.68rem; color: #94a3b8; text-transform: uppercase;">👥 Citizen Population</div>
                 <div style="font-size: 1.15rem; font-weight: 800; color: #f8fafc;">${Number(c.population || 100).toLocaleString()} <span style="font-size: 0.75rem; color: #94a3b8;">Citizens</span></div>
-                <div style="font-size: 0.68rem; color: #10b981; margin-top: 0.2rem;">🌱 Dynamic Growth Active</div>
+                <div style="font-size: 0.68rem; color: #10b981; margin-top: 0.2rem;">🌱 Growth Active · <strong>+${Math.floor(Number(c.population || 100) * 35 * (1 + Number(c.tax_rate || 10) / 50)).toLocaleString()} M/hr</strong> civilian yield</div>
                 ${(isOwner || c.can_manage_economy) ? `<button class="btn-action-sm" onclick="openPopulationModal(${c.id})" style="font-size:0.65rem; padding:2px 7px; margin-top:0.35rem; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#6ee7b7; font-weight:700; width:100%;">📈 Stimulate Growth</button>` : ''}
             </div>
             <div class="info-tile">
@@ -6168,12 +6168,30 @@ function renderMarketTab(c, isLeader, isOwner, container) {
 
         </div>
 
+        <!-- Section 3: Sovereign Bilateral Debt & Collateral Loans -->
+        <div class="info-tile" style="margin-top: 0.85rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                <span style="font-weight: 800; font-size: 0.9rem; color: #38bdf8;">🏛️ Sovereign Debt & Bilateral Credit (Land Collateral)</span>
+                ${(isOwner || (c && c.can_manage_economy)) ? `
+                    <button class="btn-action-sm" onclick="openOfferLoanModal(${c.id})" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-weight:700;">
+                        + Offer Sovereign Loan
+                    </button>
+                ` : ''}
+            </div>
+            <div style="font-size: 0.74rem; color: #94a3b8; margin-bottom: 0.75rem;">
+                Extend treasury loans with custom interest & maturity terms. If a debtor defaults on repayment by the deadline, the creditor nation has legal authority to <strong>seize and annex their pledged territory</strong>.
+            </div>
+            <div id="sovereign-loans-list-${c.id}" style="display:flex; flex-direction:column; gap:0.45rem;">
+                <div style="text-align:center; padding:0.6rem; color:#94a3b8; font-size:0.75rem;">Loading sovereign debt ledgers...</div>
+            </div>
+        </div>
+
     `;
 
-
-
     container.innerHTML = html;
-
+    setTimeout(() => {
+        renderSovereignLoansList(c.id, isLeader, isOwner);
+    }, 50);
 }
 
 
@@ -6874,6 +6892,327 @@ async function stimulatePopulation(program, countryId) {
         showToast("Network error enacting demographic program: " + err, "error");
     }
 }
+
+// ── Sovereign Bilateral Debt & Collateral Loans ─────────────────────────
+async function renderSovereignLoansList(countryId, isLeader, isOwner) {
+    const listEl = document.getElementById(`sovereign-loans-list-${countryId}`);
+    if (!listEl) return;
+    try {
+        const res = await fetch(`/api/earth/loans?country_id=${countryId}`);
+        const d = await res.json();
+        if (!d.success || !d.loans || d.loans.length === 0) {
+            listEl.innerHTML = `<div style="text-align:center; padding:0.75rem; color:#94a3b8; font-size:0.75rem;">No active or pending sovereign loans for this nation. Rulers and economic ministers can issue credit to other nations backed by territory collateral!</div>`;
+            return;
+        }
+
+        const viewerId = (statsData && statsData.user && statsData.user.id != null) ? String(statsData.user.id) : "";
+        let html = "";
+        d.loans.forEach(loan => {
+            const isLender = Boolean(loan.lender_owner_id && viewerId && String(loan.lender_owner_id) === viewerId);
+            const isBorrower = Boolean(loan.borrower_owner_id && viewerId && String(loan.borrower_owner_id) === viewerId);
+            
+            let statusBadge = "";
+            let actionButtons = "";
+
+            if (loan.status === "pending") {
+                statusBadge = `<span style="font-size:0.65rem; background:rgba(250,204,21,0.2); color:#facc15; padding:2px 6px; border-radius:4px; font-weight:700;">PENDING ACCEPTANCE</span>`;
+                if (isBorrower) {
+                    actionButtons = `
+                        <button class="btn-action-sm" onclick="acceptLoan(${loan.id}, ${countryId})" style="background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.5); color:#6ee7b7; font-weight:700;">✓ Accept Loan</button>
+                        <button class="btn-action-sm" onclick="rejectLoan(${loan.id}, ${countryId})" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#fca5a5; margin-left:0.3rem;">✕ Reject</button>
+                    `;
+                } else if (isLender) {
+                    actionButtons = `
+                        <button class="btn-action-sm" onclick="rejectLoan(${loan.id}, ${countryId})" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5;">Cancel Offer</button>
+                    `;
+                }
+            } else if (loan.status === "active") {
+                statusBadge = `<span style="font-size:0.65rem; background:rgba(56,189,248,0.2); color:#38bdf8; padding:2px 6px; border-radius:4px; font-weight:700;">ACTIVE (${loan.hours_remaining || 0}h left)</span>`;
+                if (isBorrower) {
+                    actionButtons = `
+                        <button class="btn-action-sm" onclick="repayLoan(${loan.id}, ${countryId})" style="background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.5); color:#6ee7b7; font-weight:700;">💳 Repay ${Number(loan.total_due).toLocaleString()} M</button>
+                    `;
+                }
+            } else if (loan.status === "defaulted") {
+                statusBadge = `<span style="font-size:0.65rem; background:rgba(239,68,68,0.25); color:#f87171; padding:2px 6px; border-radius:4px; font-weight:800; animation:pulse 2s infinite;">⚠️ DEFAULTED (OVERDUE)</span>`;
+                if (isLender) {
+                    actionButtons = `
+                        <button class="btn-action-sm" onclick="seizeLoanCollateral(${loan.id}, ${countryId})" style="background:rgba(239,68,68,0.3); border:1px solid rgba(239,68,68,0.8); color:#fca5a5; font-weight:800;">🚨 Seize Land (${escapeHtml(loan.collateral_state_name || 'Territory')})</button>
+                    `;
+                }
+            } else if (loan.status === "seized") {
+                statusBadge = `<span style="font-size:0.65rem; background:rgba(220,38,38,0.3); color:#fca5a5; padding:2px 6px; border-radius:4px; font-weight:700;">🚩 LAND SEIZED (${escapeHtml(loan.seized_state_name || 'Territory')})</span>`;
+            } else if (loan.status === "repaid") {
+                statusBadge = `<span style="font-size:0.65rem; background:rgba(16,185,129,0.2); color:#34d399; padding:2px 6px; border-radius:4px; font-weight:700;">✅ REPAID IN FULL</span>`;
+            } else {
+                statusBadge = `<span style="font-size:0.65rem; background:rgba(148,163,184,0.2); color:#94a3b8; padding:2px 6px; border-radius:4px; font-weight:700;">${loan.status.toUpperCase()}</span>`;
+            }
+
+            html += `
+                <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.75rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                        <div style="font-size:0.82rem; font-weight:700; color:#f8fafc;">
+                            ${loan.lender_flag || ''} ${escapeHtml(loan.lender_name || 'Lender')} ➔ ${loan.borrower_flag || ''} ${escapeHtml(loan.borrower_name || 'Borrower')}
+                        </div>
+                        <div>${statusBadge}</div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; font-size:0.72rem; color:#cbd5e1; margin-bottom:0.4rem;">
+                        <div>Principal: <strong style="color:#38bdf8;">${Number(loan.principal).toLocaleString()} M</strong> (@ ${loan.interest_rate}%)</div>
+                        <div>Total Due: <strong style="color:#facc15;">${Number(loan.total_due).toLocaleString()} M</strong></div>
+                        <div style="grid-column: span 2; color:#94a3b8;">
+                            🛡️ Pledged Collateral: <strong style="color:#f8fafc;">${loan.collateral_state_flag || '📍'} ${escapeHtml(loan.collateral_state_name || 'Homeland Territory')}</strong>
+                        </div>
+                    </div>
+                    ${actionButtons ? `<div style="display:flex; justify-content:flex-end; margin-top:0.35rem;">${actionButtons}</div>` : ''}
+                </div>
+            `;
+        });
+        listEl.innerHTML = html;
+    } catch(err) {
+        listEl.innerHTML = `<div style="color:#ef4444; font-size:0.75rem; text-align:center;">Failed to load loans: ${err}</div>`;
+    }
+}
+
+function openOfferLoanModal(lenderCountryId) {
+    const container = document.getElementById("modal-container");
+    if (!container) return;
+    const lender = (countriesData || []).find(x => Number(x.id) === Number(lenderCountryId)) || userCountry || selectedCountry;
+    if (!lender) {
+        showToast("❌ No valid lender nation selected!", "error");
+        return;
+    }
+    const lenderTreasury = Number(lender.treasury || 0);
+
+    const debtorCandidates = (countriesData || []).filter(x => x.owner_id && Number(x.id) !== Number(lender.id) && String(x.owner_id) !== String(lender.owner_id));
+
+    let debtorOptions = `<option value="">-- Choose Debtor Nation --</option>`;
+    debtorCandidates.forEach(c => {
+        debtorOptions += `<option value="${c.id}" data-name="${escapeHtml(c.name)}">${c.flag || ''} ${escapeHtml(c.name)} (Leader: ${escapeHtml(c.leader_name || 'Foreign Sovereign')})</option>`;
+    });
+
+    container.innerHTML = `
+        <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
+            <div class="custom-modal-card">
+                <div class="custom-modal-header">
+                    <div class="custom-modal-title">
+                        <span>🏛️</span> Issue Sovereign Debt Offer
+                    </div>
+                    <button class="btn-action-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <div style="font-size:0.75rem; color:#94a3b8; margin-top:0.4rem; margin-bottom:0.75rem;">
+                    Lender: <strong style="color:#f8fafc;">${lender.flag || ''} ${lender.name}</strong> · Treasury: <strong style="color:#38bdf8;">${lenderTreasury.toLocaleString()} Medals</strong>.
+                    Lend funds from your national treasury. If the debtor nation defaults, your nation gains the authority to <strong>seize and annex their territory</strong> into your empire.
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Debtor / Borrower Nation</label>
+                    <select class="custom-form-select" id="loan-borrower-select" onchange="updateLoanCollateralOptions()">
+                        ${debtorOptions}
+                    </select>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Loan Principal (Medals from Treasury)</label>
+                    <input type="number" class="custom-form-input" id="loan-principal" value="25000" min="5000" max="${lenderTreasury}" step="5000" oninput="calculateLoanPreview()">
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem;">
+                    <div class="custom-form-group">
+                        <label class="custom-form-label">Interest Rate (%)</label>
+                        <select class="custom-form-select" id="loan-interest" onchange="calculateLoanPreview()">
+                            <option value="5">5% Interest</option>
+                            <option value="10" selected>10% Interest</option>
+                            <option value="15">15% Interest</option>
+                            <option value="20">20% Interest</option>
+                            <option value="25">25% Interest</option>
+                        </select>
+                    </div>
+                    <div class="custom-form-group">
+                        <label class="custom-form-label">Repayment Term</label>
+                        <select class="custom-form-select" id="loan-duration" onchange="calculateLoanPreview()">
+                            <option value="12">12 Hours</option>
+                            <option value="24" selected>24 Hours</option>
+                            <option value="48">48 Hours</option>
+                            <option value="72">72 Hours</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="custom-form-group">
+                    <label class="custom-form-label">Pledged Collateral Territory / State</label>
+                    <select class="custom-form-select" id="loan-collateral-select">
+                        <option value="0">Default Debtor Homeland / Territory</option>
+                    </select>
+                </div>
+
+                <div id="loan-preview-card" style="background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.25); border-radius:8px; padding:0.6rem; font-size:0.75rem; margin-bottom:0.8rem;">
+                    <div>💰 <strong>Total Repayment Expected:</strong> <span id="loan-preview-total" style="color:#38bdf8; font-weight:700;">27,500 Medals</span></div>
+                    <div style="font-size:0.68rem; color:#94a3b8; margin-top:0.25rem;">⚠️ If unpaid at maturity, creditor can formally execute a Sovereign Seizure Decree to annex the collateral territory!</div>
+                </div>
+
+                <button class="btn-action" style="width:100%; font-weight:800; background:#38bdf8; color:#0f172a;" onclick="submitCreateLoan(${lender.id})">
+                    📜 Issue Sovereign Loan Offer
+                </button>
+            </div>
+        </div>
+    `;
+    updateLoanCollateralOptions();
+}
+
+function updateLoanCollateralOptions() {
+    const sel = document.getElementById("loan-borrower-select");
+    const colSel = document.getElementById("loan-collateral-select");
+    if (!sel || !colSel) return;
+    const borrowerId = Number(sel.value);
+    if (!borrowerId) {
+        colSel.innerHTML = `<option value="0">Default Debtor Homeland / Territory</option>`;
+        calculateLoanPreview();
+        return;
+    }
+    const borrower = (countriesData || []).find(x => Number(x.id) === borrowerId);
+    if (!borrower) return;
+    const ownerLands = (countriesData || []).filter(x => x.owner_id && String(x.owner_id) === String(borrower.owner_id));
+    let opts = "";
+    ownerLands.forEach(l => {
+        opts += `<option value="${l.id}">${l.flag || ''} ${escapeHtml(l.name)} (${Number(l.gdp||0).toLocaleString()} GDP)</option>`;
+    });
+    if (!opts) {
+        opts = `<option value="${borrower.id}">${borrower.flag || ''} ${escapeHtml(borrower.name)}</option>`;
+    }
+    colSel.innerHTML = opts;
+    calculateLoanPreview();
+}
+
+function calculateLoanPreview() {
+    const p = Number(document.getElementById("loan-principal")?.value || 0);
+    const rate = Number(document.getElementById("loan-interest")?.value || 10);
+    const total = Math.floor(p * (1.0 + rate / 100.0));
+    const el = document.getElementById("loan-preview-total");
+    if (el) el.innerText = total.toLocaleString() + " Medals";
+}
+
+async function submitCreateLoan(lenderId) {
+    const borrowerId = Number(document.getElementById("loan-borrower-select")?.value);
+    const principal = Number(document.getElementById("loan-principal")?.value);
+    const interest = Number(document.getElementById("loan-interest")?.value);
+    const duration = Number(document.getElementById("loan-duration")?.value);
+    const collateralId = Number(document.getElementById("loan-collateral-select")?.value) || borrowerId;
+
+    if (!borrowerId) {
+        showToast("Please select a debtor nation!", "error");
+        return;
+    }
+    if (!principal || principal < 5000) {
+        showToast("Minimum loan principal is 5,000 Medals!", "error");
+        return;
+    }
+    try {
+        const res = await fetch("/api/earth/loans/create", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                lender_country_id: lenderId,
+                borrower_country_id: borrowerId,
+                principal: principal,
+                interest_rate: interest,
+                duration_hours: duration,
+                collateral_state_id: collateralId
+            })
+        });
+        const d = await res.json();
+        if (d.success) {
+            showToast(d.message || "Sovereign loan offered successfully!");
+            closeModal();
+            loadDossier(lenderId);
+        } else {
+            showToast(d.message || "Failed to create loan", "error");
+        }
+    } catch(err) {
+        showToast("Error creating loan: " + err, "error");
+    }
+}
+
+async function acceptLoan(loanId, countryId) {
+    if (!confirm("Are you sure you want to accept this sovereign loan? If defaulted, your pledged territory can be seized!")) return;
+    try {
+        const res = await fetch("/api/earth/loans/accept", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ loan_id: loanId })
+        });
+        const d = await res.json();
+        if (d.success) {
+            showToast(d.message || "Loan accepted! Funds disbursed.");
+            if (countryId) loadDossier(countryId);
+        } else {
+            showToast(d.message || "Failed to accept loan", "error");
+        }
+    } catch(err) {
+        showToast("Error accepting loan: " + err, "error");
+    }
+}
+
+async function rejectLoan(loanId, countryId) {
+    try {
+        const res = await fetch("/api/earth/loans/reject", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ loan_id: loanId })
+        });
+        const d = await res.json();
+        if (d.success) {
+            showToast(d.message || "Loan rejected/cancelled.");
+            if (countryId) loadDossier(countryId);
+        } else {
+            showToast(d.message || "Failed to reject loan", "error");
+        }
+    } catch(err) {
+        showToast("Error rejecting loan: " + err, "error");
+    }
+}
+
+async function repayLoan(loanId, countryId) {
+    if (!confirm("Repay full sovereign debt principal + interest from national treasury?")) return;
+    try {
+        const res = await fetch("/api/earth/loans/repay", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ loan_id: loanId })
+        });
+        const d = await res.json();
+        if (d.success) {
+            showToast(d.message || "Loan successfully repaid in full!");
+            if (countryId) loadDossier(countryId);
+        } else {
+            showToast(d.message || "Failed to repay loan", "error");
+        }
+    } catch(err) {
+        showToast("Error repaying loan: " + err, "error");
+    }
+}
+
+async function seizeLoanCollateral(loanId, countryId) {
+    if (!confirm("🚨 Execute Sovereign Seizure Decree? This will immediately ANNEX the debtor's pledged territory into your sovereign empire!")) return;
+    try {
+        const res = await fetch("/api/earth/loans/seize", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ loan_id: loanId })
+        });
+        const d = await res.json();
+        if (d.success) {
+            showToast(d.message || "Territory successfully seized and annexed!");
+            if (countryId) loadDossier(countryId);
+            if (typeof initOrUpdateGlobe === "function") initOrUpdateGlobe();
+        } else {
+            showToast(d.message || "Failed to seize collateral", "error");
+        }
+    } catch(err) {
+        showToast("Error seizing collateral: " + err, "error");
+    }
+}
+
 
 function openQuellModal() {
 

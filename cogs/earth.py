@@ -1419,6 +1419,194 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         embed.set_footer(text="Virtual Earth 3D Geopolitics • Track live frontiers at phantomregiment.apps.bot-hosting.cloud")
         await interaction.followup.send(embed=embed)
 
+    # ─── National Harvest & Dividends ─────────────────────────────────────────
+
+    @earth_group.command(name="harvest", description="💰 Harvest hourly national dividends and civilian workforce taxes.")
+    async def earth_harvest(self, interaction: discord.Interaction):
+        """Collect passive economic dividends, civilian taxes, and infrastructure output."""
+        await interaction.response.defer()
+        amt, msg = await self.bot.db.collect_earth_yield(interaction.user.id)
+        if amt > 0:
+            embed = discord.Embed(
+                title="💰 NATIONAL DIVIDENDS HARVESTED",
+                description=f"{msg}",
+                color=0x10B981
+            )
+            embed.set_footer(text="Virtual Earth Economy • Reinvest into infrastructure or military hardware")
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"ℹ️ {msg}", ephemeral=True)
+
+    # ─── Sovereign Bilateral Loans & Collateral Land Seizure ──────────────────
+
+    loan_group = app_commands.Group(name="loan", description="🏛️ Sovereign bilateral loans and territorial collateral seizure", parent=earth_group)
+
+    @loan_group.command(name="offer", description="Issue a sovereign loan to another nation backed by state territorial collateral.")
+    @app_commands.describe(
+        target_country="Target country code (e.g. USA, FRA, DEU)",
+        principal="Medals to lend from your National Treasury (min 10,000)",
+        interest_rate="Interest rate percentage (0% to 100%)",
+        duration_hours="Repayment window in hours (1h to 168h / 7 days)",
+        notes="Diplomatic accord memo or purpose"
+    )
+    async def earth_loan_offer(self, interaction: discord.Interaction, target_country: str, principal: int, interest_rate: int, duration_hours: int = 24, notes: str = ""):
+        await interaction.response.defer()
+        my_c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        if not my_c:
+            await interaction.followup.send("❌ You do not govern an Earth nation!", ephemeral=True)
+            return
+
+        tgt = await self.bot.db.get_earth_country_by_code(target_country.strip().upper())
+        if not tgt:
+            await interaction.followup.send(f"❌ Target country `{target_country}` not found.", ephemeral=True)
+            return
+
+        success, msg, data = await self.bot.db.create_earth_sovereign_loan(
+            interaction.user.id, my_c["id"], tgt["id"], principal, interest_rate, duration_hours, 0, notes
+        )
+        if success:
+            desc = (
+                f"**{my_c['flag']} {my_c['name']}** has extended a formal sovereign debt accord to **{tgt['flag']} {tgt['name']}**!\n\n"
+                f"💰 **Principal:** `{principal:,} Medals` (escrowed from Treasury)\n"
+                f"📈 **Interest Rate:** `{interest_rate}%`\n"
+                f"💳 **Total Due:** `{data['total_due']:,} Medals`\n"
+                f"⏳ **Repayment Window:** `{duration_hours} Hours`\n"
+                f"⚖️ **Default Enforcement:** If unpaid at maturity, **{my_c['name']}** reserves sovereign rights to **SEIZE & ANNEX** a territory/state from {tgt['name']}!"
+            )
+            embed = discord.Embed(
+                title="🏛️ SOVEREIGN LOAN ACCORD OFFERED",
+                description=desc,
+                color=0x38BDF8
+            )
+            embed.set_footer(text=f"Loan Agreement #{data['loan_id']} • Accept via /earth loan accept {data['loan_id']}")
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @loan_group.command(name="list", description="List all sovereign debt accords and loans involving your nation.")
+    async def earth_loan_list(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        my_c = await self.bot.db.get_user_earth_country(interaction.user.id)
+        cid = my_c["id"] if my_c else None
+        loans = await self.bot.db.get_earth_sovereign_loans(cid)
+
+        if not loans:
+            await interaction.followup.send("🏛️ No active or pending sovereign loans on record for your nation.")
+            return
+
+        embed = discord.Embed(
+            title="🏛️ SOVEREIGN DEBT & LOAN PORTFOLIO",
+            description="Active bilateral debt agreements, maturity countdowns, and territorial collateral status.",
+            color=0x6366F1
+        )
+
+        for l in loans[:10]:
+            status_emoji = {
+                "pending": "⏳ Pending Acceptance",
+                "active": "🟢 Active",
+                "repaid": "✅ Repaid",
+                "defaulted": "🚨 DEFAULTED (Collateral Seizure Available)",
+                "seized": "⚔️ Land Seized",
+                "rejected": "❌ Rejected",
+                "cancelled": "🚫 Cancelled"
+            }.get(l["status"], l["status"].title())
+
+            due_str = f"{l['hours_remaining']}h left" if l["status"] == "active" else status_emoji
+            title = f"Loan #{l['id']}: {l['lender_flag']} {l['lender_name']} ➔ {l['borrower_flag']} {l['borrower_name']}"
+            val = (
+                f"• **Principal:** `{l['principal']:,} M` @ `{l['interest_rate']}%` interest\n"
+                f"• **Total Repayment:** `{l['total_due']:,} M`\n"
+                f"• **Status:** {status_emoji} ({due_str})\n"
+                f"• **Collateral At Risk:** `{l.get('collateral_state_name') or 'Sovereign State Territory'}`"
+            )
+            embed.add_field(name=title, value=val, inline=False)
+
+        embed.set_footer(text="Manage debt: /earth loan accept, /earth loan repay, /earth loan seize")
+        await interaction.followup.send(embed=embed)
+
+    @loan_group.command(name="accept", description="Accept an incoming sovereign loan offer and deposit funds into your Treasury.")
+    @app_commands.describe(loan_id="The ID of the pending loan offer")
+    async def earth_loan_accept(self, interaction: discord.Interaction, loan_id: int):
+        await interaction.response.defer()
+        success, msg, data = await self.bot.db.accept_earth_sovereign_loan(interaction.user.id, loan_id)
+        if success:
+            desc = (
+                f"{msg}\n\n"
+                f"💰 **Principal Added to Treasury:** `+{data['principal']:,} Medals`\n"
+                f"💳 **Repayment Due:** `{data['total_due']:,} Medals`\n"
+                f"⚠️ **Notice:** Failure to repay before deadline permits the lender nation to seize and annex one of your territories as collateral!"
+            )
+            embed = discord.Embed(
+                title="✅ SOVEREIGN LOAN AGREEMENT EXECUTED",
+                description=desc,
+                color=0x10B981
+            )
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @loan_group.command(name="repay", description="Repay an active sovereign debt with interest from your National Treasury.")
+    @app_commands.describe(loan_id="The ID of the active loan to repay")
+    async def earth_loan_repay(self, interaction: discord.Interaction, loan_id: int):
+        await interaction.response.defer()
+        success, msg, data = await self.bot.db.repay_earth_sovereign_loan(interaction.user.id, loan_id)
+        if success:
+            desc = (
+                f"{msg}\n\n"
+                f"💳 **Amount Paid:** `{data['total_due']:,} Medals`\n"
+                f"📈 **Interest Yield Earned by Lender:** `+{data['interest']:,} Medals`\n"
+                f"🛡️ **Status:** Sovereign borders and collateral fully cleared!"
+            )
+            embed = discord.Embed(
+                title="🎉 SOVEREIGN DEBT FULLY SETTLED",
+                description=desc,
+                color=0x10B981
+            )
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @loan_group.command(name="seize", description="🚨 Seize and annex a territory/state from a defaulted nation that failed to repay!")
+    @app_commands.describe(
+        loan_id="The ID of the defaulted sovereign loan",
+        state_code="Optional code of specific territory to seize (e.g. BEL, UKR)"
+    )
+    async def earth_loan_seize(self, interaction: discord.Interaction, loan_id: int, state_code: str = ""):
+        await interaction.response.defer()
+        target_state_id = 0
+        if state_code:
+            st = await self.bot.db.get_earth_country_by_code(state_code.strip().upper())
+            if st:
+                target_state_id = st["id"]
+
+        success, msg, data = await self.bot.db.seize_earth_loan_collateral(interaction.user.id, loan_id, target_state_id)
+        if success:
+            desc = (
+                f"**{msg}**\n\n"
+                f"👑 **New Imperial Sovereign:** {data['lender_name']}\n"
+                f"🚩 **Seized State:** {data['seized_flag']} **{data['seized_name']}**\n"
+                f"💳 **Defaulted Unpaid Debt:** `{data['total_due']:,} Medals`\n"
+                f"🌐 **Dominion Status:** The defaulting nation's territory has been permanently annexed into your sovereign empire!"
+            )
+            embed = discord.Embed(
+                title="⚠️ DEFAULT ENFORCEMENT // TERRITORY ANNEXED",
+                description=desc,
+                color=0xEF4444
+            )
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @loan_group.command(name="reject", description="Reject an incoming loan offer or cancel an outgoing pending loan.")
+    @app_commands.describe(loan_id="The ID of the pending loan offer")
+    async def earth_loan_reject(self, interaction: discord.Interaction, loan_id: int):
+        await interaction.response.defer()
+        success, msg = await self.bot.db.cancel_or_reject_earth_sovereign_loan(interaction.user.id, loan_id)
+        if success:
+            await interaction.followup.send(f"ℹ️ {msg}")
+        else:
+            await interaction.followup.send(f"❌ {msg}", ephemeral=True)
+
     # ─── Quell Unrest & Riots ─────────────────────────────────────────────────
 
     @earth_group.command(name="quell", description="Deploy resources to quell civil unrest and suppress riots.")
