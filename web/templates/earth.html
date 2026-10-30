@@ -5047,6 +5047,13 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
             </div>
 
+            ${(c.is_occupied || c.is_annexed_state) ? `
+                <div style="font-size:0.7rem; color:#f87171; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); padding:4px 8px; border-radius:6px; margin-top:0.45rem; font-weight:700; display:flex; align-items:center; justify-content:space-between;">
+                    <span>🚩 Occupied Territory · High Riot & Insurgency Risk!</span>
+                    <span style="font-size:0.65rem; color:#fca5a5; font-weight:normal;">Station ≥5 Divisions or Quell</span>
+                </div>
+            ` : ''}
+
         </div>
 
 

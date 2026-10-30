@@ -65,59 +65,28 @@ def is_current_mayor(user_id: int | str) -> bool:
     except (ValueError, TypeError):
         return False
 
-    # 1. Check active session if available
+    # 1. Server Owner always holds executive authority
     try:
         user_sess = session.get("user")
-        if user_sess:
-            if user_sess.get("is_owner"):
-                return True
-            roles = user_sess.get("roles") or []
-            if any("mayor" in str(r).lower() or "🏛️" in str(r) for r in roles):
-                return True
+        if user_sess and user_sess.get("is_owner"):
+            return True
     except Exception:
         pass
 
-    bot = current_app.config.get("DISCORD_BOT")
-    db = current_app.config.get("DB")
     cfg = get_oauth_config()
-
-    # 2. Check Discord Guild & Member roles directly
+    bot = current_app.config.get("DISCORD_BOT")
     if bot:
-        guilds = []
-        if cfg.get("guild_id"):
-            g = bot.get_guild(cfg["guild_id"])
-            if g:
-                guilds.append(g)
-        guilds.extend(bot.guilds or [])
-        for guild in guilds:
-            if not guild:
-                continue
-            if getattr(guild, "owner_id", None) == uid_int:
-                return True
-            member = guild.get_member(uid_int)
-            if member and any("mayor" in r.name.lower() or "🏛️" in r.name for r in member.roles):
+        for g in (bot.guilds or []):
+            if getattr(g, "owner_id", None) == uid_int:
                 return True
 
-    # 3. Check Database elections
+    # 2. Strict Database Verification: Must have an active, unexpired concluded term
+    db = current_app.config.get("DB")
     if db:
         from web.views import run_async
-        import time
-        now = time.time()
         try:
             if run_async(db.is_user_current_mayor(uid_int)):
                 return True
-        except Exception:
-            pass
-
-        try:
-            curr = run_async(db.get_current_commander(cfg["guild_id"]))
-            if curr and str(curr.get("winner_id")) == uid_str:
-                return True
-            latest = run_async(db.get_latest_election(cfg["guild_id"]))
-            if latest and str(latest.get("winner_id")) == uid_str:
-                term_end = latest.get("term_end", 0) or 0
-                if now < term_end:
-                    return True
         except Exception:
             pass
 

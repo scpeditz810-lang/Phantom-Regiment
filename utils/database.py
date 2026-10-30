@@ -913,6 +913,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             "ALTER TABLE earth_countries ADD COLUMN last_martial_law REAL DEFAULT 0",
             "ALTER TABLE earth_countries ADD COLUMN last_pop_program REAL DEFAULT 0",
             "ALTER TABLE earth_countries ADD COLUMN last_pop_program_type TEXT DEFAULT NULL",
+            "ALTER TABLE earth_countries ADD COLUMN is_occupied INTEGER DEFAULT 0",
             "PRAGMA journal_mode=WAL",
             "PRAGMA wal_autocheckpoint=100"
 
@@ -1055,7 +1056,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             raise
 
     async def is_user_current_mayor(self, user_id: int) -> bool:
-        """Check if user_id is the active Mayor across any guild or global election."""
+        """Check if user_id is the active Mayor with an unexpired term across any guild or global election."""
         if self._db is None:
             await self.setup()
         now = time.time()
@@ -1063,28 +1064,15 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             uid = int(user_id)
         except (ValueError, TypeError):
             return False
-        # 1. Check active concluded elections
         async with self._db.execute("""
             SELECT id FROM elections 
             WHERE status = 'concluded' 
               AND winner_id = ? 
+              AND term_end IS NOT NULL 
               AND term_end > ? 
             LIMIT 1
         """, (uid, now)) as cur:
-            if await cur.fetchone():
-                return True
-
-        # 2. Check latest concluded election regardless of term_end
-        async with self._db.execute("""
-            SELECT winner_id, term_end FROM elections 
-            WHERE status = 'concluded' AND winner_id IS NOT NULL 
-            ORDER BY id DESC LIMIT 1
-        """) as cur:
-            row = await cur.fetchone()
-            if row and row[0] is not None:
-                if int(row[0]) == uid and (row[1] is None or row[1] > now):
-                    return True
-        return False
+            return (await cur.fetchone()) is not None
 
     async def get_active_or_latest_election_any(self, guild_id: int | None = None) -> dict | None:
         """Get the current active or latest concluded election across guilds."""
@@ -4023,18 +4011,32 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             row = await cur.fetchone()
             return dict(row) if row else None
 
-    async def end_mayor_term(self, guild_id: int) -> int | None:
-        """End the active mayoral term immediately and return the former mayor ID."""
+    async def end_mayor_term(self, guild_id: int | None = None) -> list[int]:
+        """End all active mayoral terms immediately across the guild or globally, returning former mayor IDs."""
         if self._db is None:
             await self.setup()
-        current = await self.get_current_commander(guild_id)
-        if not current:
-            return None
-        await self._db.execute(
-            "UPDATE elections SET term_end = ? WHERE id = ?", (time.time(), current["id"])
-        )
+        now = time.time()
+        query = "SELECT id, winner_id FROM elections WHERE status = 'concluded' AND winner_id IS NOT NULL AND term_end > ?"
+        args = [now]
+        if guild_id and int(guild_id) > 0:
+            query += " AND (guild_id = ? OR guild_id IS NULL OR guild_id = 0)"
+            args.append(int(guild_id))
+
+        former_ids = []
+        async with self._db.execute(query, tuple(args)) as cur:
+            for r in await cur.fetchall():
+                if r[1] is not None:
+                    former_ids.append(int(r[1]))
+
+        upd_query = "UPDATE elections SET term_end = ?, status = 'concluded' WHERE status = 'concluded' AND term_end > ?"
+        upd_args = [now - 3600, now]
+        if guild_id and int(guild_id) > 0:
+            upd_query += " AND (guild_id = ? OR guild_id IS NULL OR guild_id = 0)"
+            upd_args.append(int(guild_id))
+
+        await self._db.execute(upd_query, tuple(upd_args))
         await self._db.commit()
-        return int(current["winner_id"])
+        return list(set(former_ids))
 
     async def appoint_mayor(self, guild_id: int, user_id: int, term_days: int = 14) -> dict:
         """Owner-only administrative appointment; records a normal concluded term."""
@@ -5824,53 +5826,227 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         """Deploy armed military divisions to enforce emergency curfews and crush civil unrest."""
         return await self.quell_earth_unrest(user_id, country_id, "military")
 
-    async def check_earth_riots_and_revolutions(self) -> list[dict]:
-        """Apply tax unrest pressure on a six-hour clock, regardless of page refresh rate."""
+    async def integrate_conquered_or_bought_land(
+        self,
+        new_owner_id: int,
+        acquired_country_id: int,
+        acquisition_type: str = "conquest"  # "conquest", "buyout", "seizure"
+    ) -> dict:
+        """
+        Integrate an acquired territory into the ruler's sovereign empire like real life:
+        1. Wealth & Economy: Acquired country's Treasury and GDP are added to the ruler's primary motherland.
+        2. Treasury Sweep: Acquired country's treasury is swept to 0 into imperial coffers.
+        3. Demographics & Defense: Civilians (population) and military formations (divisions, tanks, jets, ships)
+           stay local to the captured territory as regional civilian population and local defense forces.
+        4. Geopolitical Friction: High unrest and critically low stability on captured lands, triggering high riot/insurgency risk.
+        """
         if self._db is None:
             await self.setup()
+
+        try:
+            new_owner_id = int(new_owner_id)
+            acquired_country_id = int(acquired_country_id)
+        except (ValueError, TypeError):
+            return {}
+
+        now = time.time()
+        # 1. Fetch acquired country
+        async with self._db.execute("SELECT * FROM earth_countries WHERE id = ?", (acquired_country_id,)) as cur:
+            row = await cur.fetchone()
+        if not row:
+            return {}
+        acq = dict(row)
+
+        acq_treasury = max(0, int(acq.get("treasury", 0) or 0))
+        acq_gdp = max(0, int(acq.get("gdp", 0) or 0))
+
+        # 2. Find the ruler's primary homeland (lowest ID owned by new_owner_id, excluding acquired_country_id)
+        async with self._db.execute(
+            "SELECT * FROM earth_countries WHERE owner_id = ? AND id != ? ORDER BY id ASC LIMIT 1",
+            (new_owner_id, acquired_country_id)
+        ) as cur:
+            orig_row = await cur.fetchone()
+
+        motherland = dict(orig_row) if orig_row else None
+        merged_treasury = 0
+        merged_gdp = 0
+
+        if motherland:
+            # Transfer Treasury and add GDP to the primary motherland
+            merged_treasury = acq_treasury
+            merged_gdp = acq_gdp
+            await self._db.execute("""
+                UPDATE earth_countries
+                SET treasury = treasury + ?, gdp = gdp + ?
+                WHERE id = ?
+            """, (merged_treasury, merged_gdp, motherland["id"]))
+
+            # Sweep acquired country's treasury to 0 into imperial motherland
+            new_acq_treasury = 0
+        else:
+            # If this is the ruler's first and only country, it IS the motherland
+            new_acq_treasury = acq_treasury
+
+        # 3. Civilians and Military STAY DIFFERENT (local to the captured land)
+        # acq["population"] remains local!
+        # acq["army_divisions"], tanks, jets, ships remain local garrisons!
+
+        # 4. Set High Unrest and Low Stability (Real-life Occupied Tension)
+        if acquisition_type == "conquest":
+            target_unrest = 80
+            target_stability = 20
+        elif acquisition_type == "seizure":
+            target_unrest = 75
+            target_stability = 25
+        else:  # buyout
+            target_unrest = 60
+            target_stability = 35
+
+        await self._db.execute("""
+            UPDATE earth_countries
+            SET owner_id = ?,
+                treasury = ?,
+                unrest = ?,
+                stability = ?,
+                is_occupied = 1,
+                last_riot_check = ?
+            WHERE id = ?
+        """, (new_owner_id, new_acq_treasury, target_unrest, target_stability, now, acquired_country_id))
+
+        # Disband old cabinet ministers of the acquired territory
+        await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (acquired_country_id,))
+        await self._db.commit()
+
+        return {
+            "motherland_id": motherland["id"] if motherland else acquired_country_id,
+            "motherland_name": motherland["name"] if motherland else acq["name"],
+            "transferred_treasury": merged_treasury,
+            "added_gdp": merged_gdp,
+            "local_population": acq.get("population", 100),
+            "local_divisions": acq.get("army_divisions", 10),
+            "unrest": target_unrest,
+            "stability": target_stability
+        }
+
+    async def check_earth_riots_and_revolutions(self) -> list[dict]:
+        """Apply tax unrest pressure and real-life occupied resistance on a clock."""
+        if self._db is None:
+            await self.setup()
+        import random
 
         events = []
         now = time.time()
         async with self._db.execute(
-            "SELECT id, name, flag, owner_id, unrest, stability, tax_rate, last_riot_check "
+            "SELECT id, name, flag, owner_id, unrest, stability, tax_rate, population, army_divisions, is_occupied, last_riot_check "
             "FROM earth_countries WHERE owner_id IS NOT NULL"
         ) as cur:
             countries = [dict(row) for row in await cur.fetchall()]
 
         for country in countries:
             last_check = country.get("last_riot_check") or 0
-            if now - last_check < 6 * 3600:
+            is_occupied = bool(country.get("is_occupied"))
+            check_interval = 2 * 3600 if is_occupied else 6 * 3600  # Occupied lands face rapid friction
+            if now - last_check < check_interval:
                 continue
 
-            tax_rate = max(0, min(50, int(country.get("tax_rate", 10))))
-            pressure = max(0, (tax_rate - 20 + 9) // 10) if tax_rate > 20 else 0
-            unrest = min(100, int(country.get("unrest", 0)) + pressure)
             country_id = country["id"]
+            tax_rate = max(0, min(50, int(country.get("tax_rate", 10))))
+            tax_pressure = max(0, (tax_rate - 20 + 9) // 10) if tax_rate > 20 else 0
+            cur_unrest = int(country.get("unrest", 10) or 10)
+            cur_stab = int(country.get("stability", 80) or 80)
+            cur_pop = max(10, int(country.get("population", 100) or 100))
+            divisions = int(country.get("army_divisions", 0) or 0)
 
-            if unrest >= 85 and tax_rate >= 25:
-                old_leader = country["owner_id"]
-                await self._db.execute("""
-                    UPDATE earth_countries
-                    SET owner_id = NULL, stability = 50, unrest = 25, last_riot_check = ?
-                    WHERE id = ?
-                """, (now, country_id))
-                await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (country_id,))
-                events.append({
-                    "type": "revolution",
-                    "country_id": country_id,
-                    "name": country["name"],
-                    "flag": country["flag"],
-                    "ousted_leader_id": old_leader,
-                    "message": (
-                        f"🚨 Revolution: tax pressure and unrest removed the ruler of "
-                        f"{country['flag']} {country['name']}."
-                    )
-                })
+            # ── Occupied / Annexed Land Resistance Mechanics ─────────────
+            if is_occupied:
+                insurgent_pressure = random.randint(12, 22)
+                # Stationing armed divisions pacifies occupied resistance (-2% per division)
+                garrison_suppression = min(20, divisions * 2)
+                net_unrest_gain = max(4, insurgent_pressure - garrison_suppression) + tax_pressure
+                unrest = min(100, cur_unrest + net_unrest_gain)
+                stability = max(5, cur_stab - random.randint(4, 9))
+
+                # High Riot Chances in Occupied Territory (like real life)
+                if unrest >= 55 and random.random() < 0.65:
+                    # Civilian insurgent riot broke out!
+                    pop_loss = max(2, int(cur_pop * random.uniform(0.03, 0.07)))
+                    div_loss = 1 if divisions > 0 and random.random() < 0.50 else 0
+                    new_pop = max(10, cur_pop - pop_loss)
+                    new_divs = max(0, divisions - div_loss)
+                    stability = max(5, stability - 10)
+
+                    await self._db.execute("""
+                        UPDATE earth_countries
+                        SET unrest = ?, stability = ?, population = ?, army_divisions = ?, last_riot_check = ?
+                        WHERE id = ?
+                    """, (unrest, stability, new_pop, new_divs, now, country_id))
+
+                    events.append({
+                        "type": "occupied_riot",
+                        "country_id": country_id,
+                        "name": country["name"],
+                        "flag": country["flag"],
+                        "leader_id": country["owner_id"],
+                        "message": (
+                            f"🚨 Occupied Riot: Partisans in {country['flag']} {country['name']} rebelled against the occupational government! "
+                            f"(-{pop_loss} citizens, -{div_loss} divisions, unrest at {unrest}%). Station troops to suppress revolt!"
+                        )
+                    })
+
+                # Partisan Liberation / Uprising: If unrest is critical and garrison is weak (< 5 divisions)
+                elif unrest >= 85 and divisions < 5:
+                    old_leader = country["owner_id"]
+                    await self._db.execute("""
+                        UPDATE earth_countries
+                        SET owner_id = NULL, stability = 50, unrest = 25, is_occupied = 0, last_riot_check = ?
+                        WHERE id = ?
+                    """, (now, country_id))
+                    await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (country_id,))
+                    events.append({
+                        "type": "liberation",
+                        "country_id": country_id,
+                        "name": country["name"],
+                        "flag": country["flag"],
+                        "ousted_leader_id": old_leader,
+                        "message": (
+                            f"🚩 Partisan Liberation: Conquered citizens of {country['flag']} {country['name']} have overthrown "
+                            f"their foreign occupier and liberated their homeland back into the Sovereign State Trust!"
+                        )
+                    })
+                else:
+                    await self._db.execute("""
+                        UPDATE earth_countries
+                        SET unrest = ?, stability = ?, last_riot_check = ?
+                        WHERE id = ?
+                    """, (unrest, stability, now, country_id))
+
             else:
-                await self._db.execute(
-                    "UPDATE earth_countries SET unrest = ?, last_riot_check = ? WHERE id = ?",
-                    (unrest, now, country_id)
-                )
+                # Normal sovereign homeland unrest
+                unrest = min(100, cur_unrest + tax_pressure)
+                if unrest >= 85 and tax_rate >= 25:
+                    old_leader = country["owner_id"]
+                    await self._db.execute("""
+                        UPDATE earth_countries
+                        SET owner_id = NULL, stability = 50, unrest = 25, last_riot_check = ?
+                        WHERE id = ?
+                    """, (now, country_id))
+                    await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (country_id,))
+                    events.append({
+                        "type": "revolution",
+                        "country_id": country_id,
+                        "name": country["name"],
+                        "flag": country["flag"],
+                        "ousted_leader_id": old_leader,
+                        "message": (
+                            f"🚨 Revolution: tax pressure and unrest removed the ruler of "
+                            f"{country['flag']} {country['name']}."
+                        )
+                    })
+                else:
+                    await self._db.execute(
+                        "UPDATE earth_countries SET unrest = ?, last_riot_check = ? WHERE id = ?",
+                        (unrest, now, country_id)
+                    )
 
         if countries:
             await self._db.commit()
@@ -6556,12 +6732,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                             owned_count = (await cur.fetchone())[0]
 
                         if owned_count < 5:  # Max 4 conquered states + 1 motherland = 5 total
-                            await self._db.execute("""
-                                UPDATE earth_countries 
-                                SET owner_id = ?, unrest = 35, stability = 50 
-                                WHERE id = ?
-                            """, (atk_owner, w["defender_country_id"]))
-                            await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (w["defender_country_id"],))
+                            await self.integrate_conquered_or_bought_land(atk_owner, w["defender_country_id"], "conquest")
                             annexed = True
             else:
                 # Defender held the line
@@ -6660,12 +6831,7 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                     owned_count = (await cur.fetchone())[0]
 
                 if owned_count < 5:
-                    await self._db.execute("""
-                        UPDATE earth_countries 
-                        SET owner_id = ?, unrest = 40, stability = 45 
-                        WHERE id = ?
-                    """, (atk_owner, dfn_cid))
-                    await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (dfn_cid,))
+                    await self.integrate_conquered_or_bought_land(atk_owner, dfn_cid, "conquest")
                     annexed = True
 
         for unit in ("tanks", "jets", "ships"):
@@ -7194,16 +7360,17 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             await self.subtract_medals(bid, amt)
             await self.add_medals(seller_id, amt)
 
-        # Transfer country ownership based on offer scope (state vs whole country/empire)
+        # Transfer country ownership and integrate GDP & Treasury into buyer motherland
         scope = offer.get("offer_scope", "state")
         if scope in ("whole_country", "empire"):
-            # Transfer entire sovereign empire (all countries governed by seller)
-            await self._db.execute("UPDATE earth_countries SET owner_id = ?, for_sale_price = NULL WHERE owner_id = ?", (bid, seller_id))
-            await self._db.execute("DELETE FROM earth_cabinet WHERE country_id IN (SELECT id FROM earth_countries WHERE owner_id = ?)", (bid,))
+            async with self._db.execute("SELECT id FROM earth_countries WHERE owner_id = ?", (seller_id,)) as cur:
+                seller_cids = [r[0] for r in await cur.fetchall()]
+            for scid in seller_cids:
+                await self.integrate_conquered_or_bought_land(bid, scid, "buyout")
+                await self._db.execute("UPDATE earth_countries SET for_sale_price = NULL WHERE id = ?", (scid,))
         else:
-            # Transfer individual state
-            await self._db.execute("UPDATE earth_countries SET owner_id = ?, for_sale_price = NULL WHERE id = ?", (bid, cid))
-            await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (cid,))
+            await self.integrate_conquered_or_bought_land(bid, cid, "buyout")
+            await self._db.execute("UPDATE earth_countries SET for_sale_price = NULL WHERE id = ?", (cid,))
 
         # Resign buyer from any prior ministerial posts
         await self._db.execute("DELETE FROM earth_cabinet WHERE user_id = ?", (bid,))
@@ -7558,13 +7725,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
 
         await self._db.execute("BEGIN IMMEDIATE")
         try:
-            # Seize territory: transfer ownership to lender's sovereign ruler
-            await self._db.execute("""
-                UPDATE earth_countries
-                SET owner_id = ?, unrest = 35, stability = 50
-                WHERE id = ?
-            """, (lender_owner, seized_id))
-            await self._db.execute("DELETE FROM earth_cabinet WHERE country_id = ?", (seized_id,))
+            # Seize territory: transfer ownership, integrate wealth, keep local civilians & garrison
+            await self.integrate_conquered_or_bought_land(lender_owner, seized_id, "seizure")
             await self._db.execute("""
                 UPDATE earth_sovereign_loans
                 SET status = 'seized', seized_at = ?, seized_state_id = ?

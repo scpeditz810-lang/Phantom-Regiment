@@ -2136,12 +2136,10 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
         """Verify if caller is the active Mayor / UN Secretary-General or Server Owner."""
         if interaction.user.id == 429350468796416013:
             return True
-        if hasattr(interaction.user, "roles") and any(r.name == "🏛️ Mayor" for r in interaction.user.roles):
-            return True
         if interaction.guild and interaction.guild.owner_id == interaction.user.id:
             return True
-        curr = await self.bot.db.get_current_commander(interaction.guild_id or 0)
-        if curr and curr.get("winner_id") == interaction.user.id:
+        is_active = await self.bot.db.is_user_current_mayor(interaction.user.id)
+        if is_active:
             return True
         return False
 

@@ -165,18 +165,19 @@ class ElectionsCog(commands.Cog):
         return ele
 
     async def is_mayor(self, member: discord.Member) -> bool:
-        """Verify if a member is the active, officially crowned Mayor."""
-        if hasattr(member, "roles") and any(r.name == "🏛️ Mayor" for r in member.roles):
-            return True
-        gid = member.guild.id if hasattr(member, "guild") and member.guild else MAIN_GUILD_ID
-        curr = await self.bot.db.get_current_commander(gid)
-        if curr and curr.get("winner_id") == member.id:
-            return True
-        if gid != MAIN_GUILD_ID:
-            curr_main = await self.bot.db.get_current_commander(MAIN_GUILD_ID)
-            if curr_main and curr_main.get("winner_id") == member.id:
-                return True
-        return False
+        """Verify if a member is the active, officially crowned Mayor with an unexpired term."""
+        is_active = await self.bot.db.is_user_current_mayor(member.id)
+        if not is_active:
+            # If the user does not have an active term, strip the Mayor role if they still have it
+            if hasattr(member, "roles"):
+                mayor_role = discord.utils.get(member.roles, name="🏛️ Mayor")
+                if mayor_role:
+                    try:
+                        await member.remove_roles(mayor_role, reason="Mayoral term ended or inactive")
+                    except Exception:
+                        pass
+            return False
+        return True
 
     async def conclude_election_for_guild(self, guild: discord.Guild, ele: dict):
         """Conclude an election, assign Mayor roles, remove candidate roles, and announce in Discord."""
@@ -283,17 +284,37 @@ class ElectionsCog(commands.Cog):
     async def end_mayor_term(self, interaction: discord.Interaction):
         if not self._is_server_owner(interaction):
             return await interaction.response.send_message("⛔ Only the server owner can end a Mayor's term.", ephemeral=True)
-        former_id = await self.bot.db.end_mayor_term(interaction.guild_id)
-        if former_id is None:
-            return await interaction.response.send_message("There is no active Mayor term to end.", ephemeral=True)
-        mayor_role = discord.utils.get(interaction.guild.roles, name="🏛️ Mayor")
-        former = interaction.guild.get_member(former_id)
-        if mayor_role and former:
-            try:
-                await former.remove_roles(mayor_role, reason="Mayoral term ended by server owner")
-            except discord.Forbidden:
-                pass
-        await interaction.response.send_message(f"🏛️ The Mayoral term for <@{former_id}> has been ended by the server owner.")
+        await interaction.response.defer()
+        former_ids = await self.bot.db.end_mayor_term(interaction.guild_id)
+        if MAIN_GUILD_ID and interaction.guild_id != MAIN_GUILD_ID:
+            former_ids.extend(await self.bot.db.end_mayor_term(MAIN_GUILD_ID))
+        former_ids = list(set(former_ids))
+
+        guilds = [interaction.guild] if interaction.guild else []
+        main_g = self.bot.get_guild(MAIN_GUILD_ID)
+        if main_g and main_g not in guilds:
+            guilds.append(main_g)
+
+        for g in guilds:
+            mayor_role = discord.utils.get(g.roles, name="🏛️ Mayor")
+            if mayor_role:
+                for member in list(mayor_role.members):
+                    try:
+                        await member.remove_roles(mayor_role, reason="Mayoral term ended by server owner")
+                    except Exception:
+                        pass
+                for fid in former_ids:
+                    try:
+                        mem = g.get_member(fid) or await g.fetch_member(fid)
+                        if mem and mayor_role in mem.roles:
+                            await mem.remove_roles(mayor_role, reason="Mayoral term ended by server owner")
+                    except Exception:
+                        pass
+
+        if not former_ids:
+            return await interaction.followup.send("🏛️ No active Mayor term found on record, but any lingering Mayor roles have been purged.")
+        former_mentions = ", ".join(f"<@{fid}>" for fid in former_ids)
+        await interaction.followup.send(f"🏛️ The Mayoral term for {former_mentions} has been terminated. All Mayoral, UN, and executive powers are immediately revoked!")
 
     @elect.command(name="mayor", description="[Server Owner] Appoint a Mayor immediately")
     @app_commands.describe(user="Member to appoint as Mayor")
