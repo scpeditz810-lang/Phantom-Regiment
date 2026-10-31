@@ -57,8 +57,8 @@ def create_app(bot=None, db=None, loop=None):
         if path.startswith("/static/") or path == "/ping" or path == "/favicon.ico":
             return None
 
-        # Allow public read-only access to Virtual Earth telemetry, globe data, and strategic weapons catalog
-        if path.startswith("/api/earth/countries") or path.startswith("/api/earth/country/") or path.startswith("/api/earth/tools") or path.startswith("/api/earth/loans"):
+        # Allow public read-only access to Virtual Earth telemetry, globe data, strategic weapons catalog, and wars
+        if path.startswith("/api/earth/countries") or path.startswith("/api/earth/country/") or path.startswith("/api/earth/tools") or path.startswith("/api/earth/loans") or path.startswith("/api/earth/wars") or path.startswith("/api/earth/stats") or path.startswith("/api/earth/un/status") or path.startswith("/api/earth/trade/routes") or path.startswith("/api/earth/members"):
             return None
 
         exempt_endpoints = {
