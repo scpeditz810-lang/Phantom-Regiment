@@ -4686,7 +4686,7 @@ async function renderActiveTabContent(c, body) {
     const privateTabs = [
         { id: "dock-intel-tab", tab: "intel", allowed: c.can_view_intelligence === true },
         { id: "dock-economy-tab", tab: "infra", allowed: c.can_view_economy === true },
-        { id: "dock-arsenal-tab", tab: "tools", allowed: c.can_view_arsenal === true }
+        { id: "dock-arsenal-tab", tab: "tools", allowed: true }
     ];
     privateTabs.forEach(({ id, tab, allowed }) => {
         const button = document.getElementById(id);
@@ -4944,7 +4944,7 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
                 <div style="font-size: 0.82rem; font-weight: 700; color: #10b981;">🌱 Organic National Growth Active</div>
 
-                <div style="font-size: 0.72rem; color: #94a3b8;">Slow natural development: +0.01%/hr passive GDP growth · Troops drilling · Civic maturation</div>
+                <div style="font-size: 0.72rem; color: #94a3b8;">Slow natural development: +0.01%/hr passive GDP growth &bull; Troops drilling &bull; Civic maturation</div>
 
             </div>
 
@@ -5756,13 +5756,18 @@ async function submitWarEquipment(warId, unitType, available, countryId) {
 }
 
 function renderWarsTab(c, isLeader, isOwner, container) {
+    // Resolve acting sovereign nation (user's governed country or selected country)
+    const actor = (userCountry && userCountry.can_command_defense) ? userCountry : (c.can_command_defense ? c : null);
+    const actorId = actor ? Number(actor.id) : null;
+    const actorReserves = actor ? Math.max(0, Number(actor.army_divisions || 0)) : 0;
+
+    // Filter wars involving selected nation, actor's nation, or their alliances
     const wars = warsData.filter(w => {
-        const isDirect = Number(w.attacker_country_id) === Number(c.id) || Number(w.defender_country_id) === Number(c.id);
-        const isAllied = c.alliance_id && (
-            Number(w.attacker_alliance_id) === Number(c.alliance_id) ||
-            Number(w.defender_alliance_id) === Number(c.alliance_id)
-        );
-        return isDirect || isAllied;
+        const isSelectedInvolved = Number(w.attacker_country_id) === Number(c.id) || Number(w.defender_country_id) === Number(c.id);
+        const isActorInvolved = actorId && (Number(w.attacker_country_id) === actorId || Number(w.defender_country_id) === actorId);
+        const isAlliedInvolved = (c.alliance_id && (Number(w.attacker_alliance_id) === Number(c.alliance_id) || Number(w.defender_alliance_id) === Number(c.alliance_id))) ||
+                                 (actor && actor.alliance_id && (Number(w.attacker_alliance_id) === Number(actor.alliance_id) || Number(w.defender_alliance_id) === Number(actor.alliance_id)));
+        return isSelectedInvolved || isActorInvolved || isAlliedInvolved;
     });
 
     const isOwnCountry = Boolean(isOwner);
@@ -5770,7 +5775,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
     let html = `
         <div class="info-tile" style="margin-bottom: 1rem; border-color: rgba(239, 68, 68, 0.4);">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-                <span style="font-size: 0.82rem; font-weight: 800; color: #f8fafc;">⚔️ Military Conquest</span>
+                <span style="font-size: 0.82rem; font-weight: 800; color: #f8fafc;">⚔️ Military Conquest & Active Fronts</span>
                 ${isOwnCountry ? `
                     <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
                         <button class="btn-danger-sm" onclick="openDeclareWarModal()">
@@ -5786,11 +5791,9 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                     </button>
                 ` : '')}
             </div>
-            ${isOwnCountry ? `
-                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.35rem; line-height: 1.4;">
-                    Wage multi-day campaigns against other ruled nations. Alliance partners can deploy divisions and equipment to assist allies in both offensive assault and mutual defense.
-                </div>
-            ` : ''}
+            <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.35rem; line-height: 1.4;">
+                Active campaigns across sovereign borders. All sovereign rulers and defense ministers can deploy reserve divisions and combat hardware to reinforce defense lines against foreign conquest.
+            </div>
         </div>
     `;
 
@@ -5811,30 +5814,43 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                     <button class="btn-action-sm" onclick="purchaseEarthHardware(${c.id},'jet')">Buy Jet · 350k</button>
                     ${c.is_coastal ? '<button class="btn-action-sm" onclick="purchaseEarthHardware(' + c.id + ',&#39;ship&#39;)">Buy Ship · 300k</button>' : ''}
                 </div>
-                <div style="font-size:.68rem;color:#94a3b8;margin-top:.35rem;">Force capacity grows with population. Recruitment costs 10,000 Medals and 1 civilian per division. Deployed troops come from this reserve.</div>
+                <div style="font-size:.68rem;color:#94a3b8;margin-top:.35rem;">Force capacity grows with population. Recruitment costs 10,000 Medals and 1 civilian per division.</div>
             </div>`;
     }
 
     if (wars.length === 0) {
-        html += `<div style="text-align:center; padding:2rem; color:#94a3b8; font-size:0.8rem;">No active multi-day conquests involving this nation or its alliance partners. Sovereign borders are intact.</div>`;
+        html += `<div style="text-align:center; padding:2rem; color:#94a3b8; font-size:0.8rem;">No active multi-day conquests involving this nation or its defense partners. Sovereign borders are intact.</div>`;
     } else {
         wars.forEach(w => {
-            const isAttacker = Number(w.attacker_country_id) === Number(c.id);
-            const isDefender = Number(w.defender_country_id) === Number(c.id);
-            const isAlliedAtk = !isAttacker && !isDefender && c.alliance_id && Number(w.attacker_alliance_id) === Number(c.alliance_id);
-            const isAlliedDfn = !isAttacker && !isDefender && c.alliance_id && Number(w.defender_alliance_id) === Number(c.alliance_id);
+            const isMyAttacker = actorId && Number(w.attacker_country_id) === actorId;
+            const isMyDefender = actorId && Number(w.defender_country_id) === actorId;
+            const isMyAllyAtk = actor && !isMyAttacker && actor.alliance_id && Number(w.attacker_alliance_id) === Number(actor.alliance_id);
+            const isMyAllyDfn = actor && !isMyDefender && actor.alliance_id && Number(w.defender_alliance_id) === Number(actor.alliance_id);
+            const canAidDefense = actor && !isMyAttacker && !isMyAllyAtk;
 
             html += `
                 <div class="war-pulse-banner" style="flex-direction: column; align-items: flex-start; margin-bottom: 0.75rem;">
-                    ${isAlliedAtk ? `
-                        <div style="font-size:0.72rem; font-weight:800; color:#f59e0b; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.4); border-radius:6px; padding:0.22rem 0.55rem; margin-bottom:0.4rem; display:inline-flex; align-items:center; gap:0.4rem;">
-                            ⚔️ Alliance Coalition Offensive · Supporting Ally <strong>${escapeHtml(w.attacker_name)}</strong>
+                    ${isMyDefender ? `
+                        <div style="font-size:0.72rem; font-weight:800; color:#38bdf8; background:rgba(56,189,248,0.16); border:1px solid rgba(56,189,248,0.45); border-radius:6px; padding:0.22rem 0.55rem; margin-bottom:0.4rem; display:inline-flex; align-items:center; gap:0.4rem;">
+                            🛡️ Sovereign Homeland Defense · Your Borders Under Attack!
                         </div>
-                    ` : (isAlliedDfn ? `
+                    ` : (isMyAllyDfn ? `
                         <div style="font-size:0.72rem; font-weight:800; color:#38bdf8; background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.4); border-radius:6px; padding:0.22rem 0.55rem; margin-bottom:0.4rem; display:inline-flex; align-items:center; gap:0.4rem;">
                             🛡️ Alliance Mutual Defense · Defending Ally <strong>${escapeHtml(w.defender_name)}</strong>
                         </div>
-                    ` : '')}
+                    ` : (isMyAttacker ? `
+                        <div style="font-size:0.72rem; font-weight:800; color:#ef4444; background:rgba(239,68,68,0.14); border:1px solid rgba(239,68,68,0.4); border-radius:6px; padding:0.22rem 0.55rem; margin-bottom:0.4rem; display:inline-flex; align-items:center; gap:0.4rem;">
+                            ⚔️ Imperial Campaign Offensive · Sovereign Assault
+                        </div>
+                    ` : (isMyAllyAtk ? `
+                        <div style="font-size:0.72rem; font-weight:800; color:#f59e0b; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.4); border-radius:6px; padding:0.22rem 0.55rem; margin-bottom:0.4rem; display:inline-flex; align-items:center; gap:0.4rem;">
+                            ⚔️ Coalition Joint Offensive · Assisting Ally <strong>${escapeHtml(w.attacker_name)}</strong>
+                        </div>
+                    ` : (canAidDefense ? `
+                        <div style="font-size:0.72rem; font-weight:800; color:#34d399; background:rgba(52,211,153,0.14); border:1px solid rgba(52,211,153,0.4); border-radius:6px; padding:0.22rem 0.55rem; margin-bottom:0.4rem; display:inline-flex; align-items:center; gap:0.4rem;">
+                            🛡️ International Defense Coalition · Fortifying Defender <strong>${escapeHtml(w.defender_name)}</strong>
+                        </div>
+                    ` : ''))))}
 
                     <div style="display:flex; justify-content:space-between; width:100%;">
                         <strong>${w.attacker_flag} ${escapeHtml(w.attacker_name)} vs ${w.defender_flag} ${escapeHtml(w.defender_name)}</strong>
@@ -5842,7 +5858,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                     </div>
 
                     <div style="font-size: 0.72rem; margin-top: 0.25rem; color:#cbd5e1;">
-                        Domain: <strong>${String(w.war_domain || 'land').toUpperCase()}</strong> · Scale: <strong>${w.scale.toUpperCase()}</strong> • Assault: ${w.attacker_power} (${w.attacker_divisions} Divs) vs Defense: ${w.defender_power} (${w.defender_divisions} Divs)<br>Armor / air / navy: 🔴 ${Number(w.attacker_tanks||0)} / ${Number(w.attacker_jets||0)} / ${Number(w.attacker_ships||0)} vs 🔵 ${Number(w.defender_tanks||0)} / ${Number(w.defender_jets||0)} / ${Number(w.defender_ships||0)}
+                        Domain: <strong>${String(w.war_domain || 'land').toUpperCase()}</strong> · Scale: <strong>${w.scale.toUpperCase()}</strong> • Assault: <span style="color:#f87171;font-weight:700;">${w.attacker_power} (${w.attacker_divisions} Divs)</span> vs Defense: <span style="color:#60a5fa;font-weight:700;">${w.defender_power} (${w.defender_divisions} Divs)</span><br>Armor / air / navy: 🔴 ${Number(w.attacker_tanks||0)} / ${Number(w.attacker_jets||0)} / ${Number(w.attacker_ships||0)} vs 🔵 ${Number(w.defender_tanks||0)} / ${Number(w.defender_jets||0)} / ${Number(w.defender_ships||0)}
                     </div>
 
                     ${(w.coalition_attackers && w.coalition_attackers.length > 0) ? `
@@ -5852,7 +5868,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                     ` : ''}
                     ${(w.coalition_defenders && w.coalition_defenders.length > 0) ? `
                         <div style="font-size:0.68rem; color:#93c5fd; margin-top:0.25rem;">
-                            🛡️ Allied Defense Support: ${w.coalition_defenders.map(d => `${d.country_flag} ${escapeHtml(d.country_name)} (+${d.divisions} Divs${d.tanks ? `, ${d.tanks} Tanks` : ''}${d.jets ? `, ${d.jets} Jets` : ''}${d.ships ? `, ${d.ships} Ships` : ''})`).join(' · ')}
+                            🛡️ Defense Reinforcements: ${w.coalition_defenders.map(d => `${d.country_flag} ${escapeHtml(d.country_name)} (+${d.divisions} Divs${d.tanks ? `, ${d.tanks} Tanks` : ''}${d.jets ? `, ${d.jets} Jets` : ''}${d.ships ? `, ${d.ships} Ships` : ''})`).join(' · ')}
                         </div>
                     ` : ''}
 
@@ -5864,38 +5880,42 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                         <span style="font-size: 0.7rem; color: #94a3b8;">Campaign Progress: ${w.progress_pct}%</span>
 
                         <div style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap;">
-                            ${(c.can_command_defense && (isAttacker || isDefender || isAlliedAtk || isAlliedDfn) && Number(c.army_divisions||0)>0) ? `
-                                <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem; ${(isAlliedAtk || isAlliedDfn) ? 'border-color:#38bdf8; color:#7dd3fc;' : ''}" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${Number(c.army_divisions||0)}, ${c.id})">
-                                    ${isAlliedAtk ? '⚔️ Deploy Allied Assault Divs' : (isAlliedDfn ? '🛡️ Deploy Allied Defense Divs' : '🪖 Reinforce Front')}
+                            ${canAidDefense ? `
+                                <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem; border-color:#38bdf8; color:#7dd3fc;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${actorReserves}, ${actor.id}, 'defender')">
+                                    ${isMyDefender ? '🛡️ Reinforce Sovereign Defense' : (isMyAllyDfn ? '🛡️ Deploy Allied Defense' : '🛡️ Aid Defense Front')}
                                 </button>
-                            ` : ''}
+                            ` : (isMyAttacker || isMyAllyAtk ? `
+                                <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem; border-color:#ef4444; color:#fca5a5;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${actorReserves}, ${actor.id}, 'attacker')">
+                                    ${isMyAttacker ? '⚔️ Reinforce Assault Front' : '⚔️ Deploy Allied Assault'}
+                                </button>
+                            ` : '')}
 
-                            ${(c.can_command_defense && (isAttacker || isDefender || isAlliedAtk || isAlliedDfn)) ? (() => {
+                            ${(actor && (canAidDefense || isMyAttacker || isMyAllyAtk)) ? (() => {
                                 const domain = w.war_domain || "land";
                                 const unit = domain === "air" ? "jets" : domain === "naval" ? "ships" : "tanks";
                                 const kind = unit === "jets" ? "jet" : unit === "ships" ? "ship" : "tank";
-                                const available = getAvailableWarEquipment(c.id, unit);
-                                const prefix = (isAlliedAtk || isAlliedDfn) ? "Deploy Allied " : "Deploy ";
-                                return available > 0 ? '<button class="btn-action-sm" onclick="openDeployEquipmentModal(' + w.id + ',' + JSON.stringify(kind) + ',' + available + ',' + c.id + ')">' + prefix + unit + ' · ' + available + ' avail</button>' : "";
+                                const available = getAvailableWarEquipment(actor.id, unit);
+                                const prefix = canAidDefense ? "Defensive " : "Assault ";
+                                return available > 0 ? '<button class="btn-action-sm" onclick="openDeployEquipmentModal(' + w.id + ',' + JSON.stringify(kind) + ',' + available + ',' + actor.id + ')">Deploy ' + prefix + unit + ' · ' + available + ' avail</button>' : "";
                             })() : ""}
 
-                            ${(c.can_command_defense && (c.tools || []).some(tool => tool.tool_key === "nuclear_launch_pad") &&
-                                (c.tools || []).some(tool => tool.tool_key === "tactical_nuke") &&
-                                ((isAttacker && !w.attacker_nuke_used) ||
-                                 (isDefender && !w.defender_nuke_used) ||
-                                 (isAlliedAtk && !w.attacker_nuke_used) ||
-                                 (isAlliedDfn && !w.defender_nuke_used))) ? `
-                                <button class="btn-action-sm" style="padding:0.25rem 0.55rem;font-size:0.7rem;border-color:#f97316;color:#fdba74;" onclick="launchNuclearStrike(${c.id}, ${w.id})">
-                                    ☢️ ${(isAlliedAtk || isAlliedDfn) ? 'Allied ' : ''}Nuclear Strike
+                            ${(actor && (actor.tools || []).some(tool => tool.tool_key === "nuclear_launch_pad") &&
+                                (actor.tools || []).some(tool => tool.tool_key === "tactical_nuke") &&
+                                ((isMyAttacker && !w.attacker_nuke_used) ||
+                                 (isMyDefender && !w.defender_nuke_used) ||
+                                 (isMyAllyAtk && !w.attacker_nuke_used) ||
+                                 (isMyAllyDfn && !w.defender_nuke_used))) ? `
+                                <button class="btn-action-sm" style="padding:0.25rem 0.55rem;font-size:0.7rem;border-color:#f97316;color:#fdba74;" onclick="launchNuclearStrike(${actor.id}, ${w.id})">
+                                    ☢️ Tactical Nuclear Strike
                                 </button>
                             ` : ''}
                         </div>
                     </div>
 
-                    ${(c.can_command_defense && (isAttacker || isDefender)) ? `
+                    ${(isMyAttacker || isMyDefender) ? `
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem; border-top:1px dashed rgba(255,255,255,0.1); padding-top:0.4rem; width:100%;">
-                            <span style="font-size:0.68rem; color:#94a3b8;">Sovereign War Termination:</span>
-                            <button class="btn-danger-sm" style="background:#dc2626; border-color:#ef4444; color:#fff; padding:0.25rem 0.55rem; font-size:0.7rem;" onclick="surrenderWar(${w.id}, '${isAttacker ? 'attacker' : 'defender'}')">
+                            <span style="font-size:0.68rem; color:#94a3b8;">Sovereign Armistice / Concession:</span>
+                            <button class="btn-danger-sm" style="background:#dc2626; border-color:#ef4444; color:#fff; padding:0.25rem 0.55rem; font-size:0.7rem;" onclick="surrenderWar(${w.id}, '${isMyAttacker ? 'attacker' : 'defender'}')">
                                 🏳️ Concede & Surrender War
                             </button>
                         </div>
@@ -8033,34 +8053,60 @@ async function submitDeclareWar(targetId) {
 
 
 
-function openReinforceModal(warId, atkName, dfnName, available = 1, countryId = null) {
+function openReinforceModal(warId, atkName, dfnName, available = 0, countryId = null, targetSide = 'defender') {
     const container = document.getElementById("modal-container");
+    const availCount = Math.max(0, parseInt(available, 10) || 0);
+    const sideTitle = (targetSide === 'defender') ? '🛡️ Reinforce Defense Front' : '⚔️ Reinforce Assault Front';
+
     container.innerHTML = `
         <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
-            <div class="custom-modal-card">
+            <div class="custom-modal-card" style="width:min(100% - 1rem, 460px); max-height:90dvh; overflow:auto;">
                 <div class="custom-modal-header">
                     <div class="custom-modal-title">
-                        <span>🪖</span> Mobilize Division Reinforcements
+                        <span>🪖</span> ${sideTitle}
                     </div>
                     <button class="btn-action-sm" onclick="closeModal()">✕</button>
                 </div>
 
-                <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 1rem;">
-                    Deploy frontline reinforcements to bolster combat rolls in <strong>${atkName} vs ${dfnName}</strong>.
+                <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.85rem;">
+                    Deploy reinforcements to fortify the line in <strong>${escapeHtml(atkName)} vs ${escapeHtml(dfnName)}</strong>.
                 </p>
 
-                <div class="custom-form-group">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <label class="custom-form-label">Divisions to Deploy: <strong id="reinforce-div-label">5 Divisions</strong></label>
-                        <span style="font-size:0.75rem; color:#38bdf8;" id="reinforce-cost-label">Deploys existing reserve units · no Medals</span>
+                ${availCount > 0 ? `
+                    <div class="custom-form-group">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <label class="custom-form-label">Divisions to Deploy: <strong id="reinforce-div-label">${Math.min(5, availCount)} Divisions</strong></label>
+                            <span style="font-size:0.75rem; color:#38bdf8;" id="reinforce-cost-label">Uses ready reserves · +8 Power each</span>
+                        </div>
+                        <input type="range" min="1" max="${Math.min(50, availCount)}" value="${Math.min(5, availCount)}" class="form-range w-100" id="reinforce-slider" oninput="updateReinforceCost(this.value)">
                     </div>
-                    <input type="range" min="1" max="${Math.max(1, Math.min(50, Number(available)||1))}" value="${Math.min(5, Math.max(1, Number(available)||1))}" class="form-range w-100" id="reinforce-slider" oninput="updateReinforceCost(this.value)">
-                </div>
 
-                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
-                    <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
-                    <button class="hud-btn" onclick="submitReinforceWar(${warId}, ${countryId})">Deploy to Front</button>
-                </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
+                        <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                        <button class="hud-btn" onclick="submitReinforceWar(${warId}, ${countryId})">Deploy to Front</button>
+                    </div>
+                ` : `
+                    <div style="background:rgba(239, 68, 68, 0.12); border:1px solid rgba(239, 68, 68, 0.35); border-radius:8px; padding:0.75rem; margin-bottom:0.85rem;">
+                        <div style="font-weight:700; color:#fca5a5; font-size:0.82rem; margin-bottom:0.3rem;">⚠️ No Ready Reserve Divisions</div>
+                        <div style="font-size:0.72rem; color:#cbd5e1; line-height:1.45;">
+                            Your national reserves have 0 divisions ready. Enact an <strong>Emergency Defense Mobilization</strong> to recruit and dispatch divisions straight to this defense front!
+                        </div>
+                    </div>
+
+                    <div class="custom-form-group">
+                        <label class="custom-form-label" for="quick-mobilize-count">Divisions to Mobilize & Deploy (1 - 10):</label>
+                        <input type="number" id="quick-mobilize-count" min="1" max="10" value="5" inputmode="numeric" style="width:100%; min-height:2.6rem; background:#0f172a; color:#fff; border:1px solid #475569; border-radius:8px; padding:0.55rem;" oninput="document.getElementById('quick-mob-cost').innerText = 'Cost: ' + (Math.max(1, Math.min(10, parseInt(this.value, 10)||1))*10000).toLocaleString() + ' Medals + ' + Math.max(1, Math.min(10, parseInt(this.value, 10)||1)) + ' Civilians'">
+                        <div style="display:flex; justify-content:space-between; margin-top:0.35rem;">
+                            <span style="font-size:0.72rem; color:#38bdf8;" id="quick-mob-cost">Cost: 50,000 Medals + 5 Civilians</span>
+                            <span style="font-size:0.72rem; color:#34d399;">+8 Defense Power per division</span>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
+                        <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
+                        <button class="btn-danger-sm" style="background:#16a34a; border-color:#22c55e; color:#fff;" onclick="submitQuickMobilizeDefense(${warId}, ${countryId})">⚡ Emergency Mobilize & Deploy</button>
+                    </div>
+                `}
             </div>
         </div>
     `;
@@ -8068,11 +8114,11 @@ function openReinforceModal(warId, atkName, dfnName, available = 1, countryId = 
 
 function updateReinforceCost(divs) {
     document.getElementById("reinforce-div-label").innerText = divs + " Divisions";
-    document.getElementById("reinforce-cost-label").innerText = "Uses reserve divisions · no fee";
+    document.getElementById("reinforce-cost-label").innerText = "Uses ready reserves · +" + (divs * 8) + " Power";
 }
 
 async function submitReinforceWar(warId, countryId = null) {
-    const divs = parseInt(document.getElementById("reinforce-slider").value);
+    const divs = parseInt(document.getElementById("reinforce-slider")?.value || "1", 10);
     closeModal();
     try {
         const res = await fetch("/api/earth/war/reinforce", {
@@ -8081,10 +8127,27 @@ async function submitReinforceWar(warId, countryId = null) {
             body: JSON.stringify({ war_id: warId, divisions: divs, country_id: countryId })
         });
         const data = await res.json();
-        showToast(data.message);
+        showToast(data.message || "Reinforce order processed.");
         loadVirtualEarthData();
     } catch(e) {
         showToast("Reinforce failed.");
+    }
+}
+
+async function submitQuickMobilizeDefense(warId, countryId = null) {
+    const divs = Math.max(1, Math.min(10, parseInt(document.getElementById("quick-mobilize-count")?.value || "5", 10) || 5));
+    closeModal();
+    try {
+        const res = await fetch("/api/earth/war/quick-mobilize-defense", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ war_id: warId, divisions: divs, country_id: countryId })
+        });
+        const data = await res.json();
+        showToast(data.message || "Emergency mobilization processed.");
+        loadVirtualEarthData();
+    } catch(e) {
+        showToast("Emergency mobilization request failed.");
     }
 }
 
@@ -9587,118 +9650,118 @@ async function claimEmptyCountryFree(countryId, countryName) {
 
 async function renderToolsTab(c, isLeader, isOwner, container) {
     if (!container) return;
-    container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Accessing Strategic Arsenal Database...</div>`;
 
-    let catalogue = [];
-    let owned = [];
-    let canProcure = Boolean(isLeader);
+    // Instant 0ms render catalogue (guaranteed instant UI, no loading spinner lockup)
+    const defaultCatalogue = [
+        { key: "sat_recon", name: "Orbital Reconnaissance Satellite Grid", emoji: "🛰️", price: 250000, desc: "High-altitude surveillance satellites providing real-time strategic intelligence on foreign military movements.", military_power: 40, defense_power: 35, perk: "+20% Infiltration Stealth & Early Attack Warnings" },
+        { key: "drone_swarm", name: "Autonomous AI Strike Drone Swarm", emoji: "🛸", price: 450000, desc: "Armada of low-observable loitering munitions capable of precision strikes against enemy frontline divisions.", military_power: 95, defense_power: 45, perk: "Bypasses 25% of Enemy Fortifications in Wars" },
+        { key: "iron_dome", name: "Iron Dome & Aegis Ballistic Shield", emoji: "🛡️", price: 550000, desc: "Multi-tier layered air and missile defense grid intercepting hostile artillery, rockets, and foreign saboteurs.", military_power: 30, defense_power: 130, perk: "+130 National Defense Power & -50% Bombardment Damage" },
+        { key: "cyber_grid", name: "Cyber-Warfare & Jamming Citadel", emoji: "⚡", price: 380000, desc: "Centralized cyber operations warfare center executing electronic jamming against foreign espionage networks.", military_power: 45, defense_power: 60, perk: "+15% Spy Capture Rate & Protects Infrastructure" },
+        { key: "hypersonic_battery", name: "Hypersonic Cruise Missile Battery", emoji: "🚀", price: 950000, desc: "Mach 8+ glide missile launch batteries designed to neutralize heavy enemy armor formations and command bastions.", military_power: 210, defense_power: 70, perk: "Devastating Frontline Offense (+210 Military Power)" },
+        { key: "nuclear_launch_pad", name: "Hardened Deep-Underground Nuclear Silo", emoji: "🏗️", price: 1200000, desc: "Permanent hardened launch infrastructure required before a tactical nuclear weapon can be fired.", military_power: 0, defense_power: 35, perk: "Enables Strategic Nuclear Deterrence Strikes" },
+        { key: "tactical_nuke", name: "Tactical EMP & Nuclear Deterrent Warhead", emoji: "☢️", price: 2500000, desc: "Supreme sovereign deterrence silo complex. Hostile invaders face catastrophic retaliation.", military_power: 380, defense_power: 260, perk: "Ultimate Sovereign Deterrence (+380 Attack, +260 Defense)" },
+        { key: "industrial_core", name: "Automated Mega-Industrial Core", emoji: "🔬", price: 600000, desc: "Robotic super-factories that fast-track national construction, turbocharge GDP, and accelerate dividend production.", military_power: 50, defense_power: 40, perk: "Fast-Track Economic Growth (+38k/hr Yield, +15M GDP)" }
+    ];
 
     const targetCountry = c || selectedCountry || userCountry;
-    const targetCountryId = targetCountry ? targetCountry.id : 0;
-    const targetCountryName = targetCountry ? targetCountry.name : "Your Realm";
+    const targetCountryId = targetCountry ? Number(targetCountry.id || 0) : 0;
+    const targetCountryName = targetCountry ? (targetCountry.name || "Your Realm") : "Your Realm";
     const targetFlag = targetCountry ? (targetCountry.flag || '') : '🌍';
 
-    try {
-        const countryId = targetCountryId;
-        const res = await fetch(`/api/earth/tools?country_id=${countryId}`);
-        if (res.ok) {
-            const data = await res.json();
-            if (data && Array.isArray(data.catalogue) && data.catalogue.length > 0) {
-                catalogue = data.catalogue;
-                owned = data.owned || [];
-                if (data.can_procure !== undefined) {
-                    canProcure = Boolean(data.can_procure || isLeader);
-                }
-            }
-        }
-    } catch(err) {
-        console.warn("API tools fetch notice:", err);
-    }
-
-    // High-tech strategic arsenal catalog (guaranteed 0ms render)
-    if (!catalogue || catalogue.length === 0) {
-        catalogue = [
-            { key: "sat_recon", name: "Orbital Reconnaissance Satellite Grid", emoji: "🛰️", price: 250000, desc: "High-altitude surveillance satellites providing real-time strategic intelligence on foreign military movements.", military_power: 40, defense_power: 35, perk: "+20% Infiltration Stealth & Early Attack Warnings" },
-            { key: "drone_swarm", name: "AI-Guided Loitering Drone Swarm", emoji: "🛸", price: 180000, desc: "Autonomous kamikaze drone fleet trained on neural networks for precision strikes against hostile military divisions.", military_power: 65, defense_power: 20, perk: "+15% Offensive War Breakthrough Chance" },
-            { key: "iron_dome", name: "Iron Dome Air & Ballistic Defense Grid", emoji: "🛡️", price: 320000, desc: "Tier-IV automated interception battery shielding domestic borders, oil rigs, and military bases from missile bombardment.", military_power: 25, defense_power: 90, perk: "+40% Defense Shielding vs Invasions" },
-            { key: "cyber_grid", name: "Cyber-Electronic Warfare Defense Grid", emoji: "⚡", price: 140000, desc: "National quantum-encrypted firewall shielding state treasury from espionage infiltration and digital theft.", military_power: 15, defense_power: 50, perk: "+35% Counter-Espionage Detection" },
-            { key: "hypersonic_battery", name: "Hypersonic Anti-Ship & Cruise Battery", emoji: "🚀", price: 450000, desc: "Mach 8+ kinetic kill vehicles capable of piercing ocean naval fleets and maritime trade blockades.", military_power: 95, defense_power: 40, perk: "+25% Naval Blockade Penetration" },
-            { key: "nuclear_launch_pad", name: "Hardened Deep-Underground Nuclear Silo", emoji: "🏗️", price: 650000, desc: "Reinforced titanium launch silo embedded in deep granite bedrock capable of withstanding direct impact.", military_power: 80, defense_power: 110, perk: "Enables Strategic Nuclear Deterrence" },
-            { key: "tactical_nuke", name: "Tactical EMP & Nuclear Deterrent Warhead", emoji: "☢️", price: 950000, desc: "Strategic thermonuclear warhead with electromagnetic pulse disruption for total deterrence.", military_power: 250, defense_power: 80, perk: "Supreme Sovereign Deterrence Weapon" },
-            { key: "industrial_core", name: "Advanced Industrial Automation Core", emoji: "🏭", price: 220000, desc: "Robotic assembly lines and automated CNC factories boosting national production efficiency.", military_power: 30, defense_power: 30, perk: "+5,000 Medals/hr Passive Manufacturing Dividend" }
-        ];
-    }
-
-    // Check user authority
+    // Authority checks
     const viewerId = (statsData && statsData.user && statsData.user.id != null) ? String(statsData.user.id) : "";
     const ownerId = targetCountry && targetCountry.owner_id != null ? String(targetCountry.owner_id) : "";
     const isOwnerOfTarget = Boolean(viewerId && ownerId && viewerId === ownerId);
-    const hasAuthority = canProcure || isOwnerOfTarget || isLeader;
+    let canProcure = Boolean(isLeader || isOwnerOfTarget || (userCountry && String(userCountry.id) === String(targetCountryId)));
 
-    let html = `
-        <div class="info-tile" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.35); margin-bottom: 0.75rem;">
-            <div style="font-weight: 800; font-size: 0.88rem; color: #fbbf24; margin-bottom: 0.25rem; display:flex; justify-content:space-between; align-items:center;">
-                <span>🛡️ Strategic Military Arsenal & High-Tech Assets</span>
-                <span style="font-size: 0.7rem; color: #94a3b8;">Target: <strong style="color:#f8fafc;">${targetFlag} ${targetCountryName}</strong></span>
-            </div>
-            <div style="font-size: 0.74rem; color: #cbd5e1;">
-                Procure advanced high-tech weapon platforms, orbital satellite grids, and missile shields to drastically increase military attack and defense power.
-                ${hasAuthority ? '<span style="color:#34d399; font-weight:700;">(Executive Procurement Authorized)</span>' : '<span style="color:#94a3b8;">(Viewing Global Arsenal Catalogue)</span>'}
-            </div>
-        </div>
-    `;
-
-    catalogue.forEach(t => {
-        const isOwned = Boolean(t.owned);
-        html += `
-            <div class="selectable-card" style="margin-bottom: 0.75rem; border-color: ${isOwned ? 'rgba(16, 185, 129, 0.45)' : 'rgba(255, 255, 255, 0.1)'}; background: ${isOwned ? 'rgba(16, 185, 129, 0.08)' : 'rgba(15, 23, 42, 0.55)'};">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.35rem;">
-                    <div style="font-weight: 800; font-size: 0.9rem; color: #f8fafc; display:flex; align-items:center; gap:0.4rem;">
-                        <span style="font-size:1.15rem;">${t.emoji || '🛡️'}</span> <span>${t.name}</span>
-                    </div>
-                    ${isOwned ? `
-                        <span class="hud-tag" style="background: rgba(16, 185, 129, 0.25); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.5); font-weight:800; font-size:0.68rem; padding: 2px 7px; border-radius: 4px;">
-                            ✅ DEPLOYED
-                        </span>
-                    ` : `
-                        <span style="font-weight: 800; font-size: 0.84rem; color: #facc15; background: rgba(250, 204, 21, 0.12); padding: 2px 7px; border-radius: 4px; border: 1px solid rgba(250, 204, 21, 0.3);">
-                            ${(t.price || 0).toLocaleString()} Medals
-                        </span>
-                    `}
+    // Immediate synchronous render function
+    function paintArsenal(catalogueItems, authorized) {
+        let html = `
+            <div class="info-tile" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.35); margin-bottom: 0.75rem;">
+                <div style="font-weight: 800; font-size: 0.88rem; color: #fbbf24; margin-bottom: 0.25rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.4rem;">
+                    <span>🛡️ Strategic Military Arsenal & High-Tech Assets</span>
+                    <span style="font-size: 0.7rem; color: #94a3b8;">Target: <strong style="color:#f8fafc;">${targetFlag} ${escapeHtml(targetCountryName)}</strong></span>
                 </div>
-
-                <div style="font-size: 0.74rem; color: #cbd5e1; margin-bottom: 0.45rem; line-height: 1.35;">
-                    ${t.desc || ''}
+                <div style="font-size: 0.74rem; color: #cbd5e1; line-height:1.4;">
+                    Procure advanced high-tech weapon platforms, orbital satellite grids, and missile shields to drastically increase military attack and defense power.
+                    ${authorized ? '<span style="color:#34d399; font-weight:700;">(Executive Procurement Authorized)</span>' : '<span style="color:#94a3b8;">(Viewing Global Arsenal Catalogue)</span>'}
                 </div>
-
-                <div style="font-size: 0.72rem; color: #38bdf8; margin-bottom: 0.55rem; background: rgba(56, 189, 248, 0.08); padding: 5px 8px; border-radius: 5px; border-left: 3px solid #38bdf8;">
-                    • <strong>Strategic Perk:</strong> ${t.perk || 'Combat multiplier'} • ⚔️ +${t.military_power || 0} Atk • 🛡️ +${t.defense_power || 0} Def
-                </div>
-
-                ${!isOwned ? `
-                    <div style="display:flex; justify-content:flex-end; gap:0.5rem; align-items:center;">
-                        ${hasAuthority ? `
-                            <button class="hud-btn" style="font-size:0.75rem; padding:0.35rem 0.85rem; font-weight:700; background: linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:5px; cursor:pointer;" onclick="procureTool(${targetCountryId}, '${t.key}', '${t.name.replace(/'/g, "\\'")}', ${t.price})">
-                                🛒 Deploy to ${targetCountryName}
-                            </button>
-                        ` : (userCountry ? `
-                            <button class="hud-btn" style="font-size:0.75rem; padding:0.35rem 0.85rem; font-weight:700; background: rgba(56, 189, 248, 0.18); color:#38bdf8; border:1px solid rgba(56, 189, 248, 0.4); border-radius:5px; cursor:pointer;" onclick="procureTool(${userCountry.id}, '${t.key}', '${t.name.replace(/'/g, "\\'")}', ${t.price})">
-                                🛒 Deploy to My Nation (${userCountry.flag || ''} ${userCountry.name})
-                            </button>
-                        ` : `
-                            <span style="font-size:0.7rem; color:#94a3b8; font-style:italic;">Login as sovereign ruler to procure</span>
-                        `)}
-                    </div>
-                ` : `
-                    <div style="display:flex; justify-content:flex-end;">
-                        <span style="font-size:0.7rem; color:#10b981; font-weight:600;">Active in defensive garrison perimeter</span>
-                    </div>
-                `}
             </div>
         `;
-    });
 
-    container.innerHTML = html;
+        catalogueItems.forEach(t => {
+            const isOwned = Boolean(t.owned);
+            const toolKeyEsc = escapeHtml(t.key || '');
+            const toolNameEsc = escapeHtml(t.name || 'Arsenal Asset');
+            const toolPrice = Number(t.price || 0);
+
+            html += `
+                <div class="selectable-card" style="margin-bottom: 0.75rem; border-color: ${isOwned ? 'rgba(16, 185, 129, 0.45)' : 'rgba(255, 255, 255, 0.1)'}; background: ${isOwned ? 'rgba(16, 185, 129, 0.08)' : 'rgba(15, 23, 42, 0.55)'};">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.35rem;">
+                        <div style="font-weight: 800; font-size: 0.9rem; color: #f8fafc; display:flex; align-items:center; gap:0.4rem;">
+                            <span style="font-size:1.15rem;">${t.emoji || '🛡️'}</span> <span>${toolNameEsc}</span>
+                        </div>
+                        ${isOwned ? `
+                            <span class="hud-tag" style="background: rgba(16, 185, 129, 0.25); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.5); font-weight:800; font-size:0.68rem; padding: 2px 7px; border-radius: 4px;">
+                                ✅ DEPLOYED
+                            </span>
+                        ` : `
+                            <span style="font-weight: 800; font-size: 0.84rem; color: #facc15; background: rgba(250, 204, 21, 0.12); padding: 2px 7px; border-radius: 4px; border: 1px solid rgba(250, 204, 21, 0.3);">
+                                ${toolPrice.toLocaleString()} Medals
+                            </span>
+                        `}
+                    </div>
+
+                    <div style="font-size: 0.74rem; color: #cbd5e1; margin-bottom: 0.45rem; line-height: 1.35;">
+                        ${escapeHtml(t.desc || '')}
+                    </div>
+
+                    <div style="font-size: 0.72rem; color: #38bdf8; margin-bottom: 0.55rem; background: rgba(56, 189, 248, 0.08); padding: 5px 8px; border-radius: 5px; border-left: 3px solid #38bdf8;">
+                        • <strong>Strategic Perk:</strong> ${escapeHtml(t.perk || 'Combat multiplier')} • ⚔️ +${t.military_power || 0} Atk • 🛡️ +${t.defense_power || 0} Def
+                    </div>
+
+                    ${!isOwned ? `
+                        <div style="display:flex; justify-content:flex-end; gap:0.5rem; align-items:center;">
+                            ${authorized ? `
+                                <button class="hud-btn" style="font-size:0.75rem; padding:0.35rem 0.85rem; font-weight:700; background: linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:5px; cursor:pointer;" onclick="procureTool(${targetCountryId}, '${toolKeyEsc}', '${toolNameEsc.replace(/'/g, "\\'")}', ${toolPrice})">
+                                    🛒 Deploy to ${escapeHtml(targetCountryName)}
+                                </button>
+                            ` : (userCountry && userCountry.id ? `
+                                <button class="hud-btn" style="font-size:0.75rem; padding:0.35rem 0.85rem; font-weight:700; background: rgba(56, 189, 248, 0.18); color:#38bdf8; border:1px solid rgba(56, 189, 248, 0.4); border-radius:5px; cursor:pointer;" onclick="procureTool(${Number(userCountry.id)}, '${toolKeyEsc}', '${toolNameEsc.replace(/'/g, "\\'")}', ${toolPrice})">
+                                    🛒 Deploy to My Nation (${userCountry.flag || ''} ${escapeHtml(userCountry.name || '')})
+                                </button>
+                            ` : `
+                                <span style="font-size:0.7rem; color:#94a3b8; font-style:italic;">Login as sovereign ruler to procure</span>
+                            `)}
+                        </div>
+                    ` : `
+                        <div style="display:flex; justify-content:flex-end;">
+                            <span style="font-size:0.7rem; color:#10b981; font-weight:600;">Active in defensive garrison perimeter</span>
+                        </div>
+                    `}
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    // 1. Initial 0ms immediate render!
+    paintArsenal(defaultCatalogue, canProcure);
+
+    // 2. Asynchronous live refresh from server
+    try {
+        const res = await fetch(`/api/earth/tools?country_id=${targetCountryId}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.catalogue) && data.catalogue.length > 0) {
+                const liveAuth = (data.can_procure !== undefined) ? Boolean(data.can_procure || canProcure) : canProcure;
+                paintArsenal(data.catalogue, liveAuth);
+            }
+        }
+    } catch(err) {
+        console.warn("API tools live refresh notice:", err);
+    }
 }
 
 

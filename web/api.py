@@ -2279,7 +2279,7 @@ def api_earth_countries():
         # Financial and upgrade details belong to a country's ruler and relevant
         # cabinet ministers. The public map must not leak them.
         can_view_economy = bool(item["is_my_country"] or item["can_manage_economy"])
-        can_view_arsenal = bool(item["is_my_country"] or item["can_command_defense"])
+        can_view_arsenal = True  # Strategic Arsenal is a global procurement catalog
         item["can_view_economy"] = can_view_economy
         item["can_view_arsenal"] = can_view_arsenal
         if not can_view_economy:
@@ -2479,15 +2479,13 @@ def api_earth_country_detail(country_id):
         and str(current_user_id) == str(country_owner_id)
     )
     c["can_view_economy"] = bool(is_country_owner or c.get("can_manage_economy"))
-    c["can_view_arsenal"] = bool(is_country_owner or c.get("can_command_defense"))
+    c["can_view_arsenal"] = True  # Strategic Arsenal is a global procurement catalog
     if not c["can_view_economy"]:
         for key in ("gdp", "treasury", "tax_rate", "economic_doctrine", "government_type"):
             c.pop(key, None)
         c["buildings"] = []
-    if not c["can_view_arsenal"]:
-        c["tools"] = []
-        for key in ("total_military_power", "total_defense_power"):
-            c.pop(key, None)
+    # Strategic arsenal catalog is accessible to all sovereign citizens
+    pass
 
     # Intelligence is private to the country president or cabinet intelligence role.
     can_view_intelligence = bool(is_country_owner or c.get("can_manage_intelligence"))
@@ -3206,6 +3204,28 @@ def api_earth_war_reinforce():
     user_id = session["user"]["id"]
     db = get_db()
     success, msg = run_async(db.reinforce_earth_war(user_id, war_id, divisions, country_id=country_id))
+    econ = run_async(db.get_global_economy(user_id))
+    return jsonify({
+        "success": success,
+        "message": msg,
+        "wallet": econ.get("medals", 0)
+    }), 200 if success else 400
+
+
+@api_bp.route("/earth/war/quick-mobilize-defense", methods=["POST"])
+@login_required
+def api_earth_war_quick_mobilize():
+    data = request.get_json() or {}
+    try:
+        war_id = int(data.get("war_id", 0))
+        divisions = int(data.get("divisions", 5))
+        country_id = int(data.get("country_id", 0)) if data.get("country_id") else None
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid parameters."}), 400
+
+    user_id = session["user"]["id"]
+    db = get_db()
+    success, msg = run_async(db.quick_mobilize_defense_war(user_id, war_id, divisions, country_id=country_id))
     econ = run_async(db.get_global_economy(user_id))
     return jsonify({
         "success": success,
