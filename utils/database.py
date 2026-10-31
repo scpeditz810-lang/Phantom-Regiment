@@ -6674,6 +6674,8 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if self._db is None:
             await self.setup()
         try:
+            user_id = int(user_id)
+            war_id = int(war_id)
             divisions = int(divisions)
         except (ValueError, TypeError):
             return False, "Division count must be a whole number."
@@ -7053,9 +7055,11 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
         if self._db is None:
             await self.setup()
         try:
+            user_id = int(user_id)
+            war_id = int(war_id)
             divisions = int(divisions)
         except (ValueError, TypeError):
-            return False, "Division count must be a whole number."
+            return False, "Division count and war ID must be valid integers."
         if not 1 <= divisions <= 20:
             return False, "Mobilize between 1 and 20 divisions per emergency order."
 
@@ -7092,14 +7096,32 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.rollback()
                 return False, "Emergency mobilization on defense is only for defending forces and coalition partners."
 
-            async with self._db.execute("SELECT id, name, flag, owner_id, treasury, population, army_divisions FROM earth_countries WHERE id=?", (target_cid,)) as cur:
+            async with self._db.execute("SELECT id, name, flag, owner_id, treasury, population, army_divisions, alliance_id FROM earth_countries WHERE id=?", (target_cid,)) as cur:
                 c_row = await cur.fetchone()
             if not c_row:
                 await self._db.rollback()
                 return False, "Mobilizing nation not found."
 
-            cid, c_name, c_flag, c_owner, treasury, population, reserve = c_row
-            cost = divisions * 10000
+            cid, c_name, c_flag, c_owner, treasury, population, reserve, c_alliance = c_row
+            population = int(population or 0)
+            treasury = int(treasury or 0)
+            reserve = int(reserve or 0)
+
+            # Check if primary homeland defender or alliance partner
+            is_homeland = (target_cid == war["defender_country_id"])
+            async with self._db.execute("SELECT alliance_id FROM earth_countries WHERE id=?", (war["defender_country_id"],)) as cur:
+                dfn_c_row = await cur.fetchone()
+            dfn_alliance = dfn_c_row[0] if dfn_c_row else None
+            is_alliance_defense = bool(dfn_alliance and c_alliance == dfn_alliance)
+
+            if is_homeland:
+                cost_per_div = 1000
+            elif is_alliance_defense:
+                cost_per_div = 2500
+            else:
+                cost_per_div = 5000
+
+            cost = divisions * cost_per_div
             civilians_needed = divisions * 1
             max_divisions_cap = max(10, population // 2)
 
@@ -7107,30 +7129,45 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
                 await self._db.rollback()
                 return False, f"Force ceiling reached ({max_divisions_cap} divisions). Grow your population to field larger armies."
 
+            if population < civilians_needed + 5:
+                await self._db.rollback()
+                return False, f"Insufficient civilian population ({population}) to recruit {divisions} divisions (min 5 civilians must remain)."
+
             async with self._db.execute("SELECT medals FROM global_economy WHERE user_id=?", (user_id,)) as cur:
                 ge_row = await cur.fetchone()
             user_medals = int(ge_row[0] or 0) if ge_row else 0
+            total_funds = user_medals + treasury
 
-            paid_from = None
-            if user_medals >= cost:
-                await self._db.execute("UPDATE global_economy SET medals=medals-? WHERE user_id=? AND medals>=?", (cost, user_id, cost))
-                await self._db.execute("UPDATE users SET medals=(SELECT medals FROM global_economy WHERE user_id=?) WHERE user_id=?", (user_id, user_id))
-                paid_from = "ministerial funds"
-            elif (treasury or 0) >= cost:
-                await self._db.execute("UPDATE earth_countries SET treasury=treasury-? WHERE id=? AND treasury>=?", (cost, target_cid, cost))
-                paid_from = "state treasury"
-            else:
-                await self._db.rollback()
-                return False, f"Emergency mobilization of {divisions} divisions requires {cost:,} Medals (insufficient in wallet and state treasury)."
+            is_volunteer_militia = False
+            paid_summary = []
+            if total_funds < cost:
+                if is_homeland:
+                    # Emergency Civic Volunteer Homeland Militia (0 Medals cost, +6 power each)
+                    is_volunteer_militia = True
+                    cost = 0
+                else:
+                    await self._db.rollback()
+                    return False, f"Emergency mobilization of {divisions} divisions requires {cost:,} Medals (insufficient in wallet and state treasury)."
 
-            if (population or 0) < civilians_needed + 10:
-                await self._db.rollback()
-                return False, f"Insufficient civilian population ({population}) to recruit {divisions} divisions (min 10 civilians must remain)."
+            if cost > 0:
+                wallet_deduct = min(user_medals, cost)
+                treasury_deduct = cost - wallet_deduct
+                if wallet_deduct > 0:
+                    await self._db.execute("UPDATE global_economy SET medals=medals-? WHERE user_id=? AND medals>=?", (wallet_deduct, user_id, wallet_deduct))
+                    await self._db.execute("UPDATE users SET medals=(SELECT medals FROM global_economy WHERE user_id=?) WHERE user_id=?", (user_id, user_id))
+                    paid_summary.append(f"{wallet_deduct:,} from wallet")
+                if treasury_deduct > 0:
+                    await self._db.execute("UPDATE earth_countries SET treasury=treasury-? WHERE id=? AND treasury>=?", (treasury_deduct, target_cid, treasury_deduct))
+                    paid_summary.append(f"{treasury_deduct:,} from treasury")
 
             await self._db.execute("UPDATE earth_countries SET population=population-? WHERE id=?", (civilians_needed, target_cid))
+
+            power_per_div = 6 if is_volunteer_militia else 8
+            added_power = divisions * power_per_div
+
             await self._db.execute(
                 "UPDATE earth_wars SET defender_divisions=defender_divisions+?, defender_power=defender_power+? WHERE id=?",
-                (divisions, divisions * 8, war_id)
+                (divisions, added_power, war_id)
             )
 
             await self._db.execute("""
@@ -7146,11 +7183,17 @@ CREATE TABLE IF NOT EXISTS earth_alliances (
             )
 
             await self._db.commit()
-            return True, f"⚡ Emergency Defense Mobilization: Mobilized {divisions} divisions from {c_flag} **{c_name}** ({cost:,} Medals paid from {paid_from}) and deployed directly to the frontline! (+{divisions * 8} Defense Power)"
+
+            funding_note = " (" + " + ".join(paid_summary) + ")" if paid_summary else ""
+            if is_volunteer_militia:
+                return True, f"🛡️ Civic Volunteer Homeland Militia Mobilized: {divisions} civilian volunteer divisions from {c_flag} **{c_name}** rushed to fortify sovereign borders at zero medal cost! (+{added_power} Defense Power)"
+            elif is_alliance_defense:
+                return True, f"🤝 Allied Emergency Reinforcement: {divisions} rapid defense divisions from {c_flag} **{c_name}** deployed to fortify allied defensive lines{funding_note}! (+{added_power} Defense Power)"
+            else:
+                return True, f"⚡ Emergency Defense Mobilization: Mobilized {divisions} divisions from {c_flag} **{c_name}**{funding_note} and deployed directly to the frontline! (+{added_power} Defense Power)"
         except Exception:
             await self._db.rollback()
             raise
-
 
     async def resolve_concluded_earth_wars(self) -> list[dict]:
         """Conclude wars that have elapsed their 1 to 5 day timeline."""

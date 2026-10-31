@@ -2434,7 +2434,7 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
                 target_country_id = c["id"]
 
         success, msg = await self.bot.db.reinforce_earth_war(user_id, war_id, divisions, country_id=target_country_id)
-        if not success and "0 reserve divisions" in msg:
+        if not success and any(k in msg.lower() for k in ["reserve divisions", "reserves", "ready", "recruit"]):
             # Fallback to emergency defense mobilization if reserves are exhausted
             success, msg = await self.bot.db.quick_mobilize_defense_war(user_id, war_id, divisions, country_id=target_country_id)
 

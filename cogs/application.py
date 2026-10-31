@@ -25,7 +25,8 @@ from utils.constants import APPEAL_COOLDOWN_SECONDS, ACCEPTED_ROLE, STAFF_ROLES
 
 _REVIEWERS = {r["name"] for r in STAFF_ROLES} | {"Commander", "Recruitment Team"}
 
-_QUESTIONS = [
+# ── Division 1: Command An Army Questions ─────────────────────────────
+_CAA_QUESTIONS = [
     ("1️⃣", "What is your **age**?"),
     ("2️⃣", "How many **wins** do you currently have?"),
     ("3️⃣", "What is your total **kill count**?"),
@@ -37,11 +38,75 @@ _QUESTIONS = [
     ("9️⃣", "What is your current **in-game level**?"),
 ]
 
-_ANSWER_LABELS = [
+_CAA_ANSWER_LABELS = [
     "🎂 Age", "🏆 Wins", "⚔️ Kills", "🌍 Timezone",
     "⏱️ Playtime", "🤝 Agree to Seniors?", "🎯 Tactics & Units",
     "🎮 Roblox Name", "📊 In-Game Level",
 ]
+
+# ── Division 2: Attack On Titan: Revolution Questions ───────────────────
+_AOTR_QUESTIONS = [
+    ("1️⃣", "What is your **Roblox display name and username**?\n*(Format: `DisplayName (@Username)` — e.g. `LeviAckerman (@xXLeviXx)`)*"),
+    ("2️⃣", "What is your current **character level** in Attack On Titan: Revolution?"),
+    ("3️⃣", "How many **rebirths** have you achieved so far?"),
+    ("4️⃣", "Are you a **Titan Shifter** or an **ODM Gear Specialist**? If you are a Titan Shifter, **which Titan** do you possess?\n*(e.g., Attack, Armored, Colossal, Female, Beast, Warhammer, Jaw, etc.)*"),
+    ("5️⃣", "How much total **playtime** do you have in Attack On Titan: Revolution?"),
+    ("6️⃣", "What are your primary **character stats and build attributes**?\n*(e.g., Slash DMG, Defense, Speed, Skill Tree focus)*"),
+    ("7️⃣", "Are you capable of **soloing raids and high-difficulty missions**, or do you prefer squad coordination?"),
+    ("8️⃣", "Which **Family lineage/clan** do you currently belong to?\n*(e.g., Fritz, Reiss, Ackerman, Jaeger, Tybur, Arlert, etc.)*"),
+    ("9️⃣", "Do you agree to respect and follow the instructions of your **seniors and commanders**, communicate actively, and uphold Phantom Regiment's honor?"),
+]
+
+_AOTR_ANSWER_LABELS = [
+    "🎮 Roblox Name", "📊 Character Level", "🔄 Rebirths",
+    "⚡ Shifter vs. ODM", "⏱️ Playtime", "⚔️ Stats & Build",
+    "🛡️ Solo Raids & Missions", "👑 Family Lineage", "🤝 Discipline & Respect",
+]
+
+# Backwards compatibility fallback
+_QUESTIONS = _CAA_QUESTIONS
+_ANSWER_LABELS = _CAA_ANSWER_LABELS
+
+
+class _ClanSelectView(discord.ui.View):
+    def __init__(self, user_id: int):
+        super().__init__(timeout=300)
+        self.user_id = user_id
+        self.chosen_division: str | None = None
+
+    @discord.ui.button(label="Command An Army", style=discord.ButtonStyle.primary, emoji="⚔️")
+    async def caa_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("❌ This is not your application.", ephemeral=True)
+        self.chosen_division = "Command An Army"
+        for child in self.children:
+            child.disabled = True
+        button.style = discord.ButtonStyle.success
+        self.stop()
+        try:
+            await interaction.response.edit_message(
+                content="⚔️ **Command An Army** division selected! Loading questions...",
+                view=self
+            )
+        except Exception:
+            pass
+
+    @discord.ui.button(label="Attack On Titan: Revolution", style=discord.ButtonStyle.danger, emoji="🗡️")
+    async def aotr_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("❌ This is not your application.", ephemeral=True)
+        self.chosen_division = "Attack On Titan: Revolution"
+        for child in self.children:
+            child.disabled = True
+        button.style = discord.ButtonStyle.success
+        self.stop()
+        try:
+            await interaction.response.edit_message(
+                content="🗡️ **Attack On Titan: Revolution** division selected! Loading questions...",
+                view=self
+            )
+        except Exception:
+            pass
 
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -302,25 +367,59 @@ class ApplicationCog(commands.Cog):
     # ── Sequential DM application ──────────────────────────────────────────
 
     async def _run_application(self, user: discord.User, guild: discord.Guild):
-        """Ask 7 questions one-by-one in DMs, then post to #app-review."""
-        # If they force-restart, just remove them from active and start fresh
+        """Prompt for game division first, ask corresponding questions in DMs, then post to #app-review."""
         if user.id in self._active:
             self._active.remove(user.id)
 
         self._active.add(user.id)
         try:
-            # Intro message
-            intro = discord.Embed(
-                title=f"📝 Application — {guild.name}",
+            # 1. Division selection prompt
+            select_embed = discord.Embed(
+                title=f"⚔️ Welcome to {guild.name}!",
                 description=(
-                    "I'll ask you **9 questions** one at a time.\n"
-                    "Just type your answer after each question.\n"
-                    "You have **5 minutes** per question — take your time!"
+                    "**Phantom Regiment is now a multi-game clan!**\n\n"
+                    "Please choose which division you are applying to join:\n"
+                    "• **⚔️ Command An Army** (Roblox strategy & warfare)\n"
+                    "• **🗡️ Attack On Titan: Revolution** (Roblox AoT:R regiment)\n\n"
+                    "*Click a button below to choose your game division.*"
                 ),
                 colour=discord.Colour.gold(),
             )
             if guild.icon:
-                intro.set_thumbnail(url=guild.icon.url)
+                select_embed.set_thumbnail(url=guild.icon.url)
+
+            clan_view = _ClanSelectView(user.id)
+            prompt_msg = await user.send(embed=select_embed, view=clan_view)
+
+            timed_out = await clan_view.wait()
+            if timed_out or not clan_view.chosen_division:
+                await user.send(
+                    "⏰ **Selection timed out.** Click below to start over whenever you're ready.",
+                    view=_AppealView(self.bot)
+                )
+                return
+
+            chosen_division = clan_view.chosen_division
+            if chosen_division == "Attack On Titan: Revolution":
+                questions = _AOTR_QUESTIONS
+                answer_labels = _AOTR_ANSWER_LABELS
+                div_badge = "🗡️ Attack On Titan: Revolution"
+            else:
+                questions = _CAA_QUESTIONS
+                answer_labels = _CAA_ANSWER_LABELS
+                div_badge = "⚔️ Command An Army"
+
+            # 2. Intro for questions
+            intro = discord.Embed(
+                title=f"📝 {div_badge} Application",
+                description=(
+                    f"You have selected **{div_badge}**.\n"
+                    f"I will ask you **{len(questions)} questions** one by one.\n"
+                    "Simply type your answers directly in this DM.\n"
+                    "You have **5 minutes** per question — take your time!"
+                ),
+                colour=discord.Colour.gold(),
+            )
             await user.send(embed=intro)
 
             answers: list[str] = []
@@ -331,12 +430,12 @@ class ApplicationCog(commands.Cog):
                     and m.guild is None
                 )
 
-            for i, (emoji, question) in enumerate(_QUESTIONS, 1):
+            for i, (emoji, question) in enumerate(questions, 1):
                 q_embed = discord.Embed(
                     description=f"{emoji}  {question}",
                     colour=discord.Colour.gold(),
                 )
-                q_embed.set_footer(text=f"Question {i} of {len(_QUESTIONS)}  •  Type your answer below")
+                q_embed.set_footer(text=f"Question {i} of {len(questions)}  •  {div_badge}  •  Type your answer below")
                 await user.send(embed=q_embed)
 
                 try:
@@ -355,14 +454,13 @@ class ApplicationCog(commands.Cog):
                         content = msg.attachments[0].url
                     elif not content:
                         content = "*(No text provided)*"
-                        
+
                     answers.append(content)
                     try:
                         await msg.add_reaction("✅")
                     except Exception:
                         pass
                 except Exception as e:
-                    # Log hidden errors to staff channel
                     staff_channel = guild.get_channel(1551255144233173084)
                     if staff_channel:
                         await staff_channel.send(f"❌ Uncaught error during application loop for {user.mention}: {e}")
@@ -375,7 +473,7 @@ class ApplicationCog(commands.Cog):
                 return
 
             embed = discord.Embed(
-                title="📋  New Application",
+                title=f"📋 New Application — {div_badge}",
                 colour=discord.Colour.gold(),
                 timestamp=discord.utils.utcnow(),
             )
@@ -385,12 +483,22 @@ class ApplicationCog(commands.Cog):
                 value=f"{user.mention} (`{user}`)",
                 inline=False,
             )
+            embed.add_field(
+                name="🎮 Clan Division",
+                value=f"**{div_badge}**",
+                inline=False,
+            )
 
-            for label, answer in zip(_ANSWER_LABELS, answers):
-                inline = label not in ("🤝 Agree to Seniors?", "🎯 Tactics & Units")
+            multiline_labels = {
+                "🤝 Agree to Seniors?", "🎯 Tactics & Units",
+                "⚡ Shifter vs. ODM", "⚔️ Stats & Build",
+                "🛡️ Solo Raids & Missions", "🤝 Discipline & Respect"
+            }
+            for label, answer in zip(answer_labels, answers):
+                inline = label not in multiline_labels
                 embed.add_field(name=label, value=answer, inline=inline)
 
-            embed.set_footer(text=f"User ID: {user.id}  •  Guild: {guild.id}")
+            embed.set_footer(text=f"Division: {chosen_division}  •  User ID: {user.id}  •  Guild: {guild.id}")
 
             view = discord.ui.View(timeout=None)
             view.add_item(_AcceptBtn(user.id, guild.id))
@@ -398,13 +506,13 @@ class ApplicationCog(commands.Cog):
             await ch.send(embed=embed, view=view)
 
             await user.send(
-                "✅ **Application submitted!**\n"
-                "Staff will review it shortly — you'll be DM'd the result.\n"
-                "For now you can read the rules and announcements while you wait."
+                f"✅ **Application submitted for {div_badge}!**\n"
+                "Staff will review your application shortly — you will receive a DM with the result.\n"
+                "While you wait, feel free to read the rules and announcements!"
             )
 
         except discord.Forbidden:
-            pass  # DMs closed — handled in on_member_join fallback
+            pass
         finally:
             self._active.discard(user.id)
 

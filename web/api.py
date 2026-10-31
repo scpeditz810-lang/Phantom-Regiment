@@ -3201,7 +3201,8 @@ def api_earth_war_reinforce():
     except (ValueError, TypeError):
         return jsonify({"success": False, "message": "Invalid parameters."}), 400
         
-    user_id = session["user"]["id"]
+    raw_uid = session["user"]["id"]
+    user_id = int(raw_uid) if str(raw_uid).isdigit() else raw_uid
     db = get_db()
     success, msg = run_async(db.reinforce_earth_war(user_id, war_id, divisions, country_id=country_id))
     econ = run_async(db.get_global_economy(user_id))
@@ -3223,7 +3224,8 @@ def api_earth_war_quick_mobilize():
     except (ValueError, TypeError):
         return jsonify({"success": False, "message": "Invalid parameters."}), 400
 
-    user_id = session["user"]["id"]
+    raw_uid = session["user"]["id"]
+    user_id = int(raw_uid) if str(raw_uid).isdigit() else raw_uid
     db = get_db()
     success, msg = run_async(db.quick_mobilize_defense_war(user_id, war_id, divisions, country_id=country_id))
     econ = run_async(db.get_global_economy(user_id))

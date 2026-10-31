@@ -5756,8 +5756,11 @@ async function submitWarEquipment(warId, unitType, available, countryId) {
 }
 
 function renderWarsTab(c, isLeader, isOwner, container) {
-    // Resolve acting sovereign nation (user's governed country or selected country)
-    const actor = (userCountry && userCountry.can_command_defense) ? userCountry : (c.can_command_defense ? c : null);
+    // Resolve acting sovereign nation
+    const viewerId = (statsData && statsData.user && statsData.user.id != null) ? String(statsData.user.id) : "";
+    const cOwnerId = (c && c.owner_id != null) ? String(c.owner_id) : "";
+    const canCommandC = Boolean((viewerId && cOwnerId && viewerId === cOwnerId) || isLeader || isOwner || (c && c.can_manage_military));
+    const actor = canCommandC ? c : (userCountry || null);
     const actorId = actor ? Number(actor.id) : null;
     const actorReserves = actor ? Math.max(0, Number(actor.army_divisions || 0)) : 0;
 
@@ -5797,7 +5800,7 @@ function renderWarsTab(c, isLeader, isOwner, container) {
         </div>
     `;
 
-    if (isOwnCountry && c.can_command_defense) {
+    if (isOwnCountry || canCommandC) {
         const reserve = Math.max(0, Number(c.army_divisions || 0));
         const maxTotal = Math.max(0, Math.floor(Number(c.population || 0) / 2));
         html += `
@@ -5881,14 +5884,15 @@ function renderWarsTab(c, isLeader, isOwner, container) {
 
                         <div style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap;">
                             ${canAidDefense ? `
-                                <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem; border-color:#38bdf8; color:#7dd3fc;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${actorReserves}, ${actor.id}, 'defender')">
+                                <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem; border-color:#38bdf8; color:#7dd3fc;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${actorReserves}, ${actorId}, 'defender')">
                                     ${isMyDefender ? '🛡️ Reinforce Sovereign Defense' : (isMyAllyDfn ? '🛡️ Deploy Allied Defense' : '🛡️ Aid Defense Front')}
                                 </button>
-                            ` : (isMyAttacker || isMyAllyAtk ? `
-                                <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem; border-color:#ef4444; color:#fca5a5;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${actorReserves}, ${actor.id}, 'attacker')">
+                            ` : ''}
+                            ${(isMyAttacker || isMyAllyAtk) ? `
+                                <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem; border-color:#ef4444; color:#fca5a5;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${actorReserves}, ${actorId}, 'attacker')">
                                     ${isMyAttacker ? '⚔️ Reinforce Assault Front' : '⚔️ Deploy Allied Assault'}
                                 </button>
-                            ` : '')}
+                            ` : ''}
 
                             ${(actor && (canAidDefense || isMyAttacker || isMyAllyAtk)) ? (() => {
                                 const domain = w.war_domain || "land";
@@ -8095,9 +8099,9 @@ function openReinforceModal(warId, atkName, dfnName, available = 0, countryId = 
 
                     <div class="custom-form-group">
                         <label class="custom-form-label" for="quick-mobilize-count">Divisions to Mobilize & Deploy (1 - 10):</label>
-                        <input type="number" id="quick-mobilize-count" min="1" max="10" value="5" inputmode="numeric" style="width:100%; min-height:2.6rem; background:#0f172a; color:#fff; border:1px solid #475569; border-radius:8px; padding:0.55rem;" oninput="document.getElementById('quick-mob-cost').innerText = 'Cost: ' + (Math.max(1, Math.min(10, parseInt(this.value, 10)||1))*10000).toLocaleString() + ' Medals + ' + Math.max(1, Math.min(10, parseInt(this.value, 10)||1)) + ' Civilians'">
+                        <input type="number" id="quick-mobilize-count" min="1" max="10" value="5" inputmode="numeric" style="width:100%; min-height:2.6rem; background:#0f172a; color:#fff; border:1px solid #475569; border-radius:8px; padding:0.55rem;" oninput="document.getElementById('quick-mob-cost').innerText = 'Homeland: ' + (Math.max(1, Math.min(10, parseInt(this.value, 10)||1))*1000).toLocaleString() + ' Medals (Free Militia if empty) + ' + Math.max(1, Math.min(10, parseInt(this.value, 10)||1)) + ' Civilians'">
                         <div style="display:flex; justify-content:space-between; margin-top:0.35rem;">
-                            <span style="font-size:0.72rem; color:#38bdf8;" id="quick-mob-cost">Cost: 50,000 Medals + 5 Civilians</span>
+                            <span style="font-size:0.72rem; color:#38bdf8;" id="quick-mob-cost">Homeland: 1,000 M/div (Free Militia if empty)</span>
                             <span style="font-size:0.72rem; color:#34d399;">+8 Defense Power per division</span>
                         </div>
                     </div>
