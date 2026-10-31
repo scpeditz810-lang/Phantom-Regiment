@@ -3193,41 +3193,24 @@ def api_earth_war_surrender():
 
 
 @api_bp.route("/earth/war/reinforce", methods=["POST"])
-
 @login_required
-
 def api_earth_war_reinforce():
-
     data = request.get_json() or {}
-
     try:
-
         war_id = int(data.get("war_id", 0))
-
         divisions = int(data.get("divisions", 5))
-
+        country_id = int(data.get("country_id", 0)) if data.get("country_id") else None
     except (ValueError, TypeError):
-
         return jsonify({"success": False, "message": "Invalid parameters."}), 400
-
         
-
     user_id = session["user"]["id"]
-
     db = get_db()
-
-    success, msg = run_async(db.reinforce_earth_war(user_id, war_id, divisions))
-
+    success, msg = run_async(db.reinforce_earth_war(user_id, war_id, divisions, country_id=country_id))
     econ = run_async(db.get_global_economy(user_id))
-
     return jsonify({
-
         "success": success,
-
         "message": msg,
-
         "wallet": econ.get("medals", 0)
-
     }), 200 if success else 400
 
 

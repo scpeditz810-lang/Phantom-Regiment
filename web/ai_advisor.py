@@ -148,7 +148,11 @@ EARTH_SECTIONS = {
         "Partisans face passive resistance pressure every 2 hours. Stationing armed divisions pacifies unrest (-2% unrest per division). "
         "High Riot Probability (65% chance when unrest >= 60%) causes civilian casualties and garrison clashes. "
         "If unrest reaches >=85% with weak garrison (<5 divisions), a PARTISAN NATIONAL LIBERATION occurs, expelling foreign occupiers back to State Trust! "
-        "Maximum 4 conquered states + 1 motherland = 5 total territories per ruler."
+        "Maximum 4 conquered states + 1 motherland = 5 total territories per ruler. "
+        "ALLIANCE COALITION WARFARE (/earth reinforce, web Virtual Earth Conquest tab): Member nations in an alliance can intervene in wars! "
+        "Joint Offensive: Deploy reserve divisions, tanks, jets, or warships to assist an ally's attack front. "
+        "Collective Defense: Deploy troops and combat hardware to reinforce an allied defender's front line against foreign invasion. "
+        "Surviving coalition units return home after conclusion."
     ),
     "loans": (
         "SOVEREIGN BILATERAL DEBT & LOANS (/earth_loan, Market/Economy dashboard): Sovereign nations can extend credit "
@@ -169,7 +173,8 @@ EARTH_SECTIONS = {
         "multi-day wars), Isolationist (immune to spy incitement, cannot sign ocean trade). Governments: socialist, "
         "democracy, communism, monarchy, dictatorship. Military doctrines: Professional x1.15 power; Conscription "
         "x1.40 power but +10 unrest; Mechanized x1.60 power but 5,000 Medals/hr upkeep. "
-        "Manage diplomatic coalitions and alliances on the website: https://phantomregiment.apps.bot-hosting.cloud/ (website channel: https://discord.com/channels/1550544659217125467/1552470594380103822)."
+        "Manage diplomatic coalitions and alliances on the website: https://phantomregiment.apps.bot-hosting.cloud/ (website channel: https://discord.com/channels/1550544659217125467/1552470594380103822). "
+        "ALLIANCE COALITION MILITARY AID: All alliance partners can directly dispatch troops and heavy combat vehicles to defend an ally under attack or help an ally conquer enemy land. Use /earth reinforce or click 'Deploy Allied Divisions' on the Virtual Earth Conquest tab."
     ),
     "politics": (
         "POLITICS & CABINET: the ruler is the President. Cabinet ministers (/earth cabinet appoint, accept, decline, "

@@ -55,14 +55,28 @@ async def build_defense_embed(bot, country: dict, user_id: int) -> discord.Embed
 
     # Active wars
     active_wars = await bot.db.get_active_earth_wars()
-    my_wars = [w for w in active_wars if w.get("attacker_country_id") == c["id"] or w.get("defender_country_id") == c["id"]]
+    c_alliance = c.get("alliance_id")
+    my_wars = [
+        w for w in active_wars
+        if w.get("attacker_country_id") == c["id"] or w.get("defender_country_id") == c["id"]
+        or (c_alliance and (w.get("attacker_alliance_id") == c_alliance or w.get("defender_alliance_id") == c_alliance))
+    ]
 
     if my_wars:
         war_lines = []
         for w in my_wars[:4]:
-            is_atk = (w.get("attacker_country_id") == c["id"])
-            role_icon = "⚔️ Assaulting" if is_atk else "🛡️ Defending"
-            opp_name = f"{w.get('defender_flag')} {w.get('defender_name')}" if is_atk else f"{w.get('attacker_flag')} {w.get('attacker_name')}"
+            if w.get("attacker_country_id") == c["id"]:
+                role_icon = "⚔️ Assaulting"
+                opp_name = f"{w.get('defender_flag')} {w.get('defender_name')}"
+            elif w.get("defender_country_id") == c["id"]:
+                role_icon = "🛡️ Defending"
+                opp_name = f"{w.get('attacker_flag')} {w.get('attacker_name')}"
+            elif c_alliance and w.get("attacker_alliance_id") == c_alliance:
+                role_icon = "🤝 Allied Assault"
+                opp_name = f"{w.get('attacker_name')} (Ally) vs {w.get('defender_flag')} {w.get('defender_name')}"
+            else:
+                role_icon = "🛡️ Allied Defense"
+                opp_name = f"{w.get('defender_name')} (Ally) vs {w.get('attacker_flag')} {w.get('attacker_name')}"
             scale_title = EARTH_WAR_SCALES.get(w.get("scale"), {}).get("name", w.get("scale"))
             progress = w.get("progress_pct", 0)
             bar = "🟩" * int(progress // 10) + "⬛" * (10 - int(progress // 10))
@@ -341,7 +355,8 @@ class MobilizeDivisionsModal(discord.ui.Modal, title="🪖 Mobilize Division Rei
             await interaction.followup.send("❌ Please enter valid integer numbers.", ephemeral=True)
             return
 
-        success, msg = await self.bot.db.reinforce_earth_war(interaction.user.id, wid, divs)
+        country_id = self.country.get("id") if self.country else None
+        success, msg = await self.bot.db.reinforce_earth_war(interaction.user.id, wid, divs, country_id=country_id)
         if success:
             await interaction.followup.send(f"✅ {msg}", ephemeral=True)
         else:

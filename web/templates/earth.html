@@ -4944,7 +4944,7 @@ function renderDossierTab(c, isLeader, isOwner, container) {
 
                 <div style="font-size: 0.82rem; font-weight: 700; color: #10b981;">🌱 Organic National Growth Active</div>
 
-                <div style="font-size: 0.72rem; color: #94a3b8;">Slow natural development: +0.01%/hr passive GDP growth ? Troops drilling ? Civic maturation</div>
+                <div style="font-size: 0.72rem; color: #94a3b8;">Slow natural development: +0.01%/hr passive GDP growth · Troops drilling · Civic maturation</div>
 
             </div>
 
@@ -5720,8 +5720,18 @@ function getAvailableWarEquipment(countryId, unit) {
     if (!country) return 0;
     const inventory = Math.max(0, Number(country[unit] || 0));
     const committed = warsData.reduce((total, war) => {
-        if (Number(war.attacker_country_id) === Number(countryId)) return total + Number(war["attacker_" + unit] || 0);
-        if (Number(war.defender_country_id) === Number(countryId)) return total + Number(war["defender_" + unit] || 0);
+        if (Number(war.attacker_country_id) === Number(countryId)) total += Number(war["attacker_" + unit] || 0);
+        if (Number(war.defender_country_id) === Number(countryId)) total += Number(war["defender_" + unit] || 0);
+        if (war.coalition_attackers) {
+            war.coalition_attackers.forEach(ca => {
+                if (Number(ca.country_id) === Number(countryId)) total += Number(ca[unit] || 0);
+            });
+        }
+        if (war.coalition_defenders) {
+            war.coalition_defenders.forEach(cd => {
+                if (Number(cd.country_id) === Number(countryId)) total += Number(cd[unit] || 0);
+            });
+        }
         return total;
     }, 0);
     return Math.max(0, inventory - committed);
@@ -5746,68 +5756,43 @@ async function submitWarEquipment(warId, unitType, available, countryId) {
 }
 
 function renderWarsTab(c, isLeader, isOwner, container) {
+    const wars = warsData.filter(w => {
+        const isDirect = Number(w.attacker_country_id) === Number(c.id) || Number(w.defender_country_id) === Number(c.id);
+        const isAllied = c.alliance_id && (
+            Number(w.attacker_alliance_id) === Number(c.alliance_id) ||
+            Number(w.defender_alliance_id) === Number(c.alliance_id)
+        );
+        return isDirect || isAllied;
+    });
 
-    const wars = warsData.filter(w => Number(w.attacker_country_id) === Number(c.id) || Number(w.defender_country_id) === Number(c.id));
-
-    // The selected country can be an annexed/conquered state. The signed-in
-    // ruler's permission is authoritative, not the first country in the cache.
     const isOwnCountry = Boolean(isOwner);
 
-
-
     let html = `
-
         <div class="info-tile" style="margin-bottom: 1rem; border-color: rgba(239, 68, 68, 0.4);">
-
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-
                 <span style="font-size: 0.82rem; font-weight: 800; color: #f8fafc;">⚔️ Military Conquest</span>
-
                 ${isOwnCountry ? `
-
                     <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-
                         <button class="btn-danger-sm" onclick="openDeclareWarModal()">
-
                             ⚔️ Declare War
-
                         </button>
-
                         <button class="btn-action-sm" onclick="openQuellModal()" style="border-color:#ef4444; color:#fca5a5;">
-
                             🪖 Quell Riots / Martial Law
-
                         </button>
-
                     </div>
-
                 ` : (userCountry && c.owner_id && String(c.owner_id) !== String(userCountry.owner_id) ? `
-
                     <button class="btn-danger-sm" onclick="openDeclareWarModal(${c.id})">
-
                         Declare Conquest!
-
                     </button>
-
                 ` : '')}
-
             </div>
-
             ${isOwnCountry ? `
-
                 <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.35rem; line-height: 1.4;">
-
-                    Wage multi-day campaigns against other ruled nations. Unclaimed countries can only be chosen by a player who has no country.
-
+                    Wage multi-day campaigns against other ruled nations. Alliance partners can deploy divisions and equipment to assist allies in both offensive assault and mutual defense.
                 </div>
-
             ` : ''}
-
         </div>
-
     `;
-
-
 
     if (isOwnCountry && c.can_command_defense) {
         const reserve = Math.max(0, Number(c.army_divisions || 0));
@@ -5831,91 +5816,96 @@ function renderWarsTab(c, isLeader, isOwner, container) {
     }
 
     if (wars.length === 0) {
-
-        html += `<div style="text-align:center; padding:2rem; color:#94a3b8; font-size:0.8rem;">No active multi-day conquests involving this nation. Sovereign borders are intact.</div>`;
-
+        html += `<div style="text-align:center; padding:2rem; color:#94a3b8; font-size:0.8rem;">No active multi-day conquests involving this nation or its alliance partners. Sovereign borders are intact.</div>`;
     } else {
-
         wars.forEach(w => {
+            const isAttacker = Number(w.attacker_country_id) === Number(c.id);
+            const isDefender = Number(w.defender_country_id) === Number(c.id);
+            const isAlliedAtk = !isAttacker && !isDefender && c.alliance_id && Number(w.attacker_alliance_id) === Number(c.alliance_id);
+            const isAlliedDfn = !isAttacker && !isDefender && c.alliance_id && Number(w.defender_alliance_id) === Number(c.alliance_id);
 
             html += `
-
                 <div class="war-pulse-banner" style="flex-direction: column; align-items: flex-start; margin-bottom: 0.75rem;">
+                    ${isAlliedAtk ? `
+                        <div style="font-size:0.72rem; font-weight:800; color:#f59e0b; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.4); border-radius:6px; padding:0.22rem 0.55rem; margin-bottom:0.4rem; display:inline-flex; align-items:center; gap:0.4rem;">
+                            ⚔️ Alliance Coalition Offensive · Supporting Ally <strong>${escapeHtml(w.attacker_name)}</strong>
+                        </div>
+                    ` : (isAlliedDfn ? `
+                        <div style="font-size:0.72rem; font-weight:800; color:#38bdf8; background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.4); border-radius:6px; padding:0.22rem 0.55rem; margin-bottom:0.4rem; display:inline-flex; align-items:center; gap:0.4rem;">
+                            🛡️ Alliance Mutual Defense · Defending Ally <strong>${escapeHtml(w.defender_name)}</strong>
+                        </div>
+                    ` : '')}
 
                     <div style="display:flex; justify-content:space-between; width:100%;">
-
-                        <strong>${w.attacker_flag} ${w.attacker_name} vs ${w.defender_flag} ${w.defender_name}</strong>
-
+                        <strong>${w.attacker_flag} ${escapeHtml(w.attacker_name)} vs ${w.defender_flag} ${escapeHtml(w.defender_name)}</strong>
                         <span style="font-size: 0.72rem; color: #ef4444; font-weight:800;">${w.hours_remaining}h left</span>
-
                     </div>
 
                     <div style="font-size: 0.72rem; margin-top: 0.25rem; color:#cbd5e1;">
-
                         Domain: <strong>${String(w.war_domain || 'land').toUpperCase()}</strong> · Scale: <strong>${w.scale.toUpperCase()}</strong> • Assault: ${w.attacker_power} (${w.attacker_divisions} Divs) vs Defense: ${w.defender_power} (${w.defender_divisions} Divs)<br>Armor / air / navy: 🔴 ${Number(w.attacker_tanks||0)} / ${Number(w.attacker_jets||0)} / ${Number(w.attacker_ships||0)} vs 🔵 ${Number(w.defender_tanks||0)} / ${Number(w.defender_jets||0)} / ${Number(w.defender_ships||0)}
-
                     </div>
+
+                    ${(w.coalition_attackers && w.coalition_attackers.length > 0) ? `
+                        <div style="font-size:0.68rem; color:#fca5a5; margin-top:0.25rem;">
+                            🤝 Allied Attack Support: ${w.coalition_attackers.map(a => `${a.country_flag} ${escapeHtml(a.country_name)} (+${a.divisions} Divs${a.tanks ? `, ${a.tanks} Tanks` : ''}${a.jets ? `, ${a.jets} Jets` : ''}${a.ships ? `, ${a.ships} Ships` : ''})`).join(' · ')}
+                        </div>
+                    ` : ''}
+                    ${(w.coalition_defenders && w.coalition_defenders.length > 0) ? `
+                        <div style="font-size:0.68rem; color:#93c5fd; margin-top:0.25rem;">
+                            🛡️ Allied Defense Support: ${w.coalition_defenders.map(d => `${d.country_flag} ${escapeHtml(d.country_name)} (+${d.divisions} Divs${d.tanks ? `, ${d.tanks} Tanks` : ''}${d.jets ? `, ${d.jets} Jets` : ''}${d.ships ? `, ${d.ships} Ships` : ''})`).join(' · ')}
+                        </div>
+                    ` : ''}
 
                     <div class="stat-progress-bar" style="margin-top: 0.4rem; width:100%;">
-
                         <div class="stat-progress-fill" style="width: ${w.progress_pct}%; background: #ef4444;"></div>
-
                     </div>
 
-                    <div style="display:flex; justify-content:space-between; width:100%; margin-top:0.4rem; align-items:center;">
-
+                    <div style="display:flex; justify-content:space-between; width:100%; margin-top:0.4rem; align-items:center; flex-wrap:wrap; gap:0.4rem;">
                         <span style="font-size: 0.7rem; color: #94a3b8;">Campaign Progress: ${w.progress_pct}%</span>
 
-                        ${c.can_command_defense && Number(c.army_divisions||0)>0 ? `<button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem;" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${Number(c.army_divisions||0)})">
+                        <div style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap;">
+                            ${(c.can_command_defense && (isAttacker || isDefender || isAlliedAtk || isAlliedDfn) && Number(c.army_divisions||0)>0) ? `
+                                <button class="btn-action-sm" style="padding: 0.25rem 0.55rem; font-size:0.7rem; ${(isAlliedAtk || isAlliedDfn) ? 'border-color:#38bdf8; color:#7dd3fc;' : ''}" onclick="openReinforceModal(${w.id}, '${escapeHtml(w.attacker_name)}', '${escapeHtml(w.defender_name)}', ${Number(c.army_divisions||0)}, ${c.id})">
+                                    ${isAlliedAtk ? '⚔️ Deploy Allied Assault Divs' : (isAlliedDfn ? '🛡️ Deploy Allied Defense Divs' : '🪖 Reinforce Front')}
+                                </button>
+                            ` : ''}
 
-                            🪖 Reinforce Front
+                            ${(c.can_command_defense && (isAttacker || isDefender || isAlliedAtk || isAlliedDfn)) ? (() => {
+                                const domain = w.war_domain || "land";
+                                const unit = domain === "air" ? "jets" : domain === "naval" ? "ships" : "tanks";
+                                const kind = unit === "jets" ? "jet" : unit === "ships" ? "ship" : "tank";
+                                const available = getAvailableWarEquipment(c.id, unit);
+                                const prefix = (isAlliedAtk || isAlliedDfn) ? "Deploy Allied " : "Deploy ";
+                                return available > 0 ? '<button class="btn-action-sm" onclick="openDeployEquipmentModal(' + w.id + ',' + JSON.stringify(kind) + ',' + available + ',' + c.id + ')">' + prefix + unit + ' · ' + available + ' avail</button>' : "";
+                            })() : ""}
 
-                        </button>` : ''}
-
-                        ${c.can_command_defense ? (() => {
-                            const domain = w.war_domain || "land";
-                            const unit = domain === "air" ? "jets" : domain === "naval" ? "ships" : "tanks";
-                            const kind = unit === "jets" ? "jet" : unit === "ships" ? "ship" : "tank";
-                            const available = getAvailableWarEquipment(c.id, unit);
-                            return available > 0 ? '<button class="btn-action-sm" onclick="openDeployEquipmentModal(' + w.id + ',' + JSON.stringify(kind) + ',' + available + ',' + c.id + ')">Deploy ' + unit + ' · ' + available + ' available</button>' : "";
-                        })() : ""}
-                        ${(c.can_command_defense && (c.tools || []).some(tool => tool.tool_key === "nuclear_launch_pad") &&
-                            (c.tools || []).some(tool => tool.tool_key === "tactical_nuke") &&
-                            ((Number(c.id) === Number(w.attacker_country_id) && !w.attacker_nuke_used) ||
-                             (Number(c.id) === Number(w.defender_country_id) && !w.defender_nuke_used))) ? `
-
-                            <button class="btn-action-sm" style="padding:0.25rem 0.55rem;font-size:0.7rem;border-color:#f97316;color:#fdba74;" onclick="launchNuclearStrike(${c.id}, ${w.id})">
-
-                                ☢️ Launch Nuclear Strike
-
-                            </button>
-
-                        ` : ''}
-
+                            ${(c.can_command_defense && (c.tools || []).some(tool => tool.tool_key === "nuclear_launch_pad") &&
+                                (c.tools || []).some(tool => tool.tool_key === "tactical_nuke") &&
+                                ((isAttacker && !w.attacker_nuke_used) ||
+                                 (isDefender && !w.defender_nuke_used) ||
+                                 (isAlliedAtk && !w.attacker_nuke_used) ||
+                                 (isAlliedDfn && !w.defender_nuke_used))) ? `
+                                <button class="btn-action-sm" style="padding:0.25rem 0.55rem;font-size:0.7rem;border-color:#f97316;color:#fdba74;" onclick="launchNuclearStrike(${c.id}, ${w.id})">
+                                    ☢️ ${(isAlliedAtk || isAlliedDfn) ? 'Allied ' : ''}Nuclear Strike
+                                </button>
+                            ` : ''}
+                        </div>
                     </div>
 
-                    ${c.can_command_defense ? `
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem; border-top:1px dashed rgba(255,255,255,0.1); padding-top:0.4rem;">
+                    ${(c.can_command_defense && (isAttacker || isDefender)) ? `
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem; border-top:1px dashed rgba(255,255,255,0.1); padding-top:0.4rem; width:100%;">
                             <span style="font-size:0.68rem; color:#94a3b8;">Sovereign War Termination:</span>
-                            <button class="btn-danger-sm" style="background:#dc2626; border-color:#ef4444; color:#fff; padding:0.25rem 0.55rem; font-size:0.7rem;" onclick="surrenderWar(${w.id}, '${Number(c.id) === Number(w.attacker_country_id) ? 'attacker' : 'defender'}')">
+                            <button class="btn-danger-sm" style="background:#dc2626; border-color:#ef4444; color:#fff; padding:0.25rem 0.55rem; font-size:0.7rem;" onclick="surrenderWar(${w.id}, '${isAttacker ? 'attacker' : 'defender'}')">
                                 🏳️ Concede & Surrender War
                             </button>
                         </div>
                     ` : ''}
-                    ${c.can_command_defense ? '<div style="font-size:.7rem;color:#94a3b8;margin-top:0.2rem;">Nuclear strikes need a Launch Pad and unused nuke; one strike per enemy per active war. Surrendering concludes the war early and pays indemnities to the victor.</div>' : ''}
-
                 </div>
-
             `;
-
         });
-
     }
 
-
-
     container.innerHTML = html;
-
 }
 
 
@@ -8043,112 +8033,59 @@ async function submitDeclareWar(targetId) {
 
 
 
-function openReinforceModal(warId, atkName, dfnName, available = 1) {
-
+function openReinforceModal(warId, atkName, dfnName, available = 1, countryId = null) {
     const container = document.getElementById("modal-container");
-
     container.innerHTML = `
-
         <div class="custom-modal-overlay" onclick="if(event.target === this) closeModal()">
-
             <div class="custom-modal-card">
-
                 <div class="custom-modal-header">
-
                     <div class="custom-modal-title">
-
                         <span>🪖</span> Mobilize Division Reinforcements
-
                     </div>
-
                     <button class="btn-action-sm" onclick="closeModal()">✕</button>
-
                 </div>
-
-
 
                 <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 1rem;">
-
                     Deploy frontline reinforcements to bolster combat rolls in <strong>${atkName} vs ${dfnName}</strong>.
-
                 </p>
 
-
-
                 <div class="custom-form-group">
-
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-
                         <label class="custom-form-label">Divisions to Deploy: <strong id="reinforce-div-label">5 Divisions</strong></label>
-
                         <span style="font-size:0.75rem; color:#38bdf8;" id="reinforce-cost-label">Deploys existing reserve units · no Medals</span>
-
                     </div>
-
                     <input type="range" min="1" max="${Math.max(1, Math.min(50, Number(available)||1))}" value="${Math.min(5, Math.max(1, Number(available)||1))}" class="form-range w-100" id="reinforce-slider" oninput="updateReinforceCost(this.value)">
-
                 </div>
-
-
 
                 <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 1.25rem;">
-
                     <button class="btn-action-sm" onclick="closeModal()">Cancel</button>
-
-                    <button class="hud-btn" onclick="submitReinforceWar(${warId})">Deploy to Front</button>
-
+                    <button class="hud-btn" onclick="submitReinforceWar(${warId}, ${countryId})">Deploy to Front</button>
                 </div>
-
             </div>
-
         </div>
-
     `;
-
 }
-
-
 
 function updateReinforceCost(divs) {
-
     document.getElementById("reinforce-div-label").innerText = divs + " Divisions";
-
     document.getElementById("reinforce-cost-label").innerText = "Uses reserve divisions · no fee";
-
 }
 
-
-
-async function submitReinforceWar(warId) {
-
+async function submitReinforceWar(warId, countryId = null) {
     const divs = parseInt(document.getElementById("reinforce-slider").value);
-
     closeModal();
-
     try {
-
         const res = await fetch("/api/earth/war/reinforce", {
-
             method: "POST",
-
             headers: { "Content-Type": "application/json" },
-
-            body: JSON.stringify({ war_id: warId, divisions: divs })
-
+            body: JSON.stringify({ war_id: warId, divisions: divs, country_id: countryId })
         });
-
         const data = await res.json();
-
         showToast(data.message);
-
         loadVirtualEarthData();
-
     } catch(e) {
-
         showToast("Reinforce failed.");
-
     }
-
 }
 
 

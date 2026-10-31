@@ -2413,6 +2413,38 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
 
 
 
+    @earth_group.command(name="reinforce", description="Deploy reserve divisions to aid your nation or an alliance partner in war.")
+    @app_commands.describe(
+        war_id="ID of the active war campaign to reinforce",
+        divisions="Number of reserve divisions to deploy (1 - 50)",
+        country="Optional: name or code of your sovereign country to deploy from"
+    )
+    async def earth_reinforce(self, interaction: discord.Interaction, war_id: int, divisions: int = 5, country: str | None = None):
+        user_id = interaction.user.id
+        target_country_id = None
+        if country:
+            c = await self.bot.db.get_earth_country_by_code_or_name(country.strip())
+            if not c:
+                await interaction.response.send_message(f"❌ Sovereign territory `{country}` not found.", ephemeral=True)
+                return
+            target_country_id = c["id"]
+        else:
+            c = await self.bot.db.get_user_earth_country(user_id)
+            if c:
+                target_country_id = c["id"]
+
+        success, msg = await self.bot.db.reinforce_earth_war(user_id, war_id, divisions, country_id=target_country_id)
+        if success:
+            embed = discord.Embed(
+                title="🪖 Frontline Reinforcements Deployed",
+                description=f"{msg}\n\nFrontline defense and assault rolls updated in real time.",
+                color=0x22C55E
+            )
+            embed.set_footer(text="Virtual Earth 3D Geopolitics • Coalition Warfare Active")
+            await interaction.response.send_message(embed=embed)
+        else:
+            await interaction.response.send_message(f"❌ {msg}", ephemeral=True)
+
     @earth_group.command(name="surrender", description="Concede and formally surrender in an active war.")
     @app_commands.describe(country="Opponent country code or name")
     async def earth_surrender(self, interaction: discord.Interaction, country: str):
