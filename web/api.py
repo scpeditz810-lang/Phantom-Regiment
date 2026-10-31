@@ -190,6 +190,30 @@ async def _bg_broadcast_alliance(country_id: int, alliance_name: str, alliance_i
         print(f"[DISCORD BROADCAST] Broadcasting alliance news {alliance_name} for {c.get('name')} to Discord...", flush=True)
         await earth_cog.broadcast_alliance_news(c["name"], c["flag"], partner_name, partner_flag, alliance_name)
 
+
+async def _bg_broadcast_joint_assault(acting_country_id: int, partner_country_id: int, target_country_id: int, unit_count: int, unit_type: str, bot=None, db=None):
+    if not bot:
+        try:
+            bot = current_app.config.get("DISCORD_BOT")
+        except Exception:
+            bot = None
+    if not db:
+        try:
+            db = current_app.config.get("DB")
+        except Exception:
+            db = None
+    if not bot or not db:
+        return
+    act_c = await db.get_earth_country(acting_country_id)
+    prt_c = await db.get_earth_country(partner_country_id)
+    tgt_c = await db.get_earth_country(target_country_id)
+    if not act_c or not prt_c or not tgt_c:
+        return
+    earth_cog = bot.get_cog("Virtual Earth") or bot.get_cog("EarthCog")
+    if earth_cog and hasattr(earth_cog, "broadcast_joint_coalition_assault"):
+        print(f"[DISCORD BROADCAST] Broadcasting joint assault {act_c.get('name')} + {prt_c.get('name')} vs {tgt_c.get('name')}...", flush=True)
+        await earth_cog.broadcast_joint_coalition_assault(act_c, prt_c, tgt_c, unit_count, unit_type)
+
 async def _bg_broadcast_war_declared(attacker_country_id: int, defender_country_id: int, scale: str, war_id: int, duration_hours: int = 24, domain: str = "land", username: str = None, bot=None, db=None):
     if not bot:
         try:
@@ -2377,7 +2401,12 @@ def api_earth_stats():
 
             elapsed = min(24.0, max(0.01, (now - last_c) / 3600.0))
 
-            hourly = sum(b.get("hourly_yield", 0) for b in user_c.get("buildings", []))
+            base_hourly = sum(b.get("hourly_yield", 0) for b in user_c.get("buildings", []))
+            pop = max(0, int(user_c.get("population", 100) or 100))
+            tax_rate = max(0, min(50, int(user_c.get("tax_rate", 10) or 10)))
+            workforce_ratio = min(1.50, max(0.05, pop / 150.0))
+            civ_yield = int(pop * 15 * (1.0 + (tax_rate / 50.0)))
+            hourly = int(round(base_hourly * workforce_ratio + civ_yield))
 
             user_stats["uncollected_yield"] = int(round(hourly * elapsed))
 
@@ -3150,6 +3179,17 @@ def api_earth_war_deploy_equipment():
         return jsonify({"success": False, "message": "Invalid equipment order."}), 400
     db = get_db()
     success, msg = run_async(db.deploy_earth_war_equipment(session["user"]["id"], war_id, unit_type, amount, country_id))
+    if success and ("Coalition" in msg or "joint assault" in msg):
+        try:
+            wars = run_async(db.get_active_earth_wars())
+            w_match = next((w for w in wars if w["id"] == war_id), None)
+            if w_match:
+                bot = current_app.config.get("DISCORD_BOT")
+                partner_id = w_match["attacker_country_id"] if country_id != w_match["attacker_country_id"] else w_match["defender_country_id"]
+                target_id = w_match["defender_country_id"] if country_id != w_match["defender_country_id"] else w_match["attacker_country_id"]
+                dispatch_discord_coro(_bg_broadcast_joint_assault(country_id, partner_id, target_id, amount, unit_type, bot=bot, db=db))
+        except Exception as e:
+            print(f"⚠️ Joint assault equipment dispatch notice: {e}", flush=True)
     return jsonify({"success": success, "message": msg}), 200 if success else 400
 
 

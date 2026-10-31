@@ -19,6 +19,8 @@ from utils.earth_anim import (
     create_country_fallen_media,
     create_country_allied_gif,
     create_country_allied_media,
+    create_joint_coalition_media,
+    generate_joint_coalition_speech,
     create_new_commander_gif,
     create_new_commander_media,
     create_martial_law_media,
@@ -589,6 +591,40 @@ class EarthCog(commands.Cog, name="Virtual Earth"):
             )
         except Exception as e:
             print(f"⚠️ Error broadcasting alliance news: {e}", flush=True)
+
+
+    async def broadcast_joint_coalition_assault(self, acting_c: dict, partner_c: dict, target_c: dict, unit_count: int, unit_type: str):
+        """Broadcast an allied coalition offensive strike to #earth-news with video & spoken narration."""
+        try:
+            act_name = acting_c.get("name", "Allied Nation")
+            act_flag = acting_c.get("flag", "⚔️")
+            prt_name = partner_c.get("name", "Coalition Partner")
+            prt_flag = partner_c.get("flag", "🤝")
+            tgt_name = target_c.get("name", "Hostile Target")
+            tgt_flag = target_c.get("flag", "🎯")
+
+            speech_buf = generate_joint_coalition_speech(act_name, prt_name, tgt_name, unit_count, unit_type)
+            gif_buf, mp4_buf = create_joint_coalition_media(act_name, prt_name, tgt_name, audio_bytes=speech_buf)
+
+            title = f"⚔️ JOINT COALITION OFFENSIVE // {act_name.upper()} + {prt_name.upper()} ➔ {tgt_name.upper()}"
+            desc = (
+                f"**Coalition Forces Attacking Together!**\n\n"
+                f"🤝 **Joint Coalition Front:** {act_flag} **{act_name}** & {prt_flag} **{prt_name}**\n"
+                f"🎯 **Target Bastion:** {tgt_flag} **{tgt_name}**\n\n"
+                f"🚀 **Combat Hardware Deployed:** `{unit_count}x {unit_type.title()}` dispatched to assault spearhead.\n"
+                f"⚡ *Allied divisions and hardware have integrated under joint operational command to break enemy defensive lines.*"
+            )
+            await self.broadcast_news(
+                title=title,
+                description=desc,
+                gif_bytes=gif_buf,
+                filename="joint_assault.gif",
+                color=0xEF4444,
+                speech_bytes=speech_buf,
+                video_bytes=mp4_buf
+            )
+        except Exception as e:
+            print(f"⚠️ Error broadcasting joint coalition assault: {e}", flush=True)
 
     async def broadcast_commander_news(self, country_name: str, country_flag: str, commander_name: str):
         """Broadcast supreme army commander / defense minister appointment to #earth-news with animated card & audio."""

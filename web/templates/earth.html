@@ -4055,32 +4055,30 @@ function renderWarTrajectories() {
 
 // A compact, recognizable container ship: hull, raised bow, stacked containers,
 // bridge, crane and a visible wake. The model points along local +Z.
-function createCargoShipMesh(hullColor = 0x155e75) {
+function createCargoShipMesh(hullColor = 0x0284c7) {
     const ship = new THREE.Group();
-    const hull = new THREE.MeshStandardMaterial({color:hullColor, metalness:0.5, roughness:0.42});
-    const deck = new THREE.MeshStandardMaterial({color:0x334155, metalness:0.25, roughness:0.7});
-    const containerColors = [0xef4444,0xf59e0b,0x2563eb,0x10b981];
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.15,0.48,3.25), hull);
-    body.position.y=0.25; ship.add(body);
-    const bow = new THREE.Mesh(new THREE.ConeGeometry(0.58,1.35,4), hull);
-    bow.rotation.x=Math.PI/2; bow.position.set(0,0.25,2.25); ship.add(bow);
-    const deckPlate = new THREE.Mesh(new THREE.BoxGeometry(1.25,0.1,3.55),deck);
-    deckPlate.position.y=0.52; ship.add(deckPlate);
-    [-0.78,-0.35,0.08,0.51].forEach((z,row)=>{
-        const box = new THREE.Mesh(new THREE.BoxGeometry(0.86,0.34,0.34),new THREE.MeshStandardMaterial({color:containerColors[row%containerColors.length],roughness:0.72}));
-        box.position.set(0,0.73,z); ship.add(box);
+    const hull = new THREE.MeshStandardMaterial({color:hullColor, metalness:0.6, roughness:0.35});
+    const deck = new THREE.MeshStandardMaterial({color:0x1e293b, metalness:0.3, roughness:0.6});
+    const containerColors = [0xf97316, 0x06b6d4, 0x10b981, 0xfacc15, 0xef4444];
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.52, 3.4), hull);
+    body.position.y = 0.26; ship.add(body);
+    const bow = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.4, 4), hull);
+    bow.rotation.x = Math.PI / 2; bow.position.set(0, 0.26, 2.35); ship.add(bow);
+    const deckPlate = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.1, 3.65), deck);
+    deckPlate.position.y = 0.54; ship.add(deckPlate);
+    [-0.85, -0.4, 0.05, 0.5].forEach((z, row) => {
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.38, 0.38), new THREE.MeshStandardMaterial({color: containerColors[row % containerColors.length], roughness: 0.5}));
+        box.position.set(0, 0.76, z); ship.add(box);
     });
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.72,0.62),hull);
-    bridge.position.set(0,0.92,-1.05); ship.add(bridge);
-    const windows = new THREE.Mesh(new THREE.BoxGeometry(0.64,0.18,0.04),new THREE.MeshBasicMaterial({color:0x7dd3fc}));
-    windows.position.set(0,1.08,-1.37); ship.add(windows);
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.9,6),deck);
-    mast.position.set(0,1.62,-1.02); ship.add(mast);
-    const boom = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,0.9),deck);
-    boom.rotation.y=Math.PI/2; boom.position.set(0.33,1.72,-0.72); ship.add(boom);
-    const wake = new THREE.Mesh(new THREE.PlaneGeometry(0.95,2.4),new THREE.MeshBasicMaterial({color:0xe0f2fe,transparent:true,opacity:0.38,side:THREE.DoubleSide}));
-    wake.rotation.x=-Math.PI/2; wake.position.set(0,0.03,-2.2); ship.add(wake);
-    ship.scale.setScalar(0.72);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.78, 0.68), new THREE.MeshStandardMaterial({color: 0xf8fafc, roughness: 0.3}));
+    bridge.position.set(0, 0.96, -1.1); ship.add(bridge);
+    const windows = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.05), new THREE.MeshBasicMaterial({color: 0x38bdf8}));
+    windows.position.set(0, 1.12, -1.42); ship.add(windows);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 6), deck);
+    mast.position.set(0, 1.7, -1.05); ship.add(mast);
+    const wake = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 2.6), new THREE.MeshBasicMaterial({color: 0xe0f2fe, transparent: true, opacity: 0.5, side: THREE.DoubleSide}));
+    wake.rotation.x = -Math.PI / 2; wake.position.set(0, 0.04, -2.4); ship.add(wake);
+    ship.scale.setScalar(1.55);
     return ship;
 }
 
@@ -4099,8 +4097,14 @@ function renderOceanTradeRoutes() {
         const routeLine = new THREE.Line(routeGeo, routeMat);
         routeLine.computeLineDistances(); tradeRoutesGroup.add(routeLine);
         [1,-1].forEach((direction, vesselIndex) => {
-            const vessel = createCargoShipMesh(vesselIndex ? 0x0f766e : 0x155e75);
-            vessel.userData = {curve, progress:((routeIndex * 0.37) + (vesselIndex ? 0.5 : 0)) % 1, direction, speed:0.000012 + (routeIndex % 3) * 0.000002};
+            const vessel = createCargoShipMesh(vesselIndex ? 0x0284c7 : 0x0d9488);
+            const initProgress = ((routeIndex * 0.37) + (vesselIndex ? 0.5 : 0)) % 1;
+            vessel.userData = {curve, progress: initProgress, direction, speed: 0.00016 + (routeIndex % 3) * 0.00003};
+            const pos = curve.getPointAt(initProgress);
+            const normal = pos.clone().normalize();
+            const surfacePos = normal.multiplyScalar(GLOBE_RADIUS * 1.018);
+            vessel.position.copy(surfacePos);
+            orientMilitaryUnitOnGlobe(vessel, surfacePos, curve.getPointAt((initProgress + direction * 0.002 + 1) % 1).sub(pos));
             tradeRoutesGroup.add(vessel); activeTradeVessels.push(vessel);
         });
     });
@@ -4323,6 +4327,8 @@ function animate(timestamp) {
     TWEEN.update();
 
     controls.update();
+
+    animateTradeVessels(timestamp);
 
 
 
@@ -5720,19 +5726,23 @@ function getAvailableWarEquipment(countryId, unit) {
     if (!country) return 0;
     const inventory = Math.max(0, Number(country[unit] || 0));
     const committed = warsData.reduce((total, war) => {
-        if (Number(war.attacker_country_id) === Number(countryId)) total += Number(war["attacker_" + unit] || 0);
-        if (Number(war.defender_country_id) === Number(countryId)) total += Number(war["defender_" + unit] || 0);
-        if (war.coalition_attackers) {
+        let warCommitted = 0;
+        let foundCoalition = false;
+        if (war.coalition_attackers && Array.isArray(war.coalition_attackers)) {
             war.coalition_attackers.forEach(ca => {
-                if (Number(ca.country_id) === Number(countryId)) total += Number(ca[unit] || 0);
+                if (Number(ca.country_id) === Number(countryId)) { warCommitted += Number(ca[unit] || 0); foundCoalition = true; }
             });
         }
-        if (war.coalition_defenders) {
+        if (war.coalition_defenders && Array.isArray(war.coalition_defenders)) {
             war.coalition_defenders.forEach(cd => {
-                if (Number(cd.country_id) === Number(countryId)) total += Number(cd[unit] || 0);
+                if (Number(cd.country_id) === Number(countryId)) { warCommitted += Number(cd[unit] || 0); foundCoalition = true; }
             });
         }
-        return total;
+        if (!foundCoalition) {
+            if (Number(war.attacker_country_id) === Number(countryId)) warCommitted += Number(war["attacker_" + unit] || 0);
+            if (Number(war.defender_country_id) === Number(countryId)) warCommitted += Number(war["defender_" + unit] || 0);
+        }
+        return total + warCommitted;
     }, 0);
     return Math.max(0, inventory - committed);
 }
@@ -5810,14 +5820,25 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                     Civilians: <b>${Number(c.population||0).toLocaleString()}</b> · Force ceiling: <b>${maxTotal}</b> divisions<br>Ready reserve: <b>${reserve}</b> · Active fronts: <b>${Number(c.deployed_divisions||0)}</b><br>
                     🪖 ${Number(c.army_divisions||0)} reserve · 🛡️ ${Number(c.tanks||0)} tanks · ✈️ ${Number(c.jets||0)} jets · 🚢 ${Number(c.ships||0)} ships
                 </div>
-                <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.6rem;">
-                    <input id="earth-hire-divisions" type="number" min="1" max="20" value="1" inputmode="numeric" style="width:5rem;min-height:2.4rem;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:8px;padding:.4rem;" aria-label="Divisions to recruit">
-                    <button class="btn-action-sm" onclick="hireEarthDivisions(${c.id})">Recruit Divisions</button>
-                    <button class="btn-action-sm" onclick="purchaseEarthHardware(${c.id},'tank')">Buy Tank · 200k</button>
-                    <button class="btn-action-sm" onclick="purchaseEarthHardware(${c.id},'jet')">Buy Jet · 350k</button>
-                    ${c.is_coastal ? '<button class="btn-action-sm" onclick="purchaseEarthHardware(' + c.id + ',&#39;ship&#39;)">Buy Ship · 300k</button>' : ''}
-                </div>
-                <div style="font-size:.68rem;color:#94a3b8;margin-top:.35rem;">Force capacity grows with population. Recruitment costs 10,000 Medals and 1 civilian per division.</div>
+                ${(() => {
+                    const pop = Number(c.population || 100);
+                    const gdp = Number(c.gdp || 1);
+                    const maxBatch = Math.max(5, Math.min(50, Math.floor(pop / 10) + Math.floor(gdp / 5)));
+                    const discount = Math.min(4000, gdp * 100);
+                    const costPerDiv = Math.max(6000, 10000 - discount);
+                    const forceCap = Math.max(20, Math.floor(pop / 2) + gdp * 3);
+                    return `
+                    <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.6rem;">
+                        <input id="earth-hire-divisions" type="number" min="1" max="${maxBatch}" value="5" inputmode="numeric" style="width:5rem;min-height:2.4rem;background:#0f172a;color:#fff;border:1px solid #38bdf8;border-radius:8px;padding:.4rem;font-weight:700;" aria-label="Divisions to recruit">
+                        <button class="btn-action-sm" style="border-color:#10b981;color:#6ee7b7;font-weight:800;" onclick="hireEarthDivisions(${c.id})">Recruit Divisions (Default 5)</button>
+                        <button class="btn-action-sm" onclick="purchaseEarthHardware(${c.id},'tank')">Buy Tank · 200k</button>
+                        <button class="btn-action-sm" onclick="purchaseEarthHardware(${c.id},'jet')">Buy Jet · 350k</button>
+                        ${c.is_coastal ? '<button class="btn-action-sm" onclick="purchaseEarthHardware(' + c.id + ',&#39;ship&#39;)">Buy Ship · 300k</button>' : ''}
+                    </div>
+                    <div style="font-size:.68rem;color:#94a3b8;margin-top:.35rem;line-height:1.4;">
+                        Batch Mobilization Limit: <strong>${maxBatch} Divs/order</strong> · Development Cost: <strong style="color:#facc15;">${costPerDiv.toLocaleString()} M/div</strong> (-${discount.toLocaleString()} M industrial discount) · Force Cap: <strong>${forceCap} Divs</strong>
+                    </div>`;
+                })()}
             </div>`;
     }
 
@@ -5895,12 +5916,21 @@ function renderWarsTab(c, isLeader, isOwner, container) {
                             ` : ''}
 
                             ${(actor && (canAidDefense || isMyAttacker || isMyAllyAtk)) ? (() => {
-                                const domain = w.war_domain || "land";
-                                const unit = domain === "air" ? "jets" : domain === "naval" ? "ships" : "tanks";
-                                const kind = unit === "jets" ? "jet" : unit === "ships" ? "ship" : "tank";
-                                const available = getAvailableWarEquipment(actor.id, unit);
                                 const prefix = canAidDefense ? "Defensive " : "Assault ";
-                                return available > 0 ? '<button class="btn-action-sm" onclick="openDeployEquipmentModal(' + w.id + ',' + JSON.stringify(kind) + ',' + available + ',' + actor.id + ')">Deploy ' + prefix + unit + ' · ' + available + ' avail</button>' : "";
+                                const availTanks = getAvailableWarEquipment(actor.id, "tanks");
+                                const availJets = getAvailableWarEquipment(actor.id, "jets");
+                                const availShips = getAvailableWarEquipment(actor.id, "ships");
+                                let btns = "";
+                                if (availTanks > 0) {
+                                    btns += `<button class="btn-action-sm" style="border-color:#10b981; color:#6ee7b7; padding:0.25rem 0.55rem; font-size:0.7rem;" onclick="openDeployEquipmentModal(${w.id}, 'tank', ${availTanks}, ${actor.id})">🛡️ ${prefix}Tanks (${availTanks} avail)</button>`;
+                                }
+                                if (availJets > 0) {
+                                    btns += `<button class="btn-action-sm" style="border-color:#38bdf8; color:#7dd3fc; padding:0.25rem 0.55rem; font-size:0.7rem;" onclick="openDeployEquipmentModal(${w.id}, 'jet', ${availJets}, ${actor.id})">✈️ ${prefix}Air Superiority (${availJets} avail)</button>`;
+                                }
+                                if (availShips > 0) {
+                                    btns += `<button class="btn-action-sm" style="border-color:#818cf8; color:#c7d2fe; padding:0.25rem 0.55rem; font-size:0.7rem;" onclick="openDeployEquipmentModal(${w.id}, 'ship', ${availShips}, ${actor.id})">🚢 ${prefix}Naval Fleet (${availShips} avail)</button>`;
+                                }
+                                return btns;
                             })() : ""}
 
                             ${(actor && (actor.tools || []).some(tool => tool.tool_key === "nuclear_launch_pad") &&

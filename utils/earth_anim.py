@@ -2779,3 +2779,138 @@ def generate_un_aid_speech(country_name: str, grant_amount: int = 50000) -> io.B
         f"Civil unrest has been successfully extinguished, and sovereign stability is restored."
     )
     return generate_voice_narration(speech)
+
+
+# === JOINT COALITION ASSAULT ANIMATION ENGINE ==============================
+
+def render_joint_assault_frame(
+    frame_idx: int,
+    total_frames: int,
+    ally_a_name: str,
+    ally_b_name: str,
+    target_name: str
+) -> Image.Image:
+    """Scene: Synchronized multi-national coalition offensive across battlefield frontlines."""
+    w, h = 640, 360
+    im = Image.new("RGB", (w, h), (10, 15, 25))
+    draw = ImageDraw.Draw(im)
+
+    font_hud = _get_font_bold(13)
+    font_tag = _get_font_bold(10)
+    font_main = _get_font_bold(15)
+
+    # 1. Sky & Horizon Gradient (Smoky War Dusk)
+    for y in range(210):
+        frac = y / 210.0
+        draw.line([(0, y), (w, y)], fill=(int(35 + frac * 45), int(20 + frac * 25), int(30 + frac * 20)))
+
+    # 2. Combat Artillery & Missile Arcs
+    for arc_i in range(3):
+        start_x = 40 + arc_i * 90
+        peak_y = 60 + arc_i * 25
+        t_prog = ((frame_idx * 0.05 + arc_i * 0.33) % 1.0)
+        curr_x = int(start_x + t_prog * 420)
+        curr_y = int(220 - 4 * (220 - peak_y) * t_prog * (1.0 - t_prog))
+        # Trail
+        draw.line([(start_x, 220), (curr_x, curr_y)], fill=(245, 158, 11), width=1)
+        # Warhead tracer
+        draw.ellipse([curr_x - 3, curr_y - 3, curr_x + 3, curr_y + 3], fill=(255, 255, 200))
+
+    # 3. Allied Fighter Jets Overhead Formation
+    for j_idx in range(2):
+        jx = int(-80 + frame_idx * 7.5 + j_idx * 55)
+        jy = 75 + j_idx * 30
+        if -40 <= jx <= w + 40:
+            # Swept-wing silhouette
+            draw.polygon([(jx, jy), (jx - 25, jy - 10), (jx - 32, jy - 8), (jx - 18, jy), (jx - 28, jy + 8), (jx - 22, jy + 10)], fill=(203, 213, 225))
+            # Afterburner exhaust
+            draw.line([(jx - 28, jy), (jx - 45, jy)], fill=(56, 189, 248), width=2)
+
+    # 4. Frontline Terrain (Cratered Ground)
+    for y in range(210, 360):
+        frac = (y - 210) / 150.0
+        draw.line([(0, y), (w, y)], fill=(int(25 - frac * 10), int(30 - frac * 12), int(28 - frac * 10)))
+
+    # 5. Allied Armor Columns (Advancing Tanks side-by-side)
+    tank_a_x = int(60 + frame_idx * 1.8)
+    tank_b_x = int(220 + frame_idx * 1.8)
+    for tx, tcol, tflag_label in [(tank_a_x, (22, 101, 52), ally_a_name[:12]), (tank_b_x, (30, 64, 175), ally_b_name[:12])]:
+        if -80 <= tx <= w + 80:
+            # Tracks
+            draw.rectangle([tx - 40, 280, tx + 40, 305], fill=(30, 41, 59), outline=(15, 23, 42), width=2)
+            for tread in range(tx - 35, tx + 36, 14):
+                draw.line([(tread, 280), (tread, 305)], fill=(15, 23, 42), width=2)
+            # Hull
+            draw.polygon([(tx - 35, 280), (tx + 35, 280), (tx + 45, 260), (tx - 38, 260)], fill=tcol, outline=(15, 23, 42), width=2)
+            # Turret & Cannon
+            draw.rectangle([tx - 18, 245, tx + 18, 260], fill=tcol, outline=(15, 23, 42), width=2)
+            cannon_end_x = tx + 48
+            draw.line([(tx + 18, 252), (cannon_end_x, 252)], fill=(15, 23, 42), width=5)
+            # Muzzle flash
+            if (frame_idx + (tx // 10)) % 6 < 2:
+                draw.ellipse([cannon_end_x - 2, 244, cannon_end_x + 16, 260], fill=(250, 204, 21))
+                draw.ellipse([cannon_end_x + 2, 247, cannon_end_x + 12, 257], fill=(255, 255, 255))
+            # Label
+            draw.text((tx, 290), tflag_label, fill=(255, 255, 255), font=font_tag, anchor="mm")
+
+    # 6. Target Bastion Explosions (Right side impact zone)
+    impact_x = 540
+    if frame_idx % 4 < 2:
+        draw.ellipse([impact_x - 35, 220, impact_x + 35, 290], fill=(239, 68, 68))
+        draw.ellipse([impact_x - 20, 230, impact_x + 20, 275], fill=(245, 158, 11))
+        draw.ellipse([impact_x - 8, 242, impact_x + 8, 260], fill=(255, 255, 240))
+    # Bastion bunker silhouette
+    draw.polygon([(impact_x - 30, 310), (impact_x + 50, 310), (impact_x + 35, 265), (impact_x - 15, 265)], fill=(51, 65, 85))
+    draw.text((impact_x + 10, 290), target_name[:12], fill=(248, 113, 113), font=font_tag, anchor="mm")
+
+    # 7. Top HUD Banner
+    draw.rectangle([0, 0, w, 40], fill=(15, 23, 42))
+    draw.line([(0, 40), (w, 40)], fill=(239, 68, 68), width=2)
+    draw.text((15, 12), "⚔️ JOINT COALITION OFFENSIVE", fill=(239, 68, 68), font=font_hud)
+    header_right = f"{ally_a_name.upper()} + {ally_b_name.upper()} ➔ {target_name.upper()}"
+    draw.text((w - 15, 13), header_right[:42], fill=(248, 250, 252), font=font_tag, anchor="rt")
+
+    return im
+
+def generate_joint_assault_frames(ally_a: str, ally_b: str, target: str, total_frames: int = 80):
+    c_a = clean_tactical_text(ally_a)
+    c_b = clean_tactical_text(ally_b)
+    c_t = clean_tactical_text(target)
+    for i in range(total_frames):
+        yield render_joint_assault_frame(i, total_frames, c_a, c_b, c_t)
+
+def create_joint_assault_gif(ally_a: str, ally_b: str, target: str) -> io.BytesIO:
+    frames = list(generate_joint_assault_frames(ally_a, ally_b, target, total_frames=40))
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    buf.seek(0)
+    return buf
+
+def create_joint_coalition_media(ally_a: str, ally_b: str, target: str, audio_bytes=None) -> tuple[io.BytesIO | None, io.BytesIO | None]:
+    target_frames = 80
+    if audio_bytes is not None:
+        dur = probe_audio_duration(audio_bytes)
+        if dur and dur > 0:
+            target_frames = max(80, int(math.ceil(dur * 10)))
+
+    mp4_buf = render_frames_to_mp4(
+        generate_joint_assault_frames(ally_a, ally_b, target, total_frames=target_frames),
+        audio_bytes=audio_bytes,
+        fps=10
+    )
+    gif_buf = None
+    if mp4_buf is None:
+        gif_buf = create_joint_assault_gif(ally_a, ally_b, target)
+    return gif_buf, mp4_buf
+
+def generate_joint_coalition_speech(ally_a: str, ally_b: str, target: str, unit_count: int = 1, unit_type: str = "divisions") -> io.BytesIO:
+    clean_a = clean_for_speech(ally_a)
+    clean_b = clean_for_speech(ally_b)
+    clean_t = clean_for_speech(target)
+    unit_label = "combat divisions" if "div" in unit_type.lower() else f"armored {unit_type}"
+    speech = (
+        f"Emergency sovereign alert. A joint coalition assault has been launched! "
+        f"The allied forces of {clean_a} and {clean_b} have joined frontline operations against {clean_t}. "
+        f"Mobilized {unit_label} are now advancing in synchronized offensive combat across the frontlines of Virtual Earth."
+    )
+    return generate_voice_narration(speech)
